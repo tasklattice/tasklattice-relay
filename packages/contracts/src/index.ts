@@ -28,6 +28,7 @@ export * from "./agent-platforms.js";
 export * from "./project-overview.js";
 export * from "./organization.js";
 export * from "./department-settings.js";
+export * from "./memory.js";
 
 export const instanceStatuses = [
   "PROVISIONING",

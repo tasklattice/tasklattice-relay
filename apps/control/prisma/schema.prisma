@@ -98,6 +98,62 @@ enum McpDiscoveryStatus {
   @@schema("tasklattice")
 }
 
+enum MemoryStatus {
+  provisioning
+  ready
+  degraded
+  unbound
+  deleting
+  deletion_failed
+  deleted
+
+  @@map("memory_status")
+  @@schema("tasklattice")
+}
+
+enum MemoryBindingStatus {
+  pending
+  active
+  detached
+
+  @@map("memory_binding_status")
+  @@schema("tasklattice")
+}
+
+enum MemoryRuntimeType {
+  openclaw
+  hermes
+
+  @@map("memory_runtime_type")
+  @@schema("tasklattice")
+}
+
+enum MemoryBindingKind {
+  primary
+
+  @@map("memory_binding_kind")
+  @@schema("tasklattice")
+}
+
+enum MemoryOutboxStatus {
+  pending
+  processing
+  retry
+  delivered
+  dead_letter
+
+  @@map("memory_outbox_status")
+  @@schema("tasklattice")
+}
+
+enum MemoryExperienceStatus {
+  active
+  invalidated
+
+  @@map("memory_experience_status")
+  @@schema("tasklattice")
+}
+
 model User {
   id                            String     @id
   username                      String?    @unique
@@ -463,6 +519,7 @@ model Project {
   deletionTask                 ProjectDeletionTask?
   runtimeTarget                ProjectRuntimeTarget?
   externalRoleBindings         ExternalRoleBinding[]
+  memories                     MemoryRecord[]
 
   @@unique([departmentId, name], map: "projects_department_name_key")
   @@index([departmentId, createdAt])
@@ -681,12 +738,144 @@ model AgentRecord {
   ownerMembership      ProjectMember                            @relation("AgentRecordOwnerMembership", fields: [projectId, ownerUserId], references: [projectId, userId], onDelete: Restrict, map: "agents_owner_membership_fkey")
   catalogAgent         AgentCatalogRecord?                      @relation("CatalogAgentRuntimeInstances", fields: [projectId, catalogAgentId], references: [projectId, id], onDelete: Cascade, map: "agents_catalog_agent_fkey")
   accessPolicyBindings AgentInstanceAccessPolicyBindingRecord[]
+  memoryBindings       MemoryBinding[]
 
   @@id([projectId, id])
   @@index([projectId, ownerUserId], map: "agents_project_owner_idx")
   @@index([projectId, kind, catalogAgentId], map: "agents_project_kind_catalog_idx")
   @@index([projectId, deletedAt, createdAt(sort: Desc)], map: "agents_project_active_created_idx")
   @@map("agents")
+  @@schema("tasklattice")
+}
+
+model MemoryRecord {
+  projectId        String       @map("project_id")
+  id               String       @default(uuid()) @db.Uuid
+  displayName      String       @map("display_name")
+  provider         String       @default("hindsight")
+  providerRef      String?      @map("provider_ref")
+  status           MemoryStatus @default(provisioning)
+  retentionPolicy  Json         @default("{}") @map("retention_policy")
+  idempotencyKey   String?      @map("idempotency_key")
+  lastActivityAt   DateTime?    @map("last_activity_at") @db.Timestamptz(6)
+  lastErrorSummary String?      @map("last_error_summary")
+  createdAt        DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt        DateTime?    @map("deleted_at") @db.Timestamptz(6)
+
+  project               Project                      @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  bindings              MemoryBinding[]
+  outboxEvents          MemoryOutboxRecord[]
+  curationEvents        MemoryCurationEvent[]
+  experienceProjections MemoryExperienceProjection[]
+
+  @@id([projectId, id])
+  @@unique([projectId, idempotencyKey], map: "memories_project_idempotency_key")
+  @@unique([projectId, provider, providerRef], map: "memories_project_provider_ref_key")
+  @@index([projectId, status, updatedAt(sort: Desc)], map: "memories_project_status_updated_idx")
+  @@index([projectId, lastActivityAt(sort: Desc)], map: "memories_project_activity_idx")
+  @@map("memories")
+  @@schema("tasklattice")
+}
+
+model MemoryBinding {
+  projectId      String              @map("project_id")
+  id             String              @default(uuid()) @db.Uuid
+  memoryId       String              @map("memory_id") @db.Uuid
+  instanceId     String              @map("instance_id")
+  runtimeType    MemoryRuntimeType   @map("runtime_type")
+  bindingKind    MemoryBindingKind   @default(primary) @map("binding_kind")
+  status         MemoryBindingStatus @default(pending)
+  idempotencyKey String              @map("idempotency_key")
+  attachedAt     DateTime?           @map("attached_at") @db.Timestamptz(6)
+  detachedAt     DateTime?           @map("detached_at") @db.Timestamptz(6)
+  createdAt      DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  memory   MemoryRecord @relation(fields: [projectId, memoryId], references: [projectId, id], onDelete: Cascade, onUpdate: Cascade)
+  instance AgentRecord  @relation(fields: [projectId, instanceId], references: [projectId, id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@id([projectId, id])
+  @@unique([projectId, idempotencyKey], map: "memory_bindings_project_idempotency_key")
+  @@index([projectId, memoryId, createdAt(sort: Desc)], map: "memory_bindings_memory_history_idx")
+  @@index([projectId, instanceId, createdAt(sort: Desc)], map: "memory_bindings_instance_history_idx")
+  @@map("memory_bindings")
+  @@schema("tasklattice")
+}
+
+model MemoryOutboxRecord {
+  projectId        String             @map("project_id")
+  id               String             @default(uuid()) @db.Uuid
+  memoryId         String             @map("memory_id") @db.Uuid
+  conversationId   String             @map("conversation_id")
+  eventType        String             @map("event_type")
+  encryptedPayload String?            @map("encrypted_payload")
+  payloadRef       String?            @map("payload_ref")
+  status           MemoryOutboxStatus @default(pending)
+  retryCount       Int                @default(0) @map("retry_count")
+  nextRetryAt      DateTime           @default(now()) @map("next_retry_at") @db.Timestamptz(6)
+  lastErrorSummary String?            @map("last_error_summary")
+  idempotencyKey   String             @map("idempotency_key")
+  deliveredAt      DateTime?          @map("delivered_at") @db.Timestamptz(6)
+  createdAt        DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  memory MemoryRecord @relation(fields: [projectId, memoryId], references: [projectId, id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@id([projectId, id])
+  @@unique([projectId, idempotencyKey], map: "memory_outbox_project_idempotency_key")
+  @@index([status, nextRetryAt, createdAt], map: "memory_outbox_due_idx")
+  @@index([projectId, memoryId, createdAt(sort: Desc)], map: "memory_outbox_memory_idx")
+  @@map("memory_outbox")
+  @@schema("tasklattice")
+}
+
+model MemoryCurationEvent {
+  projectId      String   @map("project_id")
+  id             String   @default(uuid()) @db.Uuid
+  memoryId       String   @map("memory_id") @db.Uuid
+  providerItemId String   @map("provider_item_id")
+  action         String
+  beforeSnapshot Json?    @map("before_snapshot")
+  afterSnapshot  Json?    @map("after_snapshot")
+  actorId        String   @map("actor_id")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  memory MemoryRecord @relation(fields: [projectId, memoryId], references: [projectId, id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@id([projectId, id])
+  @@index([projectId, memoryId, createdAt(sort: Desc)], map: "memory_curation_events_memory_idx")
+  @@index([projectId, memoryId, providerItemId], map: "memory_curation_events_item_idx")
+  @@map("memory_curation_events")
+  @@schema("tasklattice")
+}
+
+model MemoryExperienceProjection {
+  projectId          String                 @map("project_id")
+  id                 String                 @default(uuid()) @db.Uuid
+  memoryId           String                 @map("memory_id") @db.Uuid
+  title              String
+  summary            String
+  situation          String
+  goal               String
+  actions            Json                   @default("[]")
+  outcome            String
+  lessonLearned      String                 @map("lesson_learned")
+  status             MemoryExperienceStatus @default(active)
+  occurredStart      DateTime?              @map("occurred_start") @db.Timestamptz(6)
+  occurredEnd        DateTime?              @map("occurred_end") @db.Timestamptz(6)
+  hindsightMemoryIds String[]               @default([]) @map("hindsight_memory_ids")
+  sourceDocumentIds  String[]               @default([]) @map("source_document_ids")
+  version            Int                    @default(1)
+  createdAt          DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime               @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  memory MemoryRecord @relation(fields: [projectId, memoryId], references: [projectId, id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@id([projectId, id])
+  @@index([projectId, memoryId, occurredStart(sort: Desc)], map: "memory_experience_projection_time_idx")
+  @@index([projectId, memoryId, status, updatedAt(sort: Desc)], map: "memory_experience_projection_status_idx")
+  @@map("memory_experience_projections")
   @@schema("tasklattice")
 }
 

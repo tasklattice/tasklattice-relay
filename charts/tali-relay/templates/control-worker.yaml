@@ -20,6 +20,9 @@ spec:
         {{- include "tali.selectorLabels" (dict "root" . "component" $component) | nindent 8 }}
       annotations:
         checksum/control-config: {{ include "tali.controlConfigChecksum" . }}
+        {{- if .Values.hindsight.enabled }}
+        checksum/hindsight-secret: {{ include "tali.hindsightSecretChecksum" . }}
+        {{- end }}
         {{- with .Values.global.rolloutRevision }}
         tali.ai/rollout-revision: {{ . | quote }}
         {{- end }}
@@ -80,6 +83,15 @@ spec:
               value: /etc/tali/control.toml
             - name: CONTROL_WORKER_HEALTH_PORT
               value: "9090"
+            {{- if .Values.hindsight.enabled }}
+            - name: TALI_HINDSIGHT_URL
+              value: {{ include "tali.hindsightUrl" . | quote }}
+            - name: TALI_HINDSIGHT_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tali.secretName" . }}
+                  key: hindsight-api-key
+            {{- end }}
             {{- if .Values.docling.enabled }}
             - name: DOCLING_BASE_URL
               value: {{ printf "http://%s:%v" (include "tali.componentName" (dict "root" . "component" "docling")) .Values.docling.service.port | quote }}

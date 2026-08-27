@@ -57,6 +57,7 @@ import vectorDatabaseDocumentsMigration from "../../prisma/migrations/2026082712
 import vectorDocumentDirectoriesMigration from "../../prisma/migrations/20260827130000_vector_document_directories/migration.sql?raw";
 import vectorDatabaseFoldersMigration from "../../prisma/migrations/20260827140000_vector_database_folders/migration.sql?raw";
 import vectorDocumentMetadataMigration from "../../prisma/migrations/20260827200000_vector_document_metadata/migration.sql?raw";
+import projectDurableMemoryMigration from "../../prisma/migrations/20260828000000_project_durable_memory/migration.sql?raw";
 import { developmentResourceCatalog } from "../catalog/development-resource-catalog";
 import { PrismaClient } from "../generated/prisma/client";
 
@@ -573,6 +574,9 @@ export function createTestPrisma(): PrismaClient {
       .replaceAll(" DEFAULT gen_random_uuid()", ""),
   );
   memory.public.none(vectorDocumentMetadataMigration);
+  memory.public.none(
+    projectDurableMemoryMigration.replaceAll(" DEFAULT gen_random_uuid()", ""),
+  );
   const pg = memory.adapters.createPg();
   const query = pg.Client.prototype.query;
   pg.Client.prototype.query = function (

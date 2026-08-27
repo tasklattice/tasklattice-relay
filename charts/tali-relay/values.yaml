@@ -89,6 +89,11 @@ images:
     tag: v1.29.0
     pullPolicy: IfNotPresent
     useGlobalRegistry: false
+  hindsight:
+    repository: ghcr.io/vectorize-io/hindsight-api
+    tag: 0.9.2-slim@sha256:7635a15739361dbdf221ba796ad25a813f876144fe113022eea8e26cb6ee75e7
+    pullPolicy: IfNotPresent
+    useGlobalRegistry: false
 
 control:
   replicaCount: 1
@@ -151,6 +156,57 @@ docling:
     limits:
       cpu: "4"
       memory: 8Gi
+
+# Project Durable Memory provider. Hindsight is internal-only and uses the
+# existing PostgreSQL/pgvector and LiteLLM Services through dedicated scopes.
+hindsight:
+  enabled: true
+  replicaCount: 1
+  service:
+    port: 8888
+  database:
+    name: hindsight
+    user: hindsight
+    schema: hindsight
+  models:
+    # These are stable aliases expected on the existing LiteLLM gateway.
+    llm: hindsight-chat
+    embedding: hindsight-embedding
+    embeddingDimensions: 1536
+    reranker: hindsight-reranker
+  worker:
+    enabled: true
+    replicaCount: 1
+    service:
+      port: 8889
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: "1"
+        memory: 2Gi
+  migration:
+    activeDeadlineSeconds: 900
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+  networkPolicy:
+    enabled: true
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 2Gi
 
 # Initial Platform Setting imported only when the database has no runtime
 # configuration yet. Change it later under Platform Setting -> Infrastructure.
@@ -288,6 +344,8 @@ secrets:
   litellmUiUsername: admin
   litellmUiPassword: password
   litellmSaltKey: tali-local-litellm-salt-v1
+  hindsightDatabasePassword: tali-local-hindsight-db
+  hindsightApiKey: tali-local-hindsight-api-key
 
 auth:
   local:

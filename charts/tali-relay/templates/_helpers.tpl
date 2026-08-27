@@ -90,6 +90,101 @@ app.kubernetes.io/component: {{ .component }}
 {{- end -}}
 {{- end }}
 
+{{- define "tali.hindsightServiceName" -}}
+{{- include "tali.componentName" (dict "root" . "component" "hindsight-api") -}}
+{{- end }}
+
+{{- define "tali.hindsightDatabaseUrl" -}}
+{{- printf "postgresql://%s:%s@%s:5432/%s" .Values.hindsight.database.user (urlquery .Values.secrets.hindsightDatabasePassword) (include "tali.componentName" (dict "root" . "component" "postgresql")) .Values.hindsight.database.name -}}
+{{- end }}
+
+{{- define "tali.hindsightUrl" -}}
+{{- printf "http://%s.%s.svc.cluster.local:%v" (include "tali.hindsightServiceName" .) .Release.Namespace .Values.hindsight.service.port -}}
+{{- end }}
+
+{{- define "tali.hindsightSecretChecksum" -}}
+{{- if .Values.secrets.existingSecret -}}
+{{- printf "existing:%s" .Values.secrets.existingSecret | sha256sum -}}
+{{- else -}}
+{{- printf "%s:%s:%s:%s" .Values.secrets.hindsightDatabasePassword .Values.secrets.hindsightApiKey .Values.secrets.litellmMasterKey (include "tali.hindsightDatabaseUrl" .) | sha256sum -}}
+{{- end -}}
+{{- end }}
+
+{{- define "tali.hindsightCommonEnv" -}}
+- name: HOME
+  value: /tmp
+- name: PYTHONDONTWRITEBYTECODE
+  value: "1"
+- name: HINDSIGHT_API_DATABASE_URL
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "tali.secretName" . }}
+      key: hindsight-database-url
+- name: HINDSIGHT_API_MIGRATION_DATABASE_URL
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "tali.secretName" . }}
+      key: hindsight-database-url
+- name: HINDSIGHT_API_DATABASE_SCHEMA
+  value: {{ .Values.hindsight.database.schema | quote }}
+- name: HINDSIGHT_API_RUN_MIGRATIONS_ON_STARTUP
+  value: "false"
+- name: HINDSIGHT_API_VECTOR_EXTENSION
+  value: pgvector
+- name: HINDSIGHT_API_TEXT_SEARCH_EXTENSION
+  value: native
+- name: HINDSIGHT_API_TENANT_EXTENSION
+  value: hindsight_api.extensions.builtin.tenant:ApiKeyTenantExtension
+- name: HINDSIGHT_API_TENANT_API_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "tali.secretName" . }}
+      key: hindsight-api-key
+- name: HINDSIGHT_API_MCP_ENABLED
+  value: "false"
+- name: HINDSIGHT_API_LLM_TRACE_ENABLED
+  value: "false"
+- name: HINDSIGHT_API_LLM_DEBUG_DUMP_4XX
+  value: "false"
+- name: HINDSIGHT_API_LOG_FORMAT
+  value: json
+- name: HINDSIGHT_API_LOG_JSON_FIELDS
+  value: severity,message,timestamp,logger
+- name: HINDSIGHT_API_LLM_PROVIDER
+  value: openai
+- name: HINDSIGHT_API_LLM_BASE_URL
+  value: {{ printf "http://%s:4000/v1" (include "tali.componentName" (dict "root" . "component" "litellm")) | quote }}
+- name: HINDSIGHT_API_LLM_MODEL
+  value: {{ .Values.hindsight.models.llm | quote }}
+- name: HINDSIGHT_API_LLM_API_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "tali.secretName" . }}
+      key: litellm-master-key
+- name: HINDSIGHT_API_EMBEDDINGS_PROVIDER
+  value: litellm
+- name: HINDSIGHT_API_EMBEDDINGS_LITELLM_API_BASE
+  value: {{ printf "http://%s:4000" (include "tali.componentName" (dict "root" . "component" "litellm")) | quote }}
+- name: HINDSIGHT_API_EMBEDDINGS_LITELLM_MODEL
+  value: {{ .Values.hindsight.models.embedding | quote }}
+- name: HINDSIGHT_API_EMBEDDINGS_LITELLM_API_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "tali.secretName" . }}
+      key: litellm-master-key
+- name: HINDSIGHT_API_RERANKER_PROVIDER
+  value: litellm
+- name: HINDSIGHT_API_RERANKER_LITELLM_API_BASE
+  value: {{ printf "http://%s:4000" (include "tali.componentName" (dict "root" . "component" "litellm")) | quote }}
+- name: HINDSIGHT_API_RERANKER_LITELLM_MODEL
+  value: {{ .Values.hindsight.models.reranker | quote }}
+- name: HINDSIGHT_API_RERANKER_LITELLM_API_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "tali.secretName" . }}
+      key: litellm-master-key
+{{- end }}
+
 {{- define "tali.controlConfig" -}}
 {{- if not .Values.control.publicUrl -}}
 {{- fail "control.publicUrl is required for Better Auth" -}}
