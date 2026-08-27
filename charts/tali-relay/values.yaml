@@ -175,7 +175,9 @@ hindsight:
     embeddingDimensions: 1536
     reranker: hindsight-reranker
   worker:
-    enabled: true
+    # Keep extraction inside the API process until load testing justifies a
+    # separately scaled worker. The optional StatefulSet uses the same queue.
+    enabled: false
     replicaCount: 1
     service:
       port: 8889

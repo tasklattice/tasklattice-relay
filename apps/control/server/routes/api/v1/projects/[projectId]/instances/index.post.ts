@@ -14,7 +14,12 @@ export default defineHandler(async (event) => {
   }
   try {
     const input = createInstanceSchema.parse(await event.req.json());
-    const agent = await (await getInstanceService(event.req)).create(input, actorId);
+    const idempotencyKey = event.req.headers.get("idempotency-key")?.trim();
+    const agent = await (await getInstanceService(event.req)).create(
+      input,
+      actorId,
+      idempotencyKey || undefined,
+    );
     return jsonResponse(instanceConfigurationView(agent), {
       status: 202,
       headers: { location: `/api/v1/projects/${encodeURIComponent(event.context.params?.projectId ?? "")}/instances/${agent.id}` },

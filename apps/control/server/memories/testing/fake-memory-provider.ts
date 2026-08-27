@@ -85,6 +85,18 @@ export class FakeMemoryProvider implements MemoryProvider {
     this.unavailable = unavailable;
   }
 
+  bankCount(): number {
+    return this.banks.size;
+  }
+
+  hasBank(providerRef: string): boolean {
+    return this.banks.has(providerRef);
+  }
+
+  conversationCount(providerRef: string): number {
+    return this.bank(providerRef).conversations.length;
+  }
+
   seedItem(providerRef: string, item: MemoryItem): void {
     this.bank(providerRef).items.push(clone(item));
   }

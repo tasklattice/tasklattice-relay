@@ -38,6 +38,7 @@
     "helm:validate:dev-defaults": "node scripts/validate-development-defaults.mjs",
     "helm:validate:openshift": "node scripts/validate-helm-openshift.mjs",
     "helm:validate:airgap": "node scripts/validate-helm-airgap.mjs",
+    "test:hindsight:integration": "node scripts/test-hindsight-integration.mjs",
     "k8s:deploy": "npm run helm:deploy:dev",
     "k8s:deploy:openshell": "npm run helm:deploy:dev",
     "k8s:delete": "npm run helm:delete:dev",

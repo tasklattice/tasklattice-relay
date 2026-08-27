@@ -1,7 +1,10 @@
 {{- if .Values.hindsight.enabled }}
 {{- $component := "hindsight-migration" -}}
-{{- $imageRevision := printf "%s:%s" .Values.images.hindsight.repository .Values.images.hindsight.tag | sha256sum | trunc 10 -}}
-{{- $name := printf "%s-%s" (include "tali.componentName" (dict "root" . "component" $component)) $imageRevision | trunc 63 | trimSuffix "-" -}}
+{{- $databaseName := include "tali.hindsightDatabaseName" . -}}
+{{- $databaseUser := include "tali.hindsightDatabaseUser" . -}}
+{{- $databaseSchema := include "tali.hindsightDatabaseSchema" . -}}
+{{- $migrationRevision := printf "%s:%s:%s:%s:%s:%v" .Values.images.hindsight.repository .Values.images.hindsight.tag $databaseName $databaseUser $databaseSchema .Values.hindsight.models.embeddingDimensions | sha256sum | trunc 10 -}}
+{{- $name := printf "%s-%s" (include "tali.componentName" (dict "root" . "component" $component)) $migrationRevision | trunc 63 | trimSuffix "-" -}}
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -47,19 +50,19 @@ spec:
                 sleep 2
               done
               psql --dbname=postgres --set=ON_ERROR_STOP=1 --set=memory_password="$HINDSIGHT_DATABASE_PASSWORD" <<'SQL'
-              SELECT format('CREATE ROLE hindsight LOGIN PASSWORD %L', :'memory_password')
-                WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'hindsight') \gexec
-              ALTER ROLE hindsight PASSWORD :'memory_password';
-              SELECT 'CREATE DATABASE hindsight OWNER hindsight'
-                WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = 'hindsight') \gexec
+              SELECT format('CREATE ROLE %I LOGIN PASSWORD %L', '{{ $databaseUser }}', :'memory_password')
+                WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{{ $databaseUser }}') \gexec
+              SELECT format('ALTER ROLE %I PASSWORD %L', '{{ $databaseUser }}', :'memory_password') \gexec
+              SELECT format('CREATE DATABASE %I OWNER %I', '{{ $databaseName }}', '{{ $databaseUser }}')
+                WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = '{{ $databaseName }}') \gexec
               SQL
-              psql --dbname=hindsight --set=ON_ERROR_STOP=1 <<'SQL'
-              ALTER DATABASE hindsight OWNER TO hindsight;
+              psql --dbname={{ $databaseName }} --set=ON_ERROR_STOP=1 <<'SQL'
+              ALTER DATABASE {{ $databaseName }} OWNER TO {{ $databaseUser }};
               CREATE EXTENSION IF NOT EXISTS vector WITH SCHEMA public;
               CREATE EXTENSION IF NOT EXISTS pg_trgm WITH SCHEMA public;
-              CREATE SCHEMA IF NOT EXISTS hindsight AUTHORIZATION hindsight;
-              ALTER SCHEMA hindsight OWNER TO hindsight;
-              GRANT USAGE ON SCHEMA public TO hindsight;
+              CREATE SCHEMA IF NOT EXISTS {{ $databaseSchema }} AUTHORIZATION {{ $databaseUser }};
+              ALTER SCHEMA {{ $databaseSchema }} OWNER TO {{ $databaseUser }};
+              GRANT USAGE ON SCHEMA public TO {{ $databaseUser }};
               SQL
           env:
             - name: HOME

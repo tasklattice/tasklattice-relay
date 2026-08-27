@@ -21,6 +21,11 @@ import { ProjectRuntimeTargetService } from "../projects/project-runtime-target-
 import { ResourceCatalogService } from "../catalog/resource-catalog-service";
 import { ProjectStore } from "../projects/project-store";
 import { InstanceService } from "../instances/instance-service";
+import { MemoryRepository } from "../memories/memory-repository";
+import {
+  MemoryService,
+  type ProcessOutboxResult,
+} from "../memories/memory-service";
 
 const projectIdPayloadSchema = z.object({ projectId: z.string().trim().min(1) });
 const runtimeReconcilePayloadSchema = projectIdPayloadSchema.extend({
@@ -58,6 +63,7 @@ export interface ControlWorkerTaskDependencies {
   logger?: StructuredLogger;
   runtimeTargets?: ProjectRuntimeTargetService;
   instances?: (projectId: string) => InstanceLifecycleService;
+  memories?: (projectId: string) => Pick<MemoryService, "processDueOutbox">;
 }
 
 export class ControlWorkerTasks {
@@ -216,6 +222,7 @@ export class ControlWorkerTasks {
     const startedAt = Date.now();
     const deletionJobsAttached = await this.attachHistoricalDeletionJobs();
     const instanceJobsAttached = await this.attachInstanceLifecycleJobs();
+    const memoryOutbox = await this.drainMemoryOutbox();
     const projectIds = await this.runtimeTargets.reconciliationCandidateIds();
     let runtimeJobsEnqueued = 0;
     for (const projectId of projectIds) {
@@ -245,6 +252,7 @@ export class ControlWorkerTasks {
       queueStatus,
       reason,
       runtimeJobsEnqueued,
+      memoryOutbox,
     });
   }
 
@@ -382,6 +390,43 @@ export class ControlWorkerTasks {
       if (id) attached += 1;
     }
     return attached;
+  }
+
+  async drainMemoryOutbox(
+    referenceTime = new Date(),
+  ): Promise<ProcessOutboxResult> {
+    const total: ProcessOutboxResult = {
+      claimed: 0,
+      deadLettered: 0,
+      delivered: 0,
+      retried: 0,
+    };
+    const staleBefore = new Date(referenceTime.getTime() - 5 * 60_000);
+    const projects = await this.db.memoryOutboxRecord.findMany({
+      where: {
+        OR: [
+          {
+            status: { in: ["pending", "retry"] },
+            nextRetryAt: { lte: referenceTime },
+          },
+          { status: "processing", updatedAt: { lte: staleBefore } },
+        ],
+      },
+      distinct: ["projectId"],
+      orderBy: { projectId: "asc" },
+      select: { projectId: true },
+      take: 100,
+    });
+    for (const { projectId } of projects) {
+      const service = this.dependencies.memories?.(projectId)
+        ?? new MemoryService(new MemoryRepository(projectId, this.db));
+      const processed = await service.processDueOutbox(25, referenceTime);
+      total.claimed += processed.claimed;
+      total.deadLettered += processed.deadLettered;
+      total.delivered += processed.delivered;
+      total.retried += processed.retried;
+    }
+    return total;
   }
 
   register(): Promise<string[]> {

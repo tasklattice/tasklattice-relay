@@ -2,7 +2,8 @@
 
 This chart installs the complete TaskLattice Relay stack: control/UI, Control
 Worker, Docling Serve, OpenShell runner, LiteLLM, PostgreSQL with pgvector,
-OpenShell, and the Agent Sandbox controller.
+the internal Hindsight Durable Memory provider, OpenShell, and the Agent
+Sandbox controller.
 Its Chart, package, and default Helm release name is `tali-relay`; the examples
 use the product-level `tali` Kubernetes namespace.
 The Release Workflow selects OpenShell 0.0.106, NemoClaw v0.0.114, and Agent
@@ -163,10 +164,10 @@ TaskLattice Relay resources are deliberately later than the dependencies:
 | ---: | --- |
 | `-10` | Namespace `LimitRange` and optional OpenShift SCC RoleBindings required by dependency admission |
 | `0` | OpenShell and Agent Sandbox dependency resources (unmodified default) |
-| `10` | TaskLattice Relay ServiceAccounts, RBAC, Secrets, ConfigMaps, and Services |
-| `20` | PostgreSQL StatefulSet |
+| `10` | TaskLattice Relay ServiceAccounts, RBAC, Secrets, ConfigMaps, and Services, including the internal Hindsight Service |
+| `20` | PostgreSQL StatefulSet and the version-scoped Hindsight migration Job |
 | `30` | LiteLLM and optional Keycloak Deployments |
-| `40` | Control, Control Worker, Runner, and optional example MCP Deployments |
+| `40` | Control, Control Worker, Runner, Hindsight API, and optional example MCP Deployments |
 | `50` | Optional OpenShift Routes |
 
 Argo CD waits for each wave to become healthy before advancing. The values are
@@ -188,7 +189,9 @@ the namespace `LimitRange` exists on a first installation.
 
 When `secrets.existingSecret` is used it must contain `control.toml`,
 `runner-token`, `litellm-master-key`, `postgres-password`, `database-url`,
-`litellm-ui-username`, `litellm-ui-password`, and `litellm-salt-key`.
+`litellm-ui-username`, `litellm-ui-password`, `litellm-salt-key`,
+`hindsight-database-password`, `hindsight-database-url`, and
+`hindsight-api-key` (the final three are required when `hindsight.enabled=true`).
 `control.toml` contains only the public URL, database and signing bootstrap,
 and the initial Platform Administrator credential. The chart supplies Runner,
 LiteLLM, internal Control, and Runtime Namespace values as one-time bootstrap
@@ -326,6 +329,76 @@ context matches it. Releases created with the former Alpine image used UID/GID
 `70`. Before upgrading an existing PVC, take a tested backup and arrange a
 maintenance-window ownership migration for the data volume. Do not weaken the
 Pod to run as root as an upgrade shortcut.
+
+## Project Durable Memory provider (Hindsight)
+
+Durable Memory uses Hindsight API `0.9.2-slim`, pinned to the reviewed
+multi-architecture OCI index digest
+`sha256:7635a15739361dbdf221ba796ad25a813f876144fe113022eea8e26cb6ee75e7`.
+The Service is always `ClusterIP`; only Control and Control Worker are allowed
+to call it. Agent runtimes never receive the Hindsight root API key or choose a
+Bank ID. Product access is mediated by Relay's project-scoped Memory boundary.
+
+Hindsight shares the release PostgreSQL server and pgvector extension, but its
+tables are owned by the dedicated `hindsight` database user in the dedicated
+`hindsight` database and schema. Relay migrations do not touch that schema and
+Relay application code does not query it. A version-hashed, ordinary Kubernetes
+Job first creates the role/database/schema and then runs:
+
+```text
+hindsight-admin run-db-migration --schema hindsight --embedding-dimension <configured-dimension>
+```
+
+API startup migrations remain disabled. The normal Job and Hindsight's
+database advisory locking make a Helm/Argo retry safe without turning the
+migration into a lifecycle hook. Keep `hindsight.models.embeddingDimensions`
+equal to the actual vector length returned by the configured LiteLLM embedding
+alias before running an upgrade.
+
+The following aliases must exist on the bundled or externally configured
+LiteLLM gateway:
+
+| Value | Default alias | Purpose |
+| --- | --- | --- |
+| `hindsight.models.llm` | `hindsight-chat` | Fact extraction and provider synthesis |
+| `hindsight.models.embedding` | `hindsight-embedding` | Document and query embeddings |
+| `hindsight.models.reranker` | `hindsight-reranker` | Recall reranking |
+
+All three calls use the existing `litellm-master-key` Secret. The Hindsight API
+also reads `hindsight-database-url` and `hindsight-api-key` from the release
+Secret. A placeholder-only manifest showing the Hindsight keys is available at
+[`examples/hindsight-existing-secret.yaml`](examples/hindsight-existing-secret.yaml);
+merge those keys with every other key listed for `secrets.existingSecret`.
+Never commit rendered or real values.
+
+The API runs its built-in worker by default. Set
+`hindsight.worker.enabled=true` only after load testing shows that extraction
+must scale independently; that renders a StatefulSet with stable Pod-derived
+worker IDs and disables the embedded worker. Both forms keep API and worker
+metrics/health endpoints private. Full LLM prompt/completion tracing, 4xx debug
+dumps, MCP, and provider Control Plane exposure are disabled by default.
+
+Verify a deployment with:
+
+```bash
+kubectl -n <namespace> wait --for=condition=complete \
+  job -l app.kubernetes.io/component=hindsight-migration --timeout=15m
+kubectl -n <namespace> rollout status deployment/<release>-hindsight-api --timeout=5m
+kubectl -n <namespace> get deployment,service,job,networkpolicy,poddisruptionbudget \
+  -l app.kubernetes.io/instance=<release>
+kubectl -n <namespace> exec deployment/<release>-hindsight-api -- \
+  python -c 'import urllib.request; print(urllib.request.urlopen("http://127.0.0.1:8888/health/live").status)'
+```
+
+For an upgrade, back up PostgreSQL, update the Hindsight image tag/digest and
+`@vectorize-io/hindsight-client` together, review upstream release notes, run
+the repository's live Hindsight integration test, then use `helm upgrade
+--wait --wait-for-jobs`. Never point an older Hindsight binary at a schema after
+a non-backward-compatible migration. If the new application rollout fails but
+the migration succeeded, roll Control back only to a build verified against the
+new schema and apply a forward-fix provider release; do not run destructive
+down migrations. Restore the database backup only as a coordinated full data
+rollback after stopping all Hindsight API/worker Pods.
 
 ## Built-in Vector Database document ingestion
 

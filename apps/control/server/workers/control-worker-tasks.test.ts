@@ -288,6 +288,53 @@ describe("ControlWorkerTasks", () => {
     });
   });
 
+  it("drains due Memory outbox work from the scheduled maintenance worker", async () => {
+    const db = createTestPrisma();
+    const referenceTime = new Date("2026-08-27T09:00:00.000Z");
+    const memory = await db.memoryRecord.create({
+      data: {
+        projectId: "individual",
+        displayName: "Worker test Memory",
+        idempotencyKey: "worker-memory-a",
+      },
+    });
+    await db.memoryOutboxRecord.create({
+      data: {
+        projectId: "individual",
+        memoryId: memory.id,
+        conversationId: "conversation-a",
+        eventType: "conversation.completed",
+        encryptedPayload: "opaque-envelope",
+        idempotencyKey: "retain-a",
+        nextRetryAt: new Date(referenceTime.getTime() - 1_000),
+      },
+    });
+    const processDueOutbox = vi.fn(async () => ({
+      claimed: 1,
+      deadLettered: 0,
+      delivered: 1,
+      retried: 0,
+    }));
+    const memories = vi.fn(() => ({ processDueOutbox }));
+    const tasks = new ControlWorkerTasks({
+      db,
+      deletionService: {} as ProjectDeletionService,
+      jobs: {} as PgBossControlJobQueue,
+      logger: quietLogger(),
+      runtimeTargets: {} as ProjectRuntimeTargetService,
+      memories,
+    });
+
+    await expect(tasks.drainMemoryOutbox(referenceTime)).resolves.toEqual({
+      claimed: 1,
+      deadLettered: 0,
+      delivered: 1,
+      retried: 0,
+    });
+    expect(memories).toHaveBeenCalledWith("individual");
+    expect(processDueOutbox).toHaveBeenCalledWith(25, referenceTime);
+  });
+
   it("does not reconcile a Project after deletion has started", async () => {
     const db = createTestPrisma();
     await db.project.update({

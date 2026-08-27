@@ -473,12 +473,17 @@ export class ProjectStore {
       .some((specialization) => specialization[specializationField].includes(id));
   }
 
-  async save(agent: Agent, ownerUserId?: string): Promise<Agent> {
+  async save(
+    agent: Agent,
+    ownerUserId?: string,
+    creationIdempotencyKey?: string,
+  ): Promise<Agent> {
     const create = {
       projectId: this.projectId,
       id: agent.id,
       payload: agentPayload(agent),
       createdAt: agent.createdAt,
+      ...(creationIdempotencyKey ? { creationIdempotencyKey } : {}),
     };
     if (!ownerUserId) {
       const updated = await this.db.agentRecord.updateMany({
@@ -571,6 +576,23 @@ export class ProjectStore {
       select: { ownerUserId: true },
     });
     return row?.ownerUserId ?? undefined;
+  }
+
+  async getByCreationIdempotencyKey(
+    ownerUserId: string,
+    creationIdempotencyKey: string,
+  ): Promise<Agent | undefined> {
+    const row = await this.db.agentRecord.findFirst({
+      where: {
+        projectId: this.projectId,
+        ownerUserId,
+        creationIdempotencyKey,
+        kind: "SUPERVISOR",
+        deletedAt: null,
+      },
+      select: { id: true },
+    });
+    return row ? this.get(row.id) : undefined;
   }
 
   async list(ownerUserId?: string): Promise<Agent[]> {

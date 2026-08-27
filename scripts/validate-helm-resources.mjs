@@ -161,6 +161,7 @@ for (const [kind, name, wave] of [
   ["ServiceAccount", `${releaseName}-control`, "10"],
   ["ServiceAccount", `${releaseName}-runtime`, "10"],
   ["ServiceAccount", controlWorkerName, "10"],
+  ["ServiceAccount", `${releaseName}-hindsight`, "10"],
   ["ClusterRole", runtimeControlClusterRoleName, "10"],
   ["ClusterRoleBinding", runtimeControlClusterRoleName, "10"],
   ["ClusterRole", controlWorkerClusterRoleName, "10"],
@@ -177,6 +178,7 @@ for (const [kind, name, wave] of [
   ["Service", `${releaseName}-runner`, "10"],
   ["Service", `${releaseName}-example-mcp`, "10"],
   ["Service", `${releaseName}-docling`, "10"],
+  ["Service", `${releaseName}-hindsight-api`, "10"],
   ["PersistentVolumeClaim", `${releaseName}-docling-models`, "10"],
   ["StatefulSet", `${releaseName}-postgresql`, "20"],
   ["Deployment", `${releaseName}-litellm`, "30"],
@@ -186,8 +188,171 @@ for (const [kind, name, wave] of [
   ["Deployment", `${releaseName}-runner`, "40"],
   ["Deployment", `${releaseName}-example-mcp`, "40"],
   ["Deployment", `${releaseName}-docling`, "30"],
+  ["Deployment", `${releaseName}-hindsight-api`, "40"],
 ]) {
   assertSyncWave(kind, name, wave);
+}
+
+function requireComponentObject(collection, kind, component) {
+  const object = collection.find(
+    (candidate) =>
+      candidate.kind === kind
+      && candidate.metadata?.labels?.["app.kubernetes.io/component"] === component,
+  );
+  if (!object) {
+    throw new Error(`${kind} with component=${component} was not rendered.`);
+  }
+  return object;
+}
+
+const hindsightImage = "ghcr.io/vectorize-io/hindsight-api:0.9.2-slim@sha256:7635a15739361dbdf221ba796ad25a813f876144fe113022eea8e26cb6ee75e7";
+const hindsightApi = requireObject("Deployment", `${releaseName}-hindsight-api`);
+const hindsightApiPodSpec = hindsightApi.spec?.template?.spec;
+const hindsightApiContainer = hindsightApiPodSpec?.containers?.find(
+  (container) => container.name === "api",
+);
+const hindsightEnv = hindsightApiContainer?.env ?? [];
+const hindsightEnvValue = (name) => hindsightEnv.find((entry) => entry.name === name)?.value;
+const hindsightEnvSecretKey = (name) => hindsightEnv.find((entry) => entry.name === name)
+  ?.valueFrom?.secretKeyRef?.key;
+if (hindsightApiContainer?.image !== hindsightImage) {
+  throw new Error("The Hindsight API image must remain pinned to the reviewed 0.9.2 multi-arch digest.");
+}
+if (
+  hindsightApiPodSpec?.serviceAccountName !== `${releaseName}-hindsight`
+  || hindsightApiPodSpec?.automountServiceAccountToken !== false
+) {
+  throw new Error("Hindsight must use its tokenless dedicated ServiceAccount.");
+}
+if (
+  hindsightApiContainer?.readinessProbe?.httpGet?.path !== "/health"
+  || hindsightApiContainer?.livenessProbe?.httpGet?.path !== "/health/live"
+) {
+  throw new Error("Hindsight API must expose database-aware readiness and process liveness probes.");
+}
+if (hindsightApiContainer?.securityContext?.readOnlyRootFilesystem !== true) {
+  throw new Error("Hindsight API must use a read-only root filesystem.");
+}
+for (const [name, value] of [
+  ["HINDSIGHT_API_DATABASE_SCHEMA", "hindsight"],
+  ["HINDSIGHT_API_RUN_MIGRATIONS_ON_STARTUP", "false"],
+  ["HINDSIGHT_API_MCP_ENABLED", "false"],
+  ["HINDSIGHT_API_LLM_TRACE_ENABLED", "false"],
+  ["HINDSIGHT_API_LLM_DEBUG_DUMP_4XX", "false"],
+  ["HINDSIGHT_API_LLM_PROVIDER", "openai"],
+  ["HINDSIGHT_API_EMBEDDINGS_PROVIDER", "litellm"],
+  ["HINDSIGHT_API_RERANKER_PROVIDER", "litellm"],
+  ["HINDSIGHT_API_WORKER_ENABLED", "true"],
+]) {
+  if (hindsightEnvValue(name) !== value) {
+    throw new Error(`Hindsight API must set ${name}=${value}.`);
+  }
+}
+for (const [name, key] of [
+  ["HINDSIGHT_API_DATABASE_URL", "hindsight-database-url"],
+  ["HINDSIGHT_API_MIGRATION_DATABASE_URL", "hindsight-database-url"],
+  ["HINDSIGHT_API_TENANT_API_KEY", "hindsight-api-key"],
+  ["HINDSIGHT_API_LLM_API_KEY", "litellm-master-key"],
+  ["HINDSIGHT_API_EMBEDDINGS_LITELLM_API_KEY", "litellm-master-key"],
+  ["HINDSIGHT_API_RERANKER_LITELLM_API_KEY", "litellm-master-key"],
+]) {
+  if (hindsightEnvSecretKey(name) !== key) {
+    throw new Error(`Hindsight API ${name} must come from Secret key ${key}.`);
+  }
+}
+const hindsightService = requireObject("Service", `${releaseName}-hindsight-api`);
+if (hindsightService.spec?.type !== "ClusterIP") {
+  throw new Error("Hindsight API must remain an internal ClusterIP Service.");
+}
+requireComponentObject(objects, "NetworkPolicy", "hindsight-api");
+requireObject("PodDisruptionBudget", `${releaseName}-hindsight-api`);
+
+const hindsightMigration = requireComponentObject(objects, "Job", "hindsight-migration");
+if (hindsightMigration.metadata?.annotations?.[syncWaveAnnotation] !== "20") {
+  throw new Error("The Hindsight migration Job must run in the database sync wave.");
+}
+if (hindsightMigration.metadata?.annotations?.["helm.sh/hook"] != null) {
+  throw new Error("The Hindsight migration Job must use normal Job semantics instead of a Helm hook.");
+}
+const migrationPodSpec = hindsightMigration.spec?.template?.spec;
+const migrationContainer = migrationPodSpec?.containers?.find(
+  (container) => container.name === "migrate",
+);
+const bootstrapContainer = migrationPodSpec?.initContainers?.find(
+  (container) => container.name === "bootstrap-hindsight-database",
+);
+if (
+  migrationContainer?.image !== hindsightImage
+  || !migrationContainer?.command?.join(" ").includes("hindsight-admin run-db-migration")
+  || !migrationContainer?.command?.join(" ").includes("--embedding-dimension")
+) {
+  throw new Error("The Hindsight migration Job must run the pinned provider's dimension-aware migration command.");
+}
+if (
+  !bootstrapContainer?.command?.join(" ").includes("CREATE ROLE %I")
+  || !bootstrapContainer?.command?.join(" ").includes("CREATE DATABASE %I")
+  || !bootstrapContainer?.command?.join(" ").includes("CREATE SCHEMA IF NOT EXISTS hindsight")
+) {
+  throw new Error("The migration bootstrap must create the dedicated Hindsight role, database, and schema.");
+}
+requireComponentObject(objects, "NetworkPolicy", "hindsight-migration");
+
+const invalidHindsightIdentity = spawnSync(
+  "helm",
+  templateArguments([
+    "--set-string",
+    "hindsight.database.schema=unsafe-schema",
+  ]),
+  { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+);
+if (
+  invalidHindsightIdentity.status === 0
+  || !invalidHindsightIdentity.stderr.includes(
+    "hindsight.database.schema must be a lowercase PostgreSQL identifier",
+  )
+) {
+  throw new Error("The Chart must reject unsafe Hindsight database identifiers.");
+}
+
+if (objects.some(
+  (object) => object.kind === "StatefulSet"
+    && object.metadata?.labels?.["app.kubernetes.io/component"] === "hindsight-worker",
+)) {
+  throw new Error("The separate Hindsight worker must remain disabled until load testing justifies it.");
+}
+const hindsightWorkerObjects = parseObjects(renderChart([
+  "--set", "hindsight.worker.enabled=true",
+]));
+const hindsightWorker = requireComponentObject(
+  hindsightWorkerObjects,
+  "StatefulSet",
+  "hindsight-worker",
+);
+const hindsightWorkerContainer = hindsightWorker.spec?.template?.spec?.containers?.find(
+  (container) => container.name === "worker",
+);
+const workerId = hindsightWorkerContainer?.env?.find(
+  (entry) => entry.name === "HINDSIGHT_API_WORKER_ID",
+);
+if (
+  JSON.stringify(hindsightWorkerContainer?.command) !== JSON.stringify(["hindsight-worker"])
+  || workerId?.valueFrom?.fieldRef?.fieldPath !== "metadata.name"
+  || hindsightWorkerContainer?.readinessProbe?.httpGet?.path !== "/health"
+  || hindsightWorkerContainer?.livenessProbe?.httpGet?.path !== "/health/live"
+  || hindsightWorkerContainer?.securityContext?.readOnlyRootFilesystem !== true
+) {
+  throw new Error("The optional Hindsight worker must use stable identity, health probes, and a read-only root filesystem.");
+}
+const externalWorkerApi = requireComponentObject(
+  hindsightWorkerObjects,
+  "Deployment",
+  "hindsight-api",
+);
+if (
+  externalWorkerApi.spec?.template?.spec?.containers?.find((container) => container.name === "api")
+    ?.env?.find((entry) => entry.name === "HINDSIGHT_API_WORKER_ENABLED")?.value !== "false"
+) {
+  throw new Error("Enabling the external Hindsight worker must disable the API's embedded worker.");
 }
 
 for (const [kind, name] of [
@@ -336,6 +501,23 @@ const localControl = localObjects.find(
 );
 const localControlEnv = localControl?.spec?.template?.spec?.containers
   ?.find((container) => container.name === "control")?.env ?? [];
+if (
+  localControlEnv.find((entry) => entry.name === "TALI_HINDSIGHT_URL")?.value
+    !== `http://${releaseName}-hindsight-api.${releaseNamespace}.svc.cluster.local:8888`
+  || localControlEnv.find((entry) => entry.name === "TALI_HINDSIGHT_API_KEY")
+    ?.valueFrom?.secretKeyRef?.key !== "hindsight-api-key"
+) {
+  throw new Error("Control must use the internal Hindsight Service and Secret-backed root credential.");
+}
+for (const key of [
+  "hindsight-database-password",
+  "hindsight-database-url",
+  "hindsight-api-key",
+]) {
+  if (localSecret?.stringData?.[key] == null) {
+    throw new Error(`The generated release Secret is missing ${key}.`);
+  }
+}
 for (const [name, value] of [
   ["TALI_BOOTSTRAP_INTERNAL_URL", `http://${releaseName}-control.${releaseNamespace}.svc.cluster.local:38080`],
   ["TALI_BOOTSTRAP_RUNNER_URL", `http://${releaseName}-runner:9090`],
@@ -375,6 +557,14 @@ if (
 
 const controlWorkerEnv = controlWorker.spec?.template?.spec?.containers
   ?.find((container) => container.name === "control-worker")?.env ?? [];
+if (
+  controlWorkerEnv.find((entry) => entry.name === "TALI_HINDSIGHT_URL")?.value
+    !== `http://${releaseName}-hindsight-api.${releaseNamespace}.svc.cluster.local:8888`
+  || controlWorkerEnv.find((entry) => entry.name === "TALI_HINDSIGHT_API_KEY")
+    ?.valueFrom?.secretKeyRef?.key !== "hindsight-api-key"
+) {
+  throw new Error("The Control Worker must use the internal Hindsight Service and Secret-backed credential.");
+}
 if (
   controlWorkerEnv.find((entry) => entry.name === "DOCLING_BASE_URL")?.value
   !== `http://${releaseName}-docling:5001`

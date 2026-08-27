@@ -1943,6 +1943,7 @@ export const createInstanceSchema = z.object({
   mcpServerIds: z.array(z.string().trim().min(1).max(160)).max(64).optional(),
   knowledgeSourceIds: z.array(z.string().trim().min(1).max(160)).max(64).optional(),
   memory: agentMemoryConfigurationSchema.optional(),
+  durableMemoryId: z.string().uuid().optional(),
 }).strict().superRefine((value, context) => {
   if (
     value.memory

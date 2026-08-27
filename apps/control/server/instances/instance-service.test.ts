@@ -15,6 +15,9 @@ import { AgentGardenStore } from "../agent-garden/agent-garden-store";
 import { AgentGardenService } from "../agent-garden/agent-garden-service";
 import { demoAgentEndpoint } from "../agent-garden/demo-agent-runtime";
 import { databaseAgentCatalog } from "../agent-garden/database-agent-catalog";
+import { MemoryRepository } from "../memories/memory-repository";
+import { MemoryService } from "../memories/memory-service";
+import { FakeMemoryProvider } from "../memories/testing/fake-memory-provider";
 import { createTestStore } from "../test/store";
 import {
   InstanceService,
@@ -438,6 +441,12 @@ async function configuredService() {
       "00000000-0000-4000-8000-000000000401"
     ),
   } as unknown as ControlJobPublisher;
+  const memoryProvider = new FakeMemoryProvider();
+  const memories = new MemoryService(
+    new MemoryRepository(store.projectId, store.database()),
+    () => memoryProvider,
+    () => "test-memory-outbox-secret-with-32-characters",
+  );
   const service = new InstanceService(
     store,
     runner,
@@ -448,12 +457,22 @@ async function configuredService() {
     undefined,
     undefined,
     jobs,
+    memories,
   );
   const policy = await service.accessPolicies.create(
     { name: "Default Instance access", status: "ACTIVE", serverRules: [] },
     "test",
   );
-  return { store, runner, litellm, service, policy, jobs };
+  return {
+    store,
+    runner,
+    litellm,
+    service,
+    policy,
+    jobs,
+    memories,
+    memoryProvider,
+  };
 }
 
 async function createConfiguredInstance(
@@ -504,6 +523,40 @@ async function instantiateAsExternalRegistryFixture(
 }
 
 describe("Instance Access Policy lifecycle", () => {
+  it("replays an Agent create key without creating another Agent or Memory Bank", async () => {
+    const setup = await configuredService();
+    const input: CreateInstanceInput = {
+      name: "Idempotent Research Assistant",
+      description: "",
+      runtime: "openshell",
+      accessPolicyIds: [setup.policy.id],
+      modelRoutingId: "routing-a",
+      agentPlatform: "openclaw",
+      policyId: "restricted",
+      systemPrompt: "Research the request and report the resulting evidence.",
+      knowledgeSourceIds: ["engineering-handbook"],
+    };
+
+    const first = await setup.service.create(
+      input,
+      "local-admin",
+      "agent-create-request-a",
+    );
+    const replay = await setup.service.create(
+      input,
+      "local-admin",
+      "agent-create-request-a",
+    );
+
+    expect(replay.id).toBe(first.id);
+    expect(replay.durableMemoryId).toBe(first.durableMemoryId);
+    expect(setup.memoryProvider.bankCount()).toBe(1);
+    await expect(setup.store.database().agentRecord.count()).resolves.toBe(1);
+    await expect(setup.store.database().memoryRecord.count()).resolves.toBe(1);
+    await expect(setup.store.database().memoryBinding.count()).resolves.toBe(1);
+    expect(setup.jobs.enqueueInstanceLifecycle).toHaveBeenCalledOnce();
+  });
+
   it("returns a queued Instance before LiteLLM and OpenShell provisioning starts", async () => {
     const setup = await configuredService();
     const queued = await setup.service.create(
@@ -863,6 +916,11 @@ describe("Instance Access Policy lifecycle", () => {
   it("creates and revokes an Instance Service Account Key under the Project Team", async () => {
     const setup = await configuredService();
     const agent = await createConfiguredInstance(setup);
+    const memory = await setup.memories.repository.getMemory(
+      agent.durableMemoryId!,
+    );
+    expect(memory).toMatchObject({ status: "ready" });
+    expect(setup.memoryProvider.hasBank(memory!.providerRef!)).toBe(true);
 
     expect(setup.litellm.createInstanceServiceAccountKey).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -920,6 +978,12 @@ describe("Instance Access Policy lifecycle", () => {
       "instance-hashed-token",
     );
     expect(setup.litellm.revokeKey).not.toHaveBeenCalled();
+    await expect(setup.memories.repository.getMemory(agent.durableMemoryId!))
+      .resolves.toMatchObject({ status: "unbound" });
+    expect(setup.memoryProvider.hasBank(memory!.providerRef!)).toBe(true);
+    await expect(
+      setup.memories.repository.countBindings(agent.durableMemoryId!, "detached"),
+    ).resolves.toBe(1);
     expect(await setup.store.getIncludingDeleted(agent.id)).toMatchObject({
       liteLLMKeyBlockedAt: expect.any(String),
       modelRoutingBindingRevokedAt: expect.any(String),
@@ -982,6 +1046,36 @@ describe("Instance Access Policy lifecycle", () => {
         projectId_id: { projectId: setup.store.projectId, id: agent.id },
       },
     })).resolves.toMatchObject({ deletedAt: expect.any(Date) });
+  });
+
+  it("rebinds a retained Memory to a replacement Hermes Instance", async () => {
+    const setup = await configuredService();
+    const original = await createConfiguredInstance(setup);
+    const originalMemory = await setup.memories.repository.getMemory(
+      original.durableMemoryId!,
+    );
+
+    await setup.service.destroy(original.id);
+    await setup.service.deleteRuntime(original.id);
+    const replacement = await createConfiguredInstance(setup, {
+      agentPlatform: "hermes",
+      durableMemoryId: original.durableMemoryId,
+      name: "Hermes Replacement",
+    });
+    const reboundMemory = await setup.memories.repository.getMemory(
+      replacement.durableMemoryId!,
+    );
+
+    expect(replacement.durableMemoryId).toBe(original.durableMemoryId);
+    expect(reboundMemory).toMatchObject({
+      id: originalMemory!.id,
+      providerRef: originalMemory!.providerRef,
+      status: "ready",
+    });
+    expect(setup.memoryProvider.bankCount()).toBe(1);
+    await expect(
+      setup.memories.repository.getActiveBindingForInstance(replacement.id),
+    ).resolves.toMatchObject({ runtimeType: "hermes", status: "active" });
   });
 
   it("updates permissions without recreating the Sandbox", async () => {

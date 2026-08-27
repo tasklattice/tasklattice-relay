@@ -94,8 +94,32 @@ app.kubernetes.io/component: {{ .component }}
 {{- include "tali.componentName" (dict "root" . "component" "hindsight-api") -}}
 {{- end }}
 
+{{- define "tali.hindsightDatabaseName" -}}
+{{- $value := required "hindsight.database.name is required" .Values.hindsight.database.name -}}
+{{- if not (regexMatch "^[a-z_][a-z0-9_]{0,62}$" $value) -}}
+{{- fail "hindsight.database.name must be a lowercase PostgreSQL identifier" -}}
+{{- end -}}
+{{- $value -}}
+{{- end }}
+
+{{- define "tali.hindsightDatabaseUser" -}}
+{{- $value := required "hindsight.database.user is required" .Values.hindsight.database.user -}}
+{{- if not (regexMatch "^[a-z_][a-z0-9_]{0,62}$" $value) -}}
+{{- fail "hindsight.database.user must be a lowercase PostgreSQL identifier" -}}
+{{- end -}}
+{{- $value -}}
+{{- end }}
+
+{{- define "tali.hindsightDatabaseSchema" -}}
+{{- $value := required "hindsight.database.schema is required" .Values.hindsight.database.schema -}}
+{{- if not (regexMatch "^[a-z_][a-z0-9_]{0,62}$" $value) -}}
+{{- fail "hindsight.database.schema must be a lowercase PostgreSQL identifier" -}}
+{{- end -}}
+{{- $value -}}
+{{- end }}
+
 {{- define "tali.hindsightDatabaseUrl" -}}
-{{- printf "postgresql://%s:%s@%s:5432/%s" .Values.hindsight.database.user (urlquery .Values.secrets.hindsightDatabasePassword) (include "tali.componentName" (dict "root" . "component" "postgresql")) .Values.hindsight.database.name -}}
+{{- printf "postgresql://%s:%s@%s:5432/%s" (include "tali.hindsightDatabaseUser" .) (urlquery .Values.secrets.hindsightDatabasePassword) (include "tali.componentName" (dict "root" . "component" "postgresql")) (include "tali.hindsightDatabaseName" .) -}}
 {{- end }}
 
 {{- define "tali.hindsightUrl" -}}
@@ -126,7 +150,7 @@ app.kubernetes.io/component: {{ .component }}
       name: {{ include "tali.secretName" . }}
       key: hindsight-database-url
 - name: HINDSIGHT_API_DATABASE_SCHEMA
-  value: {{ .Values.hindsight.database.schema | quote }}
+  value: {{ include "tali.hindsightDatabaseSchema" . | quote }}
 - name: HINDSIGHT_API_RUN_MIGRATIONS_ON_STARTUP
   value: "false"
 - name: HINDSIGHT_API_VECTOR_EXTENSION

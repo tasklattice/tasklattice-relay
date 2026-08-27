@@ -37,6 +37,12 @@ import {
   controlJobQueue,
   type ControlJobPublisher,
 } from "../jobs/control-job-queue";
+import { MemoryRepository } from "../memories/memory-repository";
+import {
+  MemoryService,
+  type PreparedAgentMemory,
+  type ResolvedAgentMemory,
+} from "../memories/memory-service";
 
 export function agentSandboxName(id: string): string {
   const compactId = BigInt(`0x${id.replaceAll("-", "")}`)
@@ -115,6 +121,9 @@ export class InstanceService {
       litellm,
     ),
     readonly jobs: ControlJobPublisher = controlJobQueue(),
+    readonly memories = new MemoryService(
+      new MemoryRepository(store.projectId, store.database()),
+    ),
   ) {}
 
   async list(ownerUserId?: string): Promise<Agent[]> {
@@ -162,7 +171,27 @@ export class InstanceService {
     return { namespace: target.namespace };
   }
 
-  async create(input: CreateInstanceInput, ownerUserId?: string): Promise<Agent> {
+  async create(
+    input: CreateInstanceInput,
+    ownerUserId?: string,
+    creationIdempotencyKey?: string,
+  ): Promise<Agent> {
+    const requestKey = creationIdempotencyKey?.trim();
+    if (
+      requestKey
+      && (!/^[A-Za-z0-9._:-]+$/.test(requestKey) || requestKey.length > 200)
+    ) {
+      throw new Error(
+        "The Instance idempotency key must use 1-200 letters, numbers, dots, colons, underscores, or hyphens.",
+      );
+    }
+    if (ownerUserId && requestKey) {
+      const replay = await this.store.getByCreationIdempotencyKey(
+        ownerUserId,
+        requestKey,
+      );
+      if (replay) return replay;
+    }
     await this.quotas.assertCanCreate("instances");
     const catalog = await this.catalog.catalog();
     if (
@@ -198,6 +227,7 @@ export class InstanceService {
     }
     const policy = await this.runtimePolicies.resolve(input.policyId);
     const id = randomUUID();
+    const effectiveRequestKey = requestKey ?? `instance:${id}`;
     const now = new Date().toISOString();
     const sandboxName = agentSandboxName(id);
     await this.accessPolicies.assertActivePolicyIds(input.accessPolicyIds);
@@ -217,6 +247,29 @@ export class InstanceService {
       memoryConfiguration,
       routing,
     );
+    const durableRuntime = input.agentPlatform === "openclaw"
+      ? "openclaw"
+      : input.agentPlatform === "hermes"
+        ? "hermes"
+        : undefined;
+    if (input.durableMemoryId && !durableRuntime) {
+      throw new Error(
+        "Durable Memory is currently available only for OpenClaw and Hermes Instances.",
+      );
+    }
+    const actorId = ownerUserId ?? "memory-service";
+    let resolvedMemory: ResolvedAgentMemory | undefined;
+    if (durableRuntime) {
+      resolvedMemory = await this.memories.resolveForAgent({
+        actorId,
+        displayName: input.name,
+        ...(input.durableMemoryId
+          ? { existingMemoryId: input.durableMemoryId }
+          : {}),
+        instanceId: id,
+        requestIdempotencyKey: effectiveRequestKey,
+      });
+    }
     const costKeyAlias = `tali-instance-${id}`;
     const serviceAccountId = `tali-instance-${id}`;
     const modelKeyRouting = await this.modelKeyRouting(routing);
@@ -224,6 +277,7 @@ export class InstanceService {
       schemaVersion: 2,
       id,
       ...input,
+      ...(resolvedMemory ? { durableMemoryId: resolvedMemory.memory.id } : {}),
       ...(memoryConfiguration ? { memory: memoryConfiguration } : {}),
       policyId: policy.id,
       modelDeploymentId: `model-routing:${routing.id}`,
@@ -247,8 +301,30 @@ export class InstanceService {
       updatedAt: now,
       logs: ["Agent request accepted. Waiting for the Control Worker."],
     };
+    let preparedMemory: PreparedAgentMemory | undefined;
     try {
-      await this.store.save(agent, ownerUserId);
+      try {
+        await this.store.save(agent, ownerUserId, requestKey);
+      } catch (error) {
+        if (ownerUserId && requestKey) {
+          const replay = await this.store.getByCreationIdempotencyKey(
+            ownerUserId,
+            requestKey,
+          );
+          if (replay) return replay;
+        }
+        throw error;
+      }
+      if (resolvedMemory && durableRuntime) {
+        const binding = await this.memories.bindToAgent({
+          actorId,
+          instanceId: id,
+          memoryId: resolvedMemory.memory.id,
+          requestIdempotencyKey: effectiveRequestKey,
+          runtimeType: durableRuntime,
+        });
+        preparedMemory = { ...resolvedMemory, binding };
+      }
       await this.store.replaceAgentAccessPolicies(id, input.accessPolicyIds);
       if (!this.jobs.enqueueInstanceLifecycle) {
         throw new Error(
@@ -270,6 +346,17 @@ export class InstanceService {
         updatedAt: new Date().toISOString(),
       });
     } catch (error) {
+      if (preparedMemory) {
+        await this.memories.rollbackAgentPreparation(
+          preparedMemory,
+          actorId,
+        ).catch(() => undefined);
+      } else if (resolvedMemory) {
+        await this.memories.rollbackAgentResolution(
+          resolvedMemory,
+          actorId,
+        ).catch(() => undefined);
+      }
       await this.store.hardDelete(id).catch(() => undefined);
       throw error;
     }
@@ -550,6 +637,7 @@ export class InstanceService {
         revokedAt: finalizedAt,
       });
     }
+    await this.memories.detachFromAgent(id, "control-worker");
     await this.closeInstanceAttributions(id);
     const completedAt = agent.deletionCompletedAt ?? finalizedAt;
     const { error: _previousError, ...completed } = agent;

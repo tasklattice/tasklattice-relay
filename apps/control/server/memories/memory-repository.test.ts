@@ -61,6 +61,12 @@ describe("MemoryRepository", () => {
       displayName: "Research memory",
       idempotencyKey: "create:agent-a",
     });
+    await repository.transitionMemory({
+      memoryId: memory.id,
+      to: "ready",
+      actorId: "test",
+      providerRef: "bank-research",
+    });
     const input = {
       memoryId: memory.id,
       instanceId: "memory-agent-a",
@@ -86,6 +92,18 @@ describe("MemoryRepository", () => {
       displayName: "Second",
       idempotencyKey: "create:second",
     });
+    await repository.transitionMemory({
+      memoryId: firstMemory.id,
+      to: "ready",
+      actorId: "test",
+      providerRef: "bank-first",
+    });
+    await repository.transitionMemory({
+      memoryId: secondMemory.id,
+      to: "ready",
+      actorId: "test",
+      providerRef: "bank-second",
+    });
     await repository.bindPrimary({
       memoryId: firstMemory.id,
       instanceId: "memory-agent-a",
@@ -106,5 +124,27 @@ describe("MemoryRepository", () => {
       runtimeType: "openclaw",
       idempotencyKey: "bind:second:a",
     })).rejects.toThrow();
+  });
+
+  it("rejects a new binding after deletion owns the Memory lifecycle lock", async () => {
+    const { repository } = await fixture();
+    const memory = await repository.createMemory({
+      displayName: "Deleting",
+      idempotencyKey: "create:deleting",
+    });
+    await repository.transitionMemory({
+      memoryId: memory.id,
+      to: "ready",
+      actorId: "test",
+      providerRef: "bank-deleting",
+    });
+    await repository.startDeletion(memory.id, "test");
+
+    await expect(repository.bindPrimary({
+      memoryId: memory.id,
+      instanceId: "memory-agent-a",
+      runtimeType: "openclaw",
+      idempotencyKey: "bind:deleting:a",
+    })).rejects.toThrow("ready, unbound Memory");
   });
 });

@@ -727,6 +727,7 @@ model ProjectInvitation {
 model AgentRecord {
   projectId            String                                   @map("project_id")
   id                   String
+  creationIdempotencyKey String?                                @map("creation_idempotency_key")
   kind                 String                                   @default("SUPERVISOR")
   catalogAgentId       String?                                  @map("catalog_agent_id")
   payload              Json
@@ -741,6 +742,7 @@ model AgentRecord {
   memoryBindings       MemoryBinding[]
 
   @@id([projectId, id])
+  @@unique([projectId, ownerUserId, creationIdempotencyKey], map: "agents_project_owner_creation_idempotency_key")
   @@index([projectId, ownerUserId], map: "agents_project_owner_idx")
   @@index([projectId, kind, catalogAgentId], map: "agents_project_kind_catalog_idx")
   @@index([projectId, deletedAt, createdAt(sort: Desc)], map: "agents_project_active_created_idx")

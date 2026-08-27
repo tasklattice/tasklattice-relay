@@ -441,11 +441,11 @@ export class HindsightMemoryProvider implements MemoryProvider {
       { signal: this.signal() },
     ));
     if (!existing) return { deleted: false, verifiedAbsent: true };
-    await this.withErrors("delete conversation", () => this.client.deleteDocument(
-      input.providerRef,
-      input.conversationId,
-      { signal: this.signal() },
-    ));
+    await this.withErrors("delete conversation", () => sdk.deleteDocument({
+      client: this.rawClient,
+      path: { bank_id: input.providerRef, document_id: input.conversationId },
+      signal: this.signal(),
+    }).then((response) => this.sdkData(response, "delete conversation")));
     const remaining = await this.withErrors("verify conversation deletion", () =>
       this.client.getDocument(input.providerRef, input.conversationId, { signal: this.signal() })
     );
@@ -468,9 +468,11 @@ export class HindsightMemoryProvider implements MemoryProvider {
     if (!(await this.bankExists(input.providerRef))) {
       return { deleted: false, verifiedAbsent: true };
     }
-    await this.withErrors("delete", () => this.client.deleteBank(input.providerRef, {
+    await this.withErrors("delete", () => sdk.deleteBank({
+      client: this.rawClient,
+      path: { bank_id: input.providerRef },
       signal: this.signal(),
-    }));
+    }).then((response) => this.sdkData(response, "delete")));
     return { deleted: true, verifiedAbsent: !(await this.bankExists(input.providerRef)) };
   }
 

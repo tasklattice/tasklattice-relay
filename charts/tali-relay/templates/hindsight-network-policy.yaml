@@ -115,14 +115,6 @@ spec:
         - protocol: TCP
           port: 5432
     - to:
-        - podSelector:
-            matchLabels:
-              app.kubernetes.io/instance: {{ .Release.Name }}
-              app.kubernetes.io/component: litellm
-      ports:
-        - protocol: TCP
-          port: 4000
-    - to:
         - namespaceSelector: {}
       ports:
         - protocol: UDP
