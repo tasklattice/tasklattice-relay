@@ -58,10 +58,10 @@ export function AgentCreationExperience({
         <Spinner className="size-12 text-primary" />
         <span className="absolute grid size-9 place-items-center rounded-full bg-background text-xs font-semibold tabular-nums shadow-sm">{progress}%</span>
       </div>
-      <h1 className="mt-6 font-display text-3xl font-medium tracking-tight">Creating your Agent…</h1>
-      <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">We received the request for <strong className="font-medium text-foreground">{agent.name}</strong>. This page updates automatically while its Agent and permissions are prepared.</p>
+      <h1 className="mt-6 font-display text-3xl font-light tracking-[0.005em]">Creating your Instance…</h1>
+      <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">We received the request for <strong className="font-medium text-foreground">{agent.name}</strong>. This page updates automatically while its Agent runtime and permissions are prepared.</p>
 
-      <div className="mt-10 w-full rounded-lg border bg-card px-5 py-6 text-left shadow-sm sm:px-8">
+      <div className="mt-10 w-full rounded-lg border bg-card px-5 py-6 text-left sm:px-8">
         <div className="flex items-center justify-between gap-4 text-sm">
           <span className="font-medium">{operation?.currentMessage ?? fallbackState.definition.description}</span>
           <span className="tabular-nums text-muted-foreground">{progress}%</span>
@@ -121,10 +121,10 @@ function ReadyState({ agent, logs }: { agent: Agent; logs: string[] }) {
       <div className="relative grid size-28 place-items-center rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-300">
         <CheckCircle2 className="size-16" strokeWidth={1.6} />
       </div>
-      <h1 className="mt-7 font-display text-3xl font-medium tracking-tight">Your Agent is ready!</h1>
-      <p className="mt-2 text-sm text-muted-foreground"><strong className="font-medium text-foreground">{agent.name}</strong> is now up and running.</p>
+      <h1 className="mt-7 font-display text-3xl font-light tracking-[0.005em]">Your Instance is ready</h1>
+      <p className="mt-2 text-sm text-muted-foreground"><strong className="font-medium text-foreground">{agent.name}</strong> is deployed and ready to use.</p>
       <div className="mt-8 flex w-full max-w-xl flex-col justify-center gap-3 sm:flex-row">
-        <Button asChild size="lg" className="min-w-48"><Link to="/$projectId/instances/$instanceId" params={{ projectId, instanceId: agent.id }}>Go to Agent <ArrowRight /></Link></Button>
+        <Button asChild size="lg" className="min-w-48"><Link to="/$projectId/instances/$instanceId" params={{ projectId, instanceId: agent.id }}>Open Instance <ArrowRight /></Link></Button>
         {endpointReady && agent.httpEndpoint?.url ? (
           <Button asChild size="lg" variant="outline" className="min-w-48"><a href={agent.httpEndpoint.url} target="_blank" rel="noreferrer">Open Web <ExternalLink /></a></Button>
         ) : (
@@ -149,11 +149,11 @@ function FailedState({
   return (
     <main aria-live="assertive" className="mx-auto flex min-h-[calc(100vh-12rem)] w-full max-w-3xl flex-col items-center justify-center px-4 py-12 text-center">
       <span className="grid size-24 place-items-center rounded-full bg-destructive/10 text-destructive"><AlertTriangle className="size-12" /></span>
-      <h1 className="mt-7 font-display text-3xl font-medium tracking-tight">We couldn’t create this Agent</h1>
+      <h1 className="mt-7 font-display text-3xl font-light tracking-[0.005em]">We couldn’t create this Instance</h1>
       <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">{error ?? agent.error ?? "Provisioning stopped before the runtime became available."}</p>
       <div className="mt-7 flex flex-wrap justify-center gap-3">
         <Button asChild><Link to="/$projectId/instances" params={{ projectId }} search={{ create: "instance" }}><RotateCw /> Try again</Link></Button>
-        <Button asChild variant="outline"><Link to="/$projectId/instances/$instanceId" params={{ projectId, instanceId: agent.id }}>Open Agent details</Link></Button>
+        <Button asChild variant="outline"><Link to="/$projectId/instances/$instanceId" params={{ projectId, instanceId: agent.id }}>Open Instance details</Link></Button>
       </div>
       <CreationDetails logs={logs} state="failed" defaultOpen />
     </main>

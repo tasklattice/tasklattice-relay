@@ -104,7 +104,7 @@ function TopicLink({
 function MarkdownDocument({ body, projectId }: { body: string; projectId: string }) {
   const components: Components = {
     h1: ({ children }) => (
-      <h1 className="font-display text-2xl font-medium tracking-tight sm:text-3xl">
+      <h1 className="font-display text-2xl font-light tracking-[0.005em] sm:text-3xl">
         {children}
       </h1>
     ),

@@ -65,15 +65,15 @@ export function VectorDocumentDetailsPanel({
   const metadata = Object.entries(document.customMetadata);
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-muted/30">
-      <header className="shrink-0 border-b px-6 py-7">
-        <div className="flex items-start gap-4">
-          <span className="grid size-12 shrink-0 place-items-center rounded-lg bg-muted text-muted-foreground">
+    <div className="flex h-full min-h-0 flex-col bg-card">
+      <header className="shrink-0 border-b px-5 py-5 sm:px-6">
+        <div className="flex items-start gap-3.5">
+          <span className="grid size-10 shrink-0 place-items-center rounded-md bg-muted text-muted-foreground">
             <FileText className="size-5" />
           </span>
           <div className="min-w-0 flex-1">
-            <h2 className="break-words text-xl font-semibold leading-7 tracking-tight">{document.filename}</h2>
-            <p className="mt-1.5 truncate text-sm text-muted-foreground" title={filePath(document)}>
+            <h2 className="break-words text-lg font-semibold leading-6 tracking-[-0.01em]">{document.filename}</h2>
+            <p className="mt-1 truncate text-xs text-muted-foreground" title={filePath(document)}>
               {document.directoryPath}
             </p>
           </div>
@@ -100,7 +100,7 @@ export function VectorDocumentDetailsPanel({
       </header>
 
       <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain">
-        <section className="border-b px-6 py-5" aria-label="File indexing summary">
+        <section className="border-b bg-muted/20 px-5 py-4 sm:px-6" aria-label="File indexing summary">
           <div className="flex flex-wrap items-center gap-2.5 text-sm">
             <StatusBadge status={document.status} />
             <span aria-hidden="true" className="text-muted-foreground/60">·</span>
@@ -110,9 +110,9 @@ export function VectorDocumentDetailsPanel({
           </div>
         </section>
 
-        <section className="border-b px-6 py-7" aria-labelledby="indexed-text-preview-title">
+        <section className="border-b px-5 py-5 sm:px-6" aria-labelledby="indexed-text-preview-title">
           <div className="flex items-start justify-between gap-4">
-            <h3 id="indexed-text-preview-title" className="text-lg font-semibold leading-6">Indexed text preview</h3>
+            <h3 id="indexed-text-preview-title" className="text-base font-semibold leading-6">Indexed text preview</h3>
             <Button
               variant="ghost"
               size="sm"
@@ -123,19 +123,19 @@ export function VectorDocumentDetailsPanel({
               Open preview
             </Button>
           </div>
-          <div className="mt-4">
+          <div className="mt-3.5">
             {ready && canViewContent && detail.isPending ? <PreviewSkeleton /> : null}
             {detail.error ? <PanelMessage tone="danger">{detail.error.message}</PanelMessage> : null}
             {!canViewContent ? <PanelMessage>Content preview is unavailable for your Project role.</PanelMessage> : null}
             {canViewContent && !ready ? <PanelMessage>{previewUnavailableMessage(document)}</PanelMessage> : null}
             {canViewContent && ready && detail.data && !preview ? <PanelMessage>No indexed text is available.</PanelMessage> : null}
-            {preview ? <p className="whitespace-pre-wrap text-[15px] leading-7 text-muted-foreground">{preview}</p> : null}
+            {preview ? <p className="whitespace-pre-wrap text-sm leading-6 text-foreground/70">{preview}</p> : null}
           </div>
         </section>
 
-        <section className="border-b px-6 py-7" aria-labelledby="file-properties-title">
-          <h3 id="file-properties-title" className="text-lg font-semibold">File properties</h3>
-          <dl className="mt-5 space-y-4 text-sm">
+        <section className="border-b px-5 py-5 sm:px-6" aria-labelledby="file-properties-title">
+          <h3 id="file-properties-title" className="text-base font-semibold">File properties</h3>
+          <dl className="mt-4 space-y-3 text-sm">
             <Property label="Type" value={mediaTypeLabel(document)} />
             <Property label="Status" value={statusLabel(document.status)} />
             <Property label="Chunks" value={String(document.chunkCount)} />
@@ -143,7 +143,7 @@ export function VectorDocumentDetailsPanel({
           </dl>
           <Button
             variant="outline"
-            className="mt-6 h-11"
+            className="mt-5 h-10"
             disabled={!ready || !canViewContent || document.chunkCount === 0}
             onClick={onViewChunks}
           >
@@ -151,9 +151,9 @@ export function VectorDocumentDetailsPanel({
           </Button>
         </section>
 
-        <section className="px-6 py-7" aria-labelledby="custom-metadata-title">
+        <section className="px-5 py-5 sm:px-6" aria-labelledby="custom-metadata-title">
           <div className="flex items-start justify-between gap-4">
-            <h3 id="custom-metadata-title" className="text-lg font-semibold">Custom metadata</h3>
+            <h3 id="custom-metadata-title" className="text-base font-semibold">Custom metadata</h3>
             {canManage ? (
               <Button variant="ghost" size="sm" className="-mr-2 text-muted-foreground hover:text-foreground" onClick={onEditMetadata}>
                 <Pencil />Edit
@@ -170,10 +170,10 @@ export function VectorDocumentDetailsPanel({
               ))}
             </dl>
           ) : (
-            <p className="mt-4 text-[15px] leading-6 text-muted-foreground">No custom metadata has been added.</p>
+            <p className="mt-3.5 text-sm leading-6 text-muted-foreground">No custom metadata has been added.</p>
           )}
           {canManage && !metadata.length ? (
-            <Button variant="outline" className="mt-5 h-11" onClick={onEditMetadata}>
+            <Button variant="outline" className="mt-4 h-10" onClick={onEditMetadata}>
               <Plus />Add metadata
             </Button>
           ) : null}
@@ -188,7 +188,7 @@ function StatusBadge({ status }: { status: VectorDocument["status"] }) {
     <Badge
       variant="outline"
       className={status === "READY"
-        ? "border-transparent bg-sky-500/10 text-sky-700 dark:text-sky-300"
+        ? "border-transparent bg-primary/10 text-primary"
         : status === "FAILED"
           ? "border-transparent bg-destructive/10 text-destructive"
           : "border-transparent bg-amber-500/10 text-amber-700 dark:text-amber-300"}

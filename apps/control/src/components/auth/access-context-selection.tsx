@@ -161,7 +161,7 @@ export function AccessContextSelection() {
         <p className="font-mono text-xs uppercase tracking-[0.08em] text-primary">
           Account access
         </p>
-        <h1 className="mt-4 font-display text-4xl font-medium tracking-[-0.025em] sm:text-5xl">
+        <h1 className="mt-4 font-display text-4xl font-light tracking-[-0.005em] sm:text-5xl">
           Choose how to enter
         </h1>
         <p className="mt-4 max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base">

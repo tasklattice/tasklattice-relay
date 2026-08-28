@@ -120,7 +120,7 @@ function RestrictedOverview() {
   return (
     <div className="space-y-7">
       <header className="border-b pb-5">
-        <h1 className="font-display text-3xl font-medium tracking-tight">Home</h1>
+        <h1 className="font-display text-[1.625rem] font-light leading-tight tracking-[0.005em]">Home</h1>
         <p className="mt-2 text-sm text-muted-foreground">
           <span className="font-medium text-foreground">Project overview.</span>{" "}
           Usage, runtime health, spend, and activity across this Project.

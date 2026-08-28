@@ -89,6 +89,53 @@ const rendered = renderChart([
 
 const objects = parseObjects(rendered);
 
+function litellmContainerFrom(collection) {
+  return collection
+    .find(
+      (object) =>
+        object.kind === "Deployment"
+        && object.metadata?.labels?.["app.kubernetes.io/component"] === "litellm",
+    )
+    ?.spec?.template?.spec?.containers?.find(
+      (container) => container.name === "litellm",
+    );
+}
+
+function envValue(container, name) {
+  return container?.env?.find((entry) => entry.name === name)?.value;
+}
+
+const defaultLiteLLMContainer = litellmContainerFrom(objects);
+const defaultWorkerArgumentIndex = defaultLiteLLMContainer?.args?.indexOf("--num_workers") ?? -1;
+if (
+  defaultWorkerArgumentIndex < 0
+  || defaultLiteLLMContainer.args[defaultWorkerArgumentIndex + 1] !== "1"
+) {
+  throw new Error("LiteLLM must default to one worker per Pod.");
+}
+if (envValue(defaultLiteLLMContainer, "LITELLM_LOCAL_MODEL_COST_MAP") !== "True") {
+  throw new Error("LiteLLM must default to the model cost map bundled in its image.");
+}
+
+const connectedLiteLLMContainer = litellmContainerFrom(
+  parseObjects(
+    renderChart([
+      "--set",
+      "litellm.workers=3",
+      "--set",
+      "litellm.localModelCostMap=false",
+    ]),
+  ),
+);
+const connectedWorkerArgumentIndex = connectedLiteLLMContainer?.args?.indexOf("--num_workers") ?? -1;
+if (
+  connectedWorkerArgumentIndex < 0
+  || connectedLiteLLMContainer.args[connectedWorkerArgumentIndex + 1] !== "3"
+  || envValue(connectedLiteLLMContainer, "LITELLM_LOCAL_MODEL_COST_MAP") !== "False"
+) {
+  throw new Error("LiteLLM worker and remote cost-map overrides must remain configurable.");
+}
+
 const arbitraryReleaseName = "tali-release-023";
 const arbitraryReleaseNamespace = "tali-arbitrary-release-validation";
 const arbitraryReleaseObjects = parseObjects(

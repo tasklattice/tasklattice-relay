@@ -724,7 +724,7 @@ function SkillCard({
       <footer className="mt-auto flex min-h-11 items-end pt-5">
         <Button
           type="button"
-          variant="ghost"
+          variant="link"
           className="-ml-2 h-11 px-2"
           onClick={onDetails}
         >
@@ -809,13 +809,13 @@ function SkillCategoryOption({
         active
           ? tone === "danger"
             ? "flex min-h-11 items-center gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-left text-xs font-medium text-destructive outline-none focus-visible:ring-2 focus-visible:ring-destructive/30"
-            : "flex min-h-11 items-center gap-2 rounded-md border border-primary/25 bg-primary/10 px-3 py-2 text-left text-xs font-medium text-primary outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
+            : "flex min-h-11 items-center gap-2 rounded-md border border-primary bg-primary px-3 py-2 text-left text-xs font-medium text-primary-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
           : "flex min-h-11 items-center gap-2 rounded-md border border-transparent bg-muted/70 px-3 py-2 text-left text-xs text-foreground outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/30"
       }
       onClick={onClick}
     >
       <span>{label}</span>
-      <span className="ml-auto tabular-nums text-muted-foreground">
+      <span className={active && tone === "default" ? "ml-auto tabular-nums text-primary-foreground/75" : "ml-auto tabular-nums text-muted-foreground"}>
         {count}
       </span>
     </button>

@@ -105,7 +105,7 @@ export function InstanceConfigurationTab({
             items={[
               { label: "Agent name", value: agent.name },
               { label: "Description", value: agent.description || "—" },
-              { label: "Role", value: managedBy },
+              { label: "Work profile", value: managedBy },
             ]}
           />
         </CardContent>

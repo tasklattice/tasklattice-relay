@@ -110,6 +110,28 @@ const violations = [];
 let checkedContainers = 0;
 const resourceIdentities = new Set();
 
+const liteLLMDeployment = objects.find(
+  (object) =>
+    object.kind === "Deployment"
+    && object.metadata?.labels?.["app.kubernetes.io/component"] === "litellm",
+);
+const liteLLMContainer = liteLLMDeployment?.spec?.template?.spec?.containers?.find(
+  (container) => container.name === "litellm",
+);
+const liteLLMLocalCostMap = liteLLMContainer?.env?.find(
+  (entry) => entry.name === "LITELLM_LOCAL_MODEL_COST_MAP",
+)?.value;
+const liteLLMWorkerArgumentIndex = liteLLMContainer?.args?.indexOf("--num_workers") ?? -1;
+if (liteLLMLocalCostMap !== "True") {
+  violations.push("Air-gap LiteLLM must use its image-bundled model cost map.");
+}
+if (
+  liteLLMWorkerArgumentIndex < 0
+  || liteLLMContainer.args[liteLLMWorkerArgumentIndex + 1] !== "1"
+) {
+  violations.push("Air-gap LiteLLM must default to one worker per Pod.");
+}
+
 for (const object of objects) {
   if (!object.apiVersion || !object.kind || !object.metadata?.name) {
     continue;

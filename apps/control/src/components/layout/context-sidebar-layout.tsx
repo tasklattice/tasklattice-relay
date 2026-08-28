@@ -71,7 +71,7 @@ export function ContextSidebarLayout({
 
       <SidebarInset className="min-h-svh">
         <WorkspaceHeader showSidebarTrigger={!standaloneSidebar || isMobile} />
-        <div className="border-b border-sidebar-border p-4 lg:hidden">
+        <div className="border-b border-border p-4 lg:hidden">
           {mobileNavigation}
         </div>
         {children}

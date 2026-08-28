@@ -217,23 +217,23 @@ function VectorDatabaseDetail() {
   ) : null;
 
   return (
-    <div className="space-y-5 pb-10">
+    <div className="min-w-0 space-y-5 pb-10">
       <header className="flex flex-col gap-5 border-b pb-5 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
-          <h1 className="truncate text-3xl font-semibold tracking-tight">{database.name}</h1>
-          <p className="mt-2 text-sm text-muted-foreground">
+          <h1 className="truncate font-display text-[1.625rem] font-light leading-tight tracking-[0.005em]">{database.name}</h1>
+          <p className="mt-1.5 text-sm text-muted-foreground">
             {database.provider === "postgresql" ? "Managed" : "Connected"} vector database · {database.status === "REGISTERED" ? "Ready" : "Unavailable"}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" className="h-11" disabled={!permissions.canViewVectorDatabaseContent} onClick={() => { setFileAction(null); setSelection(null); setSearchOpen(true); }}><Search />Test retrieval</Button>
-          {database.provider === "postgresql" ? <Button className="h-11 bg-foreground text-background hover:bg-foreground/90" disabled={!permissions.canUpdateVectorDatabases} onClick={() => { upload.reset(); setUploadFiles([]); setUploadOpen(true); }}><FileUp />Upload files</Button> : null}
+          {database.provider === "postgresql" ? <Button className="h-11" disabled={!permissions.canUpdateVectorDatabases} onClick={() => { upload.reset(); setUploadFiles([]); setUploadOpen(true); }}><FileUp />Upload files</Button> : null}
           <DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="size-11" aria-label={`Actions for ${database.name}`}><MoreHorizontal /></Button></DropdownMenuTrigger><DropdownMenuContent align="end" className="w-56"><DropdownMenuItem onSelect={() => setSettingsOpen(true)}><Settings />Database settings</DropdownMenuItem><DropdownMenuItem onSelect={() => setActivityOpen(true)}><Activity />View activity</DropdownMenuItem>{permissions.canDeleteVectorDatabases ? <><DropdownMenuSeparator /><DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={() => setDeleteDatabaseOpen(true)}><Trash2 />Delete vector database</DropdownMenuItem></> : null}</DropdownMenuContent></DropdownMenu>
         </div>
       </header>
       {notice ? <p role="status" className="border-l-2 border-primary bg-primary/5 px-4 py-3 text-sm">{notice}</p> : null}
 
-      <div className="min-h-[42rem] overflow-hidden rounded-sm border bg-background">
+      <div className="min-h-[42rem] min-w-0 overflow-hidden rounded-md border bg-card">
         <VectorDatabaseFileBrowser builtIn={database.provider === "postgresql"} canManage={permissions.canUpdateVectorDatabases} currentFolderId={currentFolderId} documents={documents} folders={folders} refreshing={overview.isFetching} selection={selection} onAction={objectAction} onCurrentFolderChange={changeFolder} onNewFolder={() => { createFolder.reset(); setNewFolderName(""); setNewFolderOpen(true); }} onRefresh={() => void refresh()} onSelectionChange={select} onUpload={() => { upload.reset(); setUploadFiles([]); setUploadOpen(true); }} />
       </div>
 

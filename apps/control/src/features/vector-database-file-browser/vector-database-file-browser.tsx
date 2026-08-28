@@ -98,7 +98,7 @@ export function VectorDatabaseFileBrowser({
   };
 
   return (
-    <section className="flex min-h-[36rem] min-w-0 flex-col bg-background" aria-label="Vector Database files">
+    <section className="flex min-h-[36rem] min-w-0 flex-col bg-card" aria-label="Vector Database files">
       <header className="flex flex-col gap-3 border-b px-4 py-3 sm:px-5 xl:flex-row xl:items-center xl:justify-between">
         <nav aria-label="Current folder" className="flex min-w-0 flex-wrap items-center gap-1 text-sm">
           <button
@@ -129,7 +129,7 @@ export function VectorDatabaseFileBrowser({
         </div>
       </header>
 
-      <div className="grid min-h-12 grid-cols-[minmax(0,1fr)_6.5rem_3rem] items-center gap-3 border-b px-4 text-sm font-semibold sm:px-5 md:grid-cols-[minmax(0,1fr)_7rem_5rem_6rem_3rem]">
+      <div className="grid min-h-11 grid-cols-[minmax(0,1fr)_6.5rem_3rem] items-center gap-3 border-b bg-muted/30 px-4 text-xs font-medium text-muted-foreground sm:px-5 md:grid-cols-[minmax(0,1fr)_7rem_5rem_6rem_3rem]">
         <span>Name</span>
         <span>Status</span>
         <span className="hidden md:block">Chunks</span>
@@ -155,30 +155,30 @@ export function VectorDatabaseFileBrowser({
               tabIndex={0}
               aria-pressed={selected}
               className={cn(
-                "group grid min-h-[4.5rem] cursor-pointer grid-cols-[minmax(0,1fr)_6.5rem_3rem] items-center gap-3 border-b px-4 text-left outline-none hover:bg-muted/25 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:px-5 md:grid-cols-[minmax(0,1fr)_7rem_5rem_6rem_3rem]",
-                selected && "bg-sky-500/10 hover:bg-sky-500/10",
+                "group grid min-h-16 cursor-pointer grid-cols-[minmax(0,1fr)_6.5rem_3rem] items-center gap-3 border-b px-4 text-left outline-none transition-colors hover:bg-muted/45 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:px-5 md:grid-cols-[minmax(0,1fr)_7rem_5rem_6rem_3rem]",
+                selected && "bg-primary/[0.07] hover:bg-primary/[0.07]",
               )}
               onClick={() => open(next)}
               onKeyDown={(event) => activate(event, next)}
             >
               <span className="flex min-w-0 items-center gap-3">
                 <span className={cn(
-                  "grid size-9 shrink-0 place-items-center rounded-sm text-muted-foreground",
+                  "grid size-8 shrink-0 place-items-center rounded-sm text-muted-foreground",
                   "bg-muted",
                 )}>
                   {row.kind === "folder" ? <Folder className="size-4" /> : <FileText className="size-4" />}
                 </span>
-                <strong className="min-w-0 break-words text-base font-medium leading-6">{row.name}</strong>
+                <strong className="min-w-0 break-words text-sm font-medium leading-5">{row.name}</strong>
               </span>
               <span className="text-xs">
                 {row.kind === "folder"
                   ? <span className="text-muted-foreground">—</span>
                   : <Badge variant="outline" className={statusClassName(row.document.status)}>{statusLabel(row.document.status)}</Badge>}
               </span>
-              <span className="hidden font-mono text-xs md:block">
+              <span className="hidden font-mono text-xs text-muted-foreground md:block">
                 {row.kind === "folder" ? row.folder.totalVectorCount : row.document.chunkCount}
               </span>
-              <span className="hidden text-sm md:block">
+              <span className="hidden text-xs md:block">
                 {row.kind === "folder" ? "—" : formatBytes(row.document.byteSize)}
               </span>
               <ObjectMenu
@@ -243,7 +243,7 @@ function statusLabel(status: VectorDocument["status"]): string {
 }
 
 function statusClassName(status: VectorDocument["status"]): string {
-  if (status === "READY") return "border-transparent bg-sky-500/10 text-sky-700 dark:text-sky-300";
+  if (status === "READY") return "border-transparent bg-primary/10 text-primary";
   if (status === "FAILED") return "border-transparent bg-destructive/10 text-destructive";
   return "border-transparent bg-amber-500/10 text-amber-700 dark:text-amber-300";
 }

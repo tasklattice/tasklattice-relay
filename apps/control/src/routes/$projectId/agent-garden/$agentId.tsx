@@ -228,7 +228,7 @@ function AgentMarketplaceDetail() {
                 tone={statusTone}
               />
             </div>
-            <h1 className="mt-4 font-display text-3xl font-medium tracking-tight sm:text-4xl">
+            <h1 className="mt-4 font-display text-3xl font-light tracking-[0.005em] sm:text-4xl">
               {agent.name}
             </h1>
             <p className="mt-3 max-w-3xl text-base leading-7 text-muted-foreground">

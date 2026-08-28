@@ -73,7 +73,7 @@ export function AccountMenu({
           type="button"
           aria-label={t("account.openMenu", { displayName })}
           className={cn(
-            "group flex items-center rounded-md outline-none transition-colors hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-ring/30 data-[state=open]:bg-accent",
+            "group flex items-center rounded-md text-sidebar-foreground outline-none transition-colors hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-ring/55 data-[state=open]:bg-sidebar-accent",
             collapsed
               ? "mx-auto size-11 justify-center"
               : "h-9 w-full gap-2.5 px-3",
@@ -86,11 +86,11 @@ export function AccountMenu({
                 <strong className="block truncate text-xs">
                   {displayName}
                 </strong>
-                <span className="block truncate text-[10px] text-muted-foreground">
+                <span className="block truncate text-[10px] text-sidebar-foreground/55">
                   {activeAccessLabel}
                 </span>
               </span>
-              <ChevronDown className="size-3.5 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+              <ChevronDown className="size-3.5 text-sidebar-foreground/55 transition-transform group-data-[state=open]:rotate-180" />
             </>
           )}
         </button>

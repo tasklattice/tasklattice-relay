@@ -191,7 +191,7 @@ function ModelCostPage() {
   return (
     <div className="space-y-3 font-sans">
       <header className="pb-1">
-        <h1 className="font-sans text-[28px] font-semibold leading-8 tracking-tight">Model cost</h1>
+        <h1 className="font-display text-[1.625rem] font-light leading-tight tracking-[0.005em]">Model cost</h1>
         <p className="mt-1 max-w-3xl text-[13px] leading-5 text-muted-foreground">
           LiteLLM spend is attributed to the dedicated virtual keys created for each Instance.
           <br className="hidden sm:block" />

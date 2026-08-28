@@ -49,7 +49,7 @@ export function AccessContextGuard({ children }: { children: ReactNode }) {
       <main className="grid min-h-svh place-items-center bg-background p-6">
         <div className="max-w-sm text-center">
           <BrandLogo compact />
-          <h1 className="mt-7 font-display text-2xl font-medium">
+          <h1 className="mt-7 font-display text-2xl font-light tracking-[0.005em]">
             Account access unavailable
           </h1>
           <p className="mt-2 text-sm leading-6 text-muted-foreground">{error}</p>

@@ -55,7 +55,7 @@ function LoginPage() {
         </Link>
         <div className="relative z-10 max-w-xl pb-8">
           <p className="font-mono text-xs uppercase tracking-[0.08em] text-primary">{t("hero.kicker")}</p>
-          <h1 className="mt-7 font-display text-6xl font-medium leading-[0.98] tracking-[-0.035em]">{t("hero.titleFirst")}<br />{t("hero.titleSecond")}</h1>
+          <h1 className="mt-7 font-display text-6xl font-light leading-[0.98] tracking-[-0.01em]">{t("hero.titleFirst")}<br />{t("hero.titleSecond")}</h1>
           <p className="mt-7 max-w-md text-base leading-7 text-muted-foreground">{t("hero.description")}</p>
         </div>
         <div className="relative z-10 flex items-center gap-3 font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground"><LockKeyhole className="size-4" />{t("hero.sessionProtected")}</div>

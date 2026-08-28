@@ -30,6 +30,7 @@
     "@fontsource-variable/noto-serif-tc": "^5.3.0",
     "@fontsource/chivo-mono": "^5.2.8",
     "@fontsource/hanken-grotesk": "^5.2.8",
+    "@fontsource/inter": "^5.2.8",
     "@kubernetes/client-node": "1.4.0",
     "@melloware/react-logviewer": "6.3.3",
     "@nivo/bar": "^0.99.0",

@@ -38,7 +38,7 @@ describe("Project control-plane navigation", () => {
       t(`navigation.items.${item.labelKey}`),
     ))).toEqual([
       ["实例", "记忆"],
-      ["专家智能体", "技能", "MCP 连接", "向量数据库"],
+      ["Agent 目录", "技能", "MCP 连接", "向量数据库"],
       ["访问策略", "运行时策略"],
       ["追踪记录", "审计日志", "成本"],
     ]);

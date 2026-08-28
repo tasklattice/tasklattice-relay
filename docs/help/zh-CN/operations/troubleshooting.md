@@ -49,6 +49,28 @@ kubectl -n <namespace> logs deployment/agent-sandbox-controller --since=30m
 kubectl -n <namespace> logs deployment/<release>-litellm --since=30m
 ~~~
 
+如果日志反复出现 `Child process [pid] died`，但 Pod 本身没有重启，请先检查
+worker 数量和 cgroup 内存计数。LiteLLM 的 Uvicorn worker 是独立进程，不是
+线程；supervisor 的这条消息不会显示子进程的退出码。因而内核只 OOM 杀死
+子进程时，PID 1 和 Kubernetes 容器仍可能继续运行。
+
+~~~shell
+kubectl -n <namespace> get deployment/<release>-litellm \
+  -o jsonpath='{.spec.template.spec.containers[0].args}{"\n"}{.spec.template.spec.containers[0].resources}{"\n"}'
+kubectl -n <namespace> exec deployment/<release>-litellm -- \
+  sh -c 'cat /sys/fs/cgroup/memory.events 2>/dev/null || true'
+kubectl -n <namespace> top pod -l app.kubernetes.io/component=litellm
+~~~
+
+持续增加的 `oom_kill` 是 cgroup OOM 的直接证据。Chart 默认使用单 worker，
+使致命进程退出成为 Kubernetes 能记录原因的容器退出。需要并发时优先扩展
+`litellm.replicaCount`；如果必须在单 Pod 中使用多个 worker，需要为每个完整
+Router 和 Prisma 进程增加内存上限。
+
+离线部署应渲染出 `LITELLM_LOCAL_MODEL_COST_MAP=True`。`tali-litellm` 镜像
+会验证并使用其固定 LiteLLM 版本自带的价格和上下文窗口表，启动时无需访问
+GitHub。新模型信息和价格随新镜像更新；私有模型价格应在模型部署中明确配置。
+
 ### 用量、成本或审计数据延迟
 
 确认请求完成状态、时钟和时区、采集服务、数据库写入、所选时间范围和归因标识。必须区分数据缺失与真实零值。

@@ -92,7 +92,7 @@ const enUS = {
         memory: "Memory",
         runtimePolicies: "Runtime Policies",
         skills: "Skills",
-        specialistAgents: "Specialist Agents",
+        specialistAgents: "Agent Garden",
         traces: "Traces",
       },
       title: "Project navigation",
@@ -125,9 +125,9 @@ const enUS = {
   createInstance: {
     agentFoundation: {
       description:
-        "Name the Instance, choose its Agent, and configure the Memory that gives it continuity.",
-      stepDescription: "Set name, Agent, and Memory",
-      title: "Choose an Agent",
+        "Name the deployed Instance, choose its reusable Agent definition, and configure Memory continuity.",
+      stepDescription: "Set Instance name, Agent definition, and Memory",
+      title: "Agent Definition",
     },
     progressLabel: "Create Instance progress",
     review: {
@@ -299,7 +299,7 @@ const zhCN = {
         memory: "记忆",
         runtimePolicies: "运行时策略",
         skills: "技能",
-        specialistAgents: "专家智能体",
+        specialistAgents: "Agent 目录",
         traces: "追踪记录",
       },
       title: "项目导航",
@@ -332,9 +332,9 @@ const zhCN = {
   createInstance: {
     agentFoundation: {
       description:
-        "为实例命名、选择 Agent，并配置让它保持连续性的 Memory。",
-      stepDescription: "设置名称、Agent 与 Memory",
-      title: "选择 Agent",
+        "为部署实例命名、选择可复用的 Agent 定义，并配置 Memory 连续性。",
+      stepDescription: "设置实例名称、Agent 定义与 Memory",
+      title: "Agent 定义",
     },
     progressLabel: "创建实例进度",
     review: {
@@ -504,7 +504,7 @@ const zhTW = {
         memory: "記憶",
         runtimePolicies: "執行階段原則",
         skills: "技能",
-        specialistAgents: "專家 Agent",
+        specialistAgents: "Agent 目錄",
         traces: "追蹤記錄",
       },
       title: "專案導覽",
@@ -537,9 +537,9 @@ const zhTW = {
   createInstance: {
     agentFoundation: {
       description:
-        "為執行個體命名、選擇 Agent，並設定讓它保有連續性的 Memory。",
-      stepDescription: "設定名稱、Agent 與 Memory",
-      title: "選擇 Agent",
+        "為部署執行個體命名、選擇可重用的 Agent 定義，並設定 Memory 連續性。",
+      stepDescription: "設定執行個體名稱、Agent 定義與 Memory",
+      title: "Agent 定義",
     },
     progressLabel: "建立執行個體進度",
     review: {

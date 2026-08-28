@@ -378,7 +378,7 @@ function Instances() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Instances" description="Monitor workbench Agents and callable A2A Instances available in this Project." actions={permissions.canCreateAgents ? <Button asChild className="h-11"><Link to="/$projectId/instances" params={{ projectId }} search={{ create: "instance" }}><Plus />Create Instance</Link></Button> : undefined} />
+      <PageHeader title="Instances" description="Monitor deployed Agent runtimes and callable A2A Instances in this Project." actions={permissions.canCreateAgents ? <Button asChild className="h-11"><Link to="/$projectId/instances" params={{ projectId }} search={{ create: "instance" }}><Plus />Create Instance</Link></Button> : undefined} />
 
       {search.created ? <CreationNotice onClose={() => void navigate({ to: "/$projectId/instances", params: { projectId }, search: {}, replace: true })} /> : null}
       {search.retainedMemory || retainedMemory ? (

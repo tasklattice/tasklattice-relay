@@ -366,7 +366,7 @@ function SourceStep({
       <TabsList variant="line" className="grid h-auto w-full grid-cols-3" aria-label="Agent onboarding source">
         <TabsTrigger value="container-image" className="h-12 px-2"><Box /> <span className="hidden sm:inline">Container Image</span><span className="sm:hidden">Image</span></TabsTrigger>
         <TabsTrigger value="existing-agent" className="h-12 px-2"><Link2 /> <span className="hidden sm:inline">Existing Agent</span><span className="sm:hidden">Existing</span></TabsTrigger>
-        <TabsTrigger value="git-repository" className="h-12 px-2"><GitBranch /> <span className="hidden sm:inline">Git Repository</span><span className="sm:hidden">Repo</span></TabsTrigger>
+        <TabsTrigger value="git-repository" disabled className="h-12 px-2" title="Repository onboarding is planned but not yet available"><GitBranch /> <span className="hidden sm:inline">Git Repository · Planned</span><span className="sm:hidden">Repo · Planned</span></TabsTrigger>
       </TabsList>
 
       <TabsContent value="container-image" className="mt-4 space-y-6">

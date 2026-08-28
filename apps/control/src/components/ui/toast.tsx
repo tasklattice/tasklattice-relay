@@ -29,7 +29,7 @@ function Toast({
   return (
     <ToastPrimitive.Root
       className={cn(
-        "relative grid grid-cols-[1fr_auto] gap-x-3 rounded-md border bg-background p-4 text-foreground shadow-lg outline-none",
+        "relative grid grid-cols-[1fr_auto] gap-x-3 rounded-lg border bg-card p-4 text-foreground shadow-[0_12px_32px_rgb(0_0_0/0.14)] outline-none",
         "data-[state=open]:animate-in data-[state=open]:slide-in-from-top-2 data-[state=closed]:animate-out data-[state=closed]:fade-out-80 data-[swipe=end]:translate-x-[var(--radix-toast-swipe-end-x)]",
         className,
       )}

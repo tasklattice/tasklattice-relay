@@ -137,7 +137,7 @@ export function MemoryDetailPage({ memoryId }: { memoryId: string }) {
         <div className="flex min-w-0 items-start gap-3">
           <span className="grid size-11 shrink-0 place-items-center rounded-xl border bg-muted/30 text-muted-foreground"><BrainCircuit className="size-5" /></span>
           <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2"><h1 className="truncate text-2xl font-semibold tracking-tight">{memory.displayName}</h1><MemoryStatus status={memory.status} /></div>
+            <div className="flex flex-wrap items-center gap-2"><h1 className="truncate font-display text-[1.625rem] font-light leading-tight tracking-[0.005em]">{memory.displayName}</h1><MemoryStatus status={memory.status} /></div>
             <p className="mt-1 text-sm text-muted-foreground">
               {memory.activeBinding ? `Bound to ${bindingAgent?.name ?? memory.activeBinding.instanceId} · ${memory.activeBinding.runtimeType}` : "Unbound and available to attach"}
               {" · "}{formatRelativeMemoryDate(memory.lastActivityAt)}

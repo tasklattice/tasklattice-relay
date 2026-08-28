@@ -45,14 +45,14 @@ describe("platform i18n", () => {
 
     expect(english).not.toBe(chinese);
     expect(english.t("agentFoundation.title", { ns: "createInstance" })).toBe(
-      "Choose an Agent",
+      "Agent Definition",
     );
     expect(chinese.t("agentFoundation.title", { ns: "createInstance" })).toBe(
-      "选择 Agent",
+      "Agent 定义",
     );
     expect(
       traditionalChinese.t("agentFoundation.title", { ns: "createInstance" }),
-    ).toBe("選擇 Agent");
+    ).toBe("Agent 定義");
   });
 
   it("keeps every supported language resource structurally complete", () => {

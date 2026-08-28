@@ -50,6 +50,13 @@ export const Route = createFileRoute("/$projectId/agent-garden/")({
 
 type SortMode = "recommended" | "name" | "recent";
 
+interface AgentCatalogSection {
+  id: string;
+  title: string;
+  description: string;
+  agents: AgentGardenEntry[];
+}
+
 function toggleCapability(
   capabilities: string[],
   capability: string,
@@ -141,6 +148,60 @@ function AgentGarden() {
     }
     return filtered;
   }, [allAgents, capabilities, search, sort]);
+  const catalogSections = useMemo<AgentCatalogSection[]>(() => {
+    const projectAgents: AgentGardenEntry[] = [];
+    const interactiveAgents: AgentGardenEntry[] = [];
+    const callableAgents: AgentGardenEntry[] = [];
+    const hybridAgents: AgentGardenEntry[] = [];
+    const unavailableAgents: AgentGardenEntry[] = [];
+
+    for (const agent of visibleAgents) {
+      if (agent.source === "PROJECT_REGISTERED") {
+        projectAgents.push(agent);
+      } else if (agent.status !== "READY") {
+        unavailableAgents.push(agent);
+      } else if (agent.usageMode === "HYBRID") {
+        hybridAgents.push(agent);
+      } else if (agent.usageMode === "INTERACTIVE") {
+        interactiveAgents.push(agent);
+      } else {
+        callableAgents.push(agent);
+      }
+    }
+
+    return [
+      {
+        id: "project",
+        title: "Project Agents",
+        description: "Agent definitions onboarded and governed by this Project.",
+        agents: projectAgents,
+      },
+      {
+        id: "interactive",
+        title: "Interactive Agents",
+        description: "Reusable definitions that deploy a user-facing workbench Instance.",
+        agents: interactiveAgents,
+      },
+      {
+        id: "callable",
+        title: "Callable A2A Agents",
+        description: "Specialists that receive delegated tasks through an A2A interface.",
+        agents: callableAgents,
+      },
+      {
+        id: "hybrid",
+        title: "Interactive and callable Agents",
+        description: "Definitions that support both direct work and delegated tasks.",
+        agents: hybridAgents,
+      },
+      {
+        id: "unavailable",
+        title: "Planned or unavailable",
+        description: "Definitions that cannot create a new Instance yet.",
+        agents: unavailableAgents,
+      },
+    ].filter((section) => section.agents.length > 0);
+  }, [visibleAgents]);
 
   const refresh = useMutation({
     mutationFn: api.discoverGardenAgent,
@@ -232,15 +293,30 @@ function AgentGarden() {
     <div className="space-y-6">
       <PageHeader
         title="Agent Garden"
-        description="Discover callable A2A Agents, deploy a compatible container image, or register an Agent through its published A2A 1.0 Agent Card."
+        description="Choose a reusable Agent definition, deploy an Instance, or onboard a callable A2A Agent into this Project."
         actions={(
-          <Button
-            className="h-11"
-            disabled={!permissions.canManageResources}
-            onClick={() => setRegistrationOpen(true)}
-          >
-            <Plus /> Onboard Agent
-          </Button>
+          <div className="flex flex-col items-end gap-1">
+            <Button
+              className="h-11"
+              aria-describedby={
+                permissions.canManageResources
+                  ? undefined
+                  : "onboard-agent-permission"
+              }
+              disabled={!permissions.canManageResources}
+              onClick={() => setRegistrationOpen(true)}
+            >
+              <Plus /> Onboard Agent
+            </Button>
+            {!permissions.canManageResources ? (
+              <p
+                id="onboard-agent-permission"
+                className="max-w-xs text-right text-xs leading-5 text-muted-foreground"
+              >
+                Project resource management permission is required.
+              </p>
+            ) : null}
+          </div>
         )}
       />
 
@@ -377,21 +453,46 @@ function AgentGarden() {
               ))}
             </div>
           ) : visibleAgents.length ? (
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-              {visibleAgents.map((agent) => (
-                <AgentGardenCard
-                  key={agent.id}
-                  agent={agent}
-                  canManage={permissions.canManageResources}
-                  instanceCount={
-                    (garden.data?.instances ?? []).filter(
-                      (instance) => instance.agentId === agent.id,
-                    ).length
-                  }
-                  onDetails={() => openDetails(agent)}
-                  onCreateInstance={() => createInstance(agent)}
-                  onTry={() => setTryId(agent.id)}
-                />
+            <div className="space-y-8">
+              {catalogSections.map((section) => (
+                <section
+                  key={section.id}
+                  aria-labelledby={`agent-catalog-${section.id}`}
+                >
+                  <div className="mb-3 flex flex-wrap items-end justify-between gap-3 border-b pb-3">
+                    <div>
+                      <h2
+                        id={`agent-catalog-${section.id}`}
+                        className="text-base font-semibold"
+                      >
+                        {section.title}
+                      </h2>
+                      <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                        {section.description}
+                      </p>
+                    </div>
+                    <span className="text-xs tabular-nums text-muted-foreground">
+                      {section.agents.length} {section.agents.length === 1 ? "Agent" : "Agents"}
+                    </span>
+                  </div>
+                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                    {section.agents.map((agent) => (
+                      <AgentGardenCard
+                        key={agent.id}
+                        agent={agent}
+                        canManage={permissions.canManageResources}
+                        instanceCount={
+                          (garden.data?.instances ?? []).filter(
+                            (instance) => instance.agentId === agent.id,
+                          ).length
+                        }
+                        onDetails={() => openDetails(agent)}
+                        onCreateInstance={() => createInstance(agent)}
+                        onTry={() => setTryId(agent.id)}
+                      />
+                    ))}
+                  </div>
+                </section>
               ))}
             </div>
           ) : (

@@ -8,6 +8,8 @@ describe("Control Plane typography contract", () => {
     expect(styles).toContain("--font-display:");
     expect(styles).toContain("--font-sans:");
     expect(styles).toContain("--font-mono:");
+    expect(styles).toContain('--font-display: "Inter"');
+    expect(styles).toContain('--font-sans: "Inter"');
     expect(styles).not.toContain("--font-heading:");
   });
 
@@ -19,10 +21,10 @@ describe("Control Plane typography contract", () => {
     expect(styles).toMatch(/code,\s*kbd,\s*samp,\s*pre\s*{\s*@apply font-mono;/);
   });
 
-  it("uses Traditional Chinese fonts for zh-TW documents", () => {
+  it("uses the Traditional Chinese sans family for zh-TW documents", () => {
     expect(styles).toContain(':root:lang(zh-TW)');
     expect(styles).toContain('"Noto Sans TC"');
-    expect(styles).toContain('"Noto Serif TC"');
+    expect(styles).not.toContain('"Noto Serif TC"');
     expect(styles).toMatch(/:root:lang\(zh-TW\) body,/);
     expect(styles).toMatch(/:root:lang\(zh-TW\) \.font-display/);
   });

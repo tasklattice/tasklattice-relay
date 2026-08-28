@@ -194,7 +194,7 @@ function NavigationItem({ item, pathname, projectId }: {
           aria-current={active ? "page" : undefined}
           aria-label={label}
         >
-          <item.icon className={cn(active && "text-primary")} />
+          <item.icon />
           <span>{label}</span>
         </Link>
       </SidebarMenuButton>
@@ -394,7 +394,7 @@ export function AppShell() {
           <main
             id="main-content"
             className={cn(
-              "w-full",
+              "min-w-0 w-full",
               fullBleedRoute ? "flex-1" : "mx-auto p-5 sm:p-6 lg:py-6",
               !fullBleedRoute && (sidebarOpen ? "max-w-[1600px]" : "max-w-none"),
             )}
@@ -434,7 +434,7 @@ export function AppShell() {
             ) : (
               <div
                 key={globalRoute ? pathname : currentProject?.id}
-                className={cn(fullBleedRoute && "min-h-full")}
+                className={cn("min-w-0", fullBleedRoute && "min-h-full")}
               >
                 <Outlet />
               </div>

@@ -94,6 +94,7 @@ export function AgentFoundationStep({
     <Card>
       <CardHeader className="border-b pb-4">
         <CardTitle>{t("agentFoundation.title")}</CardTitle>
+        <CardDescription>{t("agentFoundation.description")}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
         <div className="space-y-2">
@@ -105,7 +106,7 @@ export function AgentFoundationStep({
               maxLength={64}
               value={name}
               onChange={(event) => onNameChange(event.target.value)}
-              placeholder="mobile-security-research"
+              placeholder="e.g. mobile-security-research"
               className="h-12 pr-16"
             />
             <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
@@ -116,11 +117,15 @@ export function AgentFoundationStep({
             <p role="alert" className="text-xs text-destructive">
               Use at least 3 characters.
             </p>
-          ) : null}
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              Required · 3–64 characters
+            </p>
+          )}
         </div>
 
         <div className="space-y-2 border-t pt-5">
-          <Label htmlFor="instance-agent">Agent</Label>
+          <Label htmlFor="instance-agent">Agent definition</Label>
           <AgentSelect
             id="instance-agent"
             value={agentPlatform}
@@ -461,7 +466,7 @@ function MemoryCapabilityRow({
                 Economy uses the Project&apos;s managed low-cost Memory defaults. A new Memory is prepared automatically unless you select an existing one.
               </p>
               <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                Durable Memory remains available after Agent deletion and can be attached to another supported Agent.
+                Durable Memory remains available after Instance deletion and can be attached to another supported Instance.
               </p>
               <Button asChild variant="link" size="sm" className="mt-2 h-auto min-h-0 p-0">
                 <Link to="/$projectId/memory" params={{ projectId }}>Manage Memory</Link>
