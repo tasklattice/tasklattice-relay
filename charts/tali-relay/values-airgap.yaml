@@ -6,6 +6,12 @@ global:
   imagePullSecrets:
     - name: airgap-registry
 
+# Keep disconnected behavior explicit even if the general chart defaults
+# change in a future release.
+litellm:
+  workers: 1
+  localModelCostMap: true
+
 # Images implemented by TaskLattice Relay inherit global.imageRegistry. External
 # runtime images use full repository paths so they can be mirrored separately.
 images:

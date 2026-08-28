@@ -175,11 +175,25 @@ centralized under `global.argocd.syncWaves` and can be adjusted for a cluster's
 policy without editing any dependency chart. Plain Helm and Kubernetes ignore
 the Argo CD annotations.
 
-LiteLLM defaults to two Uvicorn workers. Resource-constrained environments can
-set `litellm.workers=1` without patching the rendered Deployment. The chart sets
-`litellm.maximumTracebackLinesToLog=0` to keep request-level errors concise.
-Full exceptions remain available in the LiteLLM container logs. Increase this
-value only when request-level tracebacks are required for gateway diagnostics.
+LiteLLM defaults to one Uvicorn worker per Pod. Uvicorn workers are separate
+Python processes: each initializes a LiteLLM Router and Prisma query engine, and
+the multiprocess supervisor reports an exited or unresponsive worker only as
+`Child process died`. Scale with `litellm.replicaCount` when the deployment
+needs more concurrency. If `litellm.workers` is raised instead, size memory for
+every worker and inspect the container cgroup's `memory.events` when a child
+disappears without a Pod restart.
+
+The chart also defaults `litellm.localModelCostMap=true`. The released image
+contains the price and context-window map shipped by its pinned LiteLLM version,
+so startup does not contact GitHub and air-gapped cost attribution remains
+deterministic. Connected operators may set it to `false` to opt into LiteLLM's
+runtime remote map, accepting that pricing can then change independently of the
+TaskLattice Relay image. Custom or private model pricing should still be set on
+the model deployment itself.
+
+`litellm.maximumTracebackLinesToLog=0` keeps request-level errors concise. Full
+exceptions remain available in the LiteLLM container logs. Increase this value
+only when request-level tracebacks are required for gateway diagnostics.
 
 The dependency preparation step applies the small OpenShell overlay in
 `patches/openshell.patch`, which applies the configured
@@ -253,6 +267,9 @@ gateway, supervisor, and default sandbox through their respective `openshell`
 values. Do not put a full image repository under a first-party
 `images.<name>.repository` unless `useGlobalRegistry=false`; normally set
 `global.imageRegistry` once and keep those repository names relative.
+The profile also pins LiteLLM to one worker and sets
+`LITELLM_LOCAL_MODEL_COST_MAP=True`; pricing and model context metadata come
+from the JSON bundled in `tali-litellm`, not from GitHub at startup.
 
 Before installing, create the release namespace and its registry pull Secret.
 The Agent Sandbox controller and webhook are installed into that same namespace:

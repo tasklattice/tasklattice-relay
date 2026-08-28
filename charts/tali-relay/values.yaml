@@ -317,7 +317,15 @@ projectRuntimeBridge:
 
 litellm:
   replicaCount: 1
-  workers: 2
+  # LiteLLM workers are separate Python processes, not threads. Each worker
+  # initializes its own Router and Prisma query engine. Keep one worker per Pod
+  # so Kubernetes can report process exits and scale with replicaCount instead
+  # of hiding child OOM kills behind Uvicorn's multiprocess supervisor.
+  workers: 1
+  # Use the price/context map bundled with the pinned LiteLLM image. Set false
+  # only in connected environments that deliberately accept runtime pricing
+  # changes from LiteLLM's remote main-branch map.
+  localModelCostMap: true
   # Keep request-log errors concise. Full tracebacks remain available in the
   # LiteLLM container logs for operator diagnostics.
   maximumTracebackLinesToLog: 0
