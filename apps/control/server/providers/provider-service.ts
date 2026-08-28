@@ -335,7 +335,7 @@ export class ProviderService {
     const agentIds = await this.store.listAgentIdsUsingModelDeployments(models.map((model) => model.id));
     if (agentIds.length)
       throw new Error(
-        `Delete the ${agentIds.length} Instance${agentIds.length === 1 ? "" : "s"} using this Provider before deleting the account.`,
+        `Delete the ${agentIds.length} Instance${agentIds.length === 1 ? "" : "s"} using this Provider before deleting the Provider.`,
       );
     const deploymentIds = new Set(models.map((model) => model.id));
     const routings = (await this.store.listModelRoutings()).filter((routing) =>
@@ -343,7 +343,7 @@ export class ProviderService {
     );
     if (routings.length)
       throw new Error(
-        `Reconfigure the ${routings.length} Model Routing${routings.length === 1 ? "" : "s"} using this Provider before deleting the account.`,
+        `Reconfigure the ${routings.length} Model Routing${routings.length === 1 ? "" : "s"} using this Provider before deleting the Provider.`,
       );
     for (const model of models)
       await this.litellm.deleteModel(model.litellmModelName).catch(() => undefined);
@@ -378,7 +378,7 @@ export class ProviderService {
   async registerModel(input: CreateModelDeploymentInput): Promise<ModelDeployment> {
     const account = await this.store.getProviderAccount(input.providerAccountId);
     const rawCredential = await this.store.getProviderAccountCredential(input.providerAccountId);
-    if (!account || !rawCredential) throw new Error("Provider Account was not found.");
+    if (!account || !rawCredential) throw new Error("Provider was not found.");
     const draft = decodeCredential(account, rawCredential);
     const supportedTypes = catalog(draft.provider).modelTypes as readonly string[];
     if (!supportedTypes.includes(input.modelType))

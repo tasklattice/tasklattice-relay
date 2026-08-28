@@ -52,7 +52,7 @@ const columns: Record<CostGroupBy, Column[]> = {
   model_endpoint: [
     baseName("Model endpoint"),
     { id: "provider", label: "Provider", value: (item) => item.provider ?? "", render: (item) => item.provider || "—" },
-    { id: "providerAccount", label: "Provider account", value: (item) => item.providerAccount ?? "", render: (item) => item.providerAccount || "—" },
+    { id: "providerAccount", label: "Provider", value: (item) => item.providerAccount ?? "", render: (item) => item.providerAccount || "—" },
     spend,
     inputTokens,
     outputTokens,
@@ -60,8 +60,8 @@ const columns: Record<CostGroupBy, Column[]> = {
     average,
   ],
   provider_account: [
-    baseName("Provider account"),
-    { id: "provider", label: "Provider", value: (item) => item.provider ?? "", render: (item) => item.provider || "—" },
+    baseName("Provider"),
+    { id: "provider", label: "Provider type", value: (item) => item.provider ?? "", render: (item) => item.provider || "—" },
     spend,
     { id: "modelsUsed", label: "Models used", numeric: true, value: (item) => item.modelsUsed ?? 0 },
     totalTokens,

@@ -1036,7 +1036,7 @@ export const providerPresets = [
   defaultModels: readonly ProviderPresetModel[];
 }>;
 
-const connectionNameSchema = z.string().trim().min(3, "Connection name must contain at least 3 characters.").max(48);
+const connectionNameSchema = z.string().trim().min(3, "Provider name must contain at least 3 characters.").max(48);
 const apiKeySchema = z.string().trim().min(1, "API key is required.").max(8_192);
 const endpointSchema = z.string().trim().url("Enter a valid API endpoint URL.");
 const optionalText = z.string().trim().max(512).optional();

@@ -4,34 +4,39 @@ Status: Implemented full-stack domain
 
 ## Product definition
 
-A **Model Routing** is the single model-facing object an operator creates and
-an Instance consumes. It gives one name to the complete inference contract:
+Inference configuration uses three explicit resources:
+
+- A **Provider** is a configured model source owned by one Department or
+  Project. It contains the credentials, endpoint, compliance boundary, and
+  connection health needed to discover and call models.
+- A **Model** is one callable model registration supplied by a Provider. The
+  same logical model can be registered more than once when it comes from
+  different Providers, endpoints, regions, or commercial agreements.
+- A **Routing** is the stable inference contract consumed by an Instance. It
+  selects from registered Models and applies retries and fallback policy.
 
 ```text
-Provider connections and model deployments
+Provider → registered Models
   → LiteLLM public alias and routing behavior
   → compliance, isolated credentials, audit, and lifecycle
   → consuming Instances
 ```
 
-The Instance workflow no longer asks an operator to reason about Provider
-accounts, deployments, or routing internals. Those are upstream implementation
-details of the Routing.
+Instances consume Routing and do not select Provider credentials directly.
 
 ## Information architecture
 
-The Models navigation contains:
+Department and Project settings use the same ordered navigation:
 
-- **Model Routings**: the primary settings surface for routing readiness, upstream
-  inventory, creation, and consumption.
-- **Cost**: usage and cost evidence across routings, models, connections, and
-  Instances.
+1. **Providers** — configure scope-owned model sources and connection health.
+2. **Models** — register callable models from those Providers.
+3. **Routing** — compose registered Models into stable choices for Instances.
 
-The Model Routings settings surface has two ordered scopes:
-
-1. **Routings** — reusable choices exposed to Agent and Instance workflows.
-2. **Upstream resource pool** — provider credentials and model deployments
-   available to LiteLLM routing.
+Providers are never inherited or assigned from a Department to a Project.
+Credentials and endpoint ownership remain inside the scope where the Provider
+was configured. Departments can assign Models or Routing to Projects as live,
+read-only references; a Project can also configure its own Providers, Models,
+and Routing.
 
 The Routing detail page contains:
 
@@ -65,12 +70,19 @@ claims that every registered model belongs to the selected Routing.
    per-Instance credentials, and audit policy.
 4. Create and validate the Routing.
 
-### Add an upstream
+### Add a Provider
 
-The Provider registration drawer is opened inside the Model Routings
-surface. Provider selection, credential configuration, model discovery, and
-registration remain one progressive flow, but their purpose is framed as
-supplying the upstream pool for Routings.
+Adding a Provider configures new credentials, validates the endpoint, discovers
+its catalog, and registers at least one Model in one progressive flow. This
+keeps the Provider useful at creation time and preserves transactional cleanup
+when registration fails.
+
+### Register more Models
+
+An existing Provider can be reused to discover and register additional Models
+without asking for its credentials again. The Model list identifies the
+supplying Provider so identical model IDs from different Providers remain
+distinct.
 
 ### Consume a Routing
 

@@ -164,7 +164,7 @@ describe("ProviderService", () => {
     expect(await service.listModels()).toEqual([]);
   });
 
-  it("removes one unused model while keeping its Provider connection", async () => {
+  it("removes one unused model while keeping its saved Provider credentials", async () => {
     mockDeepSeekCatalog();
     const store = createTestStore();
     const litellm = liteLLM();

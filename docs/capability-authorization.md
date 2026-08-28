@@ -145,7 +145,7 @@ verified OIDC `groups` claim is exact and case-sensitive.
 
 The Admin preset grants the complete human Project capability catalog. One
 administrator can therefore close the loop across Project settings,
-membership, Provider connections, model registration, Routing creation and
+membership, Provider credential setup, model registration, Routing creation and
 reconciliation, Agent lifecycle, policies, runtime operations, and evidence.
 Sensitive capabilities such as Terminal, raw Memory content, and audit export
 are included because this role is the Project's accountable operator.

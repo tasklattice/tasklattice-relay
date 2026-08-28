@@ -879,7 +879,7 @@ export class ProjectService {
         .map((resource) => ({
           id: resource.id,
           kind: "provider" as const,
-          kindLabel: "Provider connection",
+          kindLabel: "Provider credentials",
           name: resource.name,
           status: resource.status,
         })),
@@ -949,7 +949,7 @@ export class ProjectService {
       { kind: "instances", label: "Agent Instances", count: instances.length },
       {
         kind: "providers",
-        label: "Provider connections",
+        label: "Provider credentials",
         count: providers.length,
       },
       { kind: "models", label: "Registered models", count: models.length },

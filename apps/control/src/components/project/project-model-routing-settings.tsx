@@ -31,8 +31,8 @@ import {
   InferenceManagementProvider,
   useInferenceManagement,
 } from "@/components/providers/inference-management-context";
-import { ProviderConnectionsManagement } from "@/components/providers/provider-connections-management";
 import { ProviderIcon } from "@/components/providers/provider-icon";
+import { ProviderManagement } from "@/components/providers/provider-management";
 import { RegisterModelsDrawer } from "@/components/providers/register-models-drawer";
 import { DataBoundaryLabel } from "@/components/shared/data-boundary-label";
 import { DeleteEntitySheet } from "@/components/shared/delete-entity-sheet";
@@ -61,7 +61,7 @@ import { cn } from "@/lib/utils";
 import type { Project } from "@/types/project";
 
 type ModelTypeFilter = "all" | ModelType;
-type ManagementView = "models" | "routing";
+type ManagementView = "providers" | "models" | "routing";
 
 const modelTypeLabels: Record<ModelType, string> = {
   llm: "Text generation",
@@ -144,6 +144,8 @@ function ModelRoutingsSettingsContent({
   const [removingModel, setRemovingModel] = useState<ModelDeployment>();
   const [registrationMode, setRegistrationMode] =
     useState<"existing" | "new">("existing");
+  const [registrationIntent, setRegistrationIntent] =
+    useState<"add-provider" | "register-models">("register-models");
   const [successMessage, setSuccessMessage] = useState("");
   const [inheritanceOpen, setInheritanceOpen] = useState(false);
   const [editingRouting, setEditingRouting] = useState<ModelRouting>();
@@ -154,7 +156,7 @@ function ModelRoutingsSettingsContent({
   const [modelType, setModelType] = useState<ModelTypeFilter>("all");
   const capabilities = new Set(project?.effectiveCapabilities ?? []);
   const departmentManaged = scopeLabel === "Department";
-  const canConnectProvider =
+  const canConfigureProvider =
     departmentManaged || (
       capabilities.has("CAP_PROVIDER_CREATE")
       && capabilities.has("CAP_PROVIDER_DISCOVER")
@@ -164,9 +166,11 @@ function ModelRoutingsSettingsContent({
       capabilities.has("CAP_MODEL_CREATE")
       && capabilities.has("CAP_PROVIDER_DISCOVER")
     );
+  const canValidateProvider =
+    departmentManaged || capabilities.has("CAP_PROVIDER_VALIDATE");
+  const canDeleteProvider =
+    departmentManaged || capabilities.has("CAP_PROVIDER_DELETE");
   const canDeleteModels = departmentManaged || capabilities.has("CAP_MODEL_DELETE");
-  const canValidateProviders = departmentManaged || capabilities.has("CAP_PROVIDER_VALIDATE");
-  const canDeleteProviders = departmentManaged || capabilities.has("CAP_PROVIDER_DELETE");
   const canCreateRouting = departmentManaged || capabilities.has("CAP_MODEL_ROUTING_CREATE");
   const canUpdateRouting = departmentManaged || capabilities.has("CAP_MODEL_ROUTING_UPDATE");
   const canReconcileRouting = departmentManaged || capabilities.has("CAP_MODEL_ROUTING_RECONCILE");
@@ -225,9 +229,6 @@ function ModelRoutingsSettingsContent({
   const visibleModels = useMemo(() => {
     const query = modelSearch.trim().toLowerCase();
     return models.filter((model) => {
-      const account = providerAccounts.find(
-        (candidate) => candidate.id === model.providerAccountId,
-      );
       return (
         (modelType === "all" || model.modelType === modelType)
         && (
@@ -236,7 +237,6 @@ function ModelRoutingsSettingsContent({
             model.displayName,
             model.modelId,
             model.providerName,
-            account?.name ?? "",
             modelTypeLabels[model.modelType],
             ...(model.capabilities ?? []).map(
               (capability) => capabilityLabels[capability],
@@ -248,7 +248,7 @@ function ModelRoutingsSettingsContent({
         )
       );
     });
-  }, [modelSearch, modelType, models, providerAccounts]);
+  }, [modelSearch, modelType, models]);
   const modelUsage = useMemo(
     () =>
       new Map(
@@ -262,21 +262,42 @@ function ModelRoutingsSettingsContent({
     [models, routingItems],
   );
   const openModelRegistration = (account?: ProviderAccount) => {
+    setRegistrationIntent("register-models");
     setRegisterAccount(account);
     setRegistrationMode(
       account || providerAccounts.length ? "existing" : "new",
     );
     setRegisterOpen(true);
   };
-  const openProviderConnection = () => {
+  const openProviderRegistration = () => {
+    setRegistrationIntent("add-provider");
     setRegisterAccount(undefined);
     setRegistrationMode("new");
     setRegisterOpen(true);
   };
+  const canOpenModelRegistration = canRegisterModels
+    && (providerAccounts.length > 0 || canConfigureProvider);
 
   return (
     <div>
-      {view === "models" ? (
+      {view === "providers" ? (
+        <ProviderManagement
+          accounts={providerAccounts}
+          canAdd={canConfigureProvider && canRegisterModels}
+          canDelete={canDeleteProvider}
+          canRegisterModels={canRegisterModels}
+          canValidate={canValidateProvider}
+          error={(accounts.error ?? deployments.error)?.message}
+          loading={accounts.isPending || deployments.isPending}
+          models={models}
+          onAddProvider={openProviderRegistration}
+          onRegisterModels={openModelRegistration}
+          onRetry={() => {
+            void accounts.refetch();
+            void deployments.refetch();
+          }}
+        />
+      ) : view === "models" ? (
         <div className="divide-y">
           <section aria-labelledby="registered-models-title">
             <div className="flex flex-col gap-4 p-5 pb-4 sm:flex-row sm:items-end sm:justify-between">
@@ -299,11 +320,12 @@ function ModelRoutingsSettingsContent({
                   <Tip content="A registered model is one callable Provider endpoint. The same model can appear more than once when supplied by different Providers or regions." />
                 </div>
                 <p className="mt-1 max-w-2xl text-xs leading-5 text-muted-foreground">
-                  Models owned by or available to this {scopeLabel} and its routing configurations.
+                  Callable models registered for or inherited by this {scopeLabel}.
+                  Every model is supplied by a Provider.
                 </p>
               </div>
               <div className="flex w-full flex-col gap-2 sm:w-auto sm:items-end">
-                {canConnectProvider || canRegisterModels || project ? (
+                {canOpenModelRegistration || project ? (
                   <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:justify-end">
                     {project ? (
                       <Button
@@ -315,27 +337,13 @@ function ModelRoutingsSettingsContent({
                         Department models
                       </Button>
                     ) : null}
-                    {providerAccounts.length && canRegisterModels ? (
+                    {canOpenModelRegistration ? (
                       <Button
                         className="h-11"
                         onClick={() => openModelRegistration()}
                       >
                         <Plus />
                         Register models
-                      </Button>
-                    ) : canConnectProvider ? (
-                      <Button className="h-11" onClick={openProviderConnection}>
-                        <Plus />
-                        Connect Provider
-                      </Button>
-                    ) : null}
-                    {providerAccounts.length && canConnectProvider ? (
-                      <Button
-                        className="h-11"
-                        variant="outline"
-                        onClick={openProviderConnection}
-                      >
-                        Connect Provider
                       </Button>
                     ) : null}
                   </div>
@@ -400,7 +408,6 @@ function ModelRoutingsSettingsContent({
               />
             ) : models.length ? (
               <ModelTable
-                accounts={providerAccounts}
                 canDelete={canDeleteModels}
                 models={visibleModels}
                 total={models.length}
@@ -420,34 +427,13 @@ function ModelRoutingsSettingsContent({
                 title="No models registered"
                 description={
                   providerAccounts.length
-                    ? "Register models from a Provider connection before configuring routing."
-                    : "Connect a Provider below to discover and register its models."
+                    ? "Register models from a Provider before configuring routing."
+                    : "Register models to choose a Provider and select models from its catalog."
                 }
-                action={
-                  canRegisterModels && providerAccounts.length ? (
-                    <Button
-                      className="mt-4 h-11"
-                      onClick={() => openModelRegistration()}
-                    >
-                      <Plus />
-                      Register first model
-                    </Button>
-                  ) : null
-                }
+                action={null}
               />
             )}
           </section>
-
-          <ProviderConnectionsManagement
-            accounts={providerAccounts}
-            canConnect={canConnectProvider}
-            canDelete={canDeleteProviders}
-            canRegisterModels={canRegisterModels}
-            canValidate={canValidateProviders}
-            models={models}
-            onConnectProvider={openProviderConnection}
-            onRegisterModels={openModelRegistration}
-          />
         </div>
       ) : (
         <section aria-labelledby="routings-title">
@@ -624,10 +610,11 @@ function ModelRoutingsSettingsContent({
         accounts={providerAccounts}
         initialAccount={registerAccount}
         initialMode={registrationMode}
+        intent={registrationIntent}
         open={registerOpen}
         onOpenChange={setRegisterOpen}
       />
-      {project ? (
+      {project && view !== "providers" ? (
         <DepartmentInheritanceSheet
           canAdd={view === "models" ? canRegisterModels : canCreateRouting}
           canRemove={view === "models" ? canDeleteModels : canDeleteRouting}
@@ -1018,7 +1005,7 @@ function DepartmentInheritanceSheet({
   canRemove: boolean;
   onOpenChange: (open: boolean) => void;
   open: boolean;
-  view: ManagementView;
+  view: "models" | "routing";
 }) {
   const { key } = useInferenceManagement();
   const queryClient = useQueryClient();
@@ -1168,7 +1155,6 @@ function DepartmentInheritanceSheet({
 }
 
 function ModelTable({
-  accounts,
   canDelete,
   models,
   onAssign,
@@ -1177,7 +1163,6 @@ function ModelTable({
   total,
   usage,
 }: {
-  accounts: ProviderAccount[];
   canDelete: boolean;
   models: ModelDeployment[];
   onAssign?: (model: ModelDeployment) => void;
@@ -1247,9 +1232,6 @@ function ModelTable({
                   </td>
                   <td className="px-4 py-3">
                     <ProviderCell
-                      account={accounts.find(
-                        (account) => account.id === model.providerAccountId,
-                      )}
                       model={model}
                     />
                   </td>
@@ -1333,12 +1315,7 @@ function ModelTable({
                 </div>
                 <Availability model={model} compact />
               </div>
-              <ProviderCell
-                account={accounts.find(
-                  (account) => account.id === model.providerAccountId,
-                )}
-                model={model}
-              />
+              <ProviderCell model={model} />
               <ModelClassification model={model} />
               <div className="flex items-center justify-between gap-3 border-t pt-3">
                 <Boundary domain={model.complianceDomain} />
@@ -1597,10 +1574,8 @@ function RoutingRow({
 }
 
 function ProviderCell({
-  account,
   model,
 }: {
-  account: ProviderAccount | undefined;
   model: ModelDeployment;
 }) {
   return (
@@ -1613,9 +1588,6 @@ function ProviderCell({
         <strong className="block truncate text-xs font-medium">
           {model.providerName}
         </strong>
-        <span className="block max-w-40 truncate text-[11px] text-muted-foreground">
-          {account?.name ?? "Provider connection"}
-        </span>
       </span>
     </span>
   );

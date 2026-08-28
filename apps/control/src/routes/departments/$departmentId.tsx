@@ -21,6 +21,7 @@ import {
   Route as RouteIcon,
   Save,
   Search,
+  ServerCog,
   ShieldAlert,
   ShieldCheck,
   TriangleAlert,
@@ -86,6 +87,7 @@ const sectionGroups = [
   {
     label: "Inference",
     items: [
+      { id: "providers", label: "Providers", icon: ServerCog },
       { id: "models", label: "Models", icon: Database },
       { id: "routing", label: "Routing", icon: RouteIcon },
     ],
@@ -189,7 +191,7 @@ function DepartmentSettingsPage() {
         {section === "people" ? (
           <PeopleSection department={department.data} />
         ) : null}
-        {section === "models" || section === "routing" ? (
+        {section === "providers" || section === "models" || section === "routing" ? (
           <DepartmentModelRoutingsSettings
             departmentId={departmentId}
             view={section}

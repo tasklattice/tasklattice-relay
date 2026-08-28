@@ -6,6 +6,7 @@ import {
   Gauge,
   LockKeyhole,
   Route as RouteIcon,
+  ServerCog,
   ShieldCheck,
   Trash2,
   Users,
@@ -31,6 +32,7 @@ export const Route = createFileRoute("/$projectId/setting/")({
   validateSearch: (search): { section?: ProjectSettingsSection } => {
     const section =
       search.section === "members" ||
+      search.section === "providers" ||
       search.section === "models" ||
       search.section === "routing" ||
       search.section === "quota" ||
@@ -45,6 +47,7 @@ export const Route = createFileRoute("/$projectId/setting/")({
 type ProjectSettingsSection =
   | "settings"
   | "members"
+  | "providers"
   | "models"
   | "routing"
   | "quota";
@@ -58,8 +61,9 @@ const sectionGroups = [
     ],
   },
   {
-    label: "Models & routing",
+    label: "Inference",
     items: [
+      { id: "providers", label: "Providers", icon: ServerCog },
       { id: "models", label: "Models", icon: Database },
       { id: "routing", label: "Routing", icon: RouteIcon },
     ],
@@ -142,7 +146,7 @@ function ProjectSettingsPage() {
         </h1>
         <p className="mt-2 text-sm leading-6 text-muted-foreground">
           Only Project administrators can manage Project identity, members,
-          models, routing, and quota. Your personal details remain available
+          Providers, models, routing, and quota. Your personal details remain available
           from Account in the account menu.
         </p>
       </section>,
@@ -159,7 +163,7 @@ function ProjectSettingsPage() {
             Project Administrator
           </Badge>
         )}
-        description="Manage Project identity, human membership, models, routing, and quota."
+        description="Manage Project identity, human membership, Providers, models, routing, and quota."
       />
 
       <section className="min-w-0 overflow-hidden border-b">
@@ -176,7 +180,7 @@ function ProjectSettingsPage() {
           />
         ) : null}
         {section === "members" ? <ProjectMembers project={project} /> : null}
-        {section === "models" || section === "routing" ? (
+        {section === "providers" || section === "models" || section === "routing" ? (
           <ProjectModelRoutingsSettings
             project={project}
             view={section}

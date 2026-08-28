@@ -9,6 +9,6 @@ export default defineHandler(async (event) => {
   try {
     const services = await getDepartmentInferenceServices(auth, event.context.params?.departmentId ?? "", true);
     const removed = await services.provider.deleteAccount(decodeURIComponent(event.context.params?.providerId ?? ""));
-    return removed ? jsonResponse({ message: "Provider connection removed." }) : problemResponse(404, "Provider connection not found.");
+    return removed ? jsonResponse({ message: "Saved Provider removed." }) : problemResponse(404, "Saved Provider not found.");
   } catch (error) { return errorResponse(error); }
 });

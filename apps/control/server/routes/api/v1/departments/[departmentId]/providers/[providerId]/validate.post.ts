@@ -9,6 +9,6 @@ export default defineHandler(async (event) => {
   try {
     const services = await getDepartmentInferenceServices(auth, event.context.params?.departmentId ?? "", true);
     const result = await services.provider.revalidateAccount(decodeURIComponent(event.context.params?.providerId ?? ""));
-    return result ? jsonResponse(result) : problemResponse(404, "Provider connection not found.");
+    return result ? jsonResponse(result) : problemResponse(404, "Saved Provider not found.");
   } catch (error) { return errorResponse(error); }
 });
