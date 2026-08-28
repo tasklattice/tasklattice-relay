@@ -17,6 +17,8 @@
     "dev:runner": "npm run dev --workspace @tali/runner",
     "pretest": "npm run build --workspace @tali/contracts",
     "test": "npm run test --workspaces --if-present",
+    "test:module": "node scripts/testing/run-test-module.mjs",
+    "test:modules:config": "node --test scripts/testing/test-modules.test.mjs",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "images:build:dev": "npm run images:build:dev:control && npm run images:build:dev:runner && npm run images:build:dev:litellm && npm run images:build:dev:demo-test && npm run images:build:dev:sandbox:openclaw && npm run images:build:dev:sandbox:hermes && npm run images:build:dev:sandbox:deepagents",
     "images:build:dev:control": "npm run helm:package:control && docker build --pull -f infra/docker/Dockerfile --target control -t ghcr.io/tasklattice/tali-control:dev .",
