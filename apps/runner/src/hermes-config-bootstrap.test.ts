@@ -28,6 +28,29 @@ afterEach(async () => {
 });
 
 describe("Hermes config bootstrap", () => {
+  it("selects Relay's scoped MemoryProvider without persisting Runtime credentials", () => {
+    const program = `
+import importlib.util
+import json
+import sys
+spec = importlib.util.spec_from_file_location("tali_bootstrap", sys.argv[1])
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+document = {"memory": {"existing": True}}
+module.configure_durable_memory(document, "tali_relay")
+print(json.dumps(document))
+`;
+    const result = spawnSync("python3", ["-c", program, bootstrap], {
+      encoding: "utf8",
+    });
+    expect(result.status, result.stderr).toBe(0);
+    expect(JSON.parse(result.stdout)).toEqual({
+      memory: { existing: true, provider: "tali_relay" },
+    });
+    expect(result.stdout).not.toContain("token");
+    expect(result.stdout).not.toContain("bank");
+  });
+
   it("enables the pinned Relay A2A plugin and Kanban for Bridge peers", () => {
     const program = `
 import importlib.util

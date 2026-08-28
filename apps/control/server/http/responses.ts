@@ -14,6 +14,7 @@ const problemTitles: Record<number, string> = {
   403: "Access denied",
   404: "Resource not found",
   409: "Conflict",
+  429: "Too many requests",
   500: "Internal server error",
   503: "Service unavailable",
 };
@@ -24,6 +25,7 @@ const problemCodes: Record<number, string> = {
   403: "access_denied",
   404: "resource_not_found",
   409: "conflict",
+  429: "rate_limit_exceeded",
   500: "internal_error",
   503: "service_unavailable",
 };
@@ -96,6 +98,9 @@ export function errorResponse(error: unknown): Response {
     });
   }
   const message = error instanceof Error ? error.message : "Unexpected error.";
+  const typedError = error && typeof error === "object"
+    ? error as { code?: unknown; status?: unknown }
+    : undefined;
   const evidence = error && typeof error === "object" && "evidence" in error
     ? (error as { evidence?: {
         capability?: string;
@@ -116,6 +121,27 @@ export function errorResponse(error: unknown): Response {
         ...(evidence.reason ? { reason: evidence.reason } : {}),
       },
     });
+  }
+  if (
+    typeof typedError?.status === "number"
+    && Number.isInteger(typedError.status)
+    && typedError.status >= 400
+    && typedError.status <= 599
+  ) {
+    return problemResponse(typedError.status, message, {
+      ...(typeof typedError.code === "string" ? { code: typedError.code } : {}),
+    });
+  }
+  if (typeof typedError?.code === "string") {
+    const status = ({
+      authentication: 503,
+      conflict: 409,
+      invalid_request: 400,
+      not_found: 404,
+      timeout: 503,
+      unavailable: 503,
+    } as Record<string, number>)[typedError.code];
+    if (status) return problemResponse(status, message, { code: typedError.code });
   }
   const status = statusForMessage(message);
   if (status >= 500) console.error(error);

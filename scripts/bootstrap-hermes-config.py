@@ -262,6 +262,17 @@ def configure_vector_databases(
         ]
 
 
+def configure_durable_memory(validated: dict, provider: str) -> None:
+    """Select Relay's bundled scoped MemoryProvider without persisting credentials."""
+    if provider != "tali_relay":
+        raise RuntimeError("Unsupported Hermes Durable Memory provider")
+    memory = validated.get("memory")
+    if not isinstance(memory, dict):
+        memory = {}
+        validated["memory"] = memory
+    memory["provider"] = provider
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", type=Path, required=True)
@@ -274,6 +285,7 @@ def main() -> None:
     parser.add_argument("--a2a-registry-token")
     parser.add_argument("--vector-database-registry-url")
     parser.add_argument("--vector-database-registry-token")
+    parser.add_argument("--durable-memory-provider")
     parser.add_argument(
         "--mcp-digest-builder",
         type=Path,
@@ -409,6 +421,8 @@ def main() -> None:
             args.vector_database_registry_token,
             registry,
         )
+    if args.durable_memory_provider:
+        configure_durable_memory(validated, args.durable_memory_provider)
     updated = yaml.safe_dump(
         validated,
         allow_unicode=True,

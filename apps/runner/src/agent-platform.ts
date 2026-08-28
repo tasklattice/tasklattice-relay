@@ -48,9 +48,24 @@ const openClawBootstrapScript = (
   inferenceEndpoint: string,
   model: string,
   memory?: RuntimeMemoryConfiguration,
+  projectRuntimeBridgeUrl?: string,
+  coordinatorInstanceId?: string,
+  projectRuntimeBridgeToken?: string,
 ) => {
   const memoryPayload = Buffer.from(
     JSON.stringify(memory ?? null),
+    "utf8",
+  ).toString("base64");
+  const durableMemoryEndpoint =
+    projectRuntimeBridgeUrl && coordinatorInstanceId && projectRuntimeBridgeToken
+      ? `${projectRuntimeBridgeUrl.replace(/\/$/, "")}/v1/memory/coordinators/${encodeURIComponent(coordinatorInstanceId)}`
+      : "";
+  const durableMemoryEndpointPayload = Buffer.from(
+    durableMemoryEndpoint,
+    "utf8",
+  ).toString("base64");
+  const durableMemoryTokenPayload = Buffer.from(
+    projectRuntimeBridgeToken ?? "",
     "utf8",
   ).toString("base64");
   return `#!/usr/bin/env bash
@@ -62,6 +77,8 @@ rm -f "$telemetry_env_file"
 export TALI_RUN_TELEMETRY_ENDPOINT="$(printf '%s' "$TALI_RUN_TELEMETRY_ENDPOINT_B64" | base64 -d)"
 export TALI_RUN_TELEMETRY_TOKEN="$(printf '%s' "$TALI_RUN_TELEMETRY_TOKEN_B64" | base64 -d)"
 unset TALI_RUN_TELEMETRY_ENDPOINT_B64 TALI_RUN_TELEMETRY_TOKEN_B64
+export TALI_DURABLE_MEMORY_ENDPOINT="$(printf '%s' '${durableMemoryEndpointPayload}' | base64 -d)"
+export TALI_DURABLE_MEMORY_TOKEN="$(printf '%s' '${durableMemoryTokenPayload}' | base64 -d)"
 
 readonly config_file=/sandbox/.openclaw/openclaw.json
 readonly hash_file=/sandbox/.openclaw/.config-hash
@@ -88,12 +105,28 @@ config.agents.defaults.model.primary = "inference/" + modelId;
 const plugins = (config.plugins ??= {});
 const pluginLoad = (plugins.load ??= {});
 const pluginPaths = Array.isArray(pluginLoad.paths) ? pluginLoad.paths : [];
-pluginLoad.paths = [...new Set([...pluginPaths, "/usr/local/lib/tali/openclaw-run-telemetry"])];
+pluginLoad.paths = [...new Set([
+  ...pluginPaths,
+  "/usr/local/lib/tali/openclaw-run-telemetry",
+  ...(process.env.TALI_DURABLE_MEMORY_ENDPOINT && process.env.TALI_DURABLE_MEMORY_TOKEN
+    ? ["/usr/local/lib/tali/openclaw-durable-memory"]
+    : []),
+])];
 const pluginEntries = (plugins.entries ??= {});
 pluginEntries["tali-run-telemetry"] = {
   enabled: true,
   hooks: { allowConversationAccess: true },
 };
+if (process.env.TALI_DURABLE_MEMORY_ENDPOINT && process.env.TALI_DURABLE_MEMORY_TOKEN) {
+  pluginEntries["tali-durable-memory"] = {
+    enabled: true,
+    hooks: {
+      allowConversationAccess: true,
+      allowPromptInjection: true,
+      timeouts: { before_prompt_build: 2200 },
+    },
+  };
+}
 if (memory) {
   const workspaceDirectory = "/sandbox/.openclaw/workspace";
   const dailyMemoryDirectory = workspaceDirectory + "/memory";
@@ -183,6 +216,23 @@ const hermesBootstrapScript = (
     projectRuntimeBridgeUrl && coordinatorInstanceId && projectRuntimeBridgeToken
       ? ` \\\n  --vector-database-registry-url "${projectRuntimeBridgeUrl.replace(/\/$/, "")}/v1/hermes/vector-databases?coordinatorInstanceId=${encodeURIComponent(coordinatorInstanceId)}" \\\n  --vector-database-registry-token "${projectRuntimeBridgeToken}"`
       : "";
+  const durableMemoryEnabled = Boolean(
+    projectRuntimeBridgeUrl && coordinatorInstanceId && projectRuntimeBridgeToken,
+  );
+  const durableMemoryEndpoint = durableMemoryEnabled
+    ? `${projectRuntimeBridgeUrl!.replace(/\/$/, "")}/v1/memory/coordinators/${encodeURIComponent(coordinatorInstanceId!)}`
+    : "";
+  const durableMemoryEndpointPayload = Buffer.from(
+    durableMemoryEndpoint,
+    "utf8",
+  ).toString("base64");
+  const durableMemoryTokenPayload = Buffer.from(
+    projectRuntimeBridgeToken ?? "",
+    "utf8",
+  ).toString("base64");
+  const durableMemoryProviderArgument = durableMemoryEnabled
+    ? " \\\n  --durable-memory-provider tali_relay"
+    : "";
   return `#!/usr/bin/env bash
 set -euo pipefail
 
@@ -195,6 +245,8 @@ readonly webui_secret_file=/tmp/tali-hermes-webui-secret
 readonly webui_public_port=${dashboardPort}
 readonly webui_upstream_port=${upstreamDashboardPort}
 readonly webui_secure_cookie=${secureCookie ? "1" : "0"}
+export TALI_DURABLE_MEMORY_ENDPOINT="$(printf '%s' '${durableMemoryEndpointPayload}' | base64 -d)"
+export TALI_DURABLE_MEMORY_TOKEN="$(printf '%s' '${durableMemoryTokenPayload}' | base64 -d)"
 
 # OpenShell provisions the persistent workspace root with a setgid, writable
 # mode so uploaded files can be staged before the workload starts. Hermes
@@ -230,7 +282,7 @@ printf '[bootstrap] Hermes identity current=%s account=%s workspace=%s state=%s\
   --endpoint "${inferenceEndpoint}" \
   --model "${model}" \
   --template-endpoint https://inference.local/v1 \
-  --template-model deepseek-chat${a2aRegistryArgument}${a2aRegistryTokenArgument}${vectorDatabaseRegistryArgument}
+  --template-model deepseek-chat${a2aRegistryArgument}${a2aRegistryTokenArgument}${vectorDatabaseRegistryArgument}${durableMemoryProviderArgument}
 
 if [ ! -x "$webui_auth_proxy" ]; then
   echo "Hermes Web UI authentication proxy is unavailable" >&2

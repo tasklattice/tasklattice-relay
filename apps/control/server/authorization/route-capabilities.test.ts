@@ -30,7 +30,7 @@ describe("Project route capability declarations", () => {
       const pathname = `/api/v1/projects/individual${route ? `/${route}` : ""}`;
       if (!projectRouteAdmissionPolicy(method, pathname)) uncovered.push(file);
     }
-    expect(files).toHaveLength(95);
+    expect(files).toHaveLength(123);
     expect(uncovered).toEqual([]);
   });
 
@@ -89,6 +89,27 @@ describe("Project route capability declarations", () => {
       "PATCH",
       "/api/v1/projects/individual/catalog/vector-databases/knowledge-1/documents/file-1",
     )?.requirements[0]?.capability).toBe("CAP_VECTOR_DATABASE_UPDATE");
+  });
+
+  it("separates Durable Memory read, curation, export, and dangerous operations", () => {
+    const cases = [
+      ["GET", "/api/v1/projects/individual/memories", "CAP_AGENT_MEMORY_ITEM_VIEW"],
+      ["GET", "/api/v1/projects/individual/memories/memory-1/facts", "CAP_AGENT_MEMORY_CONTENT_VIEW"],
+      ["PATCH", "/api/v1/projects/individual/memories/memory-1/facts/fact-1", "CAP_AGENT_MEMORY_CONTENT_WRITE"],
+      ["POST", "/api/v1/projects/individual/memories/memory-1/items/fact-1/invalidate", "CAP_AGENT_MEMORY_CONTENT_WRITE"],
+      ["DELETE", "/api/v1/projects/individual/memories/memory-1/conversations/conversation-1", "CAP_AGENT_MEMORY_CONTENT_DELETE"],
+      ["POST", "/api/v1/projects/individual/memories/memory-1/exports", "CAP_AGENT_MEMORY_EXPORT"],
+      ["DELETE", "/api/v1/projects/individual/memories/memory-1", "CAP_AGENT_MEMORY_CONTENT_PURGE"],
+      ["POST", "/api/v1/projects/individual/memories/memory-1/outbox/outbox-1/replay", "CAP_AGENT_MEMORY_INDEX_REBUILD"],
+    ] as const;
+    for (const [method, pathname, capability] of cases) {
+      const expected = {
+        relation: "PROJECT",
+        requirements: [{ capability, resourceType: "DurableMemory" }],
+        ...(pathname.includes("/memory-1") ? { resourceId: "memory-1" } : {}),
+      };
+      expect(projectRouteAdmissionPolicy(method, pathname)).toMatchObject(expected);
+    }
   });
 
   it("preserves conditional route semantics with a trailing slash", () => {

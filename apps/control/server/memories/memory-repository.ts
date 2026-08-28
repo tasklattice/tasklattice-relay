@@ -7,6 +7,8 @@ import type {
 import {
   Prisma,
   type MemoryBinding,
+  type MemoryCurationEvent,
+  type MemoryExperienceProjection,
   type MemoryOutboxRecord,
   type MemoryRecord,
   type PrismaClient,
@@ -49,6 +51,60 @@ export interface EnqueueMemoryOutboxInput {
   eventType: string;
   encryptedPayload: string;
   idempotencyKey: string;
+}
+
+export interface MemoryListInput {
+  cursor?: string | null;
+  limit: number;
+  query?: string;
+  statuses?: MemoryStatus[];
+}
+
+export interface MemoryOutboxListInput {
+  cursor?: string | null;
+  limit: number;
+  memoryId: string;
+  statuses?: Array<"pending" | "processing" | "retry" | "delivered" | "dead_letter">;
+}
+
+export interface RecordMemoryCurationInput {
+  memoryId: string;
+  providerItemId: string;
+  action: string;
+  actorId: string;
+  before?: unknown;
+  after?: unknown;
+}
+
+interface StableCursor {
+  at: string;
+  id: string;
+}
+
+function encodeStableCursor(at: Date, id: string): string {
+  return Buffer.from(JSON.stringify({ at: at.toISOString(), id }), "utf8")
+    .toString("base64url");
+}
+
+function decodeStableCursor(value: string | null | undefined): StableCursor | undefined {
+  if (!value) return undefined;
+  try {
+    const parsed = JSON.parse(Buffer.from(value, "base64url").toString("utf8")) as {
+      at?: unknown;
+      id?: unknown;
+    };
+    if (
+      typeof parsed.at !== "string"
+      || Number.isNaN(Date.parse(parsed.at))
+      || typeof parsed.id !== "string"
+      || !parsed.id
+    ) {
+      throw new Error("Invalid cursor.");
+    }
+    return { at: parsed.at, id: parsed.id };
+  } catch {
+    throw new Error("Invalid Memory page cursor.");
+  }
 }
 
 function jsonInput(value: unknown): Prisma.InputJsonValue {
@@ -111,6 +167,176 @@ export class MemoryRepository {
         id: memoryId,
         ...(!includeDeleted ? { deletedAt: null } : {}),
       },
+    });
+  }
+
+  async listMemories(input: MemoryListInput): Promise<{
+    items: Array<MemoryRecord & { bindings: MemoryBinding[] }>;
+    nextCursor: string | null;
+    totalCount: number;
+  }> {
+    const limit = Math.max(1, Math.min(input.limit, 100));
+    const cursor = decodeStableCursor(input.cursor);
+    const baseWhere: Prisma.MemoryRecordWhereInput = {
+      projectId: this.projectId,
+      deletedAt: null,
+      ...(input.statuses?.length ? { status: { in: input.statuses } } : {}),
+      ...(input.query?.trim()
+        ? { displayName: { contains: input.query.trim(), mode: "insensitive" } }
+        : {}),
+    };
+    const where: Prisma.MemoryRecordWhereInput = cursor
+      ? {
+          AND: [
+            baseWhere,
+            {
+              OR: [
+                { updatedAt: { lt: new Date(cursor.at) } },
+                { updatedAt: new Date(cursor.at), id: { lt: cursor.id } },
+              ],
+            },
+          ],
+        }
+      : baseWhere;
+    const [rows, totalCount] = await Promise.all([
+      this.database.memoryRecord.findMany({
+        where,
+        orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+        take: limit + 1,
+        include: {
+          bindings: {
+            where: { bindingKind: "primary", status: "active" },
+            orderBy: { attachedAt: "desc" },
+            take: 1,
+          },
+        },
+      }),
+      this.database.memoryRecord.count({ where: baseWhere }),
+    ]);
+    const visible = rows.slice(0, limit);
+    const last = visible.at(-1);
+    return {
+      items: visible,
+      nextCursor: rows.length > limit && last
+        ? encodeStableCursor(last.updatedAt, last.id)
+        : null,
+      totalCount,
+    };
+  }
+
+  async bindingHistory(memoryId: string, limit = 100): Promise<MemoryBinding[]> {
+    return this.database.memoryBinding.findMany({
+      where: { projectId: this.projectId, memoryId, bindingKind: "primary" },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: Math.max(1, Math.min(limit, 200)),
+    });
+  }
+
+  async renameMemory(
+    memoryId: string,
+    displayName: string,
+    actorId: string,
+  ): Promise<MemoryRecord> {
+    const name = displayName.trim();
+    if (!name) throw new Error("A Memory name is required.");
+    return this.database.$transaction(async (transaction) => {
+      const current = await transaction.memoryRecord.findUnique({
+        where: { projectId_id: { projectId: this.projectId, id: memoryId } },
+      });
+      if (!current || current.deletedAt) throw new Error("Memory not found.");
+      if (["deleting", "deleted"].includes(current.status)) {
+        throw new Error("This Memory cannot be renamed in its current state.");
+      }
+      const updated = await transaction.memoryRecord.update({
+        where: { projectId_id: { projectId: this.projectId, id: memoryId } },
+        data: { displayName: name },
+      });
+      await this.recordCurationEvent({
+        memoryId,
+        providerItemId: memoryId,
+        action: "memory.renamed",
+        actorId,
+        before: { displayName: current.displayName },
+        after: { displayName: updated.displayName },
+      }, transaction);
+      return updated;
+    });
+  }
+
+  async recordCurationEvent(
+    input: RecordMemoryCurationInput,
+    transaction: Prisma.TransactionClient | PrismaClient = this.database,
+  ): Promise<MemoryCurationEvent> {
+    return transaction.memoryCurationEvent.create({
+      data: {
+        projectId: this.projectId,
+        memoryId: input.memoryId,
+        providerItemId: input.providerItemId,
+        action: input.action,
+        actorId: input.actorId,
+        ...(input.before !== undefined
+          ? { beforeSnapshot: jsonInput(input.before) }
+          : {}),
+        ...(input.after !== undefined
+          ? { afterSnapshot: jsonInput(input.after) }
+          : {}),
+      },
+    });
+  }
+
+  async listCurationEvents(memoryId: string, limit = 50): Promise<MemoryCurationEvent[]> {
+    return this.database.memoryCurationEvent.findMany({
+      where: { projectId: this.projectId, memoryId },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: Math.max(1, Math.min(limit, 200)),
+    });
+  }
+
+  async itemStatusOverrides(
+    memoryId: string,
+    itemIds?: string[],
+  ): Promise<Map<string, "active" | "invalidated">> {
+    const rows = await this.database.memoryCurationEvent.findMany({
+      where: {
+        projectId: this.projectId,
+        memoryId,
+        action: { in: ["memory.item.invalidated", "memory.item.restored"] },
+        ...(itemIds?.length ? { providerItemId: { in: itemIds } } : {}),
+      },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      select: { action: true, providerItemId: true },
+    });
+    const result = new Map<string, "active" | "invalidated">();
+    for (const row of rows) {
+      if (!result.has(row.providerItemId)) {
+        result.set(
+          row.providerItemId,
+          row.action === "memory.item.invalidated" ? "invalidated" : "active",
+        );
+      }
+    }
+    return result;
+  }
+
+  async getExperienceProjection(
+    memoryId: string,
+    providerItemId: string,
+    transaction: Prisma.TransactionClient | PrismaClient = this.database,
+  ): Promise<MemoryExperienceProjection | null> {
+    const rows = await transaction.memoryExperienceProjection.findMany({
+      where: { projectId: this.projectId, memoryId },
+      orderBy: { updatedAt: "desc" },
+    });
+    return rows.find((row) => row.hindsightMemoryIds.includes(providerItemId)) ?? null;
+  }
+
+  async withMemoryLock<T>(
+    memoryId: string,
+    action: (transaction: Prisma.TransactionClient) => Promise<T>,
+  ): Promise<T> {
+    return this.database.$transaction(async (transaction) => {
+      await this.lockMemory(transaction, memoryId);
+      return action(transaction);
     });
   }
 
@@ -499,6 +725,52 @@ export class MemoryRepository {
       });
       return true;
     });
+  }
+
+  async listOutbox(input: MemoryOutboxListInput): Promise<{
+    items: MemoryOutboxRecord[];
+    nextCursor: string | null;
+    totalCount: number;
+  }> {
+    const memory = await this.getMemory(input.memoryId, true);
+    if (!memory) throw new Error("Memory not found.");
+    const limit = Math.max(1, Math.min(input.limit, 100));
+    const cursor = decodeStableCursor(input.cursor);
+    const baseWhere: Prisma.MemoryOutboxRecordWhereInput = {
+      projectId: this.projectId,
+      memoryId: input.memoryId,
+      ...(input.statuses?.length ? { status: { in: input.statuses } } : {}),
+    };
+    const where: Prisma.MemoryOutboxRecordWhereInput = cursor
+      ? {
+          AND: [
+            baseWhere,
+            {
+              OR: [
+                { createdAt: { lt: new Date(cursor.at) } },
+                { createdAt: new Date(cursor.at), id: { lt: cursor.id } },
+              ],
+            },
+          ],
+        }
+      : baseWhere;
+    const [rows, totalCount] = await Promise.all([
+      this.database.memoryOutboxRecord.findMany({
+        where,
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        take: limit + 1,
+      }),
+      this.database.memoryOutboxRecord.count({ where: baseWhere }),
+    ]);
+    const visible = rows.slice(0, limit);
+    const last = visible.at(-1);
+    return {
+      items: visible,
+      nextCursor: rows.length > limit && last
+        ? encodeStableCursor(last.createdAt, last.id)
+        : null,
+      totalCount,
+    };
   }
 
   async setMemoryActivity(

@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { problemDetailsSchema } from "../api-contracts/schemas";
 import { errorResponse, problemResponse } from "./responses";
+import { MemoryRateLimitError, MemoryVersionConflictError } from "../memories/memory-service";
 
 describe("business API problem responses", () => {
   it("returns RFC 9457 content with no wildcard credential CORS", async () => {
@@ -29,5 +30,20 @@ describe("business API problem responses", () => {
     errorResponse(new Error("Resource not found."));
     expect(error).not.toHaveBeenCalled();
     error.mockRestore();
+  });
+
+  it("preserves stable Memory conflict and rate-limit error codes", async () => {
+    const conflict = errorResponse(new MemoryVersionConflictError());
+    expect(conflict.status).toBe(409);
+    await expect(conflict.json()).resolves.toMatchObject({
+      code: "memory_version_conflict",
+      status: 409,
+    });
+    const limited = errorResponse(new MemoryRateLimitError());
+    expect(limited.status).toBe(429);
+    await expect(limited.json()).resolves.toMatchObject({
+      code: "memory_rate_limit_exceeded",
+      status: 429,
+    });
   });
 });

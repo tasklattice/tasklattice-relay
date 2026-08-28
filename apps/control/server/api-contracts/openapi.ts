@@ -18,6 +18,7 @@ const tagDescriptions: Record<string, string> = {
   Instances: "Business runtime Instances provisioned inside a Project.",
   "Model routing": "Project model routing and its consumer bindings.",
   Models: "Model deployments made available to a Project.",
+  Memory: "Project-scoped durable context that survives Agent replacement.",
   Notifications: "Personal in-app notifications.",
   "Platform administration": "Platform Administrator settings and organization-wide operations.",
   Profile: "Personal preferences and credential management.",

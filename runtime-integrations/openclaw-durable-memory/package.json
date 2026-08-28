@@ -1,0 +1,13 @@
+{
+  "name": "@tasklattice/openclaw-durable-memory",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "openclaw": {
+    "extensions": ["./index.mjs"],
+    "compat": {
+      "pluginApi": ">=2026.7.1",
+      "minGatewayVersion": ">=2026.7.1"
+    }
+  }
+}

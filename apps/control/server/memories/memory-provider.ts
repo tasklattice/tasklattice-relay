@@ -50,6 +50,7 @@ export interface RecallInput extends MemoryProviderScope {
   query: string;
   maxItems: number;
   types?: Array<"fact" | "experience" | "insight">;
+  signal?: AbortSignal;
 }
 
 export interface RecalledMemoryItem {
@@ -65,10 +66,17 @@ export interface RecallResult {
 export interface ListMemoryItemsInput extends MemoryProviderScope {
   cursor?: string | null;
   limit: number;
+  query?: string;
+  status?: "active" | "invalidated";
+  sourceDocumentId?: string;
 }
 
 export interface GetMemoryItemInput extends MemoryProviderScope {
   itemId: string;
+}
+
+export interface GetMemoryConversationInput extends MemoryProviderScope {
+  conversationId: string;
 }
 
 export interface UpdateMemoryItemInput extends MemoryProviderScope {
@@ -157,6 +165,7 @@ export interface MemoryProvider {
   recall(input: RecallInput): Promise<RecallResult>;
 
   listConversations(input: ListMemoryItemsInput): Promise<MemoryPage<MemoryConversation>>;
+  getConversation(input: GetMemoryConversationInput): Promise<MemoryConversation>;
   listFacts(input: ListMemoryItemsInput): Promise<MemoryPage<MemoryFact>>;
   listExperiences(input: ListMemoryItemsInput): Promise<MemoryPage<MemoryExperience>>;
   listInsights(input: ListMemoryItemsInput): Promise<MemoryPage<MemoryInsight>>;

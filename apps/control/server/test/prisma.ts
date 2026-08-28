@@ -624,10 +624,17 @@ export function createTestPrisma(): PrismaClient {
                   : typeof value === "bigint" ? 20
                     : typeof value === "object" && value !== null ? 3802
                       : 25;
+          const postgresTextArrayFields = new Set([
+            "hindsight_memory_ids",
+            "source_document_ids",
+          ]);
           const fields = names.map((name, index) => ({
             ...(result.fields?.[index] ?? {}),
             name,
-            dataTypeID: (result.fields?.[index] as { dataTypeID?: number } | undefined)?.dataTypeID ?? oid(sample[name]),
+            dataTypeID: postgresTextArrayFields.has(name)
+              ? 1009
+              : (result.fields?.[index] as { dataTypeID?: number } | undefined)?.dataTypeID
+                ?? oid(sample[name]),
           }));
           return {
             ...result,

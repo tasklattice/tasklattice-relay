@@ -16,6 +16,7 @@ import {
   type DeleteConversationInput,
   type DeleteProviderMemoryInput,
   type ExportProviderMemoryInput,
+  type GetMemoryConversationInput,
   type GetMemoryItemInput,
   type ListMemoryItemsInput,
   type MemoryProvider,
@@ -46,6 +47,7 @@ function page<T>(items: T[], cursor: string | null | undefined, limit: number): 
   return {
     items: clone(items.slice(offset, nextOffset)),
     nextCursor: nextOffset < items.length ? String(nextOffset) : null,
+    totalCount: items.length,
   };
 }
 
@@ -62,6 +64,18 @@ function itemText(item: MemoryItem): string {
     ].join(" ");
   }
   return item.text;
+}
+
+function filteredItems<T extends MemoryItem>(items: T[], input: ListMemoryItemsInput): T[] {
+  const query = input.query?.trim().toLocaleLowerCase();
+  return items.filter((item) =>
+    (!input.status || item.status === input.status)
+    && (!query || itemText(item).toLocaleLowerCase().includes(query))
+    && (!input.sourceDocumentId
+      || item.evidence.some(({ sourceDocumentId }) =>
+        sourceDocumentId === input.sourceDocumentId
+      ))
+  );
 }
 
 export class FakeMemoryProvider implements MemoryProvider {
@@ -153,10 +167,22 @@ export class FakeMemoryProvider implements MemoryProvider {
     return page(this.bank(input.providerRef).conversations, input.cursor, input.limit);
   }
 
+  async getConversation(input: GetMemoryConversationInput): Promise<MemoryConversation> {
+    this.assertAvailable();
+    const conversation = this.bank(input.providerRef).conversations.find(
+      ({ id }) => id === input.conversationId,
+    );
+    if (!conversation) throw this.notFound();
+    return clone(conversation);
+  }
+
   async listFacts(input: ListMemoryItemsInput): Promise<MemoryPage<MemoryFact>> {
     this.assertAvailable();
     return page(
-      this.bank(input.providerRef).items.filter((item): item is MemoryFact => item.kind === "fact"),
+      filteredItems(
+        this.bank(input.providerRef).items.filter((item): item is MemoryFact => item.kind === "fact"),
+        input,
+      ),
       input.cursor,
       input.limit,
     );
@@ -165,8 +191,11 @@ export class FakeMemoryProvider implements MemoryProvider {
   async listExperiences(input: ListMemoryItemsInput): Promise<MemoryPage<MemoryExperience>> {
     this.assertAvailable();
     return page(
-      this.bank(input.providerRef).items.filter(
-        (item): item is MemoryExperience => item.kind === "experience",
+      filteredItems(
+        this.bank(input.providerRef).items.filter(
+          (item): item is MemoryExperience => item.kind === "experience",
+        ),
+        input,
       ),
       input.cursor,
       input.limit,
@@ -176,7 +205,10 @@ export class FakeMemoryProvider implements MemoryProvider {
   async listInsights(input: ListMemoryItemsInput): Promise<MemoryPage<MemoryInsight>> {
     this.assertAvailable();
     return page(
-      this.bank(input.providerRef).items.filter((item): item is MemoryInsight => item.kind === "insight"),
+      filteredItems(
+        this.bank(input.providerRef).items.filter((item): item is MemoryInsight => item.kind === "insight"),
+        input,
+      ),
       input.cursor,
       input.limit,
     );

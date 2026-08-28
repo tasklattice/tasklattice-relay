@@ -85,6 +85,52 @@ describe("platform audit request capture", () => {
     ))).toBeUndefined();
   });
 
+  it("redacts secret-shaped values inside Memory content and Runtime retain bodies", async () => {
+    const bodies = await Promise.all([
+      captureAuditRequest(new Request(
+        "http://tali.local/api/v1/projects/individual/memories/00000000-0000-4000-8000-000000000000/facts/fact-a",
+        {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            expectedUpdatedAt: "2026-08-28T00:00:00.000Z",
+            text: "Authorization: Bearer abcdefghijklmnop postgres://user:pass@db/memory",
+          }),
+        },
+      )),
+      captureAuditRequest(new Request(
+        "http://tali.local/api/v1/runtime-bridge/coordinators/agent-a/memory/retain",
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            conversationId: "conversation-a",
+            user: "cookie=session-never-store",
+            assistant: "Contact person@example.test",
+          }),
+        },
+      )),
+    ]);
+    expect(bodies[0]?.descriptor).toMatchObject({
+      action: "memory.update",
+      objectType: "Memory",
+      projectId: "individual",
+    });
+    expect(bodies[1]?.descriptor).toMatchObject({
+      action: "memory.retain",
+      objectType: "Durable Memory",
+    });
+    const serialized = JSON.stringify(bodies);
+    for (const secret of [
+      "abcdefghijklmnop",
+      "postgres://user:pass",
+      "session-never-store",
+      "person@example.test",
+    ]) {
+      expect(serialized).not.toContain(secret);
+    }
+  });
+
   it("classifies PostgreSQL vector chunk mutations independently from database metadata", async () => {
     await expect(captureAuditRequest(new Request(
       "http://tali.local/api/v1/projects/individual/catalog/vector-databases/engineering/chunks",
@@ -352,7 +398,7 @@ describe("platform audit request capture", () => {
     }
 
     expect(uncovered).toEqual([]);
-    expect(routeFiles).toHaveLength(87);
+    expect(routeFiles).toHaveLength(103);
   });
 
   it("records direct Project role switches", async () => {

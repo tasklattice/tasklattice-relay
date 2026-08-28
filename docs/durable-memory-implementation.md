@@ -29,7 +29,7 @@ independent Project capability and is not structurally replaced by this work.
 - [x] Phase 1: domain schema, migration, state machine, provider contract, fake provider.
 - [x] Phase 2: Hindsight chart resources, provider adapter, live integration tests.
 - [x] Phase 3: Memory lifecycle, binding, deletion, worker recovery, Agent compensation.
-- [ ] Phase 4: runtime gateway, Hermes/OpenClaw hooks, fail-open recall and retain capture.
+- [x] Phase 4: runtime gateway, Hermes/OpenClaw hooks, fail-open recall and retain capture.
 - [ ] Phase 5: complete REST API, RBAC, audit-safe projections and server pagination.
 - [ ] Phase 6: Memory console and Agent lifecycle UI with complete state coverage.
 - [ ] Phase 7: threat model, observability, 16 end-to-end scenarios, runbooks and rollback.
@@ -160,3 +160,35 @@ do not remove the index until every in-flight create request has expired.
   Agent-create replay, Hermes rebinding, detach preservation, verified deletion,
   encrypted retry/recovery, exact-once provider append, dead letter/replay, and
   worker discovery.
+
+## Phase 4 completion record
+
+- Added a signed runtime credential scoped to one Project, coordinator Instance,
+  and Durable Memory. Runtime recall/retain requests cannot choose a Memory,
+  provider Bank, or Project; forged and legacy-unscoped credentials receive the
+  same access-denied response as a missing binding.
+- Added the Relay Memory Gateway to the existing Project Runtime Bridge. Recall
+  has a configurable latency budget and fails open while marking provider health
+  degraded. Recalled text is fenced as untrusted background context and cannot
+  change Runtime Policy, Access Policy, tools, or credentials.
+- Retain is never performed on the synchronous response path. OpenClaw and
+  Hermes send sanitized turns to the Gateway, which encrypts and enqueues one
+  idempotent outbox event for the existing worker. Secret, authorization, cookie,
+  database URL, email, phone, and prompt-boundary markers are filtered before
+  durable storage or provider delivery.
+- Added the OpenClaw plugin using its supported `before_prompt_build` and
+  `agent_end` hooks. The plugin prepends bounded recall context and submits a
+  fire-and-forget retain event after the final turn.
+- Added the Hermes `MemoryProvider` plugin against the pinned Nemoclaw Hermes
+  `v0.0.114` ABI. `prefetch` performs fail-open recall and `sync_turn` schedules
+  bounded background retain. A build-time verifier imports the provider inside
+  the pinned image and exercises both Gateway calls.
+- Runtime replacement keeps the same Relay Memory ID and opaque provider
+  reference. Automated coverage exercises OpenClaw to OpenClaw, OpenClaw to
+  Hermes, and Hermes to OpenClaw continuity without creating a second Bank.
+- Verification: Control runtime tests passed (2 files / 13 tests); Runner hook
+  and bootstrap tests passed (3 files / 42 tests); Hermes host tests passed
+  (2 tests); Control and Runner typechecks passed; both pinned runtime wrapper
+  images built; the Hermes in-image ABI/recall/retain verifier passed; Helm lint,
+  resource validation, OpenShift arbitrary-UID validation, and `git diff
+  --check` passed.

@@ -102,7 +102,12 @@ describe("MemoryProvider contract", () => {
     await expect(provider.listConversations({ ...scope, limit: 1 })).resolves.toMatchObject({
       items: [{ id: "conversation-a" }],
       nextCursor: null,
+      totalCount: 1,
     });
+    await expect(provider.getConversation({
+      ...scope,
+      conversationId: conversation.id,
+    })).resolves.toMatchObject({ id: conversation.id, title: conversation.title });
     await expect(provider.deleteConversation({
       ...scope,
       conversationId: conversation.id,

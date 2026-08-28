@@ -29,6 +29,7 @@ import {
   type DeleteConversationInput,
   type DeleteProviderMemoryInput,
   type ExportProviderMemoryInput,
+  type GetMemoryConversationInput,
   type GetMemoryItemInput,
   type ListMemoryItemsInput,
   type MemoryProvider,
@@ -337,7 +338,7 @@ export class HindsightMemoryProvider implements MemoryProvider {
         includeSourceFacts: true,
         includeChunks: false,
         maxTokens: Math.max(256, Math.min(8_192, input.maxItems * 384)),
-        signal: this.signal(),
+        signal: input.signal ?? this.signal(),
       },
     ));
     return {
@@ -375,7 +376,24 @@ export class HindsightMemoryProvider implements MemoryProvider {
     return {
       items: documents,
       nextCursor: nextOffset < response.total ? encodeCursor(nextOffset) : null,
+      totalCount: response.total,
     };
+  }
+
+  async getConversation(input: GetMemoryConversationInput): Promise<MemoryConversation> {
+    const document = await this.withErrors("get conversation", () =>
+      this.client.getDocument(input.providerRef, input.conversationId, {
+        signal: this.signal(),
+      })
+    );
+    if (!document) {
+      throw new MemoryProviderError({
+        code: "not_found",
+        message: "The requested Memory conversation was not found.",
+        retryable: false,
+      });
+    }
+    return documentConversation(document);
   }
 
   async listFacts(input: ListMemoryItemsInput): Promise<MemoryPage<MemoryFact>> {
@@ -498,13 +516,26 @@ export class HindsightMemoryProvider implements MemoryProvider {
     const offset = decodeCursor(input.cursor);
     const response = await this.withErrors(`list ${type}`, () => this.client.listMemories(
       input.providerRef,
-      { type, limit: input.limit, offset, signal: this.signal() },
+      {
+        type,
+        limit: input.limit,
+        offset,
+        ...(input.query ? { q: input.query } : {}),
+        ...(input.status
+          ? { state: input.status === "active" ? "valid" : "invalidated" }
+          : {}),
+        ...(input.sourceDocumentId
+          ? { documentId: input.sourceDocumentId }
+          : {}),
+        signal: this.signal(),
+      },
     ));
     const items = response.items.map((item) => project(rawMemorySchema.parse(item)));
     const nextOffset = offset + items.length;
     return {
       items,
       nextCursor: nextOffset < response.total ? encodeCursor(nextOffset) : null,
+      totalCount: response.total,
     };
   }
 

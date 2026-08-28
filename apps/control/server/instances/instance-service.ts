@@ -507,7 +507,7 @@ export class InstanceService {
           }),
         },
         ...(memory.runtime ? { memory: memory.runtime } : {}),
-      });
+      }, agent.durableMemoryId);
       agent = await this.store.save(applyObservedState(agent, runnerState));
       if (runnerState.phase === "PROVISIONING") {
         runnerState = await this.waitForRunnerProvisioning(agent);
@@ -880,15 +880,20 @@ export class InstanceService {
 
   private async createRunnerSandbox(
     input: CreateSandboxInput,
+    durableMemoryId?: string,
   ): Promise<RunnerSandbox> {
     const target = await this.runnerRuntimeTarget();
     const projectRuntimeBridgeToken =
       target
-      && input.agentPlatform === "hermes"
+      && (
+        input.agentPlatform === "hermes"
+        || (input.agentPlatform === "openclaw" && Boolean(durableMemoryId))
+      )
       && process.env.PROJECT_RUNTIME_BRIDGES_ENABLED === "true"
         ? signProjectRuntimeCoordinatorToken(
             {
               coordinatorInstanceId: input.instanceId,
+              ...(durableMemoryId ? { memoryId: durableMemoryId } : {}),
               namespace: target.namespace,
               projectId: this.store.projectId,
             },

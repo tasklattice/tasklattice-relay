@@ -3,6 +3,7 @@ import type { PlatformPrincipal } from "../auth/auth";
 import { requireAuth } from "../auth/auth";
 import { prisma } from "../db/prisma";
 import type { PrismaClient } from "../generated/prisma/client";
+import { sanitizeRuntimeMemoryText } from "../runtime-bridge/memory-runtime-sanitizer";
 import { AuditLogService } from "./audit-log-service";
 import {
   decisiveAdmissionEvidence,
@@ -14,9 +15,14 @@ const sensitiveKey =
   /(?:authorization|cookie|password|passphrase|secret|token|credential|api[-_]?key|master[-_]?key|private[-_]?key|client[-_]?secret|code[-_]?verifier)/i;
 const operationSegments = new Set([
   "discover",
+  "exports",
   "inherit",
+  "invalidate",
   "provision",
   "refresh",
+  "reextract",
+  "replay",
+  "restore",
   "rotate-model-credential",
   "suspend",
   "switch",
@@ -61,6 +67,7 @@ const resources: Array<{
   { segment: "invitations", prefix: "project_member", type: "Project Member" },
   { segment: "providers", prefix: "provider", type: "Provider" },
   { segment: "instances", prefix: "instance", type: "Instance" },
+  { segment: "memories", prefix: "memory", type: "Memory" },
   { segment: "policies", prefix: "runtime_policy", type: "Runtime Policy" },
   { segment: "members", prefix: "project_member", type: "Project Member" },
   { segment: "models", prefix: "model", type: "Model" },
@@ -75,7 +82,7 @@ function sanitize(value: unknown, depth = 0): unknown {
     return value;
   }
   if (typeof value === "string") {
-    return value.length > 4096 ? `${value.slice(0, 4096)}…` : value;
+    return sanitizeRuntimeMemoryText(value, 4096);
   }
   if (Array.isArray(value)) {
     return value.slice(0, 100).map((item) => sanitize(item, depth + 1));
@@ -349,6 +356,18 @@ function descriptor(method: string, path: string): AuditDescriptor | undefined {
       objectId: decodeURIComponent(runtimeBridgeVectorSearch[1]!),
       objectType: "Vector Database",
       operation: "search",
+    };
+  }
+  const runtimeBridgeMemory = path.match(
+    /^\/api\/v1\/runtime-bridge\/coordinators\/([^/]+)\/memory\/(recall|retain)$/,
+  );
+  if (runtimeBridgeMemory && method === "POST") {
+    const operation = runtimeBridgeMemory[2]!;
+    return {
+      action: `memory.${operation}`,
+      objectId: decodeURIComponent(runtimeBridgeMemory[1]!),
+      objectType: "Durable Memory",
+      operation,
     };
   }
 

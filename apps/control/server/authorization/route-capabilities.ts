@@ -219,6 +219,109 @@ export function projectRouteAdmissionPolicy(
     }
   }
 
+  if (tail[0] === "memories") {
+    if (tail.length === 1) {
+      if (method === "GET") {
+        return policy("PROJECT", [requirement("CAP_AGENT_MEMORY_ITEM_VIEW", "DurableMemory")]);
+      }
+      if (method === "POST") {
+        return policy("PROJECT", [requirement("CAP_AGENT_MEMORY_CONFIG_UPDATE", "DurableMemory")]);
+      }
+    }
+    const memoryId = tail[1];
+    if (!memoryId) return undefined;
+    if (tail.length === 2) {
+      if (method === "GET") {
+        return policy("PROJECT", [requirement("CAP_AGENT_MEMORY_ITEM_VIEW", "DurableMemory")], memoryId);
+      }
+      if (method === "PATCH") {
+        return policy("PROJECT", [requirement("CAP_AGENT_MEMORY_CONFIG_UPDATE", "DurableMemory")], memoryId);
+      }
+      if (method === "DELETE") {
+        return policy("PROJECT", [requirement("CAP_AGENT_MEMORY_CONTENT_PURGE", "DurableMemory")], memoryId);
+      }
+    }
+    if (tail.length === 3 && tail[2] === "overview" && method === "GET") {
+      return policy("PROJECT", [
+        requirement("CAP_AGENT_MEMORY_ITEM_VIEW", "DurableMemory"),
+        requirement("CAP_AGENT_MEMORY_CONTENT_VIEW", "DurableMemory"),
+      ], memoryId);
+    }
+    if (tail.length === 3 && tail[2] === "activity" && method === "GET") {
+      return policy("PROJECT", [requirement("CAP_AGENT_MEMORY_ITEM_VIEW", "DurableMemory")], memoryId);
+    }
+    if (
+      tail.length === 3
+      && ["conversations", "facts", "experiences", "insights"].includes(tail[2]!)
+      && method === "GET"
+    ) {
+      return policy("PROJECT", [requirement("CAP_AGENT_MEMORY_CONTENT_VIEW", "DurableMemory")], memoryId);
+    }
+    if (tail.length === 3 && tail[2] === "settings" && method === "GET") {
+      return policy("PROJECT", [requirement("CAP_AGENT_MEMORY_CONFIG_VIEW", "DurableMemory")], memoryId);
+    }
+    if (tail.length === 3 && tail[2] === "retry" && method === "POST") {
+      return policy("PROJECT", [requirement("CAP_AGENT_MEMORY_CONFIG_UPDATE", "DurableMemory")], memoryId);
+    }
+    if (tail.length === 3 && tail[2] === "bindings" && method === "GET") {
+      return policy("PROJECT", [requirement("CAP_AGENT_MEMORY_CONFIG_VIEW", "DurableMemory")], memoryId);
+    }
+    if (tail.length === 3 && tail[2] === "bindings" && method === "POST") {
+      return policy("PROJECT", [requirement("CAP_AGENT_MEMORY_CONFIG_UPDATE", "DurableMemory")], memoryId);
+    }
+    if (tail.length === 4 && tail[2] === "bindings" && method === "DELETE") {
+      return policy("PROJECT", [requirement("CAP_AGENT_MEMORY_CONFIG_UPDATE", "DurableMemory")], memoryId);
+    }
+    if (tail.length === 3 && tail[2] === "outbox" && method === "GET") {
+      return policy("PROJECT", [requirement("CAP_AGENT_MEMORY_INDEX_STATUS_VIEW", "DurableMemory")], memoryId);
+    }
+    if (tail.length === 3 && tail[2] === "exports" && method === "POST") {
+      return policy("PROJECT", [requirement("CAP_AGENT_MEMORY_EXPORT", "DurableMemory")], memoryId);
+    }
+    if (tail.length === 4 && tail[2] === "exports" && method === "GET") {
+      return policy("PROJECT", [requirement("CAP_AGENT_MEMORY_EXPORT", "DurableMemory")], memoryId);
+    }
+    if (tail.length === 4 && tail[2] === "items" && method === "GET") {
+      return policy("PROJECT", [requirement("CAP_AGENT_MEMORY_CONTENT_VIEW", "DurableMemory")], memoryId);
+    }
+    if (tail.length === 4 && tail[2] === "facts" && method === "PATCH") {
+      return policy("PROJECT", [requirement("CAP_AGENT_MEMORY_CONTENT_WRITE", "DurableMemory")], memoryId);
+    }
+    if (tail.length === 4 && tail[2] === "experiences" && method === "PATCH") {
+      return policy("PROJECT", [requirement("CAP_AGENT_MEMORY_CONTENT_WRITE", "DurableMemory")], memoryId);
+    }
+    if (
+      tail.length === 5
+      && tail[2] === "items"
+      && ["invalidate", "restore"].includes(tail[4]!)
+      && method === "POST"
+    ) {
+      return policy("PROJECT", [requirement("CAP_AGENT_MEMORY_CONTENT_WRITE", "DurableMemory")], memoryId);
+    }
+    if (tail.length === 4 && tail[2] === "conversations" && method === "GET") {
+      return policy("PROJECT", [requirement("CAP_AGENT_MEMORY_CONTENT_VIEW", "DurableMemory")], memoryId);
+    }
+    if (tail.length === 4 && tail[2] === "conversations" && method === "DELETE") {
+      return policy("PROJECT", [requirement("CAP_AGENT_MEMORY_CONTENT_DELETE", "DurableMemory")], memoryId);
+    }
+    if (
+      tail.length === 5
+      && tail[2] === "conversations"
+      && tail[4] === "reextract"
+      && method === "POST"
+    ) {
+      return policy("PROJECT", [requirement("CAP_AGENT_MEMORY_SESSION_INDEX_MANAGE", "DurableMemory")], memoryId);
+    }
+    if (
+      tail.length === 5
+      && tail[2] === "outbox"
+      && tail[4] === "replay"
+      && method === "POST"
+    ) {
+      return policy("PROJECT", [requirement("CAP_AGENT_MEMORY_INDEX_REBUILD", "DurableMemory")], memoryId);
+    }
+  }
+
   if (tail[0] === "access-policies") {
     if (tail.length === 1) {
       if (method === "GET") return policy("PROJECT", [requirement("CAP_ACCESS_POLICY_VIEW", "AccessPolicy")]);

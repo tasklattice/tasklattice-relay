@@ -338,6 +338,12 @@ multi-architecture OCI index digest
 The Service is always `ClusterIP`; only Control and Control Worker are allowed
 to call it. Agent runtimes never receive the Hindsight root API key or choose a
 Bank ID. Product access is mediated by Relay's project-scoped Memory boundary.
+Each OpenClaw or Hermes Runtime receives one signed coordinator credential
+fixed to its active Project, Instance, and Memory binding. The Project Runtime
+Bridge exposes only `recall` and `retain`; request bodies cannot select a Bank,
+Project, or Memory. Recall is fail-open and bounded by
+`hindsight.runtimeRecallTimeoutMs` (1500 ms by default), while retain only
+enqueues Relay's encrypted Outbox and is delivered asynchronously.
 
 Hindsight shares the release PostgreSQL server and pgvector extension, but its
 tables are owned by the dedicated `hindsight` database user in the dedicated

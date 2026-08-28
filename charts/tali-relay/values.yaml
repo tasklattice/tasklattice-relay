@@ -161,6 +161,8 @@ docling:
 # existing PostgreSQL/pgvector and LiteLLM Services through dedicated scopes.
 hindsight:
   enabled: true
+  # Relay's response-before-recall latency budget. Provider timeout is fail-open.
+  runtimeRecallTimeoutMs: 1500
   replicaCount: 1
   service:
     port: 8888

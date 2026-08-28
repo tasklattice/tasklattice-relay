@@ -138,6 +138,8 @@ spec:
             {{- if .Values.hindsight.enabled }}
             - name: TALI_HINDSIGHT_URL
               value: {{ include "tali.hindsightUrl" . | quote }}
+            - name: MEMORY_RUNTIME_RECALL_TIMEOUT_MS
+              value: {{ .Values.hindsight.runtimeRecallTimeoutMs | quote }}
             - name: TALI_HINDSIGHT_API_KEY
               valueFrom:
                 secretKeyRef:

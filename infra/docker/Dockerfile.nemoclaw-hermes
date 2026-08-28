@@ -10,6 +10,7 @@ COPY scripts/bootstrap-hermes-config.py \
      scripts/patch-hermes-nonroot-cron-drain.py \
      scripts/verify-hermes-a2a-plugin.py \
      scripts/verify-hermes-vector-database-plugin.py \
+     scripts/verify-hermes-durable-memory-provider.py \
      runtime-integrations \
      /tmp/tali-hermes-overlay/
 
@@ -28,6 +29,7 @@ RUN set -eux; \
     install -D -m 0555 /tmp/tali-hermes-overlay/bootstrap-hermes-config.py /usr/local/lib/tali/bootstrap-hermes-config.py; \
     install -D -m 0555 /tmp/tali-hermes-overlay/verify-hermes-a2a-plugin.py /usr/local/lib/tali/verify-hermes-a2a-plugin.py; \
     install -D -m 0555 /tmp/tali-hermes-overlay/verify-hermes-vector-database-plugin.py /usr/local/lib/tali/verify-hermes-vector-database-plugin.py; \
+    install -D -m 0555 /tmp/tali-hermes-overlay/verify-hermes-durable-memory-provider.py /usr/local/lib/tali/verify-hermes-durable-memory-provider.py; \
     install -d -m 0755 /opt/hermes/plugins/tali-a2a; \
     install -m 0444 /tmp/tali-hermes-overlay/hermes-a2a-plugin/plugin.yaml /opt/hermes/plugins/tali-a2a/plugin.yaml; \
     install -m 0444 /tmp/tali-hermes-overlay/hermes-a2a-plugin/__init__.py /opt/hermes/plugins/tali-a2a/__init__.py; \
@@ -36,6 +38,9 @@ RUN set -eux; \
     install -m 0444 /tmp/tali-hermes-overlay/hermes-vector-database-plugin/plugin.yaml /opt/hermes/plugins/tali-vector-database/plugin.yaml; \
     install -m 0444 /tmp/tali-hermes-overlay/hermes-vector-database-plugin/__init__.py /opt/hermes/plugins/tali-vector-database/__init__.py; \
     install -m 0444 /tmp/tali-hermes-overlay/hermes-vector-database-plugin/client.py /opt/hermes/plugins/tali-vector-database/client.py; \
+    install -d -m 0755 /opt/hermes/plugins/memory/tali_relay; \
+    install -m 0444 /tmp/tali-hermes-overlay/hermes-durable-memory-provider/plugin.yaml /opt/hermes/plugins/memory/tali_relay/plugin.yaml; \
+    install -m 0444 /tmp/tali-hermes-overlay/hermes-durable-memory-provider/__init__.py /opt/hermes/plugins/memory/tali_relay/__init__.py; \
     install -D -m 0555 /tmp/tali-hermes-overlay/hermes-webui-auth-proxy.py /usr/local/lib/tali/hermes-webui-auth-proxy.py; \
     rm -rf /tmp/tali-hermes-overlay; \
     uid_owner="$(getent passwd "${OPENSHELL_SANDBOX_UID}" | cut -d: -f1 || true)"; \
@@ -60,6 +65,7 @@ RUN set -eux; \
     /usr/local/lib/tali/bootstrap-hermes-config.py --help >/dev/null; \
     /usr/local/lib/tali/verify-hermes-a2a-plugin.py; \
     /usr/local/lib/tali/verify-hermes-vector-database-plugin.py; \
+    /usr/local/lib/tali/verify-hermes-durable-memory-provider.py; \
     /opt/hermes/.venv/bin/python3 -m py_compile /usr/local/lib/nemoclaw/seed-hermes-dashboard-config.py; \
     /opt/hermes/.venv/bin/python3 -m py_compile /opt/hermes/hermes_cli/web_server.py; \
     /opt/hermes/.venv/bin/python3 -m py_compile /opt/hermes/gateway/drain_control.py; \

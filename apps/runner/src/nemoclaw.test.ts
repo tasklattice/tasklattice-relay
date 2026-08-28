@@ -433,6 +433,9 @@ describe("OpenShell Kubernetes command contract", () => {
     expect(bootstrap).toContain(
       '--vector-database-registry-token "tali_prc_v1.test-payload.test-signature"',
     );
+    expect(bootstrap).toContain("--durable-memory-provider tali_relay");
+    expect(bootstrap).toContain("TALI_DURABLE_MEMORY_ENDPOINT");
+    expect(bootstrap).toContain("TALI_DURABLE_MEMORY_TOKEN");
     expect(bootstrap).not.toContain("\n+");
   });
 
@@ -558,6 +561,31 @@ describe("OpenShell Kubernetes command contract", () => {
     expect(bootstrap).toContain('backend: "builtin"');
     expect(agentMemoryInstructions({ mode: "native", citations: "auto" }))
       .toContain("Read MEMORY.md at the start of a new session");
+  });
+
+  it("enables the scoped Durable Memory plugin for OpenClaw without exposing a Bank id", () => {
+    const token = "tali_prc_v1.test-payload.test-signature";
+    const bridge = "http://tali-agent-runtime-bridge.tp-abcdefghijklmnop.svc.cluster.local:8080";
+    const bootstrap = getAgentPlatformRuntime("openclaw").bootstrapScript(
+      "http://openclaw.example.test",
+      "18789",
+      "http://inference.example.test/v1",
+      "deepseek-chat",
+      { mode: "native", citations: "auto" },
+      bridge,
+      input.instanceId,
+      token,
+    );
+
+    expect(bootstrap).toContain("/usr/local/lib/tali/openclaw-durable-memory");
+    expect(bootstrap).toContain('pluginEntries["tali-durable-memory"]');
+    expect(bootstrap).toContain("allowPromptInjection: true");
+    expect(bootstrap).toContain(Buffer.from(token).toString("base64"));
+    expect(bootstrap).toContain(Buffer.from(
+      `${bridge}/v1/memory/coordinators/${input.instanceId}`,
+    ).toString("base64"));
+    expect(bootstrap).not.toContain("bankId");
+    expect(bootstrap).not.toContain("providerRef");
   });
 
   it("configures Hybrid Memory through the Instance LiteLLM endpoint", () => {
