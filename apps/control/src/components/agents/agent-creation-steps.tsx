@@ -11,8 +11,6 @@ import { useTranslation } from "react-i18next";
 import {
   BookOpenText,
   Boxes,
-  BrainCircuit,
-  Check,
   ChevronDown,
   CircleHelp,
   Info,
@@ -22,11 +20,7 @@ import {
   ServerCog,
   X,
 } from "lucide-react";
-import {
-  AgentSelectionDetails,
-  AgentSelect,
-  AgentTipsPopover,
-} from "@/components/agents/agent-select";
+import { AgentSelect } from "@/components/agents/agent-select";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -54,19 +48,18 @@ import {
   type MultiSelectOption,
 } from "@/components/ui/multi-select-combobox";
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { useCurrentProjectId } from "@/hooks/use-project";
 import { cn } from "@/lib/utils";
 import { SpecializationIcon } from "./specialization-selector";
@@ -96,13 +89,11 @@ export function AgentFoundationStep({
 }) {
   const projectId = useCurrentProjectId();
   const { t } = useTranslation("createInstance");
-  const [memoryOpen, setMemoryOpen] = useState(false);
 
   return (
     <Card>
-      <CardHeader className="border-b">
+      <CardHeader className="border-b pb-4">
         <CardTitle>{t("agentFoundation.title")}</CardTitle>
-        <CardDescription>{t("agentFoundation.description")}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
         <div className="space-y-2">
@@ -125,27 +116,16 @@ export function AgentFoundationStep({
             <p role="alert" className="text-xs text-destructive">
               Use at least 3 characters.
             </p>
-          ) : (
-            <p className="text-xs leading-5 text-muted-foreground">
-              Name this running Instance of the job.
-            </p>
-          )}
+          ) : null}
         </div>
 
         <div className="space-y-2 border-t pt-5">
-          <div className="flex min-h-11 items-center justify-between gap-3">
-            <Label htmlFor="instance-agent">Agent</Label>
-            <AgentTipsPopover />
-          </div>
+          <Label htmlFor="instance-agent">Agent</Label>
           <AgentSelect
             id="instance-agent"
             value={agentPlatform}
             onValueChange={onAgentPlatformChange}
           />
-          <p className="text-xs leading-5 text-muted-foreground">
-            Choose the Agent implementation that will perform this work inside OpenShell.
-          </p>
-          <AgentSelectionDetails value={agentPlatform} />
         </div>
 
         <div className="border-t pt-5">
@@ -156,8 +136,6 @@ export function AgentFoundationStep({
             durableMemoryEnabled={durableMemoryEnabled}
             durableMemoryId={durableMemoryId}
             onDurableMemoryIdChange={onDurableMemoryIdChange}
-            onOpenChange={setMemoryOpen}
-            open={memoryOpen}
             projectId={projectId}
           />
         </div>
@@ -451,8 +429,6 @@ function MemoryCapabilityRow({
   durableMemoryEnabled,
   durableMemoryId,
   onDurableMemoryIdChange,
-  onOpenChange,
-  open,
   projectId,
 }: {
   agentPlatform: AgentPlatformId;
@@ -461,230 +437,90 @@ function MemoryCapabilityRow({
   durableMemoryEnabled: boolean;
   durableMemoryId: string;
   onDurableMemoryIdChange: (memoryId: string) => void;
-  onOpenChange: (open: boolean) => void;
-  open: boolean;
   projectId: string;
 }) {
   const supported = durableMemoryEnabled
     && (agentPlatform === "openclaw" || agentPlatform === "hermes");
-  const selected = durableMemories.find(({ id }) => id === durableMemoryId);
+  const newMemoryValue = "new-memory";
+  const sourceValue = durableMemoryId || newMemoryValue;
 
   return (
-    <Collapsible
-      open={open}
-      onOpenChange={onOpenChange}
-      className="rounded-md border"
-    >
-      <div className="flex min-h-20 items-start gap-3 px-4 py-3">
-        <span className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-md bg-primary/10 text-primary">
-          <BrainCircuit className="size-4" />
-        </span>
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-0.5">
-              <h3 className="text-sm font-semibold">Memory</h3>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    type="button"
-                    aria-label="Memory tips"
-                    className="relative inline-flex size-8 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors motion-reduce:transition-none after:absolute after:-inset-1.5 after:content-[''] hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
-                  >
-                    <CircleHelp className="size-3.5" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent
-                  side="top"
-                  sideOffset={6}
-                  className="max-w-72 leading-5"
-                >
-                  Durable Memory is a Project resource. It survives Agent deletion and can be attached to another OpenClaw or Hermes Agent later.
-                </TooltipContent>
-              </Tooltip>
-            </div>
-            <Badge variant="outline" className="font-normal">
-              {!supported
-                ? "Not available"
-                : selected
-                  ? "Existing Memory"
-                  : "Integrated"}
-            </Badge>
-          </div>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {supported
-              ? "Project-level context that gives this Agent continuity across replacement."
-              : durableMemoryEnabled
-                ? "Durable Memory is currently available for OpenClaw and Hermes Agents."
-                : "Durable Memory is not enabled for this Project."}
-          </p>
-          {supported ? (
-            <p className="mt-2 text-xs font-medium text-primary">
-              {selected
-                ? selected.displayName
-                : "Durable Memory is configured automatically"}
-            </p>
-          ) : null}
+    <section aria-labelledby="agent-memory-title" className="rounded-md border p-4">
+      <div className="flex min-h-11 items-center justify-between gap-3">
+        <div className="flex items-center gap-1">
+          <h3 id="agent-memory-title" className="text-sm font-semibold">Memory</h3>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button type="button" variant="ghost" size="sm" className="min-h-11 px-2 text-muted-foreground">
+                <CircleHelp className="size-4" /> Tips
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="start" className="w-[min(90vw,22rem)] p-4">
+              <h4 className="text-sm font-semibold">Memory tips</h4>
+              <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                Economy uses the Project&apos;s managed low-cost Memory defaults. A new Memory is prepared automatically unless you select an existing one.
+              </p>
+              <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                Durable Memory remains available after Agent deletion and can be attached to another supported Agent.
+              </p>
+              <Button asChild variant="link" size="sm" className="mt-2 h-auto min-h-0 p-0">
+                <Link to="/$projectId/memory" params={{ projectId }}>Manage Memory</Link>
+              </Button>
+            </PopoverContent>
+          </Popover>
         </div>
-        {supported ? (
-          <CollapsibleTrigger asChild>
-            <Button
-              type="button"
-              size="icon"
-              variant="ghost"
-              aria-label={`${open ? "Collapse" : "Expand"} Memory`}
-            >
-              <ChevronDown
-                className={cn(
-                  "transition-transform motion-reduce:transition-none",
-                  open && "rotate-180",
-                )}
-              />
-            </Button>
-          </CollapsibleTrigger>
-        ) : null}
+        <Badge variant={supported ? "secondary" : "outline"} className="font-normal">
+          {supported ? "Enabled" : "Not available"}
+        </Badge>
       </div>
-      <CollapsibleContent className="border-t bg-muted/10 p-4">
-        <div
-          className="space-y-4"
-          role="radiogroup"
-          aria-label="Durable Memory choice"
-        >
-          <button
-            type="button"
-            role="radio"
-            aria-checked={!durableMemoryId}
-            onClick={() => onDurableMemoryIdChange("")}
-            className={cn(
-              "flex min-h-20 w-full items-start gap-3 rounded-md border p-4 text-left outline-none hover:bg-muted/35 focus-visible:ring-2 focus-visible:ring-ring/35",
-              !durableMemoryId && "border-primary bg-primary/5",
-            )}
-          >
-            <span
-              className={cn(
-                "mt-0.5 grid size-5 shrink-0 place-items-center rounded-full border",
-                !durableMemoryId
-                  && "border-primary bg-primary text-primary-foreground",
-              )}
-            >
-              {!durableMemoryId ? <Check className="size-3" /> : null}
-            </span>
-            <span>
-              <strong className="block text-sm">
-                Use durable Memory (recommended)
-              </strong>
-              <span className="mt-1 block text-xs leading-5 text-muted-foreground">
-                Project-level Memory is prepared and bound before the Agent starts.
-              </span>
-            </span>
-          </button>
-          <button
-            type="button"
-            role="radio"
-            aria-checked={Boolean(durableMemoryId)}
-            onClick={() =>
-              onDurableMemoryIdChange(durableMemories[0]?.id ?? "")
-            }
-            disabled={!durableMemories.length && !durableMemoriesLoading}
-            className={cn(
-              "flex min-h-20 w-full items-start gap-3 rounded-md border p-4 text-left outline-none hover:bg-muted/35 focus-visible:ring-2 focus-visible:ring-ring/35 disabled:cursor-not-allowed disabled:opacity-50",
-              durableMemoryId && "border-primary bg-primary/5",
-            )}
-          >
-            <span
-              className={cn(
-                "mt-0.5 grid size-5 shrink-0 place-items-center rounded-full border",
-                durableMemoryId
-                  && "border-primary bg-primary text-primary-foreground",
-              )}
-            >
-              {durableMemoryId ? <Check className="size-3" /> : null}
-            </span>
-            <span>
-              <strong className="block text-sm">
-                Continue with an existing Memory
-              </strong>
-              <span className="mt-1 block text-xs leading-5 text-muted-foreground">
-                Attach an unbound Memory from this Project and recall its prior context on the first turn.
-              </span>
-            </span>
-          </button>
-          {durableMemoriesLoading ? (
-            <Skeleton className="h-12 w-full" />
-          ) : durableMemoryId ? (
-            <div className="space-y-2">
-              <Label htmlFor="durable-memory-selection">Existing Memory</Label>
-              <Select
-                value={durableMemoryId}
-                onValueChange={onDurableMemoryIdChange}
-              >
-                <SelectTrigger
-                  id="durable-memory-selection"
-                  className="min-h-11 w-full"
-                >
-                  <SelectValue placeholder="Select an unbound Memory" />
-                </SelectTrigger>
-                <SelectContent>
-                  {durableMemories.map((item) => (
-                    <SelectItem key={item.id} value={item.id}>
-                      {item.displayName}
-                      <span className="ml-2 text-muted-foreground">
-                        {item.counts
-                          ? `${item.counts.conversations} conversations · ${item.counts.facts} facts`
-                          : item.status}
-                      </span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {selected ? (
-                <div className="grid grid-cols-3 gap-3 rounded-md border bg-background p-3 text-xs">
-                  <span>
-                    <span className="block text-muted-foreground">
-                      Conversations
-                    </span>
-                    <strong className="mt-1 block">
-                      {selected.counts?.conversations ?? "—"}
-                    </strong>
-                  </span>
-                  <span>
-                    <span className="block text-muted-foreground">Facts</span>
-                    <strong className="mt-1 block">
-                      {selected.counts?.facts ?? "—"}
-                    </strong>
-                  </span>
-                  <span>
-                    <span className="block text-muted-foreground">
-                      Experiences
-                    </span>
-                    <strong className="mt-1 block">
-                      {selected.counts?.experiences ?? "—"}
-                    </strong>
-                  </span>
-                </div>
-              ) : null}
-            </div>
-          ) : !durableMemories.length ? (
-            <p className="text-xs text-muted-foreground">
-              No existing Memory is available. Durable Memory will be configured automatically.
-            </p>
-          ) : null}
 
-          <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-3 text-xs text-muted-foreground">
-            <span>Memory is capability context, not an authorization source.</span>
-            <Button
-              asChild
-              variant="link"
-              size="sm"
-              className="h-auto min-h-0 p-0"
+      {supported ? (
+        <div className="mt-3 grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor="durable-memory-selection">Memory source</Label>
+            <Select
+              value={sourceValue}
+              onValueChange={(value) => onDurableMemoryIdChange(value === newMemoryValue ? "" : value)}
+              disabled={durableMemoriesLoading}
             >
-              <Link to="/$projectId/memory" params={{ projectId }}>
-                Manage Memory
-              </Link>
-            </Button>
+              <SelectTrigger id="durable-memory-selection" className="min-h-11 w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={newMemoryValue}>New Memory · automatic</SelectItem>
+                {durableMemories.map((item) => (
+                  <SelectItem key={item.id} value={item.id}>
+                    {item.displayName}
+                    <span className="ml-2 text-muted-foreground">
+                      {item.counts
+                        ? `${item.counts.conversations} conversations · ${item.counts.facts} facts`
+                        : item.status}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Capture policy</Label>
+            <div
+              aria-label="Economy capture policy, lowest cost"
+              className="flex min-h-11 items-center justify-between gap-3 rounded-md border bg-muted/10 px-3"
+            >
+              <span className="text-sm font-medium">Economy</span>
+              <Badge variant="outline" className="font-normal">Lowest cost</Badge>
+            </div>
           </div>
         </div>
-      </CollapsibleContent>
-    </Collapsible>
+      ) : (
+        <p className="mt-2 text-xs text-muted-foreground">
+          {durableMemoryEnabled
+            ? "Available for Hermes and OpenClaw Agents."
+            : "Not enabled for this Project."}
+        </p>
+      )}
+    </section>
   );
 }
 
