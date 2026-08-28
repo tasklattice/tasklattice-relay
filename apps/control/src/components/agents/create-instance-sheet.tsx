@@ -665,7 +665,7 @@ export function CreateInstanceSheet({
                   <AgentFoundationStep
                     name={String(name)}
                     agentPlatform={agentPlatform as AgentPlatformId}
-                    durableMemories={availableDurableMemories}
+                    durableMemories={durableMemories.data?.items ?? []}
                     durableMemoriesLoading={durableMemories.isPending}
                     durableMemoryEnabled={durableMemoryEnabled}
                     durableMemoryId={durableMemoryId}

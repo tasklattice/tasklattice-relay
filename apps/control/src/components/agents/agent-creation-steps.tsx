@@ -488,16 +488,27 @@ function MemoryCapabilityRow({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={newMemoryValue}>New Memory · automatic</SelectItem>
-                {durableMemories.map((item) => (
-                  <SelectItem key={item.id} value={item.id}>
-                    {item.displayName}
-                    <span className="ml-2 text-muted-foreground">
-                      {item.counts
-                        ? `${item.counts.conversations} conversations · ${item.counts.facts} facts`
-                        : item.status}
-                    </span>
-                  </SelectItem>
-                ))}
+                {durableMemories.map((item) => {
+                  const inUse = Boolean(item.activeBinding);
+
+                  return (
+                    <SelectItem
+                      key={item.id}
+                      value={item.id}
+                      disabled={inUse}
+                    >
+                      <span className="min-w-0 flex-1 truncate">
+                        {item.displayName}
+                      </span>
+                      <Badge
+                        variant="outline"
+                        className="ml-auto shrink-0 font-normal"
+                      >
+                        {inUse ? "In use · detach first" : "Available"}
+                      </Badge>
+                    </SelectItem>
+                  );
+                })}
               </SelectContent>
             </Select>
           </div>
