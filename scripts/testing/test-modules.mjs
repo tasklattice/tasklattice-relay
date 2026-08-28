@@ -10,16 +10,20 @@ const ALL_CONTROL_MODULE_IDS = [
 
 export const GOLDEN_PATH_MODULE_ID = "agent-golden-path";
 
+export const TEST_BLOCKS = ["control-plane", "data-plane"];
+
 export const testModules = [
   {
     id: "access",
-    label: "Access and project governance",
+    block: "control-plane",
+    label: "Control / Access and project governance",
     sourcePatterns: [
       "apps/control/server/access-policies/**",
       "apps/control/server/auth/**",
       "apps/control/server/authorization/**",
       "apps/control/server/departments/department-service.ts",
       "apps/control/server/departments/department-settings-service.ts",
+      "apps/control/server/departments/department-access.ts",
       "apps/control/server/email/**",
       "apps/control/server/notifications/**",
       "apps/control/server/platform/**",
@@ -33,6 +37,11 @@ export const testModules = [
       "apps/control/src/hooks/use-project-permissions*",
       "apps/control/src/hooks/use-project-query-scope*",
       "apps/control/src/routes/-access-policies-routing.test.ts",
+      "apps/control/src/services/**",
+      "apps/control/src/types/**",
+      "charts/tali-relay/templates/keycloak.yaml",
+      "scripts/configure-dev-keycloak-sso.sh",
+      "scripts/validate-development-defaults.mjs",
     ],
     controlTestPatterns: [
       "apps/control/server/access-policies/**",
@@ -55,13 +64,18 @@ export const testModules = [
       "apps/control/src/routes/-access-policies-routing.test.ts",
     ],
     pythonTests: [],
+    nodeTests: [],
     runnerTestPatterns: [],
   },
   {
     id: "inference",
-    label: "Providers, models, routing and quota",
+    block: "control-plane",
+    label: "Control / Providers, models, routing and quota",
     sourcePatterns: [
       "apps/control/server/departments/department-inference-store*",
+      "apps/control/server/departments/department-budget-lock.ts",
+      "apps/control/server/departments/department-inference-service.ts",
+      "apps/control/server/departments/department-resource-assignment-service.ts",
       "apps/control/server/model-routings/**",
       "apps/control/server/providers/**",
       "apps/control/server/quotas/**",
@@ -77,11 +91,13 @@ export const testModules = [
       "apps/control/src/features/model-cost/**",
     ],
     pythonTests: [],
+    nodeTests: [],
     runnerTestPatterns: [],
   },
   {
     id: "agent-lifecycle",
-    label: "Agent lifecycle and runtime control",
+    block: "control-plane",
+    label: "Control / Agent lifecycle, Worker and runtime control",
     sourcePatterns: [
       "apps/control/server/instances/**",
       "apps/control/server/jobs/**",
@@ -110,11 +126,13 @@ export const testModules = [
       "apps/control/src/lib/terminal-session.test.ts",
     ],
     pythonTests: [],
+    nodeTests: [],
     runnerTestPatterns: [],
   },
   {
     id: "memory",
-    label: "Durable Memory",
+    block: "control-plane",
+    label: "Control / Durable Memory",
     sourcePatterns: [
       "apps/control/server/memories/**",
       "apps/control/server/runtime-bridge/memory-runtime-sanitizer.ts",
@@ -136,6 +154,7 @@ export const testModules = [
     pythonTests: [
       "runtime-integrations/hermes-durable-memory-provider/tests/test_provider.py",
     ],
+    nodeTests: [],
     runnerTestPatterns: [
       "apps/runner/src/openclaw-durable-memory-plugin.test.ts",
       "apps/runner/src/hermes-config-bootstrap.test.ts",
@@ -143,7 +162,8 @@ export const testModules = [
   },
   {
     id: "knowledge-a2a",
-    label: "Knowledge and A2A",
+    block: "control-plane",
+    label: "Control / Knowledge, chunking, embedding and A2A registry",
     sourcePatterns: [
       "apps/control/server/agent-garden/**",
       "apps/control/server/catalog/**",
@@ -171,6 +191,7 @@ export const testModules = [
       "runtime-integrations/hermes-a2a-plugin/tests/test_client.py",
       "runtime-integrations/hermes-vector-database-plugin/tests/test_client.py",
     ],
+    nodeTests: [],
     runnerTestPatterns: [
       "apps/runner/src/hermes-a2a-plugin.test.ts",
       "apps/runner/src/hermes-config-bootstrap.test.ts",
@@ -178,7 +199,8 @@ export const testModules = [
   },
   {
     id: "observability",
-    label: "Audit, runs and observability",
+    block: "control-plane",
+    label: "Control / Audit, runs and observability",
     sourcePatterns: [
       "apps/control/server/audit-logs/**",
       "apps/control/server/observability/**",
@@ -200,14 +222,24 @@ export const testModules = [
     pythonTests: [
       "runtime-integrations/hermes-run-telemetry/tests/test_plugin.py",
     ],
+    nodeTests: [],
     runnerTestPatterns: [],
   },
   {
     id: "control-ui",
-    label: "Control UI and HTTP contracts",
+    block: "control-plane",
+    label: "Control / UI shell and HTTP contracts",
     sourcePatterns: [
+      "apps/control/server/*.ts",
       "apps/control/server/api-contracts/**",
+      "apps/control/server/config/**",
       "apps/control/server/http/**",
+      "apps/control/server/middleware/**",
+      "apps/control/server/plugins/**",
+      "apps/control/server/routes/**",
+      "apps/control/server/secrets/**",
+      "apps/control/server/tools/**",
+      "apps/control/src/**",
       "apps/control/src/components/layout/**",
       "apps/control/src/components/shared/**",
       "apps/control/src/components/ui/**",
@@ -234,19 +266,63 @@ export const testModules = [
       "apps/control/src/styles.typography.test.ts",
     ],
     pythonTests: [],
+    nodeTests: [],
     runnerTestPatterns: [],
   },
   {
-    id: "runtime",
-    label: "Runner and Hermes interaction",
+    id: "openshell-isolation",
+    block: "data-plane",
+    label: "Data / OpenShell multi-tenant isolation",
     sourcePatterns: [
-      "apps/runner/**",
+      "apps/control/server/kubernetes/project-namespace-client*",
+      "apps/control/server/kubernetes/project-openshell-gateway-client*",
+      "apps/control/server/projects/project-runtime-target-service*",
+      "apps/runner/src/openshell.ts",
+      "apps/runner/src/project-service-proxy.ts",
+      "apps/runner/src/runtime-target*",
+      "charts/tali-relay/**",
+    ],
+    controlTestPatterns: [
+      "apps/control/server/kubernetes/project-namespace-client.test.ts",
+      "apps/control/server/kubernetes/project-openshell-gateway-client.test.ts",
+      "apps/control/server/projects/project-runtime-target-service.test.ts",
+    ],
+    pythonTests: [],
+    nodeTests: [],
+    runnerTestPatterns: ["apps/runner/src/runtime-target.test.ts"],
+  },
+  {
+    id: "runtime",
+    block: "data-plane",
+    label: "Data / Hermes, OpenClaw and DeepAgents runtimes",
+    sourcePatterns: [
+      "apps/runner/src/agent-platform.ts",
+      "apps/runner/src/index.ts",
+      "apps/runner/src/nemoclaw*",
       "infra/docker/Dockerfile.nemoclaw-*",
-      "runtime-integrations/**",
-      "scripts/bootstrap-hermes-config.py",
       "scripts/build-nemoclaw-sandbox.sh",
       "scripts/patch-hermes-*",
       "scripts/verify-hermes-*",
+    ],
+    controlTestPatterns: [],
+    pythonTests: [],
+    nodeTests: [],
+    runnerTestPatterns: [
+      "apps/runner/src/nemoclaw*.test.ts",
+    ],
+  },
+  {
+    id: "runtime-integrations",
+    block: "data-plane",
+    label: "Data / Runtime A2A, Memory, Knowledge, telemetry and Web UI integrations",
+    sourcePatterns: [
+      "apps/runner/src/hermes-a2a-plugin*",
+      "apps/runner/src/hermes-config-bootstrap*",
+      "apps/runner/src/openclaw-durable-memory-plugin*",
+      "runtime-integrations/**",
+      "apps/control/server/runtime-bridge/project-runtime-bridge-auth.ts",
+      "apps/control/server/runtime-bridge/project-runtime-bridge-server.ts",
+      "scripts/bootstrap-hermes-config.py",
     ],
     controlTestPatterns: [],
     pythonTests: [
@@ -256,16 +332,29 @@ export const testModules = [
       "runtime-integrations/hermes-vector-database-plugin/tests/test_client.py",
       "runtime-integrations/test_hermes_webui_auth_proxy.py",
     ],
-    runnerTestPatterns: ["apps/runner/src/**"],
+    nodeTests: [],
+    runnerTestPatterns: [
+      "apps/runner/src/hermes-a2a-plugin.test.ts",
+      "apps/runner/src/hermes-config-bootstrap.test.ts",
+      "apps/runner/src/openclaw-durable-memory-plugin.test.ts",
+    ],
   },
   {
     id: GOLDEN_PATH_MODULE_ID,
-    label: "Agent golden path",
-    sourcePatterns: [],
+    scope: "cross-plane",
+    label: "Cross-plane / Agent golden path",
+    sourcePatterns: [
+      ".github/workflows/live-hermes-e2e.yml",
+      "scripts/testing/live-hermes-e2e-lib.mjs",
+      "scripts/testing/live-hermes-golden-path*",
+    ],
     controlTestPatterns: [
       "apps/control/server/e2e/agent-golden-path.e2e.test.ts",
     ],
     pythonTests: [],
+    nodeTests: [
+      "scripts/testing/live-hermes-golden-path.test.mjs",
+    ],
     runnerTestPatterns: [],
   },
 ];
@@ -280,6 +369,7 @@ const GLOBAL_PATTERNS = [
   "apps/control/server/test/**",
   "apps/control/tsconfig.json",
   "apps/control/vitest.config.ts",
+  "apps/control/vite*.config.ts",
   "apps/runner/tsconfig.json",
   "package-lock.json",
   "package.json",
@@ -294,7 +384,9 @@ const GOLDEN_PATH_DEPENDENCIES = new Set([
   "agent-lifecycle",
   "memory",
   "knowledge-a2a",
+  "openshell-isolation",
   "runtime",
+  "runtime-integrations",
 ]);
 
 function escapeRegularExpression(value) {
@@ -343,12 +435,28 @@ export function selectTestModuleIds(changedPaths) {
     .filter((id) => selected.has(id));
 }
 
+export function sourceOwnerModuleIds(path) {
+  const normalized = path.replaceAll("\\", "/").replace(/^\.\//, "");
+  return testModules
+    .filter((module) => matchesAny(normalized, module.sourcePatterns))
+    .map(({ id }) => id);
+}
+
+export function isGlobalTestInfrastructurePath(path) {
+  const normalized = path.replaceAll("\\", "/").replace(/^\.\//, "");
+  return matchesAny(normalized, GLOBAL_PATTERNS);
+}
+
 export function moduleMatrix(moduleIds) {
   const selected = new Set(moduleIds);
   return {
     include: testModules
       .filter(({ id }) => selected.has(id))
-      .map(({ id, label }) => ({ module: id, label })),
+      .map(({ id, label, block, scope }) => ({
+        module: id,
+        label,
+        block: block ?? scope,
+      })),
   };
 }
 

@@ -75,6 +75,15 @@ for (const test of module.pythonTests) {
   console.log(`[test-module] Python ${test}`);
   run("python3", [test]);
 }
-if (!controlTests.length && !runnerTests.length && !module.pythonTests.length) {
+for (const test of module.nodeTests) {
+  console.log(`[test-module] Node ${test}`);
+  run("node", ["--test", test]);
+}
+if (
+  !controlTests.length
+  && !runnerTests.length
+  && !module.pythonTests.length
+  && !module.nodeTests.length
+) {
   throw new Error(`Test module ${module.id} did not resolve any tests.`);
 }

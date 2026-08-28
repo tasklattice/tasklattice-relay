@@ -14,7 +14,7 @@ normal PR CI.
 | L1 unit | Pure domain, schema, permission, transformation and UI behavior | Affected module on every PR |
 | L2 component/contract | PostgreSQL-compatible test store, provider fixtures, runtime bridges and deterministic A2A | Affected module on every PR |
 | L3 cluster smoke | Helm install, probes, jobs, RBAC and one representative runtime | Relevant infrastructure changes and `main` |
-| L4 live golden path | Real provider inference, embedding, document ingestion and Hermes chat | Manual/release only |
+| L4 live golden path | Real provider inference, embedding, document ingestion and Hermes chat | Manual only |
 
 The attachment is directionally right about these layers. Its inventory is not
 the current source of truth, however: Relay currently exposes Hermes, OpenClaw
@@ -23,24 +23,28 @@ relationship-based rather than a fixed set of four Keycloak test users. Running
 an empty cluster and every real provider on every PR would also make ordinary
 changes expensive and flaky.
 
-## Component modules
+## Test blocks and module rows
 
 The canonical mapping lives in
-`scripts/testing/test-modules.mjs`. New production areas must be assigned there;
-an unknown `apps/control` path intentionally falls back to all Control modules
-so a new component cannot silently escape CI.
+`scripts/testing/test-modules.mjs`. Its first division is the block (`block`),
+and its second division is the executable module row. Configuration validation
+fails when a production source has no explicit owner, a deterministic test is
+not assigned, or a module row resolves no test evidence. The broad Control
+fallback remains a second safety net for newly added paths.
 
-| Module | Owns |
-| --- | --- |
-| `access` | Authentication, authorization, Access Policies, Projects, Departments and platform settings |
-| `inference` | Providers, Models, Routing, LiteLLM permissions, quota and cost ingestion |
-| `agent-lifecycle` | Agent create/provision/delete, jobs, Kubernetes, runtime policy and terminal surfaces |
-| `memory` | Project Memory, provider contract, outbox, recall/retain, governance and runtime binding |
-| `knowledge-a2a` | Vector Databases, document ingestion, Agent Garden, A2A discovery and delegation |
-| `observability` | Audit, Runs, telemetry, overview and traces |
-| `control-ui` | Shared UI, HTTP/OpenAPI contracts, navigation and client helpers |
-| `runtime` | Runner, Hermes/OpenClaw bootstrap, Web UI proxy and runtime plugins |
-| `agent-golden-path` | One deterministic cross-component Agent journey; selected as a downstream check |
+| Block | Module row | Required evidence |
+| --- | --- | --- |
+| Control plane | `access` | Local auth, SSO/OIDC, external role binding, role switching, capabilities, Access Policies, Projects and embedded Keycloak rendering |
+| Control plane | `inference` | Provider adapters, model discovery/validation, Model Routing, LiteLLM permissions, quota and cost ingestion |
+| Control plane | `agent-lifecycle` | Agent create/provision/delete, Worker queues/retries, Kubernetes reconciliation, runtime policy, TTY and interaction authorization |
+| Control plane | `memory` | Hindsight HTTP contract, provider lifecycle, outbox, recall/retain, governance, redaction and runtime binding |
+| Control plane | `knowledge-a2a` | Docling parse, chunk and embedding pipeline, Vector search, Agent Garden Registry, A2A discovery/call contracts |
+| Control plane | `observability` | Audit, Runs, runtime telemetry, overview and trace presentation |
+| Control plane | `control-ui` | Shared UI, HTTP/OpenAPI contracts, route wiring, navigation and client helpers |
+| Data plane | `openshell-isolation` | Per-Project Namespace/Gateway ownership, route scoping, workspace-qualified state and cross-tenant rejection |
+| Data plane | `runtime` | Hermes, OpenClaw and Deep Agents image/bootstrap/health/terminal definitions and startup paths |
+| Data plane | `runtime-integrations` | Hermes A2A, Knowledge, Durable Memory and telemetry plugins plus authenticated Dashboard HTTP/WebSocket proxy |
+| Cross-block acceptance | `agent-golden-path` | Deterministic L2 orchestration plus the explicit live L4 Hermes journey; it is downstream of both blocks, not a third block |
 
 Shared contracts, Prisma migrations, test fixtures, package locks and the module
 map select every module. Documentation-only changes select no test module.
@@ -79,7 +83,30 @@ network model call:
 
 This test does not claim that a real LLM selected tools correctly. It proves the
 Relay orchestration and security contracts around the runtime. Actual Hermes
-chat/tool selection belongs to L4.
+chat/tool selection belongs to the live L4 test below.
+
+The manual L4 entry is `npm run test:e2e:live`. It refuses to run unless
+`TALI_LIVE_E2E=1`, and performs one disposable, evidence-bearing journey:
+
+1. Select a READY Routing, ACTIVE Access Policy, registered PostgreSQL Vector
+   Database and callable A2A peer.
+2. Upload one tiny Markdown document; wait for Docling parsing, chunking and
+   embedding; then prove semantic search returns its random marker.
+3. Create a real Hermes Agent and prove the Relay TTY emits a runtime frame.
+4. Exchange the one-time Hermes Dashboard URL for its HttpOnly session, open
+   the independent `/chat` UI and drive its real `/api/pty` WebSocket.
+5. Require structured start and completion evidence for `a2a_list`, `a2a_call`,
+   `vector_database_list` and `vector_database_search`; require the A2A result
+   to return `ok=true`.
+6. Poll the configured Memory provider until the first turn is retained, then
+   open a fresh Hermes Chat session and prove the marker is recalled.
+7. Prove the one-time Dashboard URL cannot be replayed and unauthenticated
+   interaction access is rejected, then remove disposable resources.
+
+`npm run test:e2e:runtime-matrix` separately starts OpenClaw and Deep Agents on
+the deployed OpenShell data plane and validates their Web UI/TTY shape. Hermes
+is not duplicated there because L4 already validates its startup, TTY, Chat,
+model inference and runtime integrations.
 
 ## Historical regression inventory
 
@@ -101,19 +128,30 @@ regression coverage:
 
 ## Live-model cost and secret policy
 
-`DEEPSEEK_API_KEY` and `NVAPI_API_KEY` are never read by PR module tests. No
-secret value, prefix or length is logged. Live checks require an explicit manual
-or release invocation and must use a fixed budget:
+`DEEPSEEK_API_KEY` and `NVAPI_API_KEY` are never read by PR module tests, the
+runtime startup matrix, or automatic release validation. No secret value,
+prefix or length is logged. The live workflow is `workflow_dispatch` only and
+uses the deployment's preconfigured READY Routing; the test process does not
+copy provider keys into Agent configuration or output. This keeps the GitHub
+Secrets available for deployment/provider setup without exposing them to every
+test job.
 
-- at most one short chat completion for the selected generation provider;
-- at most one small embedding request for the selected embedding provider;
-- deterministic prompts, low output-token limits and no retry fan-out;
-- no provider matrix unless a provider or routing implementation changed;
+The live budget is deliberately fixed:
+
+- exactly two user turns: one bounded tool-use turn and one short fresh-session
+  Memory recall turn; there is no provider/model matrix;
+- one tiny Markdown document for chunking/embedding and one semantic query;
+- only a `SINGLE` Routing with no fallback deployments is accepted; its retry
+  count must stay within `TALI_LIVE_E2E_MAX_ROUTING_RETRIES` (default `2`);
+- deterministic, concise prompts, and no test-harness retry of a model turn;
+- no direct fallback from the configured Routing to the other GitHub API key;
 - no scheduled regression until a dedicated disposable cluster and budget
   threshold are configured.
 
 L4 acceptance is: Hermes becomes READY, its authenticated Chat surface works,
-the model produces one response, Hermes invokes the expected A2A and Vector
-tools with trace evidence, the resulting conversation reaches Memory, and
-cross-Project/unauthorized access remains denied. Missing deployment credentials
-or cluster access is `BLOCKED`, never converted to a passing mock.
+the model produces bounded responses, Hermes invokes the expected A2A and
+Vector tools with structured event evidence, the resulting conversation reaches
+Memory, and unauthorized interaction access remains denied. Cross-Project
+OpenShell identity is enforced by the `openshell-isolation` module. Missing
+deployment credentials or cluster access is `BLOCKED`, never converted to a
+passing mock.

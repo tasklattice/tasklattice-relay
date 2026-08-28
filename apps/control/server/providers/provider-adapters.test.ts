@@ -132,6 +132,31 @@ describe("providerAdapterRegistry", () => {
     }, model)).toMatchObject({ model: "huggingface/tgi", api_base: "https://dedicated.endpoints.huggingface.cloud", api_key: "hf-secret" });
   });
 
+  it("adds Hindsight-compatible defaults for the NVIDIA memory embedding model", () => {
+    const draft = {
+      provider: "nvidia-nim",
+      name: "NVIDIA NIM",
+      config: { endpoint: "https://integrate.api.nvidia.com/v1" },
+      credentials: { apiKey: "nvidia-secret" },
+    } satisfies ProviderConnectionDraft;
+
+    expect(providerAdapterRegistry["nvidia-nim"].toLiteLLMParams(draft, {
+      modelId: "nvidia/llama-nemotron-embed-vl-1b-v2",
+      displayName: "Llama Nemotron Embed VL 1B v2",
+      modelType: "text-embedding",
+    })).toMatchObject({
+      model: "nvidia_nim/nvidia/llama-nemotron-embed-vl-1b-v2",
+      input_type: "passage",
+      dimensions: 1536,
+    });
+
+    expect(providerAdapterRegistry["nvidia-nim"].toLiteLLMParams(draft, {
+      modelId: "meta/llama-3.3-70b-instruct",
+      displayName: "Llama 3.3 70B Instruct",
+      modelType: "llm",
+    })).not.toHaveProperty("input_type");
+  });
+
   it("preserves the connection-level TLS verification policy", () => {
     expect(providerConnectionDraftSchema.parse({
       provider: "custom-openai-compatible",

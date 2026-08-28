@@ -98,6 +98,15 @@ export function taliLiteLlmProviderProfile(
           header_name: "authorization",
           query_param: "",
         },
+        {
+          name: "run_telemetry_token",
+          description: "TaskLattice Relay Instance Run telemetry token",
+          env_vars: ["TALI_RUN_TELEMETRY_TOKEN"],
+          required: true,
+          auth_style: "bearer",
+          header_name: "authorization",
+          query_param: "",
+        },
       ],
       endpoints: [
         {
@@ -128,7 +137,7 @@ export function taliLiteLlmProviderProfile(
         "/opt/venv/lib/python3.13/**",
       ],
       inference_capable: true,
-      discovery: { credentials: ["api_key"] },
+      discovery: { credentials: ["api_key", "run_telemetry_token"] },
     },
     { lineWidth: 0 },
   ).trimEnd() + "\n";
@@ -334,6 +343,8 @@ export function deepSeekProviderCreateCommand(
       "OPENAI_API_KEY",
       "--credential",
       "DEEPAGENTS_CODE_OPENAI_API_KEY",
+      "--credential",
+      "TALI_RUN_TELEMETRY_TOKEN",
       "--config",
       `OPENAI_BASE_URL=${input.inferenceEndpoint}`,
     ], target),
@@ -343,6 +354,7 @@ export function deepSeekProviderCreateCommand(
         ? {
             OPENAI_API_KEY: apiKey,
             DEEPAGENTS_CODE_OPENAI_API_KEY: apiKey,
+            TALI_RUN_TELEMETRY_TOKEN: input.runTelemetry.token,
           }
         : {}),
     },
@@ -681,6 +693,11 @@ export function isOpenShellProviderAttachedError(output: string): boolean {
     && normalized.includes("sandbox");
 }
 
+export function isOpenShellWorkspaceNotFoundError(output: string): boolean {
+  const normalized = output.toLowerCase();
+  return normalized.includes("workspace '") && normalized.includes("not found");
+}
+
 function openShellDeletionTiming(): { pollMs: number; timeoutMs: number } {
   return {
     pollMs: Math.max(
@@ -866,6 +883,9 @@ export function openShellSandboxCreateArguments(
     ?? process.env.OPENSHELL_SANDBOX_CPU
     ?? "1";
   const cpuRequest = process.env.OPENSHELL_SANDBOX_CPU_REQUEST?.trim();
+  const durableMemoryEndpoint = input.projectRuntimeBridgeToken && target
+    ? `http://tali-agent-runtime-bridge.${target.workspace}.svc.cluster.local:8080/v1/memory/coordinators/${encodeURIComponent(input.instanceId)}`
+    : undefined;
   const cpuArguments = cpuRequest && cpuRequest !== cpuLimit
     ? [
         "--driver-config-json",
@@ -910,6 +930,9 @@ export function openShellSandboxCreateArguments(
     `tali.io/nemoclaw-version=${process.env.NEMOCLAW_VERSION ?? "0.0.114"}`,
     "--env",
     `TALI_AGENT_INSTANCE_ID=${input.instanceId}`,
+    ...(durableMemoryEndpoint
+      ? ["--env", `TALI_DURABLE_MEMORY_ENDPOINT=${durableMemoryEndpoint}`]
+      : []),
     ...(input.agentPlatform === "hermes"
       ? ["--env", "HERMES_LAZY_INSTALL_TARGET=/sandbox/.hermes/lazy-packages"]
       : []),
@@ -930,7 +953,6 @@ export function openShellSandboxCreateArguments(
 export function runTelemetryEnvironmentFile(input: ProvisionInput): string {
   return [
     `TALI_RUN_TELEMETRY_ENDPOINT_B64=${Buffer.from(input.runTelemetry.endpoint, "utf8").toString("base64")}`,
-    `TALI_RUN_TELEMETRY_TOKEN_B64=${Buffer.from(input.runTelemetry.token, "utf8").toString("base64")}`,
     "",
   ].join("\n");
 }
@@ -1613,10 +1635,16 @@ export async function observeOpenShellSandbox(
     openShellBinary(),
     openShellArguments(["sandbox", "list", "-o", "json"], target),
   );
-  if (result.exitCode !== 0)
+  if (result.exitCode !== 0) {
+    const output = `${result.stdout}\n${result.stderr}`;
+    // A fresh Project Gateway only contains OpenShell's bootstrapped default
+    // workspace. Treat the routed workspace as empty so provisioning can reach
+    // ensureOpenShellWorkspace() and initialize it on the first Agent.
+    if (target && isOpenShellWorkspaceNotFoundError(output)) return undefined;
     throw new Error(
       result.stderr.trim() || "Unable to list OpenShell sandboxes.",
     );
+  }
   const sandboxes = JSON.parse(result.stdout) as OpenShellSandbox[];
   return sandboxes.find((sandbox) => sandbox.name === name);
 }

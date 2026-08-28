@@ -305,6 +305,23 @@ const anthropic = (kind: ProviderKind): ProviderAdapter => suggestedAdapter(
   }),
 );
 
+const nvidiaNim: ProviderAdapter = {
+  kind: "nvidia-nim",
+  endpoint,
+  discover: (draft) => discoverOpenAI("nvidia-nim", draft),
+  toLiteLLMParams: (draft, model) => ({
+    model: `nvidia_nim/${model.modelId}`,
+    api_base: endpoint(draft),
+    api_key: apiKey(draft),
+    ...(model.modelType === "text-embedding"
+      ? { input_type: "passage" }
+      : {}),
+    ...(model.modelId === "nvidia/llama-nemotron-embed-vl-1b-v2"
+      ? { dimensions: 1536 }
+      : {}),
+  }),
+};
+
 export const providerAdapterRegistry = {
   openai: openAIAdapter("openai", "openai", (draft) => ({
     ...(config(draft).organization ? { organization: config(draft).organization } : {}),
@@ -323,7 +340,7 @@ export const providerAdapterRegistry = {
     model: `volcengine/${String(config(draft).endpointId || model.modelId)}`,
     api_key: apiKey(draft),
   })),
-  "nvidia-nim": openAIAdapter("nvidia-nim", "nvidia_nim"),
+  "nvidia-nim": nvidiaNim,
   "azure-openai": suggestedAdapter("azure-openai", (draft, model) => ({
     model: `azure/${String(config(draft).deployment || model.modelId)}`,
     api_base: endpoint(draft),

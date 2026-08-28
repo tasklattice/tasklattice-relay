@@ -71,8 +71,7 @@ readonly telemetry_env_file=/tmp/tali-run-telemetry.env
 source "$telemetry_env_file"
 rm -f "$telemetry_env_file"
 export TALI_RUN_TELEMETRY_ENDPOINT="$(printf '%s' "$TALI_RUN_TELEMETRY_ENDPOINT_B64" | base64 -d)"
-export TALI_RUN_TELEMETRY_TOKEN="$(printf '%s' "$TALI_RUN_TELEMETRY_TOKEN_B64" | base64 -d)"
-unset TALI_RUN_TELEMETRY_ENDPOINT_B64 TALI_RUN_TELEMETRY_TOKEN_B64
+unset TALI_RUN_TELEMETRY_ENDPOINT_B64
 export TALI_DURABLE_MEMORY_ENDPOINT="$(printf '%s' '${durableMemoryEndpointPayload}' | base64 -d)"
 readonly config_file=/sandbox/.openclaw/openclaw.json
 readonly hash_file=/sandbox/.openclaw/.config-hash
@@ -233,8 +232,7 @@ readonly telemetry_env_file=/tmp/tali-run-telemetry.env
 source "$telemetry_env_file"
 rm -f "$telemetry_env_file"
 export TALI_RUN_TELEMETRY_ENDPOINT="$(printf '%s' "$TALI_RUN_TELEMETRY_ENDPOINT_B64" | base64 -d)"
-export TALI_RUN_TELEMETRY_TOKEN="$(printf '%s' "$TALI_RUN_TELEMETRY_TOKEN_B64" | base64 -d)"
-unset TALI_RUN_TELEMETRY_ENDPOINT_B64 TALI_RUN_TELEMETRY_TOKEN_B64
+unset TALI_RUN_TELEMETRY_ENDPOINT_B64
 
 readonly hermes_dir=/sandbox/.hermes
 readonly config_file="$hermes_dir/config.yaml"

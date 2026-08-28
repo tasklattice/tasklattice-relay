@@ -89,6 +89,7 @@ jobs:
               - 'scripts/prepare-helm-dependencies.sh'
               - 'scripts/package-control-plane-chart.sh'
               - 'scripts/validate-helm-*.mjs'
+              - 'scripts/validate-development-defaults.mjs'
             core_images:
               - '.dockerignore'
               - '.github/workflows/pr-ci.yml'
@@ -176,7 +177,7 @@ jobs:
       - name: Build shared contracts
         run: npm run build --workspace @tali/contracts
       - name: Prepare Hermes proxy test environment
-        if: matrix.module == 'runtime'
+        if: matrix.module == 'runtime-integrations'
         shell: bash
         run: |
           set -euo pipefail
@@ -241,6 +242,8 @@ jobs:
         run: helm lint charts/tali-relay
       - name: Validate rendered resources
         run: npm run helm:validate:resources
+      - name: Validate embedded Keycloak development integration
+        run: npm run helm:validate:dev-defaults
       - name: Validate OpenShift compatibility
         run: npm run helm:validate:openshift
       - name: Validate air-gapped configuration
