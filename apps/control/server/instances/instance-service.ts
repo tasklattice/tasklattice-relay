@@ -46,6 +46,7 @@ import {
   DurableMemoryFeatureDisabledError,
   durableMemoryEnabledForProject,
 } from "../memories/durable-memory-feature";
+import { InstanceLifecycleOperationService } from "./instance-lifecycle-service";
 
 export function agentSandboxName(id: string): string {
   const compactId = BigInt(`0x${id.replaceAll("-", "")}`)
@@ -97,7 +98,6 @@ export function applyObservedState(
     logs: observed.logs.length > 0 ? observed.logs : agent.logs,
     ...(observed.httpEndpoint ? { httpEndpoint: observed.httpEndpoint } : {}),
     updatedAt: new Date().toISOString(),
-    ...(observed.operationId ? { operationId: observed.operationId } : {}),
     ...(observed.error
       ? { error: observed.error }
       : observed.phase === "NOT_FOUND" && !transientNotFound
@@ -126,6 +126,10 @@ export class InstanceService {
     readonly jobs: ControlJobPublisher = controlJobQueue(),
     readonly memories = new MemoryService(
       new MemoryRepository(store.projectId, store.database()),
+    ),
+    readonly lifecycle = new InstanceLifecycleOperationService(
+      store.projectId,
+      store.database(),
     ),
   ) {}
 
@@ -336,17 +340,20 @@ export class InstanceService {
           "The Control Worker queue does not support Instance lifecycle jobs.",
         );
       }
-      const operationId = await this.jobs.enqueueInstanceLifecycle({
+      const operation = await this.lifecycle.create(id, "provision");
+      const queueJobId = await this.jobs.enqueueInstanceLifecycle({
         projectId: this.store.projectId,
         instanceId: id,
+        operationId: operation.id,
         action: "provision",
       });
-      if (!operationId) {
+      if (!queueJobId) {
         throw new Error("Unable to enqueue Instance provisioning.");
       }
+      await this.lifecycle.attachQueueJob(operation.id, queueJobId);
       agent = await this.store.save({
         ...agent,
-        operationId,
+        operationId: operation.id,
         logs: [...agent.logs, "Instance provisioning queued in the Control Worker."],
         updatedAt: new Date().toISOString(),
       });
@@ -368,7 +375,8 @@ export class InstanceService {
     return agent;
   }
 
-  async provision(id: string): Promise<Agent | undefined> {
+  async provision(id: string, operationId?: string): Promise<Agent | undefined> {
+    if (operationId) await this.lifecycle.start(operationId);
     let agent = await this.store.get(id);
     if (!agent || agent.status === "DESTROYING") return agent;
     if (agent.status === "READY") return agent;
@@ -392,12 +400,30 @@ export class InstanceService {
 
     let observed = await this.getRunnerSandbox(agent);
     if (agent.liteLLMTokenId && observed.phase === "READY") {
+      if (operationId) {
+        await this.lifecycle.recordStage(
+          operationId,
+          "READY",
+          "Agent runtime is ready.",
+          observed.logs,
+        );
+      }
       return this.store.save(applyObservedState(agent, observed));
     }
     if (agent.liteLLMTokenId && observed.phase === "PROVISIONING") {
       observed = await this.waitForRunnerProvisioning(agent);
       agent = await this.store.save(applyObservedState(agent, observed));
-      if (observed.phase === "READY") return agent;
+      if (observed.phase === "READY") {
+        if (operationId) {
+          await this.lifecycle.recordStage(
+            operationId,
+            "READY",
+            "Agent runtime is ready.",
+            observed.logs,
+          );
+        }
+        return agent;
+      }
     }
     if (observed.phase !== "NOT_FOUND") {
       await this.destroyRunnerSandbox(agent);
@@ -514,9 +540,15 @@ export class InstanceService {
         ...(memory.runtime ? { memory: memory.runtime } : {}),
       }, agent.durableMemoryId);
       agent = await this.store.save(applyObservedState(agent, runnerState));
+      if (operationId) {
+        await this.recordObservedLifecycle(operationId, runnerState);
+      }
       if (runnerState.phase === "PROVISIONING") {
         runnerState = await this.waitForRunnerProvisioning(agent);
         agent = await this.store.save(applyObservedState(agent, runnerState));
+        if (operationId) {
+          await this.recordObservedLifecycle(operationId, runnerState);
+        }
       }
       if (runnerState.phase !== "READY") {
         throw new Error(
@@ -548,6 +580,7 @@ export class InstanceService {
     id: string,
     error: unknown,
     terminal: boolean,
+    operationId?: string,
   ): Promise<void> {
     const current = await this.store.get(id);
     if (!current || current.status === "DESTROYING") return;
@@ -567,6 +600,9 @@ export class InstanceService {
       ].slice(-100),
       updatedAt: new Date().toISOString(),
     });
+    if (operationId) {
+      await this.lifecycle.recordFailure(operationId, error, terminal);
+    }
   }
 
   async destroy(id: string): Promise<boolean> {
@@ -591,19 +627,22 @@ export class InstanceService {
           "The Control Worker queue does not support Instance lifecycle jobs.",
         );
       }
-      const operationId = await this.jobs.enqueueInstanceLifecycle({
+      const operation = await this.lifecycle.create(id, "delete");
+      const queueJobId = await this.jobs.enqueueInstanceLifecycle({
         projectId: this.store.projectId,
         instanceId: id,
+        operationId: operation.id,
         action: "delete",
       });
-      if (!operationId) {
+      if (!queueJobId) {
         throw new Error("Unable to enqueue Instance deletion.");
       }
+      await this.lifecycle.attachQueueJob(operation.id, queueJobId);
       const queued = await this.store.getIncludingDeleted(id);
       if (queued) {
         await this.store.save({
           ...queued,
-          operationId,
+          operationId: operation.id,
           updatedAt: new Date().toISOString(),
         });
       }
@@ -615,10 +654,20 @@ export class InstanceService {
     }
   }
 
-  async deleteRuntime(id: string): Promise<void> {
+  async deleteRuntime(id: string, operationId?: string): Promise<void> {
+    if (operationId) await this.lifecycle.start(operationId);
     const agent = await this.store.getIncludingDeleted(id);
     if (!agent) return;
-    if (agent.deletionCompletedAt && agent.modelRoutingBindingRevokedAt) return;
+    if (agent.deletionCompletedAt && agent.modelRoutingBindingRevokedAt) {
+      if (operationId) {
+        await this.lifecycle.recordStage(
+          operationId,
+          "READY",
+          "Instance deletion completed.",
+        );
+      }
+      return;
+    }
     if (!agent.deletionCompletedAt) await this.destroyRunnerSandbox(agent);
     const binding = await this.store.getModelRoutingBindingForAgent(id);
     const tokensToBlock = new Set<string>();
@@ -662,9 +711,20 @@ export class InstanceService {
       ].slice(-100),
       updatedAt: finalizedAt,
     });
+    if (operationId) {
+      await this.lifecycle.recordStage(
+        operationId,
+        "READY",
+        "Instance deletion completed.",
+      );
+    }
   }
 
-  async recordDeletionFailure(id: string, error: unknown): Promise<void> {
+  async recordDeletionFailure(
+    id: string,
+    error: unknown,
+    operationId?: string,
+  ): Promise<void> {
     const current = await this.store.getIncludingDeleted(id);
     if (!current) return;
     const message = error instanceof Error ? error.message : String(error);
@@ -678,6 +738,9 @@ export class InstanceService {
       logs: [...logs, `Deletion retry pending: ${message}`].slice(-100),
       updatedAt: new Date().toISOString(),
     });
+    if (operationId) {
+      await this.lifecycle.recordFailure(operationId, error, false);
+    }
   }
 
   async updateAccessPolicies(
@@ -869,6 +932,25 @@ export class InstanceService {
         ],
       };
     }
+  }
+
+  private async recordObservedLifecycle(
+    operationId: string,
+    observed: RunnerSandbox,
+  ): Promise<void> {
+    const stage = observed.provisioningStage
+      ?? (observed.phase === "READY" ? "READY" : "RUNTIME");
+    const message = observed.phase === "READY"
+      ? "Agent runtime is ready."
+      : observed.phase === "FAILED"
+        ? "Agent runtime reported a provisioning failure."
+        : `Agent provisioning reached ${stage.toLowerCase()}.`;
+    await this.lifecycle.recordStage(
+      operationId,
+      stage,
+      message,
+      observed.logs,
+    );
   }
 
   private async closeInstanceAttributions(instanceId: string): Promise<void> {

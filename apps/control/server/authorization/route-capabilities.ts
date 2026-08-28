@@ -167,6 +167,13 @@ export function projectRouteAdmissionPolicy(
     if (tail.length === 3 && tail[2] === "logs" && method === "GET") {
       return policy("INSTANCE", [requirement("CAP_AGENT_INSTANCE_LOG_VIEW", "AgentInstance")], instanceId);
     }
+    if (
+      method === "GET"
+      && tail[2] === "operations"
+      && (tail.length === 4 || (tail.length === 5 && tail[4] === "events"))
+    ) {
+      return policy("INSTANCE", [requirement("CAP_AGENT_INSTANCE_LOG_VIEW", "AgentInstance")], instanceId);
+    }
     if (tail.length === 3 && tail[2] === "log-sessions" && method === "POST") {
       return policy("INSTANCE", [requirement("CAP_AGENT_INSTANCE_LOG_VIEW", "AgentInstance")], instanceId);
     }
@@ -435,6 +442,19 @@ export function projectRouteAdmissionPolicy(
       return policy(
         "PROJECT",
         [requirement(method === "GET" ? "CAP_VECTOR_DATABASE_CONTENT_VIEW" : "CAP_VECTOR_DATABASE_UPDATE", "VectorDocument")],
+        tail[2],
+      );
+    }
+    if (
+      tail[1] === "vector-databases"
+      && tail.length === 6
+      && tail[3] === "documents"
+      && tail[5] === "chunks"
+      && method === "GET"
+    ) {
+      return policy(
+        "PROJECT",
+        [requirement("CAP_VECTOR_DATABASE_CONTENT_VIEW", "VectorDocument")],
         tail[2],
       );
     }

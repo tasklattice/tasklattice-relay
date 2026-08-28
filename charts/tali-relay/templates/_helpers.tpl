@@ -179,7 +179,7 @@ app.kubernetes.io/component: {{ .component }}
 - name: HINDSIGHT_API_LOG_JSON_FIELDS
   value: severity,message,timestamp,logger
 - name: HINDSIGHT_API_LLM_PROVIDER
-  value: openai
+  value: {{ .Values.hindsight.models.llmProvider | quote }}
 - name: HINDSIGHT_API_LLM_BASE_URL
   value: {{ printf "http://%s:4000/v1" (include "tali.componentName" (dict "root" . "component" "litellm")) | quote }}
 - name: HINDSIGHT_API_LLM_MODEL
@@ -190,7 +190,7 @@ app.kubernetes.io/component: {{ .component }}
       name: {{ include "tali.secretName" . }}
       key: litellm-master-key
 - name: HINDSIGHT_API_EMBEDDINGS_PROVIDER
-  value: litellm
+  value: {{ .Values.hindsight.models.embeddingProvider | quote }}
 - name: HINDSIGHT_API_EMBEDDINGS_LITELLM_API_BASE
   value: {{ printf "http://%s:4000" (include "tali.componentName" (dict "root" . "component" "litellm")) | quote }}
 - name: HINDSIGHT_API_EMBEDDINGS_LITELLM_MODEL
@@ -201,7 +201,7 @@ app.kubernetes.io/component: {{ .component }}
       name: {{ include "tali.secretName" . }}
       key: litellm-master-key
 - name: HINDSIGHT_API_RERANKER_PROVIDER
-  value: litellm
+  value: {{ .Values.hindsight.models.rerankerProvider | quote }}
 - name: HINDSIGHT_API_RERANKER_LITELLM_API_BASE
   value: {{ printf "http://%s:4000" (include "tali.componentName" (dict "root" . "component" "litellm")) | quote }}
 - name: HINDSIGHT_API_RERANKER_LITELLM_MODEL

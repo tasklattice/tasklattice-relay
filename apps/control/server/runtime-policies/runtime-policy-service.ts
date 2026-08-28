@@ -12,6 +12,7 @@ import policyCatalogYaml from "./runtime-policy-catalog.yaml?raw";
 import { ProjectStore } from "../projects/project-store";
 
 const recordSchema = z.record(z.string(), z.unknown());
+export const DEFAULT_RUNTIME_POLICY_ID = "managed-runtime";
 const catalogFileSchema = z.object({
   defaultPolicyId: sandboxPolicyIdSchema,
   basePolicy: recordSchema,
@@ -150,19 +151,23 @@ export class RuntimePolicyService {
 
   async list(): Promise<SandboxPolicyCatalog> {
     let policies = await this.store.listSandboxPolicies();
-    if (!policies.length && this.source) {
+    let sourceCatalog: SandboxPolicyCatalog | undefined;
+    if (this.source) {
       const catalog = this.source.load();
+      sourceCatalog = catalog;
       for (const policy of catalog.policies) await this.store.saveSandboxPolicy(policy);
-      policies = catalog.policies;
+      policies = await this.store.listSandboxPolicies();
     }
     if (!policies.length) {
       throw new Error("No Sandbox Policies are configured for this project.");
     }
-    const defaultPolicyId = "unrestricted";
+    const defaultPolicyId = sourceCatalog?.defaultPolicyId
+      ?? DEFAULT_RUNTIME_POLICY_ID;
     const defaultPolicy = policies.find((policy) => policy.id === defaultPolicyId) ?? policies[0]!;
     return {
       defaultPolicyId: defaultPolicy.id,
-      templatePolicyYaml: defaultPolicy.policyYaml,
+      templatePolicyYaml: sourceCatalog?.templatePolicyYaml
+        ?? defaultPolicy.policyYaml,
       policies,
     };
   }

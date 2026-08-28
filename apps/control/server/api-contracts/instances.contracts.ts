@@ -29,6 +29,33 @@ const instanceSchema = z.looseObject({
   name: z.string(),
   status: z.string(),
 }).meta({ id: "Instance" });
+const instanceLifecycleEventSchema = z.object({
+  operationId: z.string().uuid(),
+  sequence: z.number().int().positive(),
+  type: z.string(),
+  level: z.enum(["debug", "info", "warning", "error"]),
+  stage: z.string().optional(),
+  message: z.string(),
+  payload: z.record(z.string(), z.unknown()).optional(),
+  occurredAt: z.iso.datetime(),
+}).meta({ id: "InstanceLifecycleEvent" });
+const instanceLifecycleOperationSchema = z.object({
+  id: z.string().uuid(),
+  instanceId: z.string().uuid(),
+  action: z.enum(["provision", "delete"]),
+  status: z.enum(["queued", "running", "succeeded", "failed"]),
+  stage: z.string().optional(),
+  progress: z.number().int().min(0).max(100),
+  currentMessage: z.string(),
+  errorCode: z.string().optional(),
+  errorSummary: z.string().optional(),
+  revision: z.number().int().positive(),
+  createdAt: z.iso.datetime(),
+  startedAt: z.iso.datetime().optional(),
+  finishedAt: z.iso.datetime().optional(),
+  updatedAt: z.iso.datetime(),
+  events: z.array(instanceLifecycleEventSchema),
+}).meta({ id: "InstanceLifecycleOperation" });
 
 export const instanceContracts = defineContracts([
   projectRoute({
@@ -70,12 +97,27 @@ export const instanceContracts = defineContracts([
   projectRoute({
     method: "post", path: "/instances", operationId: "createInstance",
     summary: "Create a runtime Instance", tags: ["Instances"], request: { body: createInstanceSchema },
-    responses: { 202: response("Instance provisioning accepted", instanceSchema) },
+    responses: { 202: response("Instance provisioning accepted", z.object({
+      instanceId: z.string().uuid(),
+      operation: instanceLifecycleOperationSchema,
+    })) },
   }),
   projectRoute({
     method: "get", path: "/instances/{instanceId}", operationId: "getInstance",
     summary: "Read a runtime Instance", tags: ["Instances"], request: { params: instanceParamsSchema },
     responses: { 200: response("Instance", instanceSchema) },
+  }),
+  projectRoute({
+    method: "get", path: "/instances/{instanceId}/operations/{operationId}", operationId: "getInstanceLifecycleOperation",
+    summary: "Read an Instance lifecycle operation", tags: ["Instances"],
+    request: { params: instanceParamsSchema.extend({ operationId: z.string().uuid() }) },
+    responses: { 200: response("Instance lifecycle operation", instanceLifecycleOperationSchema) },
+  }),
+  projectRoute({
+    method: "get", path: "/instances/{instanceId}/operations/{operationId}/events", operationId: "streamInstanceLifecycleOperation",
+    summary: "Stream an Instance lifecycle operation", tags: ["Instances"],
+    request: { params: instanceParamsSchema.extend({ operationId: z.string().uuid() }) },
+    responses: { 200: response("Instance lifecycle event stream", z.string(), "text/event-stream") },
   }),
   projectRoute({
     method: "delete", path: "/instances/{instanceId}", operationId: "deleteInstance",

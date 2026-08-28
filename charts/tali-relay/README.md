@@ -377,8 +377,11 @@ LiteLLM gateway:
 | Value | Default alias | Purpose |
 | --- | --- | --- |
 | `hindsight.models.llm` | `hindsight-chat` | Fact extraction and provider synthesis |
+| `hindsight.models.llmProvider` | `openai` | Hindsight LLM adapter used for the LiteLLM-compatible chat endpoint |
 | `hindsight.models.embedding` | `hindsight-embedding` | Document and query embeddings |
+| `hindsight.models.embeddingProvider` | `litellm` | Hindsight embedding adapter |
 | `hindsight.models.reranker` | `hindsight-reranker` | Recall reranking |
+| `hindsight.models.rerankerProvider` | `litellm` | Hindsight reranking adapter; may be set to `rrf` when no reranker model is provisioned |
 
 All three calls use the existing `litellm-master-key` Secret. The Hindsight API
 also reads `hindsight-database-url` and `hindsight-api-key` from the release

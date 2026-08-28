@@ -1,6 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import type { SupervisorAgentInstanceDetail } from "@tali/contracts";
+import type {
+  InstanceLifecycleOperation,
+  SupervisorAgentInstanceDetail,
+} from "@tali/contracts";
 import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
 import { AgentCreationExperience } from "@/components/agents/agent-creation-experience";
@@ -29,7 +32,7 @@ import { InstanceTerminalTab } from "@/components/instances/instance-terminal-ta
 import { useProjectPermissions } from "@/hooks/use-project-permissions";
 import { useProjectQueryScope } from "@/hooks/use-project-query-scope";
 import { getAgentPlatformPresentation } from "@/lib/agent-platforms";
-import { ApiError, api } from "@/lib/api";
+import { ApiError, api, projectScopedPath } from "@/lib/api";
 
 const tabSearch = z.preprocess(
   (value) => typeof value === "string" && instanceDetailTabSearchValues.includes(value as (typeof instanceDetailTabSearchValues)[number]) ? value : undefined,
@@ -37,7 +40,11 @@ const tabSearch = z.preprocess(
 );
 
 export const Route = createFileRoute("/$projectId/instances/$instanceId")({
-  validateSearch: z.object({ creating: z.boolean().optional(), tab: tabSearch }),
+  validateSearch: z.object({
+    creating: z.boolean().optional(),
+    operationId: z.string().uuid().optional(),
+    tab: tabSearch,
+  }),
   component: AgentDetail,
 });
 
@@ -46,6 +53,7 @@ function AgentDetail() {
   const search = Route.useSearch();
   const activeTab = normalizeInstanceDetailTab(search.tab);
   const scope = useProjectQueryScope();
+  const queryClient = useQueryClient();
   const permissions = useProjectPermissions();
   const detail = useQuery({
     queryKey: scope.key("agent", instanceId),
@@ -58,12 +66,66 @@ function AgentDetail() {
       return typeof document !== "undefined" && document.visibilityState === "hidden" ? 15_000 : 5_000;
     },
   });
+  const creationOperation = useQuery({
+    queryKey: scope.key(
+      "instance-lifecycle-operation",
+      instanceId,
+      search.operationId ?? "none",
+    ),
+    queryFn: () => api.getInstanceLifecycleOperation(
+      instanceId,
+      search.operationId!,
+    ),
+    enabled: Boolean(search.creating && search.operationId),
+    retry: 2,
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      return status === "succeeded" || status === "failed" ? false : 1_500;
+    },
+  });
+  useEffect(() => {
+    if (!search.creating || !search.operationId) return;
+    const queryKey = scope.key(
+      "instance-lifecycle-operation",
+      instanceId,
+      search.operationId,
+    );
+    const source = new EventSource(projectScopedPath(
+      `/api/v1/instances/${encodeURIComponent(instanceId)}/operations/${encodeURIComponent(search.operationId)}/events`,
+      projectId,
+    ));
+    source.onmessage = (message) => {
+      const operation = JSON.parse(message.data) as InstanceLifecycleOperation;
+      queryClient.setQueryData(queryKey, operation);
+      if (operation.status === "succeeded" || operation.status === "failed") {
+        source.close();
+        void detail.refetch();
+      }
+    };
+    source.onerror = () => source.close();
+    return () => source.close();
+  }, [
+    detail,
+    instanceId,
+    projectId,
+    queryClient,
+    scope,
+    search.creating,
+    search.operationId,
+  ]);
 
   if (detail.isPending) return <InstanceDetailSkeleton />;
   if (detail.error instanceof ApiError && detail.error.status === 404) return <InstanceNotFoundState />;
   if (detail.isError || !detail.data) return <InstanceDetailErrorState onRetry={() => void detail.refetch()} />;
   if (search.creating && detail.data.kind === "SUPERVISOR") {
-    return <AgentCreationExperience agent={detail.data.instance} />;
+    return (
+      <AgentCreationExperience
+        agent={detail.data.instance}
+        {...(creationOperation.data
+          ? { operation: creationOperation.data }
+          : {})}
+      />
+    );
   }
   if (detail.data.kind === "A2A") {
     return (

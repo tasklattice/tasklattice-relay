@@ -103,6 +103,53 @@ describe("VectorDocumentService", () => {
     })).resolves.toMatchObject({ sourceBytes: null });
   });
 
+  it("separates the lightweight file preview from explicit chunk loading", async () => {
+    const { publisher, service, store } = await setup();
+    const queued = await service.queue("built-in-vectors", upload("preview-source"), "account-1", publisher);
+    await store.database().vectorDocument.update({
+      where: { projectId_databaseId_id: { projectId: store.projectId, databaseId: "built-in-vectors", id: queued.document.id } },
+      data: { chunkCount: 2, status: "READY" },
+    });
+    for (const [index, content] of ["First indexed section", "Second indexed section"].entries()) {
+      await store.database().$executeRawUnsafe(
+        `INSERT INTO tasklattice.knowledge_vector_chunks (
+          project_id, database_id, id, content, filename, attributes,
+          document_id, document_revision, chunk_index, token_count,
+          section_path, embedding_dimensions, embedding
+        ) VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9, $10, ARRAY[]::TEXT[], $11, $12)`,
+        store.projectId,
+        "built-in-vectors",
+        `preview-chunk-${index}`,
+        content,
+        queued.document.filename,
+        JSON.stringify({}),
+        queued.document.id,
+        1,
+        index,
+        3,
+        3,
+        "[0.1,0.2,0.3]",
+      );
+    }
+
+    await expect(service.document("built-in-vectors", queued.document.id)).resolves.toMatchObject({
+      previewText: "First indexed section\n\nSecond indexed section",
+      previewTruncated: false,
+    });
+    vi.spyOn(store.database().knowledgeVectorChunk, "findMany").mockResolvedValue([
+      { id: "preview-chunk-0", content: "First indexed section", pageNumber: 1, chunkIndex: 0, tokenCount: 3, sectionPath: [], label: "text", attributes: {} },
+      { id: "preview-chunk-1", content: "Second indexed section", pageNumber: 1, chunkIndex: 1, tokenCount: 3, sectionPath: [], label: "text", attributes: {} },
+    ] as never);
+    await expect(service.documentChunks("built-in-vectors", queued.document.id)).resolves.toMatchObject({
+      total: 2,
+      truncated: false,
+      chunks: [
+        { id: "preview-chunk-0", chunkIndex: 0, content: "First indexed section" },
+        { id: "preview-chunk-1", chunkIndex: 1, content: "Second indexed section" },
+      ],
+    });
+  });
+
   it("allocates revisions from persisted history while the active revision is unchanged", async () => {
     const { publisher, service, store } = await setup();
     const first = await service.queue("built-in-vectors", upload("pdf-v1"), "account-1", publisher);

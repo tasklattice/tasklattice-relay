@@ -77,6 +77,8 @@ spec:
               value: {{ .Values.hindsight.service.port | quote }}
             - name: HINDSIGHT_API_WORKER_ENABLED
               value: {{ not .Values.hindsight.worker.enabled | quote }}
+            - name: HINDSIGHT_API_WORKER_ID
+              value: {{ $apiName | quote }}
           ports:
             - name: http
               containerPort: {{ .Values.hindsight.service.port }}

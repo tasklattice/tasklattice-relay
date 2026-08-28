@@ -520,6 +520,8 @@ model Project {
   runtimeTarget                ProjectRuntimeTarget?
   externalRoleBindings         ExternalRoleBinding[]
   memories                     MemoryRecord[]
+  instanceLifecycleOperations  InstanceLifecycleOperation[]
+  instanceLifecycleEvents      InstanceLifecycleEvent[]
 
   @@unique([departmentId, name], map: "projects_department_name_key")
   @@index([departmentId, createdAt])
@@ -725,21 +727,22 @@ model ProjectInvitation {
 }
 
 model AgentRecord {
-  projectId            String                                   @map("project_id")
-  id                   String
-  creationIdempotencyKey String?                                @map("creation_idempotency_key")
-  kind                 String                                   @default("SUPERVISOR")
-  catalogAgentId       String?                                  @map("catalog_agent_id")
-  payload              Json
-  ownerUserId          String                                   @map("owner_user_id")
-  createdAt            DateTime                                 @map("created_at") @db.Timestamptz(6)
-  updatedAt            DateTime                                 @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  deletedAt            DateTime?                                @map("deleted_at") @db.Timestamptz(6)
-  project              Project                                  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  ownerMembership      ProjectMember                            @relation("AgentRecordOwnerMembership", fields: [projectId, ownerUserId], references: [projectId, userId], onDelete: Restrict, map: "agents_owner_membership_fkey")
-  catalogAgent         AgentCatalogRecord?                      @relation("CatalogAgentRuntimeInstances", fields: [projectId, catalogAgentId], references: [projectId, id], onDelete: Cascade, map: "agents_catalog_agent_fkey")
-  accessPolicyBindings AgentInstanceAccessPolicyBindingRecord[]
-  memoryBindings       MemoryBinding[]
+  projectId              String                                   @map("project_id")
+  id                     String
+  creationIdempotencyKey String?                                  @map("creation_idempotency_key")
+  kind                   String                                   @default("SUPERVISOR")
+  catalogAgentId         String?                                  @map("catalog_agent_id")
+  payload                Json
+  ownerUserId            String                                   @map("owner_user_id")
+  createdAt              DateTime                                 @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime                                 @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt              DateTime?                                @map("deleted_at") @db.Timestamptz(6)
+  project                Project                                  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  ownerMembership        ProjectMember                            @relation("AgentRecordOwnerMembership", fields: [projectId, ownerUserId], references: [projectId, userId], onDelete: Restrict, map: "agents_owner_membership_fkey")
+  catalogAgent           AgentCatalogRecord?                      @relation("CatalogAgentRuntimeInstances", fields: [projectId, catalogAgentId], references: [projectId, id], onDelete: Cascade, map: "agents_catalog_agent_fkey")
+  accessPolicyBindings   AgentInstanceAccessPolicyBindingRecord[]
+  memoryBindings         MemoryBinding[]
+  lifecycleOperations    InstanceLifecycleOperation[]
 
   @@id([projectId, id])
   @@unique([projectId, ownerUserId, creationIdempotencyKey], map: "agents_project_owner_creation_idempotency_key")
@@ -747,6 +750,56 @@ model AgentRecord {
   @@index([projectId, kind, catalogAgentId], map: "agents_project_kind_catalog_idx")
   @@index([projectId, deletedAt, createdAt(sort: Desc)], map: "agents_project_active_created_idx")
   @@map("agents")
+  @@schema("tasklattice")
+}
+
+model InstanceLifecycleOperation {
+  projectId      String    @map("project_id")
+  id             String    @db.Uuid
+  instanceId     String    @map("instance_id")
+  action         String
+  status         String
+  stage          String?
+  progress       Int       @default(0)
+  currentMessage String    @map("current_message")
+  errorCode      String?   @map("error_code")
+  errorSummary   String?   @map("error_summary")
+  queueJobId     String?   @map("queue_job_id") @db.Uuid
+  revision       Int       @default(1)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  startedAt      DateTime? @map("started_at") @db.Timestamptz(6)
+  finishedAt     DateTime? @map("finished_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  project  Project                  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  instance AgentRecord              @relation(fields: [projectId, instanceId], references: [projectId, id], onDelete: Cascade)
+  events   InstanceLifecycleEvent[]
+
+  @@id([projectId, id])
+  @@unique([queueJobId], map: "instance_lifecycle_operations_queue_job_id_key")
+  @@index([projectId, instanceId, createdAt(sort: Desc)], map: "instance_lifecycle_operations_instance_idx")
+  @@index([projectId, status, updatedAt(sort: Desc)], map: "instance_lifecycle_operations_status_idx")
+  @@map("instance_lifecycle_operations")
+  @@schema("tasklattice")
+}
+
+model InstanceLifecycleEvent {
+  projectId   String   @map("project_id")
+  operationId String   @map("operation_id") @db.Uuid
+  sequence    Int
+  type        String
+  level       String
+  stage       String?
+  message     String
+  payload     Json?
+  occurredAt  DateTime @default(now()) @map("occurred_at") @db.Timestamptz(6)
+
+  project   Project                    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  operation InstanceLifecycleOperation @relation(fields: [projectId, operationId], references: [projectId, id], onDelete: Cascade)
+
+  @@id([projectId, operationId, sequence])
+  @@index([projectId, occurredAt(sort: Desc)], map: "instance_lifecycle_events_occurred_idx")
+  @@map("instance_lifecycle_events")
   @@schema("tasklattice")
 }
 

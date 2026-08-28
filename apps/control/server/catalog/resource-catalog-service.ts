@@ -16,6 +16,7 @@ import type {
   VectorDatabaseOverview,
   VectorDeletionImpact,
   VectorDocument,
+  VectorDocumentChunks,
   VectorDocumentDetail,
   VectorFolder,
   VectorIngestionJob,
@@ -331,6 +332,10 @@ export class ResourceCatalogService {
 
   async vectorDocument(id: string, documentId: string): Promise<VectorDocumentDetail> {
     return this.vectorDocuments.document(id, documentId);
+  }
+
+  async vectorDocumentChunks(id: string, documentId: string): Promise<VectorDocumentChunks> {
+    return this.vectorDocuments.documentChunks(id, documentId);
   }
 
   async queueVectorDocument(

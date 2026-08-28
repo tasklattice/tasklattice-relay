@@ -440,10 +440,12 @@ async function configuredService() {
   });
   const runner = runnerAdapter();
   const litellm = liteLLMAdapter();
+  let lifecycleJobSequence = 400;
   const jobs = {
-    enqueueInstanceLifecycle: vi.fn(async () =>
-      "00000000-0000-4000-8000-000000000401"
-    ),
+    enqueueInstanceLifecycle: vi.fn(async () => {
+      lifecycleJobSequence += 1;
+      return `00000000-0000-4000-8000-${String(lifecycleJobSequence).padStart(12, "0")}`;
+    }),
   } as unknown as ControlJobPublisher;
   const memoryProvider = new FakeMemoryProvider();
   const memories = new MemoryService(
@@ -614,11 +616,12 @@ describe("Instance Access Policy lifecycle", () => {
     expect(queued).toMatchObject({
       status: "PROVISIONING",
       provisioningStage: "QUEUED",
-      operationId: "00000000-0000-4000-8000-000000000401",
+      operationId: expect.any(String),
     });
     expect(setup.jobs.enqueueInstanceLifecycle).toHaveBeenCalledWith({
       projectId: setup.store.projectId,
       instanceId: queued.id,
+      operationId: queued.operationId,
       action: "provision",
     });
     expect(setup.litellm.createInstanceServiceAccountKey).not.toHaveBeenCalled();

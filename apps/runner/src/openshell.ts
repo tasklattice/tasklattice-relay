@@ -58,6 +58,7 @@ export interface ProvisioningObserver {
 }
 
 export const taliLiteLlmProviderProfileId = "tali-litellm";
+export const taliRuntimeBridgeProviderProfileId = "tali-runtime-bridge";
 
 export function taliLiteLlmProviderProfile(
   inferenceEndpoint: string,
@@ -128,6 +129,69 @@ export function taliLiteLlmProviderProfile(
       ],
       inference_capable: true,
       discovery: { credentials: ["api_key"] },
+    },
+    { lineWidth: 0 },
+  ).trimEnd() + "\n";
+}
+
+export function taliRuntimeBridgeProviderProfile(
+  runtimeBridgeUrl: string,
+  resourceVersion?: number,
+): string {
+  const endpoint = new URL(runtimeBridgeUrl);
+  if (
+    endpoint.protocol !== "http:"
+    || !endpoint.hostname.endsWith(`.${kubernetesServiceDnsSuffix}`)
+  ) {
+    throw new Error(
+      "The Project Runtime Bridge must use an in-cluster HTTP Service URL.",
+    );
+  }
+  return stringify(
+    {
+      id: taliRuntimeBridgeProviderProfileId,
+      ...(resourceVersion !== undefined
+        ? { resource_version: resourceVersion }
+        : {}),
+      display_name: "TaskLattice Relay Runtime Bridge",
+      description:
+        "Instance-scoped Project orchestration, Vector Database, and durable Memory access",
+      category: "other",
+      credentials: [
+        {
+          name: "runtime_bridge_token",
+          description: "TaskLattice Relay Instance Runtime Bridge token",
+          env_vars: [
+            "TALI_PROJECT_RUNTIME_BRIDGE_TOKEN",
+            "TALI_DURABLE_MEMORY_TOKEN",
+          ],
+          required: true,
+          auth_style: "bearer",
+          header_name: "authorization",
+          query_param: "",
+        },
+      ],
+      endpoints: [
+        {
+          host: endpoint.hostname,
+          port: endpoint.port ? Number(endpoint.port) : 80,
+          protocol: "rest",
+          access: "full",
+          enforcement: "enforce",
+          allowed_ips: openShellKubernetesServiceCidrs(),
+        },
+      ],
+      binaries: [
+        "/usr/local/bin/hermes",
+        "/opt/hermes/.venv/bin/python",
+        "/opt/hermes/.venv/bin/python3",
+        "/usr/local/bin/python",
+        "/usr/local/bin/python3",
+        "/usr/bin/python3.*",
+        "/usr/local/bin/node",
+      ],
+      inference_capable: false,
+      discovery: { credentials: ["runtime_bridge_token"] },
     },
     { lineWidth: 0 },
   ).trimEnd() + "\n";
@@ -265,6 +329,7 @@ export function deepSeekProviderCreateCommand(
       openShellProviderName(input.name),
       "--type",
       taliLiteLlmProviderProfileId,
+      "--global-profile",
       "--credential",
       "OPENAI_API_KEY",
       "--credential",
@@ -278,6 +343,46 @@ export function deepSeekProviderCreateCommand(
         ? {
             OPENAI_API_KEY: apiKey,
             DEEPAGENTS_CODE_OPENAI_API_KEY: apiKey,
+          }
+        : {}),
+    },
+  };
+}
+
+export function runtimeBridgeProviderCreateCommand(
+  input: ProvisionInput,
+  runtimeBridgeUrl: string,
+  target?: OpenShellTarget,
+): {
+  args: string[];
+  env: NodeJS.ProcessEnv;
+} {
+  const runtimeBridgeToken = input.projectRuntimeBridgeToken;
+  const durableMemoryEndpoint = `${runtimeBridgeUrl.replace(/\/$/, "")}/v1/memory/coordinators/${encodeURIComponent(input.instanceId)}`;
+  return {
+    args: openShellArguments([
+      "provider",
+      "create",
+      "--name",
+      openShellRuntimeBridgeProviderName(input.name),
+      "--type",
+      taliRuntimeBridgeProviderProfileId,
+      "--global-profile",
+      "--credential",
+      "TALI_PROJECT_RUNTIME_BRIDGE_TOKEN",
+      "--credential",
+      "TALI_DURABLE_MEMORY_TOKEN",
+      "--config",
+      `TALI_PROJECT_RUNTIME_BRIDGE_URL=${runtimeBridgeUrl}`,
+      "--config",
+      `TALI_DURABLE_MEMORY_ENDPOINT=${durableMemoryEndpoint}`,
+    ], target),
+    env: {
+      ...process.env,
+      ...(runtimeBridgeToken
+        ? {
+            TALI_PROJECT_RUNTIME_BRIDGE_TOKEN: runtimeBridgeToken,
+            TALI_DURABLE_MEMORY_TOKEN: runtimeBridgeToken,
           }
         : {}),
     },
@@ -406,6 +511,120 @@ async function ensureLiteLlmProviderProfile(
   }
 }
 
+export function openShellRuntimeBridgeProfileExportArguments(
+  target?: OpenShellTarget,
+): string[] {
+  return openShellArguments([
+    "provider",
+    "profile",
+    "export",
+    "--global",
+    taliRuntimeBridgeProviderProfileId,
+  ], target);
+}
+
+export function openShellRuntimeBridgeProfileApplyArguments(
+  profileFile: string,
+  resourceVersion?: number,
+  target?: OpenShellTarget,
+): string[] {
+  return openShellArguments(
+    resourceVersion !== undefined
+      ? [
+          "provider",
+          "profile",
+          "update",
+          "--global",
+          taliRuntimeBridgeProviderProfileId,
+          "--file",
+          profileFile,
+        ]
+      : [
+          "provider",
+          "profile",
+          "import",
+          "--global",
+          "--file",
+          profileFile,
+        ],
+    target,
+  );
+}
+
+async function ensureRuntimeBridgeProviderProfile(
+  runtimeBridgeUrl: string,
+  target?: OpenShellTarget,
+): Promise<void> {
+  const temporaryDirectory = await mkdtemp(
+    join(tmpdir(), "tali-runtime-bridge-profile-"),
+  );
+  const profileFile = join(temporaryDirectory, "tali-runtime-bridge.yaml");
+  try {
+    const existing = await runCommand(
+      openShellBinary(),
+      openShellRuntimeBridgeProfileExportArguments(target),
+    );
+    let resourceVersion: number | undefined;
+    const desiredProfile = parse(
+      taliRuntimeBridgeProviderProfile(runtimeBridgeUrl),
+    ) as unknown;
+    if (existing.exitCode === 0) {
+      const exported = parse(existing.stdout) as unknown;
+      if (!isRecord(exported) || !Number.isInteger(exported.resource_version))
+        throw new Error(
+          "OpenShell exported the Runtime Bridge Provider profile without a resource version.",
+        );
+      resourceVersion = exported.resource_version as number;
+      const currentProfile = { ...exported };
+      delete currentProfile.resource_version;
+      delete currentProfile.source;
+      delete currentProfile.scope;
+      if (isDeepStrictEqual(currentProfile, desiredProfile)) return;
+    }
+    await writeFile(
+      profileFile,
+      taliRuntimeBridgeProviderProfile(runtimeBridgeUrl, resourceVersion),
+      { mode: 0o600 },
+    );
+    if (existing.exitCode !== 0) {
+      const linted = await runCommand(
+        openShellBinary(),
+        openShellArguments([
+          "provider",
+          "profile",
+          "lint",
+          "--file",
+          profileFile,
+        ], target),
+      );
+      if (linted.exitCode !== 0)
+        throw new Error(
+          linted.stderr.trim()
+            || "OpenShell rejected the Runtime Bridge Provider profile.",
+        );
+    }
+    const applied = await runCommand(
+      openShellBinary(),
+      openShellRuntimeBridgeProfileApplyArguments(
+        profileFile,
+        resourceVersion,
+        target,
+      ),
+    );
+    if (applied.exitCode !== 0 && existing.exitCode !== 0) {
+      await ensureRuntimeBridgeProviderProfile(runtimeBridgeUrl, target);
+      return;
+    }
+    if (applied.exitCode !== 0)
+      throw new Error(
+        applied.stderr.trim()
+          || "Unable to register the Runtime Bridge Provider profile.",
+      );
+  } finally {
+    await rm(temporaryDirectory, { recursive: true, force: true });
+  }
+}
+
 async function ensureProviderPolicyCompositionEnabled(
   target?: OpenShellTarget,
 ): Promise<void> {
@@ -449,6 +668,10 @@ export function openShellProviderName(sandboxName: string): string {
     ? sandboxName
     : `tali-${sandboxName}`;
   return name.slice(0, 63).replace(/-$/, "");
+}
+
+export function openShellRuntimeBridgeProviderName(sandboxName: string): string {
+  return `${openShellProviderName(sandboxName).slice(0, 55).replace(/-$/, "")}-bridge`;
 }
 
 export function isOpenShellProviderAttachedError(output: string): boolean {
@@ -566,6 +789,7 @@ export function composeOpenShellInferencePolicy(
   // rule. Keeping the legacy direct rule in a business policy can match first
   // and bypass credential resolution, so remove only TaskLattice Relay's old entry.
   delete networkPolicies.tali_inference_gateway;
+  delete networkPolicies.tali_project_runtime_bridge;
   if (
     telemetryEndpoint
     && getAgentPlatformDefinition(agentPlatform).capabilities.embeddedRunTelemetry
@@ -595,30 +819,7 @@ export function composeOpenShellInferencePolicy(
       binaries: ["/usr/local/bin/node"].map((path) => ({ path })),
     };
   }
-  if (projectRuntimeBridgeUrl) {
-    const endpoint = new URL(projectRuntimeBridgeUrl);
-    if (
-      endpoint.protocol !== "http:"
-      || !endpoint.hostname.endsWith(`.${kubernetesServiceDnsSuffix}`)
-    ) {
-      throw new Error(
-        "The Project Runtime Bridge must use an in-cluster HTTP Service URL.",
-      );
-    }
-    networkPolicies.tali_project_runtime_bridge = {
-      name: "tali-project-runtime-bridge",
-      endpoints: [{
-        host: endpoint.hostname,
-        port: endpoint.port ? Number(endpoint.port) : 80,
-        protocol: "rest",
-        enforcement: "enforce",
-        access: "full",
-        allowed_ips: openShellKubernetesServiceCidrs(),
-      }],
-      binaries: [...getAgentPlatformRuntime(agentPlatform).inferenceBinaries]
-        .map((path) => ({ path })),
-    };
-  }
+  if (projectRuntimeBridgeUrl) new URL(projectRuntimeBridgeUrl);
   if (Object.keys(networkPolicies).length > 0)
     document.network_policies = networkPolicies;
   else
@@ -671,6 +872,9 @@ export function openShellSandboxCreateArguments(
     input.sandboxResources?.memory ?? process.env.OPENSHELL_SANDBOX_MEMORY ?? "2Gi",
     "--provider",
     openShellProviderName(input.name),
+    ...(input.projectRuntimeBridgeToken && target
+      ? ["--provider", openShellRuntimeBridgeProviderName(input.name)]
+      : []),
     "--policy",
     policyFile,
     "--label",
@@ -1206,6 +1410,52 @@ async function ensureInstanceProvider(
   }
 }
 
+async function ensureRuntimeBridgeProvider(
+  input: ProvisionInput,
+  runtimeBridgeUrl: string,
+  target?: OpenShellTarget,
+): Promise<void> {
+  await ensureRuntimeBridgeProviderProfile(runtimeBridgeUrl, target);
+  const providerName = openShellRuntimeBridgeProviderName(input.name);
+  const existing = await runCommand(
+    openShellBinary(),
+    openShellArguments(["provider", "get", providerName], target),
+  );
+  if (existing.exitCode === 0) {
+    const plain = existing.stdout.replace(/\u001b\[[0-9;]*m/g, "");
+    const providerType = plain.match(/^\s*Type:\s*(\S+)/m)?.[1];
+    if (providerType === taliRuntimeBridgeProviderProfileId) return;
+    throw new Error(
+      `Existing OpenShell Provider ${providerName} uses type ${providerType ?? "unknown"}; remove it before reprovisioning this Instance.`,
+    );
+  }
+  if (!input.projectRuntimeBridgeToken)
+    throw new Error(
+      "An Instance-scoped Runtime Bridge token is required to attach durable Memory.",
+    );
+  const command = runtimeBridgeProviderCreateCommand(
+    input,
+    runtimeBridgeUrl,
+    target,
+  );
+  const created = await runCommand(
+    openShellBinary(),
+    command.args,
+    command.env,
+  );
+  if (created.exitCode !== 0) {
+    const retry = await runCommand(
+      openShellBinary(),
+      openShellArguments(["provider", "get", providerName], target),
+    );
+    if (retry.exitCode !== 0)
+      throw new Error(
+        created.stderr.trim()
+          || "Unable to configure the Runtime Bridge Provider.",
+      );
+  }
+}
+
 export async function provisionOpenShellSandbox(
   input: ProvisionInput,
   target?: OpenShellTarget,
@@ -1213,8 +1463,15 @@ export async function provisionOpenShellSandbox(
 ): Promise<string[]> {
   await waitForOpenShellGateway(target, observer);
   await ensureOpenShellWorkspace(target, observer);
-  observer?.onStage?.("PROVIDER", "Creating an isolated LiteLLM Provider for this Instance.");
+  observer?.onStage?.("PROVIDER", "Creating isolated LiteLLM and Runtime Bridge Providers for this Instance.");
   await ensureInstanceProvider(input, target);
+
+  const projectRuntimeBridgeUrl = target && input.projectRuntimeBridgeToken
+    ? `http://tali-agent-runtime-bridge.${target.workspace}.svc.cluster.local:8080`
+    : undefined;
+  if (projectRuntimeBridgeUrl) {
+    await ensureRuntimeBridgeProvider(input, projectRuntimeBridgeUrl, target);
+  }
 
   observer?.onStage?.("SANDBOX", "Applying the OpenShell policy and scoped Provider attachment.");
 
@@ -1227,9 +1484,6 @@ export async function provisionOpenShellSandbox(
   const policyFile = join(temporaryDirectory, "openshell-policy.yaml");
   const telemetryFile = capabilities.embeddedRunTelemetry
     ? join(temporaryDirectory, "tali-run-telemetry.env")
-    : undefined;
-  const projectRuntimeBridgeUrl = target && input.projectRuntimeBridgeToken
-    ? `http://tali-agent-runtime-bridge.${target.workspace}.svc.cluster.local:8080`
     : undefined;
   const hermesRuntimeInstructions = input.agentPlatform === "hermes"
     ? [
@@ -1262,7 +1516,7 @@ export async function provisionOpenShellSandbox(
         input.memory,
         projectRuntimeBridgeUrl,
         input.instanceId,
-        input.projectRuntimeBridgeToken,
+        Boolean(projectRuntimeBridgeUrl),
       ),
       { mode: 0o600 },
     );
@@ -1306,23 +1560,25 @@ export async function deleteOpenShellProvider(
   target?: OpenShellTarget,
 ): Promise<void> {
   const timing = openShellDeletionTiming();
-  const deadline = Date.now() + timing.timeoutMs;
-  while (true) {
-    const result = await runCommand(
-      openShellBinary(),
-      openShellArguments(
-        ["provider", "delete", openShellProviderName(name)],
-        target,
-      ),
-    );
-    const output = `${result.stdout}\n${result.stderr}`;
-    if (result.exitCode === 0 || output.toLowerCase().includes("not found"))
-      return;
-    if (!isOpenShellProviderAttachedError(output) || Date.now() >= deadline)
-      throw new Error(
-        result.stderr.trim() || "OpenShell Provider deletion failed.",
+  for (const providerName of [
+    openShellRuntimeBridgeProviderName(name),
+    openShellProviderName(name),
+  ]) {
+    const deadline = Date.now() + timing.timeoutMs;
+    while (true) {
+      const result = await runCommand(
+        openShellBinary(),
+        openShellArguments(["provider", "delete", providerName], target),
       );
-    await waitForDeletionPoll(timing.pollMs);
+      const output = `${result.stdout}\n${result.stderr}`;
+      if (result.exitCode === 0 || output.toLowerCase().includes("not found"))
+        break;
+      if (!isOpenShellProviderAttachedError(output) || Date.now() >= deadline)
+        throw new Error(
+          result.stderr.trim() || "OpenShell Provider deletion failed.",
+        );
+      await waitForDeletionPoll(timing.pollMs);
+    }
   }
 }
 

@@ -5,6 +5,7 @@ import type {
   VectorDatabaseOverview,
   VectorDeletionImpact,
   VectorDocument,
+  VectorDocumentChunks,
   VectorDocumentDetail,
   VectorFolder,
   VectorIngestionJob,
@@ -23,6 +24,8 @@ import { DoclingClient, type VectorDocumentParser } from "./docling-client";
 import { KnowledgeVectorDatabase } from "./knowledge-vector-database";
 
 const MAX_DOCUMENT_BYTES = 25 * 1024 * 1024;
+const DOCUMENT_PREVIEW_CHARACTERS = 1_600;
+const DOCUMENT_PREVIEW_CHUNKS = 8;
 const CUSTOM_METADATA_ATTRIBUTE_PREFIX = "tali_metadata_";
 const ACCEPTED_EXTENSIONS = new Set([
   "pdf", "docx", "pptx", "xlsx", "html", "htm", "md", "txt",
@@ -131,10 +134,43 @@ export class VectorDocumentService {
         documentRevision: document.activeRevision,
       },
       orderBy: { chunkIndex: "asc" },
+      select: { content: true },
+      take: DOCUMENT_PREVIEW_CHUNKS,
+    });
+    const indexedText = chunks.map((chunk) => chunk.content).join("\n\n").trim();
+    return {
+      ...vectorDocument(document),
+      previewText: indexedText.slice(0, DOCUMENT_PREVIEW_CHARACTERS).trimEnd(),
+      previewTruncated:
+        indexedText.length > DOCUMENT_PREVIEW_CHARACTERS
+        || document.chunkCount > chunks.length,
+    };
+  }
+
+  async documentChunks(databaseId: string, documentId: string): Promise<VectorDocumentChunks> {
+    await this.requireBuiltInDatabase(databaseId);
+    const document = await this.db.vectorDocument.findUnique({
+      where: {
+        projectId_databaseId_id: {
+          projectId: this.store.projectId,
+          databaseId,
+          id: documentId,
+        },
+      },
+      select: { activeRevision: true, chunkCount: true },
+    });
+    if (!document) throw new Error("Vector Document was not found.");
+    const chunks = await this.db.knowledgeVectorChunk.findMany({
+      where: {
+        projectId: this.store.projectId,
+        databaseId,
+        documentId,
+        documentRevision: document.activeRevision,
+      },
+      orderBy: { chunkIndex: "asc" },
       take: 2_000,
     });
     return {
-      ...vectorDocument(document),
       chunks: chunks.map((chunk) => ({
         id: chunk.id,
         content: chunk.content,
@@ -145,6 +181,8 @@ export class VectorDocumentService {
         label: chunk.label,
         attributes: jsonRecord(chunk.attributes),
       })),
+      total: document.chunkCount,
+      truncated: document.chunkCount > chunks.length,
     };
   }
 

@@ -10,13 +10,13 @@ import {
 
 const source: RuntimePolicyCatalogSource = {
   load: (): SandboxPolicyCatalog => ({
-    defaultPolicyId: "unrestricted",
+    defaultPolicyId: "managed-runtime",
     templatePolicyYaml:
       "version: 1\nfilesystem_policy:\n  read_write:\n    - /sandbox\n    - /tmp\n    - /dev/null\nnetwork_policies: {}\n",
     policies: [
       {
-        id: "unrestricted",
-        name: "Unrestricted",
+        id: "managed-runtime",
+        name: "Managed Runtime",
         description:
           "Allows arbitrary operations in Sandbox-owned writable paths.",
         networkAccess: "Managed inference and declared destinations",
@@ -33,13 +33,13 @@ const source: RuntimePolicyCatalogSource = {
 };
 
 describe("RuntimePolicyService", () => {
-  it("loads the deployment catalog with unrestricted as the default", () => {
+  it("loads the deployment catalog with the managed runtime as the default", () => {
     const catalog = new BuiltInRuntimePolicyCatalogSource().load();
     const policy = catalog.policies.find(
       (item) => item.id === catalog.defaultPolicyId,
     );
 
-    expect(catalog.defaultPolicyId).toBe("unrestricted");
+    expect(catalog.defaultPolicyId).toBe("managed-runtime");
     expect(policy).toMatchObject({ source: "BUILT_IN", immutable: true });
     expect(policy?.policyYaml).toContain("/dev/null");
     expect(policy?.policyYaml).toContain("/sandbox");
@@ -79,10 +79,10 @@ describe("RuntimePolicyService", () => {
       policyYaml: "version: 1\nnetwork_policies: {}\n",
     };
 
-    await expect(service.update("unrestricted", input)).rejects.toThrow(
+    await expect(service.update("managed-runtime", input)).rejects.toThrow(
       "Built-in",
     );
-    await expect(service.delete("unrestricted")).rejects.toThrow("Built-in");
+    await expect(service.delete("managed-runtime")).rejects.toThrow("Built-in");
     expect(() =>
       normalizeOpenShellPolicy("version: 1\nprocess:\n  run_as_user: root\n"),
     ).toThrow("root");

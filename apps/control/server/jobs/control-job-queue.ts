@@ -37,6 +37,7 @@ export interface VectorDocumentIngestionJobPayload {
 export interface InstanceLifecycleJobPayload {
   projectId: string;
   instanceId: string;
+  operationId: string;
   action: "provision" | "delete";
 }
 

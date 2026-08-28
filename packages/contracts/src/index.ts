@@ -1583,8 +1583,15 @@ export const vectorDocumentChunkSchema = z.object({
 }).strict().meta({ id: "VectorDocumentChunk" });
 
 export const vectorDocumentDetailSchema = vectorDocumentSchema.extend({
-  chunks: z.array(vectorDocumentChunkSchema),
+  previewText: z.string(),
+  previewTruncated: z.boolean(),
 }).strict().meta({ id: "VectorDocumentDetail" });
+
+export const vectorDocumentChunksSchema = z.object({
+  chunks: z.array(vectorDocumentChunkSchema),
+  total: z.number().int().min(0),
+  truncated: z.boolean(),
+}).strict().meta({ id: "VectorDocumentChunks" });
 
 export const vectorIngestionJobSchema = z.object({
   id: z.string().uuid(),
@@ -2232,6 +2239,7 @@ export type UpdateVectorDocumentInput = z.infer<typeof updateVectorDocumentSchem
 export type VectorDeletionImpact = z.infer<typeof vectorDeletionImpactSchema>;
 export type VectorDocumentChunk = z.infer<typeof vectorDocumentChunkSchema>;
 export type VectorDocumentDetail = z.infer<typeof vectorDocumentDetailSchema>;
+export type VectorDocumentChunks = z.infer<typeof vectorDocumentChunksSchema>;
 export type VectorIngestionJob = z.infer<typeof vectorIngestionJobSchema>;
 export type VectorDatabaseStats = z.infer<typeof vectorDatabaseStatsSchema>;
 export type VectorDatabaseOverview = z.infer<typeof vectorDatabaseOverviewSchema>;
@@ -2998,6 +3006,48 @@ export interface InstanceRuntimeLogView {
   instanceId: string;
   logs: string[];
   error?: string;
+}
+
+export type InstanceLifecycleAction = "provision" | "delete";
+export type InstanceLifecycleStatus =
+  | "queued"
+  | "running"
+  | "succeeded"
+  | "failed";
+export type InstanceLifecycleEventLevel = "debug" | "info" | "warning" | "error";
+
+export interface InstanceLifecycleEvent {
+  operationId: string;
+  sequence: number;
+  type: string;
+  level: InstanceLifecycleEventLevel;
+  stage?: ProvisioningStage;
+  message: string;
+  payload?: Record<string, unknown>;
+  occurredAt: string;
+}
+
+export interface InstanceLifecycleOperation {
+  id: string;
+  instanceId: string;
+  action: InstanceLifecycleAction;
+  status: InstanceLifecycleStatus;
+  stage?: ProvisioningStage;
+  progress: number;
+  currentMessage: string;
+  errorCode?: string;
+  errorSummary?: string;
+  revision: number;
+  createdAt: string;
+  startedAt?: string;
+  finishedAt?: string;
+  updatedAt: string;
+  events: InstanceLifecycleEvent[];
+}
+
+export interface InstanceCreationAccepted {
+  instanceId: string;
+  operation: InstanceLifecycleOperation;
 }
 
 export interface ProjectQuotaUsage {

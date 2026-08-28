@@ -22,7 +22,11 @@ import {
   ServerCog,
   X,
 } from "lucide-react";
-import { AgentSelect } from "@/components/agents/agent-select";
+import {
+  AgentSelectionDetails,
+  AgentSelect,
+  AgentTipsPopover,
+} from "@/components/agents/agent-select";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -101,45 +105,47 @@ export function AgentFoundationStep({
         <CardDescription>{t("agentFoundation.description")}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
-        <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_minmax(20rem,.8fr)]">
-          <div className="space-y-2">
-            <Label htmlFor="agent-name">Instance name</Label>
-            <div className="relative">
-              <Input
-                id="agent-name"
-                required
-                maxLength={64}
-                value={name}
-                onChange={(event) => onNameChange(event.target.value)}
-                placeholder="mobile-security-research"
-                className="h-12 pr-16"
-              />
-              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
-                {name.length}/64
-              </span>
-            </div>
-            {name.length > 0 && name.trim().length < 3 ? (
-              <p role="alert" className="text-xs text-destructive">
-                Use at least 3 characters.
-              </p>
-            ) : (
-              <p className="text-xs leading-5 text-muted-foreground">
-                Name this running Instance of the job.
-              </p>
-            )}
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="instance-agent">Agent</Label>
-            <AgentSelect
-              id="instance-agent"
-              value={agentPlatform}
-              onValueChange={onAgentPlatformChange}
+        <div className="space-y-2">
+          <Label htmlFor="agent-name">Instance name</Label>
+          <div className="relative">
+            <Input
+              id="agent-name"
+              required
+              maxLength={64}
+              value={name}
+              onChange={(event) => onNameChange(event.target.value)}
+              placeholder="mobile-security-research"
+              className="h-12 pr-16"
             />
-            <p className="text-xs leading-5 text-muted-foreground">
-              Choose the Agent implementation that will perform this work inside OpenShell.
-            </p>
+            <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+              {name.length}/64
+            </span>
           </div>
+          {name.length > 0 && name.trim().length < 3 ? (
+            <p role="alert" className="text-xs text-destructive">
+              Use at least 3 characters.
+            </p>
+          ) : (
+            <p className="text-xs leading-5 text-muted-foreground">
+              Name this running Instance of the job.
+            </p>
+          )}
+        </div>
+
+        <div className="space-y-2 border-t pt-5">
+          <div className="flex min-h-11 items-center justify-between gap-3">
+            <Label htmlFor="instance-agent">Agent</Label>
+            <AgentTipsPopover />
+          </div>
+          <AgentSelect
+            id="instance-agent"
+            value={agentPlatform}
+            onValueChange={onAgentPlatformChange}
+          />
+          <p className="text-xs leading-5 text-muted-foreground">
+            Choose the Agent implementation that will perform this work inside OpenShell.
+          </p>
+          <AgentSelectionDetails value={agentPlatform} />
         </div>
 
         <div className="border-t pt-5">
@@ -500,8 +506,8 @@ function MemoryCapabilityRow({
               {!supported
                 ? "Not available"
                 : selected
-                  ? "Continue existing"
-                  : "New · recommended"}
+                  ? "Existing Memory"
+                  : "Integrated"}
             </Badge>
           </div>
           <p className="mt-1 text-xs text-muted-foreground">
@@ -515,7 +521,7 @@ function MemoryCapabilityRow({
             <p className="mt-2 text-xs font-medium text-primary">
               {selected
                 ? selected.displayName
-                : "A new durable Memory will be created automatically"}
+                : "Durable Memory is configured automatically"}
             </p>
           ) : null}
         </div>
@@ -564,10 +570,10 @@ function MemoryCapabilityRow({
             </span>
             <span>
               <strong className="block text-sm">
-                Create a new durable Memory (recommended)
+                Use durable Memory (recommended)
               </strong>
               <span className="mt-1 block text-xs leading-5 text-muted-foreground">
-                A new Project-level Memory is created and bound before the Agent starts.
+                Project-level Memory is prepared and bound before the Agent starts.
               </span>
             </span>
           </button>
@@ -659,7 +665,7 @@ function MemoryCapabilityRow({
             </div>
           ) : !durableMemories.length ? (
             <p className="text-xs text-muted-foreground">
-              No ready or unbound Memory is available. A new one will be created.
+              No existing Memory is available. Durable Memory will be configured automatically.
             </p>
           ) : null}
 

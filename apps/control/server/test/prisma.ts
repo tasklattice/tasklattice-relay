@@ -59,6 +59,7 @@ import vectorDatabaseFoldersMigration from "../../prisma/migrations/202608271400
 import vectorDocumentMetadataMigration from "../../prisma/migrations/20260827200000_vector_document_metadata/migration.sql?raw";
 import projectDurableMemoryMigration from "../../prisma/migrations/20260828000000_project_durable_memory/migration.sql?raw";
 import memoryAgentIdempotencyMigration from "../../prisma/migrations/20260828010000_memory_agent_idempotency/migration.sql?raw";
+import instanceLifecycleOperationsMigration from "../../prisma/migrations/20260828030000_instance_lifecycle_operations/migration.sql?raw";
 import { developmentResourceCatalog } from "../catalog/development-resource-catalog";
 import { PrismaClient } from "../generated/prisma/client";
 
@@ -579,6 +580,15 @@ export function createTestPrisma(): PrismaClient {
     projectDurableMemoryMigration.replaceAll(" DEFAULT gen_random_uuid()", ""),
   );
   memory.public.none(memoryAgentIdempotencyMigration);
+  const instanceLifecycleSchema = instanceLifecycleOperationsMigration
+    .split("INSERT INTO tasklattice.instance_lifecycle_operations")[0];
+  if (
+    !instanceLifecycleSchema?.includes("instance_lifecycle_operations")
+    || !instanceLifecycleSchema.includes("instance_lifecycle_events")
+  ) {
+    throw new Error("Instance lifecycle operation migration structure is incomplete.");
+  }
+  memory.public.none(instanceLifecycleSchema);
   const pg = memory.adapters.createPg();
   const query = pg.Client.prototype.query;
   pg.Client.prototype.query = function (

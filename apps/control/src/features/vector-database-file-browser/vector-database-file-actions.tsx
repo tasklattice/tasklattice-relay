@@ -17,7 +17,6 @@ import {
   Pencil,
   Plus,
   Save,
-  Tags,
   Trash2,
   X,
 } from "lucide-react";
@@ -50,10 +49,8 @@ import {
 } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useProjectQueryScope } from "@/hooks/use-project-query-scope";
 import { api } from "@/lib/api";
-import { formatPlatformDateTime } from "@/lib/platform-preferences";
 import { filePath, formatBytes } from "./file-browser-utils";
 
 export function NewFolderDialog({ error, name, open, pending, onNameChange, onOpenChange, onSubmit }: {
@@ -267,7 +264,7 @@ export function UploadFilesSheet({
   );
 }
 
-type FileDetailTab = "preview" | "chunks" | "metadata";
+type FileDetailView = "preview" | "chunks" | "metadata";
 type MetadataDraftRow = {
   id: string;
   key: string;
@@ -275,14 +272,12 @@ type MetadataDraftRow = {
   value: string | boolean;
 };
 
-export function FileDetailSheet({
+export function VectorDocumentActionSheet({
   canManage,
   databaseId,
   document,
-  embeddingModel,
-  initialTab,
+  initialView,
   open,
-  startEditingMetadata,
   targetChunkId,
   onOpenChange,
   onUpdated,
@@ -290,34 +285,30 @@ export function FileDetailSheet({
   canManage: boolean;
   databaseId: string;
   document: VectorDocument | null;
-  embeddingModel: string;
-  initialTab: FileDetailTab;
+  initialView: FileDetailView;
   open: boolean;
-  startEditingMetadata: boolean;
   targetChunkId: string | undefined;
   onOpenChange: (open: boolean) => void;
   onUpdated: () => void;
 }) {
   const scope = useProjectQueryScope();
   const queryClient = useQueryClient();
-  const [tab, setTab] = useState<FileDetailTab>(initialTab);
-  const [viewFullText, setViewFullText] = useState(false);
   const [expandedChunks, setExpandedChunks] = useState<Set<string>>(new Set());
-  const [editingMetadata, setEditingMetadata] = useState(startEditingMetadata);
   const [metadataRows, setMetadataRows] = useState<MetadataDraftRow[]>([]);
   const detail = useQuery({
     queryKey: scope.key("vector-document", databaseId, document?.id ?? ""),
     queryFn: () => api.getVectorDocument(databaseId, document!.id),
     enabled: open && Boolean(document),
   });
+  const chunks = useQuery({
+    queryKey: scope.key("vector-document-chunks", databaseId, document?.id ?? ""),
+    queryFn: () => api.getVectorDocumentChunks(databaseId, document!.id),
+    enabled: open && Boolean(document) && initialView !== "metadata",
+  });
   const fullText = useMemo(
-    () => detail.data?.chunks.map((chunk) => chunk.content).join("\n\n") ?? "",
-    [detail.data],
+    () => chunks.data?.chunks.map((chunk) => chunk.content).join("\n\n") ?? "",
+    [chunks.data],
   );
-  const previewTruncated = fullText.length > 3_200;
-  const previewText = viewFullText || !previewTruncated
-    ? fullText
-    : `${fullText.slice(0, 3_200).trimEnd()}…`;
   const parsedMetadata = metadataFromRows(metadataRows);
   const saveMetadata = useMutation({
     mutationFn: () => {
@@ -325,19 +316,17 @@ export function FileDetailSheet({
       return api.updateVectorDocument(databaseId, document.id, { customMetadata: parsedMetadata.data });
     },
     onSuccess: async () => {
-      setEditingMetadata(false);
       await queryClient.invalidateQueries({ queryKey: scope.key("vector-document", databaseId, document?.id ?? "") });
       onUpdated();
+      onOpenChange(false);
     },
   });
 
   useEffect(() => {
     if (!open) return;
-    setTab(initialTab);
-    setViewFullText(false);
-    setEditingMetadata(startEditingMetadata);
     setExpandedChunks(targetChunkId ? new Set([targetChunkId]) : new Set());
-  }, [initialTab, open, startEditingMetadata, targetChunkId]);
+    saveMetadata.reset();
+  }, [open, targetChunkId]);
 
   useEffect(() => {
     if (!detail.data) return;
@@ -345,18 +334,13 @@ export function FileDetailSheet({
   }, [detail.data]);
 
   useEffect(() => {
-    if (!open || tab !== "chunks" || !targetChunkId || !detail.data) return;
+    if (!open || initialView !== "chunks" || !targetChunkId || !chunks.data) return;
     const frame = window.requestAnimationFrame(() => {
       window.document.getElementById(chunkElementId(targetChunkId))?.scrollIntoView({ block: "center" });
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [detail.data, open, tab, targetChunkId]);
+  }, [chunks.data, initialView, open, targetChunkId]);
 
-  const cancelMetadata = () => {
-    setMetadataRows(metadataRowsFrom(detail.data?.customMetadata ?? {}));
-    setEditingMetadata(false);
-    saveMetadata.reset();
-  };
   const updateMetadataRow = (id: string, patch: Partial<MetadataDraftRow>) => {
     setMetadataRows((rows) => rows.map((row) => row.id === id ? { ...row, ...patch } : row));
     saveMetadata.reset();
@@ -366,82 +350,71 @@ export function FileDetailSheet({
     <Sheet open={open} onOpenChange={(next) => !saveMetadata.isPending && onOpenChange(next)}>
       <SheetContent side="right" className="!w-full gap-0 overflow-hidden bg-background sm:!w-[min(96vw,52rem)] sm:!max-w-[52rem] [&>button]:size-11">
         <SheetHeader className="shrink-0 border-b px-5 py-5 pr-14 sm:px-6 sm:pr-14">
-          <SheetTitle>{document?.filename ?? "File details"}</SheetTitle>
-          <SheetDescription>{document ? `${filePath(document)} · ${document.chunkCount} chunks · ${formatBytes(document.byteSize)}` : "Indexed file details"}</SheetDescription>
+          <SheetTitle>{detailViewTitle(initialView, document)}</SheetTitle>
+          <SheetDescription>{document ? `${filePath(document)} · ${document.chunkCount} chunks · ${formatBytes(document.byteSize)}` : "Indexed file content"}</SheetDescription>
         </SheetHeader>
-        <Tabs value={tab} onValueChange={(value) => setTab(value as FileDetailTab)} className="min-h-0 flex-1 gap-0">
-          <TabsList variant="line" className="w-full shrink-0 justify-start overflow-x-auto px-5 sm:px-6">
-            <TabsTrigger value="preview">Preview</TabsTrigger>
-            <TabsTrigger value="chunks">Chunks{detail.data ? ` (${detail.data.chunks.length})` : ""}</TabsTrigger>
-            <TabsTrigger value="metadata">Metadata{detail.data ? ` (${Object.keys(detail.data.customMetadata).length})` : ""}</TabsTrigger>
-          </TabsList>
-          <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain px-5 py-5 sm:px-6">
-            {detail.isPending ? <div className="space-y-3"><Skeleton className="h-5 w-36" /><Skeleton className="h-40 w-full" /><Skeleton className="h-24 w-full" /></div> : null}
-            {detail.error ? <ErrorMessage>{detail.error.message}</ErrorMessage> : null}
-            {detail.data ? (
-              <>
-                <TabsContent value="preview" className="m-0">
-                  <section>
-                    <div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-sm font-semibold">Indexed text</h3><p className="mt-1 text-xs text-muted-foreground">Combined text from the active Vector Records.</p></div>{previewTruncated ? <Button variant="outline" size="sm" onClick={() => setViewFullText((value) => !value)}>{viewFullText ? "Show excerpt" : "View full text"}</Button> : null}</div>
-                    <p className="mt-4 whitespace-pre-wrap rounded-sm bg-muted/35 p-4 text-sm leading-7">{previewText || "No indexed text is available."}</p>
-                  </section>
-                </TabsContent>
-                <TabsContent value="chunks" className="m-0">
-                  <div className="flex items-end justify-between gap-3 border-b pb-3"><div><h3 className="text-sm font-semibold">Vector Records</h3><p className="mt-1 text-xs text-muted-foreground">Expand a chunk to inspect its full indexed text.</p></div><span className="text-xs text-muted-foreground">{detail.data.chunks.length} records</span></div>
-                  <div className="divide-y">
-                    {detail.data.chunks.map((chunk) => {
-                      const expanded = expandedChunks.has(chunk.id);
-                      return (
-                        <Collapsible key={chunk.id} open={expanded} onOpenChange={(next) => setExpandedChunks((current) => { const copy = new Set(current); if (next) copy.add(chunk.id); else copy.delete(chunk.id); return copy; })}>
-                          <article id={chunkElementId(chunk.id)} className={targetChunkId === chunk.id ? "bg-primary/5" : undefined}>
-                            <CollapsibleTrigger asChild>
-                              <button type="button" className="flex min-h-20 w-full items-start gap-3 px-3 py-4 text-left outline-none hover:bg-muted/25 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
-                                <ChevronDown className={`mt-0.5 size-4 shrink-0 text-muted-foreground transition-transform ${expanded ? "rotate-180" : ""}`} />
-                                <span className="min-w-0 flex-1"><span className="flex flex-wrap items-center justify-between gap-2"><strong className="text-xs">Chunk {chunk.chunkIndex + 1}</strong><span className="text-xs text-muted-foreground">{chunk.pageNumber ? `Page ${chunk.pageNumber}` : "No page"} · {chunk.tokenCount} tokens</span></span><span className="mt-2 line-clamp-2 block text-xs leading-5 text-muted-foreground">{chunk.content || "No text"}</span></span>
-                              </button>
-                            </CollapsibleTrigger>
-                            <CollapsibleContent><div className="border-t bg-muted/15 px-10 py-4"><p className="whitespace-pre-wrap text-sm leading-6">{chunk.content}</p><p className="mt-3 break-all font-mono text-[11px] text-muted-foreground">{chunk.id}</p></div></CollapsibleContent>
-                          </article>
-                        </Collapsible>
-                      );
-                    })}
-                    {!detail.data.chunks.length ? <p className="py-12 text-center text-sm text-muted-foreground">No chunks have been indexed.</p> : null}
-                  </div>
-                </TabsContent>
-                <TabsContent value="metadata" className="m-0 space-y-7">
-                  <section><h3 className="text-sm font-semibold">System metadata</h3><p className="mt-1 text-xs text-muted-foreground">Read-only values maintained by TaskLattice and the indexing pipeline.</p><MetadataList className="mt-4" items={[
-                    ["Path", filePath(detail.data)],
-                    ["Media type", detail.data.mediaType],
-                    ["Size", formatBytes(detail.data.byteSize)],
-                    ["Index status", documentStatusLabel(detail.data.status)],
-                    ["Pages", String(detail.data.pageCount)],
-                    ["Chunks", String(detail.data.chunkCount)],
-                    ["Parser", detail.data.parser],
-                    ["Embedding model", embeddingModel],
-                    ["Uploaded by", detail.data.uploadedBy ?? "Unknown"],
-                    ["Uploaded", formatPlatformDateTime(detail.data.createdAt)],
-                    ["Updated", formatPlatformDateTime(detail.data.updatedAt)],
-                  ]} /></section>
-                  <section>
-                    <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="text-sm font-semibold">Custom metadata</h3><p className="mt-1 text-xs text-muted-foreground">Typed file-level fields propagated to every Vector Record without re-embedding.</p></div>{canManage && !editingMetadata ? <Button variant="outline" size="sm" onClick={() => setEditingMetadata(true)}><Pencil />Edit</Button> : null}</div>
-                    {editingMetadata ? (
-                      <div className="mt-4 space-y-4">
-                        <div className="space-y-3">{metadataRows.map((row, index) => <MetadataEditorRow key={row.id} index={index} row={row} onChange={(patch) => updateMetadataRow(row.id, patch)} onRemove={() => setMetadataRows((rows) => rows.filter((item) => item.id !== row.id))} />)}</div>
-                        <Button variant="outline" size="sm" onClick={() => setMetadataRows((rows) => [...rows, { id: `new-${Date.now()}-${rows.length}`, key: "", type: "string", value: "" }])} disabled={metadataRows.length >= 32}><Plus />Add field</Button>
-                        {parsedMetadata.error ? <ErrorMessage>{parsedMetadata.error}</ErrorMessage> : null}
-                        {saveMetadata.error ? <ErrorMessage>{saveMetadata.error.message}</ErrorMessage> : null}
-                        <div className="flex flex-col-reverse gap-2 border-t pt-4 sm:flex-row sm:justify-end"><Button variant="outline" className="h-11" disabled={saveMetadata.isPending} onClick={cancelMetadata}>Cancel</Button><Button className="h-11" disabled={Boolean(parsedMetadata.error) || saveMetadata.isPending} onClick={() => saveMetadata.mutate()}>{saveMetadata.isPending ? <LoaderCircle className="animate-spin motion-reduce:animate-none" /> : <Save />}{saveMetadata.isPending ? "Saving…" : "Save metadata"}</Button></div>
-                      </div>
-                    ) : Object.keys(detail.data.customMetadata).length ? <MetadataList className="mt-4" items={Object.entries(detail.data.customMetadata).map(([key, metadata]) => [key, metadataDisplayValue(metadata)])} /> : <div className="mt-4 border border-dashed px-4 py-8 text-center"><Tags className="mx-auto size-5 text-muted-foreground" /><p className="mt-2 text-sm font-medium">No custom metadata</p><p className="mt-1 text-xs text-muted-foreground">Add typed fields to filter Test retrieval results.</p></div>}
-                  </section>
-                </TabsContent>
-              </>
-            ) : null}
-          </div>
-        </Tabs>
+        <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain px-5 py-6 sm:px-6">
+          {detail.isPending || (initialView !== "metadata" && chunks.isPending) ? <div className="space-y-3"><Skeleton className="h-5 w-36" /><Skeleton className="h-40 w-full" /><Skeleton className="h-24 w-full" /></div> : null}
+          {detail.error ? <ErrorMessage>{detail.error.message}</ErrorMessage> : null}
+          {chunks.error ? <ErrorMessage>{chunks.error.message}</ErrorMessage> : null}
+          {detail.data && chunks.data && initialView === "preview" ? (
+            <section>
+              <h3 className="text-sm font-semibold">Indexed text</h3>
+              <p className="mt-1 text-xs text-muted-foreground">Combined text from the active Vector Records.</p>
+              {chunks.data.truncated ? <p className="mt-4 border-l-2 border-amber-500 bg-amber-500/5 px-3 py-2 text-xs text-muted-foreground">This preview contains the first {chunks.data.chunks.length} of {chunks.data.total} chunks.</p> : null}
+              <p className="mt-5 whitespace-pre-wrap text-sm leading-7">{fullText || "No indexed text is available."}</p>
+            </section>
+          ) : null}
+          {detail.data && chunks.data && initialView === "chunks" ? (
+            <section>
+              <div className="flex items-end justify-between gap-3 border-b pb-3"><div><h3 className="text-sm font-semibold">Vector Records</h3><p className="mt-1 text-xs text-muted-foreground">Expand a chunk to inspect its full indexed text.</p></div><span className="text-xs text-muted-foreground">{chunks.data.total} records</span></div>
+              {chunks.data.truncated ? <p className="border-b bg-amber-500/5 px-3 py-2 text-xs text-muted-foreground">Showing the first {chunks.data.chunks.length} records.</p> : null}
+              <div className="divide-y">
+                {chunks.data.chunks.map((chunk) => {
+                  const expanded = expandedChunks.has(chunk.id);
+                  return (
+                    <Collapsible key={chunk.id} open={expanded} onOpenChange={(next) => setExpandedChunks((current) => { const copy = new Set(current); if (next) copy.add(chunk.id); else copy.delete(chunk.id); return copy; })}>
+                      <article id={chunkElementId(chunk.id)} className={targetChunkId === chunk.id ? "bg-primary/5" : undefined}>
+                        <CollapsibleTrigger asChild>
+                          <button type="button" className="flex min-h-20 w-full items-start gap-3 px-3 py-4 text-left outline-none hover:bg-muted/25 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
+                            <ChevronDown className={`mt-0.5 size-4 shrink-0 text-muted-foreground transition-transform ${expanded ? "rotate-180" : ""}`} />
+                            <span className="min-w-0 flex-1"><span className="flex flex-wrap items-center justify-between gap-2"><strong className="text-xs">Chunk {chunk.chunkIndex + 1}</strong><span className="text-xs text-muted-foreground">{chunk.pageNumber ? `Page ${chunk.pageNumber}` : "No page"} · {chunk.tokenCount} tokens</span></span><span className="mt-2 line-clamp-2 block text-xs leading-5 text-muted-foreground">{chunk.content || "No text"}</span></span>
+                          </button>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent><div className="border-t bg-muted/15 px-10 py-4"><p className="whitespace-pre-wrap text-sm leading-6">{chunk.content}</p><p className="mt-3 break-all font-mono text-[11px] text-muted-foreground">{chunk.id}</p></div></CollapsibleContent>
+                      </article>
+                    </Collapsible>
+                  );
+                })}
+                {!chunks.data.chunks.length ? <p className="py-12 text-center text-sm text-muted-foreground">No chunks have been indexed.</p> : null}
+              </div>
+            </section>
+          ) : null}
+          {detail.data && initialView === "metadata" ? (
+            <section>
+              <h3 className="text-sm font-semibold">Custom metadata</h3>
+              <p className="mt-1 text-xs text-muted-foreground">Typed file-level fields are propagated to every Vector Record without re-embedding.</p>
+              {canManage ? (
+                <div className="mt-5 space-y-4">
+                  <div className="space-y-3">{metadataRows.map((row, index) => <MetadataEditorRow key={row.id} index={index} row={row} onChange={(patch) => updateMetadataRow(row.id, patch)} onRemove={() => setMetadataRows((rows) => rows.filter((item) => item.id !== row.id))} />)}</div>
+                  <Button variant="outline" size="sm" onClick={() => setMetadataRows((rows) => [...rows, { id: `new-${Date.now()}-${rows.length}`, key: "", type: "string", value: "" }])} disabled={metadataRows.length >= 32}><Plus />Add field</Button>
+                  {parsedMetadata.error ? <ErrorMessage>{parsedMetadata.error}</ErrorMessage> : null}
+                  {saveMetadata.error ? <ErrorMessage>{saveMetadata.error.message}</ErrorMessage> : null}
+                  <div className="flex flex-col-reverse gap-2 border-t pt-4 sm:flex-row sm:justify-end"><Button variant="outline" className="h-11" disabled={saveMetadata.isPending} onClick={() => onOpenChange(false)}>Cancel</Button><Button className="h-11" disabled={Boolean(parsedMetadata.error) || saveMetadata.isPending} onClick={() => saveMetadata.mutate()}>{saveMetadata.isPending ? <LoaderCircle className="animate-spin motion-reduce:animate-none" /> : <Save />}{saveMetadata.isPending ? "Saving…" : "Save metadata"}</Button></div>
+                </div>
+              ) : Object.keys(detail.data.customMetadata).length ? <MetadataList className="mt-5" items={Object.entries(detail.data.customMetadata).map(([key, metadata]) => [key, metadataDisplayValue(metadata)])} /> : <p className="mt-5 text-sm text-muted-foreground">No custom metadata has been added.</p>}
+            </section>
+          ) : null}
+        </div>
       </SheetContent>
     </Sheet>
   );
+}
+
+function detailViewTitle(view: FileDetailView, document: VectorDocument | null): string {
+  if (view === "preview") return "Indexed text preview";
+  if (view === "chunks") return `Chunks${document ? ` · ${document.filename}` : ""}`;
+  return "Edit custom metadata";
 }
 
 function MetadataList({ className, items }: { className?: string; items: Array<[string, string]> }) {
@@ -483,13 +456,6 @@ function metadataDisplayValue(metadata: VectorCustomMetadata[string]): string {
 
 function chunkElementId(chunkId: string): string {
   return `vector-chunk-${chunkId.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
-}
-
-function documentStatusLabel(status: VectorDocument["status"]): string {
-  if (status === "READY") return "Indexed";
-  if (status === "FAILED") return "Failed";
-  if (status === "QUEUED") return "Queued";
-  return "Processing";
 }
 
 function Impact({ label, value, warning = false }: { label: string; value: number; warning?: boolean }) {

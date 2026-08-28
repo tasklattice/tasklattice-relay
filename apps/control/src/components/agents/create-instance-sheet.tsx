@@ -202,11 +202,11 @@ export function CreateInstanceSheet({
     .filter((item) => item && item.status !== "HEALTHY");
   const mutation = useMutation({
     mutationFn: api.createInstance,
-    onSuccess: (agent) => {
+    onSuccess: (accepted) => {
       void navigate({
         to: "/$projectId/instances/$instanceId",
-        params: { projectId, instanceId: agent.id },
-        search: { creating: true },
+        params: { projectId, instanceId: accepted.instanceId },
+        search: { creating: true, operationId: accepted.operation.id },
       });
     },
   });
@@ -895,51 +895,28 @@ export function CreateInstanceSheet({
                     className="space-y-3"
                     aria-labelledby="works-on-heading"
                   >
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                      <h3
-                        id="works-on-heading"
-                        className="flex items-center gap-2 text-sm font-semibold"
-                      >
-                        <Waypoints className="size-4" /> Execution
-                      </h3>
-                      <nav
-                        aria-label="Manage execution settings"
-                        className="flex flex-wrap items-center gap-x-5"
-                      >
-                        <Link
-                          to="/$projectId/setting"
-                          params={{ projectId }}
-                          search={{ section: "models" }}
-                          className="inline-flex min-h-11 items-center text-xs font-medium underline underline-offset-4"
-                        >
-                          Manage Models
-                        </Link>
-                        <Link
-                          to="/$projectId/setting"
-                          params={{ projectId }}
-                          search={{ section: "routing" }}
-                          className="inline-flex min-h-11 items-center text-xs font-medium underline underline-offset-4"
-                        >
-                          Manage Routing
-                        </Link>
-                        <Link
-                          to="/$projectId/runtime-policies"
-                          params={{ projectId }}
-                          className="inline-flex min-h-11 items-center text-xs font-medium underline underline-offset-4"
-                        >
-                          Manage Sandbox Policies
-                        </Link>
-                      </nav>
-                    </div>
-                    <div className="grid items-start gap-x-5 gap-y-5 md:grid-cols-2">
+                    <h3
+                      id="works-on-heading"
+                      className="flex items-center gap-2 text-sm font-semibold"
+                    >
+                      <Waypoints className="size-4" /> Execution
+                    </h3>
+                    <div className="space-y-5">
                       <form.Field name="policyId">
                         {(field) => (
                           <div className="space-y-2">
-                            <div className="flex min-h-8 items-center justify-between gap-3">
+                            <div className="flex flex-col gap-1 sm:min-h-11 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                               <FieldLabel
                                 label="Sandbox Policy"
                                 tip="Controls the files, commands, and network resources the Agent can access while it runs."
                               />
+                              <Link
+                                to="/$projectId/runtime-policies"
+                                params={{ projectId }}
+                                className="inline-flex min-h-11 items-center text-xs font-medium underline underline-offset-4"
+                              >
+                                Manage Sandbox Policies
+                              </Link>
                             </div>
                             <Select
                               value={field.state.value}
@@ -975,7 +952,12 @@ export function CreateInstanceSheet({
                               >
                                 {policies.error.message}
                               </p>
-                            ) : null}
+                            ) : (
+                              <p className="text-xs text-muted-foreground">
+                                Controls the files, commands, and network
+                                resources this Agent can access.
+                              </p>
+                            )}
                           </div>
                         )}
                       </form.Field>
@@ -989,12 +971,33 @@ export function CreateInstanceSheet({
                           );
                           return (
                             <div className="space-y-2">
-                              <div className="flex min-h-8 items-center">
+                              <div className="flex flex-col gap-1 sm:min-h-11 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                                 <FieldLabel
                                   htmlFor="instance-model-routing"
                                   label="Routing"
                                   tip="Select the LiteLLM-managed routing configuration for this Instance. The Project default is preselected when available."
                                 />
+                                <nav
+                                  aria-label="Manage routing settings"
+                                  className="flex flex-wrap items-center gap-x-5"
+                                >
+                                  <Link
+                                    to="/$projectId/setting"
+                                    params={{ projectId }}
+                                    search={{ section: "models" }}
+                                    className="inline-flex min-h-11 items-center text-xs font-medium underline underline-offset-4"
+                                  >
+                                    Manage Models
+                                  </Link>
+                                  <Link
+                                    to="/$projectId/setting"
+                                    params={{ projectId }}
+                                    search={{ section: "routing" }}
+                                    className="inline-flex min-h-11 items-center text-xs font-medium underline underline-offset-4"
+                                  >
+                                    Manage Routing
+                                  </Link>
+                                </nav>
                               </div>
                               <Select
                                 value={field.state.value}
@@ -1177,7 +1180,7 @@ export function CreateInstanceSheet({
                                 ? "Workbench-managed"
                                 : durableMemoryId
                                   ? `Continue · ${availableDurableMemories.find((item) => item.id === durableMemoryId)?.displayName ?? "Existing Memory"}`
-                                  : "Create new durable Memory"
+                                  : "Durable Memory · automatic"
                             }
                           />
                         </dl>

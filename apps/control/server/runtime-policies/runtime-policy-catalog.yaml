@@ -1,4 +1,4 @@
-defaultPolicyId: unrestricted
+defaultPolicyId: managed-runtime
 basePolicy:
   version: 1
   filesystem_policy:
@@ -21,16 +21,10 @@ basePolicy:
     run_as_user: sandbox
     run_as_group: sandbox
 policies:
-  - id: unrestricted
-    name: Unrestricted
-    description: Allows arbitrary shell, file creation, modification, and execution inside sandbox-owned writable paths.
-    networkAccess: Managed inference · operator-approved outbound destinations
-    policy:
-      network_policies: {}
-  - id: restricted
-    name: Restricted
-    description: Uses the writable runtime baseline while denying additional outbound destinations by default.
-    networkAccess: Managed inference only
+  - id: managed-runtime
+    name: Managed Runtime
+    description: Provides the writable Agent runtime baseline while denying undeclared outbound destinations.
+    networkAccess: Managed Providers only · Toolbox grants are composed explicitly
     policy:
       network_policies: {}
   - id: github-readonly

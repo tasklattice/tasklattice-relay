@@ -20,6 +20,9 @@ const money = z.number().nonnegative();
 export const projectParamsSchema = z.object({ projectId: id });
 export const departmentParamsSchema = z.object({ departmentId: id });
 export const instanceParamsSchema = projectParamsSchema.extend({ instanceId: uuid });
+export const instanceOperationParamsSchema = instanceParamsSchema.extend({
+  operationId: uuid,
+});
 export const providerParamsSchema = projectParamsSchema.extend({ providerId: uuid });
 export const modelParamsSchema = projectParamsSchema.extend({ modelId: uuid });
 export const routingParamsSchema = projectParamsSchema.extend({ routingId: uuid });

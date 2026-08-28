@@ -20,6 +20,7 @@ import {
   vectorDatabaseSearchInputSchema,
   vectorDatabaseSearchResultSchema,
   vectorChunkMutationResultSchema,
+  vectorDocumentChunksSchema,
   vectorDocumentDetailSchema,
   vectorDocumentSchema,
   vectorFolderSchema,
@@ -164,9 +165,15 @@ export const catalogContracts = defineContracts([
   }),
   projectRoute({
     method: "get", path: "/catalog/vector-databases/{id}/documents/{documentId}", operationId: "getVectorDocument",
-    summary: "Read a Vector Document and its active chunks", tags: ["Vector Databases"],
+    summary: "Read a Vector Document and a lightweight indexed-text preview", tags: ["Vector Databases"],
     request: { params: vectorDocumentParamsSchema },
     responses: { 200: response("Vector Document", vectorDocumentDetailSchema) },
+  }),
+  projectRoute({
+    method: "get", path: "/catalog/vector-databases/{id}/documents/{documentId}/chunks", operationId: "getVectorDocumentChunks",
+    summary: "Read the active chunks for a Vector Document", tags: ["Vector Databases"],
+    request: { params: vectorDocumentParamsSchema },
+    responses: { 200: response("Vector Document chunks", vectorDocumentChunksSchema) },
   }),
   projectRoute({
     method: "patch", path: "/catalog/vector-databases/{id}/documents/{documentId}", operationId: "updateVectorDocument",

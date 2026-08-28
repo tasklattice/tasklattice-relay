@@ -199,10 +199,16 @@ hindsight:
     user: hindsight
     schema: hindsight
   models:
-    # These are stable aliases expected on the existing LiteLLM gateway.
+    # These are stable aliases expected on the existing LiteLLM gateway. The
+    # provider selectors remain explicit so an installation can use a
+    # deterministic local fallback (for example RRF) without patching the
+    # Deployment after Helm has reconciled it.
+    llmProvider: openai
     llm: hindsight-chat
+    embeddingProvider: litellm
     embedding: hindsight-embedding
     embeddingDimensions: 1536
+    rerankerProvider: litellm
     reranker: hindsight-reranker
   worker:
     # Keep extraction inside the API process until load testing justifies a

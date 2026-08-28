@@ -8,6 +8,8 @@ import type {
   CreateInstanceLogSessionInput,
   InstanceInteractionAccess,
   InstanceRuntimeLogView,
+  InstanceCreationAccepted,
+  InstanceLifecycleOperation,
   AgentGardenEntry,
   AgentGardenSnapshot,
   A2aAgentInstance,
@@ -39,6 +41,7 @@ import type {
   VectorDatabaseOverview,
   VectorDatabaseSearchInput,
   VectorDatabaseSearchResult,
+  VectorDocumentChunks,
   VectorDocumentDetail,
   VectorDocument,
   VectorFolder,
@@ -373,6 +376,10 @@ export const api = {
   getVectorDocument: (id: string, documentId: string) =>
     request<VectorDocumentDetail>(
       `/api/v1/catalog/vector-databases/${encodeURIComponent(id)}/documents/${encodeURIComponent(documentId)}`,
+    ),
+  getVectorDocumentChunks: (id: string, documentId: string) =>
+    request<VectorDocumentChunks>(
+      `/api/v1/catalog/vector-databases/${encodeURIComponent(id)}/documents/${encodeURIComponent(documentId)}/chunks`,
     ),
   deleteVectorDocument: (id: string, documentId: string) =>
     request<{ message: string }>(
@@ -721,10 +728,14 @@ export const api = {
       )
     ).data,
   createInstance: (input: CreateInstanceInput) =>
-    request<Agent>("/api/v1/instances", {
+    request<InstanceCreationAccepted>("/api/v1/instances", {
       method: "POST",
       body: JSON.stringify(input),
     }),
+  getInstanceLifecycleOperation: (instanceId: string, operationId: string) =>
+    request<InstanceLifecycleOperation>(
+      `/api/v1/instances/${encodeURIComponent(instanceId)}/operations/${encodeURIComponent(operationId)}`,
+    ),
   deleteInstance: (id: string) =>
     request<InstanceDeletionAcceptedView>(`/api/v1/instances/${id}`, { method: "DELETE" }),
   updateAgentAccessPolicies: (id: string, accessPolicyIds: string[]) =>

@@ -12,11 +12,14 @@ import {
   isOpenShellProviderAttachedError,
   openShellLiteLlmProfileApplyArguments,
   openShellLiteLlmProfileExportArguments,
+  openShellRuntimeBridgeProfileApplyArguments,
+  openShellRuntimeBridgeProfileExportArguments,
   openShellHermesWebUiProbeArguments,
   openShellHermesWebUiSecretArguments,
   openShellNemoClawProbeArguments,
   openShellAuditArguments,
   openShellSandboxCreateArguments,
+  openShellRuntimeBridgeProviderName,
   openShellTerminalArguments,
   openShellWebUiOrigin,
   openShellWebUiOriginEnsureArguments,
@@ -28,8 +31,11 @@ import {
   parseOpenShellServiceUrl,
   parseOpenShellAuditLog,
   runTelemetryEnvironmentFile,
+  runtimeBridgeProviderCreateCommand,
   taliLiteLlmProviderProfile,
   taliLiteLlmProviderProfileId,
+  taliRuntimeBridgeProviderProfile,
+  taliRuntimeBridgeProviderProfileId,
   tokenizedOpenClawUrl,
   tokenizedHermesDashboardUrl,
 } from "./openshell.js";
@@ -125,6 +131,37 @@ describe("OpenShell Kubernetes command contract", () => {
         1,
       ),
     ).toContain("--global");
+  });
+
+  it("defines a separate Runtime Bridge Provider without putting its token in argv", () => {
+    const runtimeBridgeUrl =
+      "http://tali-agent-runtime-bridge.tp-abcdefghijklmnop.svc.cluster.local:8080";
+    const bridgeInput = {
+      ...input,
+      projectRuntimeBridgeToken: "tali_prc_v1.test-payload.test-signature",
+    };
+    const command = runtimeBridgeProviderCreateCommand(
+      bridgeInput,
+      runtimeBridgeUrl,
+      { workspace: "tp-abcdefghijklmnop" },
+    );
+    const profile = taliRuntimeBridgeProviderProfile(runtimeBridgeUrl);
+
+    expect(command.args).toContain(taliRuntimeBridgeProviderProfileId);
+    expect(command.args).toContain("TALI_PROJECT_RUNTIME_BRIDGE_TOKEN");
+    expect(command.args).toContain("TALI_DURABLE_MEMORY_TOKEN");
+    expect(command.args.join(" ")).not.toContain(
+      "tali_prc_v1.test-payload.test-signature",
+    );
+    expect(command.env.TALI_PROJECT_RUNTIME_BRIDGE_TOKEN).toBe(
+      "tali_prc_v1.test-payload.test-signature",
+    );
+    expect(profile).toContain("id: tali-runtime-bridge");
+    expect(profile).toContain("inference_capable: false");
+    expect(profile).toContain("TALI_DURABLE_MEMORY_TOKEN");
+    expect(openShellRuntimeBridgeProfileExportArguments()).toContain("--global");
+    expect(openShellRuntimeBridgeProfileApplyArguments("/tmp/bridge.yaml"))
+      .toContain("--global");
   });
 
   it("recognizes the transient Provider attachment conflict during deletion", () => {
@@ -281,7 +318,7 @@ describe("OpenShell Kubernetes command contract", () => {
     expect(policy).toBe("version: 1\n");
   });
 
-  it("allows Hermes binaries to reach only the Project Runtime Bridge service", () => {
+  it("leaves Runtime Bridge routing to its attached Provider profile", () => {
     const policy = composeOpenShellInferencePolicy(
       "version: 1\n",
       "https://inference.example.com/v1",
@@ -290,13 +327,7 @@ describe("OpenShell Kubernetes command contract", () => {
       "http://tali-agent-runtime-bridge.tp-abcdefghijklmnop.svc.cluster.local:8080",
     );
 
-    expect(policy).toContain("tali_project_runtime_bridge:");
-    expect(policy).toContain(
-      "host: tali-agent-runtime-bridge.tp-abcdefghijklmnop.svc.cluster.local",
-    );
-    expect(policy).toContain("port: 8080");
-    expect(policy).toContain("path: /opt/hermes/.venv/bin/python3");
-    expect(policy).not.toContain("path: /usr/bin/curl");
+    expect(policy).toBe("version: 1\n");
   });
 
   it("allows only the runtime binary to post lifecycle telemetry to Control", () => {
@@ -378,18 +409,24 @@ describe("OpenShell Kubernetes command contract", () => {
 
   it("uses the Hermes image, state path, health probe, and TUI adapter", () => {
     const hermesInput = { ...input, agentPlatform: "hermes" as const };
+    const bridgeInput = {
+      ...hermesInput,
+      projectRuntimeBridgeToken: "tali_prc_v1.test-payload.test-signature",
+    };
     const createArgs = openShellSandboxCreateArguments(
-      hermesInput,
+      bridgeInput,
       "/tmp/SOUL.md",
       "/tmp/tali-nemoclaw-start",
       "/tmp/openshell-policy.yaml",
       "/tmp/tali-run-telemetry.env",
+      { workspace: "tp-abcdefghijklmnop" },
     );
 
     expect(createArgs).toContain(
       "ghcr.io/tasklattice/tali-nemoclaw-hermes-sandbox:dev",
     );
     expect(createArgs).toContain("/tmp/SOUL.md:/sandbox/.hermes/SOUL.md");
+    expect(createArgs).toContain(openShellRuntimeBridgeProviderName(hermesInput.name));
     expect(createArgs).not.toContain(
       "/tmp/tali-run-telemetry.env:/tmp/tali-run-telemetry.env",
     );
@@ -420,22 +457,23 @@ describe("OpenShell Kubernetes command contract", () => {
       undefined,
       "http://tali-agent-runtime-bridge.tp-abcdefghijklmnop.svc.cluster.local:8080",
       hermesInput.instanceId,
-      "tali_prc_v1.test-payload.test-signature",
+      true,
     );
     expect(bootstrap).toContain("--a2a-registry-url");
     expect(bootstrap).toContain(
-      '--a2a-registry-token "tali_prc_v1.test-payload.test-signature"',
+      '--a2a-registry-token "$TALI_PROJECT_RUNTIME_BRIDGE_TOKEN"',
     );
     expect(bootstrap).toContain(
       `coordinatorInstanceId=${hermesInput.instanceId}`,
     );
     expect(bootstrap).toContain("--vector-database-registry-url");
     expect(bootstrap).toContain(
-      '--vector-database-registry-token "tali_prc_v1.test-payload.test-signature"',
+      '--vector-database-registry-token "$TALI_PROJECT_RUNTIME_BRIDGE_TOKEN"',
     );
     expect(bootstrap).toContain("--durable-memory-provider tali_relay");
     expect(bootstrap).toContain("TALI_DURABLE_MEMORY_ENDPOINT");
-    expect(bootstrap).toContain("TALI_DURABLE_MEMORY_TOKEN");
+    expect(bootstrap).not.toContain("tali_prc_v1.test-payload.test-signature");
+    expect(bootstrap).not.toContain("export TALI_DURABLE_MEMORY_TOKEN=");
     expect(bootstrap).not.toContain("\n+");
   });
 
@@ -564,7 +602,6 @@ describe("OpenShell Kubernetes command contract", () => {
   });
 
   it("enables the scoped Durable Memory plugin for OpenClaw without exposing a Bank id", () => {
-    const token = "tali_prc_v1.test-payload.test-signature";
     const bridge = "http://tali-agent-runtime-bridge.tp-abcdefghijklmnop.svc.cluster.local:8080";
     const bootstrap = getAgentPlatformRuntime("openclaw").bootstrapScript(
       "http://openclaw.example.test",
@@ -574,13 +611,14 @@ describe("OpenShell Kubernetes command contract", () => {
       { mode: "native", citations: "auto" },
       bridge,
       input.instanceId,
-      token,
+      true,
     );
 
     expect(bootstrap).toContain("/usr/local/lib/tali/openclaw-durable-memory");
     expect(bootstrap).toContain('pluginEntries["tali-durable-memory"]');
     expect(bootstrap).toContain("allowPromptInjection: true");
-    expect(bootstrap).toContain(Buffer.from(token).toString("base64"));
+    expect(bootstrap).not.toContain("tali_prc_v1.test-payload.test-signature");
+    expect(bootstrap).not.toContain("export TALI_DURABLE_MEMORY_TOKEN=");
     expect(bootstrap).toContain(Buffer.from(
       `${bridge}/v1/memory/coordinators/${input.instanceId}`,
     ).toString("base64"));
