@@ -31,8 +31,8 @@ independent Project capability and is not structurally replaced by this work.
 - [x] Phase 3: Memory lifecycle, binding, deletion, worker recovery, Agent compensation.
 - [x] Phase 4: runtime gateway, Hermes/OpenClaw hooks, fail-open recall and retain capture.
 - [x] Phase 5: complete REST API, RBAC, audit-safe projections and server pagination.
-- [ ] Phase 6: Memory console and Agent lifecycle UI with complete state coverage.
-- [ ] Phase 7: threat model, observability, 16 end-to-end scenarios, runbooks and rollback.
+- [x] Phase 6: Memory console and Agent lifecycle UI with complete state coverage.
+- [x] Phase 7: threat model, observability, 16 end-to-end scenarios, runbooks and rollback.
 
 ## Phase 0 baseline
 
@@ -221,3 +221,73 @@ do not remove the index until every in-flight create request has expired.
   45 tests); Control typecheck and exact OpenAPI/route coverage passed. After
   the role revision and sanitizer assertions were finalized, the focused role,
   audit, and provider contract suite passed (3 files / 27 tests).
+
+## Phase 6 completion record
+
+- Added the Project Memory resource list and five-tab detail console using the
+  existing shadcn components, typography, spacing, colors, and rounded surfaces.
+  All counts, lists, filters, cursors, activity, health, and binding data come
+  from the Project-scoped REST API.
+- Added Conversation, Fact, and Experience right-side Sheets with evidence,
+  redact/delete/re-extract, edit, invalidate/restore, and optimistic-conflict
+  recovery. The Experience Sheet preserves the required Summary, Situation,
+  Goal, Actions, Outcome, Lesson learned, and Source evidence order and expands
+  to full width on small screens.
+- Added Agent-create selection for a new or reusable Memory, the Agent-delete
+  preservation notice and retained-Memory link, admin-only Settings/Danger
+  actions, role-aware navigation, feature-flag hiding, loading skeletons, empty
+  and error recovery, degraded/deletion-failed banners, pagination, focus-visible
+  controls, 44-pixel action targets, and reduced-motion behavior.
+- Automated component, routing, permission, source, and populated-Sheet gates
+  pass. The authenticated local OrbStack release gate exercised Memory create,
+  list/detail navigation, all five tabs and empty states, Settings health and
+  masked provider details, rename, typed-name deletion, Agent-create new/reuse
+  choices, and desktop/mobile layouts at `http://localhost:38080/proj1/memory`.
+  The Vibe Designing release-gate review scored 8.6/10 with no blocker; the
+  compact tab rail remains horizontally scrollable and Sheets use full width on
+  small screens. Browser QA exposed a PostgreSQL advisory-lock `void` result
+  that Prisma could not deserialize. The query now casts the lock result to a
+  supported type; the local image rollout, live delete retry, health check, and
+  focused repository test all passed. The temporary QA Memory was deleted.
+- OrbStack revision 22 runs the locally built development Control, Runner,
+  OpenClaw, and Hermes images with PostgreSQL, LiteLLM, Docling, and the pinned
+  Hindsight API ready. The authenticated browser gate used a local-only QA
+  embedding endpoint because this workstation has no configured local embedding
+  model; the pinned Hindsight live integration suite remains the provider-level
+  production contract evidence.
+
+## Phase 7 completion record
+
+- Added a default-on environment/Project feature flag. An allowlist supports
+  gradual rollout; disabling new Memory traffic hides navigation and returns a
+  generic not-found response while existing bound runtime credentials continue
+  to serve already-running Agents.
+- Added authenticated low-cardinality Prometheus metrics for Memory and binding
+  states, recall/retain outcomes and latency, provider health, lifecycle
+  failures, and outbox backlog/age/retry/dead-letter state. Optional
+  ServiceMonitors collect Relay, Control Worker, Hindsight API, and the optional
+  Hindsight worker without exposing Project, Memory, Bank, or content labels.
+- Added actionable Prometheus rules for backlog count/age, provider
+  unavailability, recall/retain failure rates, deletion failure, Hindsight
+  asynchronous failures, and no-facts extraction. Prometheus ingress is limited
+  by configurable namespace and Pod selectors.
+- Hardened recursive structured-log sanitization for authorization, cookies,
+  database URLs, keys, credentials, nested errors, arrays, and cycles. Hindsight
+  full LLM tracing, 4xx prompt dumps, and Bank-ID metric labels remain disabled.
+- Project deletion now detaches active Memory bindings, idempotently recovers a
+  provisioning Bank when necessary, verifies every provider Bank is absent, and
+  leaves the Project cleanup tombstone retryable when the provider is down.
+- Added deployment/rollout, monitoring/alerting, backup/restore,
+  upgrade/rollback, troubleshooting, uninstall/data-deletion, and threat-model
+  runbooks. Runtime provider settings remain operator-managed and are audited by
+  the deployment system instead of exposing a root-credential mutation API.
+- Added `npm run test:durable-memory:acceptance`, which repeats all 16 required
+  scenarios across 189 focused Control tests, 10 Runtime tests, the pinned real
+  Hindsight API/worker and pgvector integration, manifest/OpenShift validators,
+  the 66-migration seeded upgrade path, and a production Memory mock scan.
+- Final repository regression: `npm run typecheck` passed; `npm test` passed
+  Control 614 tests (one skipped), Runner 61, and example MCP 5; `npm run build`
+  passed; Vendor Skill packaging, Helm dependency preparation, base/development
+  lint, resource, OpenShift, air-gap, and development-default validators passed.
+  The Control test timeout is 15 seconds so database-heavy tests remain stable
+  under the full suite's parallel load.

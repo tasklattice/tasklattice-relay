@@ -806,8 +806,10 @@ export class MemoryRepository {
     memoryId: string,
   ): Promise<void> {
     const [projectLock, memoryLock] = memoryLockParts(this.projectId, memoryId);
+    // PostgreSQL exposes advisory locks as a `void` result. Cast it so Prisma
+    // does not try to deserialize the unsupported pseudo-type.
     await transaction.$queryRaw(
-      Prisma.sql`SELECT pg_advisory_xact_lock(${projectLock}, ${memoryLock})`,
+      Prisma.sql`SELECT pg_advisory_xact_lock(${projectLock}, ${memoryLock})::text AS locked`,
     );
   }
 }
