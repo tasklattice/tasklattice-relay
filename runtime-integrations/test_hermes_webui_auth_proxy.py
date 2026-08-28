@@ -5,6 +5,7 @@ import sys
 import time
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from aiohttp import ClientSession, ClientTimeout, CookieJar, WSMsgType, web
 from aiohttp.test_utils import TestClient, TestServer
@@ -21,6 +22,7 @@ SPEC.loader.exec_module(proxy)
 class HermesWebUiAuthProxyTest(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self) -> None:
         upstream_app = web.Application()
+        self.websocket_headers: list[dict[str, str]] = []
 
         async def dashboard(_request: web.Request) -> web.Response:
             return web.Response(text="dashboard")
@@ -35,6 +37,13 @@ class HermesWebUiAuthProxyTest(unittest.IsolatedAsyncioTestCase):
             return response
 
         async def websocket(request: web.Request) -> web.WebSocketResponse:
+            self.websocket_headers.append(
+                {
+                    "origin": request.headers.get("origin", ""),
+                    "x-forwarded-host": request.headers.get("x-forwarded-host", ""),
+                    "x-forwarded-proto": request.headers.get("x-forwarded-proto", ""),
+                }
+            )
             channel = web.WebSocketResponse()
             await channel.prepare(request)
             async for message in channel:
@@ -121,11 +130,75 @@ class HermesWebUiAuthProxyTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_forwards_authenticated_websockets(self) -> None:
         await self.authenticate()
-        channel = await self.client.ws_connect("/ws")
+        external_origin = str(self.client.make_url("/").origin())
+        channel = await self.client.ws_connect("/ws", origin=external_origin)
         await channel.send_str("hello")
         message = await channel.receive(timeout=2)
         self.assertEqual(message.data, "echo:hello")
         await channel.close()
+        self.assertEqual(
+            self.websocket_headers,
+            [
+                {
+                    "origin": str(self.upstream.make_url("/").origin()),
+                    "x-forwarded-host": self.client.make_url("/").host_port_subcomponent,
+                    "x-forwarded-proto": "http",
+                }
+            ],
+        )
+
+    async def test_accepts_gateway_forwarded_external_websocket_authority(
+        self,
+    ) -> None:
+        await self.authenticate()
+        external_authority = "dynamic--webui.openshell.localhost:8080"
+        channel = await self.client.ws_connect(
+            "/ws",
+            origin=f"http://{external_authority}",
+            headers={
+                "x-forwarded-host": external_authority,
+                # A nested localhost gateway can report a different transport
+                # scheme even though the browser authority is still exact.
+                "x-forwarded-proto": "https",
+            },
+        )
+        await channel.send_str("hello")
+        message = await channel.receive(timeout=2)
+        self.assertEqual(message.data, "echo:hello")
+        await channel.close()
+        self.assertEqual(
+            self.websocket_headers[-1]["origin"],
+            str(self.upstream.make_url("/").origin()),
+        )
+
+    async def test_accepts_dynamic_route_for_current_sandbox_hostname(self) -> None:
+        await self.authenticate()
+        with patch.object(
+            proxy.socket,
+            "gethostname",
+            return_value="project--instance",
+        ):
+            channel = await self.client.ws_connect(
+                "/ws",
+                origin=(
+                    "http://project--instance--webui."
+                    "openshell.localhost:8080"
+                ),
+            )
+        await channel.send_str("hello")
+        message = await channel.receive(timeout=2)
+        self.assertEqual(message.data, "echo:hello")
+        await channel.close()
+
+    async def test_rejects_websocket_origin_that_does_not_match_external_host(
+        self,
+    ) -> None:
+        await self.authenticate()
+        channel = await self.client.ws_connect("/ws", origin="https://attacker.example")
+        message = await channel.receive(timeout=2)
+        self.assertEqual(message.type, WSMsgType.CLOSE)
+        self.assertEqual(channel.close_code, 4403)
+        self.assertEqual(self.websocket_headers, [])
 
     async def test_rejects_missing_and_expired_access(self) -> None:
         missing = await self.client.get("/")

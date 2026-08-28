@@ -307,7 +307,7 @@ describe("OpenShell Kubernetes command contract", () => {
     expect(policy).not.toContain("tali-litellm");
   });
 
-  it("does not duplicate Provider routing in a minimal Hermes policy", () => {
+  it("allows the Hermes runtime to post lifecycle telemetry", () => {
     const policy = composeOpenShellInferencePolicy(
       "version: 1\n",
       "https://inference.example.com/v1",
@@ -315,7 +315,22 @@ describe("OpenShell Kubernetes command contract", () => {
       "http://tali-control.tali.svc.cluster.local:38080/api/internal/run-events",
     );
 
-    expect(policy).toBe("version: 1\n");
+    expect(policy).toContain("tali_run_telemetry:");
+    expect(policy).toContain("host: tali-control.tali.svc.cluster.local");
+    expect(policy).toContain("path: /opt/hermes/.venv/bin/python3");
+    expect(policy).not.toContain("/usr/bin/curl");
+  });
+
+  it("allows Hermes to allocate nested PTYs through the devpts mount", () => {
+    const policy = composeOpenShellInferencePolicy(
+      "version: 1\nfilesystem_policy:\n  read_write:\n    - /sandbox\n    - /tmp\n    - /dev/null\n",
+      "https://inference.example.com/v1",
+      "hermes",
+    );
+
+    expect(policy).toContain("- /dev/pts");
+    expect(policy).not.toContain("/dev/ptmx");
+    expect(policy.match(/- \/dev\/pts/g)).toHaveLength(1);
   });
 
   it("leaves Runtime Bridge routing to its attached Provider profile", () => {
@@ -327,7 +342,9 @@ describe("OpenShell Kubernetes command contract", () => {
       "http://tali-agent-runtime-bridge.tp-abcdefghijklmnop.svc.cluster.local:8080",
     );
 
-    expect(policy).toBe("version: 1\n");
+    expect(policy).toContain("version: 1\n");
+    expect(policy).toContain("- /dev/pts");
+    expect(policy).not.toContain("network_policies:");
   });
 
   it("allows only the runtime binary to post lifecycle telemetry to Control", () => {
@@ -427,7 +444,7 @@ describe("OpenShell Kubernetes command contract", () => {
     );
     expect(createArgs).toContain("/tmp/SOUL.md:/sandbox/.hermes/SOUL.md");
     expect(createArgs).toContain(openShellRuntimeBridgeProviderName(hermesInput.name));
-    expect(createArgs).not.toContain(
+    expect(createArgs).toContain(
       "/tmp/tali-run-telemetry.env:/tmp/tali-run-telemetry.env",
     );
     expect(
@@ -546,8 +563,8 @@ describe("OpenShell Kubernetes command contract", () => {
     expect(bootstrap).toContain("[bootstrap] Hermes identity");
     expect(bootstrap).toContain("bootstrap-hermes-config.py");
     expect(bootstrap).toContain("hermes-webui-auth-proxy.py");
-    expect(bootstrap).not.toContain("TALI_RUN_TELEMETRY_TOKEN");
-    expect(bootstrap).not.toContain("hermes-run-telemetry");
+    expect(bootstrap).toContain("TALI_RUN_TELEMETRY_TOKEN");
+    expect(bootstrap).toContain("/tmp/tali-run-telemetry.env");
     expect(bootstrap).toContain("--listen-port \"$webui_public_port\"");
     expect(bootstrap).toContain('--parent-pid "$$"');
     expect(bootstrap).toContain('NEMOCLAW_DASHBOARD_PORT=$webui_upstream_port');
@@ -574,6 +591,8 @@ describe("OpenShell Kubernetes command contract", () => {
 
     expect(dockerfile).toContain("patch-hermes-dashboard-health-auth.py");
     expect(dockerfile).toContain("patch-hermes-nonroot-cron-drain.py");
+    expect(dockerfile).toContain("hermes-run-telemetry/plugin.yaml");
+    expect(dockerfile).toContain("hermes-run-telemetry/__init__.py");
     expect(dockerfile).toContain(
       "patch-hermes-dashboard-credential-placeholder.py",
     );

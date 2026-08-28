@@ -44,7 +44,7 @@ export const agentPlatforms = [
       interactive: true,
       canDelegate: true,
       acceptsDelegation: false,
-      embeddedRunTelemetry: false,
+      embeddedRunTelemetry: true,
       memory: "none",
     },
     catalog: {

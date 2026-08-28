@@ -229,6 +229,13 @@ const hermesBootstrapScript = (
   return `#!/usr/bin/env bash
 set -euo pipefail
 
+readonly telemetry_env_file=/tmp/tali-run-telemetry.env
+source "$telemetry_env_file"
+rm -f "$telemetry_env_file"
+export TALI_RUN_TELEMETRY_ENDPOINT="$(printf '%s' "$TALI_RUN_TELEMETRY_ENDPOINT_B64" | base64 -d)"
+export TALI_RUN_TELEMETRY_TOKEN="$(printf '%s' "$TALI_RUN_TELEMETRY_TOKEN_B64" | base64 -d)"
+unset TALI_RUN_TELEMETRY_ENDPOINT_B64 TALI_RUN_TELEMETRY_TOKEN_B64
+
 readonly hermes_dir=/sandbox/.hermes
 readonly config_file="$hermes_dir/config.yaml"
 readonly hash_file="$hermes_dir/.config-hash"

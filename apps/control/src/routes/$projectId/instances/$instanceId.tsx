@@ -144,7 +144,6 @@ function AgentDetail() {
       <A2aInstanceDetail
         activeTab={activeTab}
         canManage={permissions.canManageResources}
-        canViewAuditLogs={permissions.canViewAuditLogs}
         canViewLogs={permissions.canViewAgentLogs}
         detail={detail.data}
       />

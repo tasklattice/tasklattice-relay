@@ -134,6 +134,11 @@
   --cost-series-4: #f08a3c;
   --cost-series-5: #24a6b8;
   --cost-series-6: #9b8cff;
+  --overview-series-1: #5d879b;
+  --overview-series-2: #7d9277;
+  --overview-series-3: #b18e65;
+  --overview-series-4: #8f8199;
+  --overview-series-5: #7b8991;
   --trace-agent: #4339ff;
   --trace-generation: #8b5cf6;
   --trace-tool: #d97706;
@@ -191,6 +196,11 @@
   --cost-series-4: #f5a15f;
   --cost-series-5: #49c1d2;
   --cost-series-6: #b5a8ff;
+  --overview-series-1: #79a8bc;
+  --overview-series-2: #9ab094;
+  --overview-series-3: #c5a57c;
+  --overview-series-4: #ac9bb8;
+  --overview-series-5: #9cabb3;
   --trace-agent: #8b7cff;
   --trace-generation: #b196ff;
   --trace-tool: #f0a64b;

@@ -1336,12 +1336,32 @@ export function CreateInstanceSheet({
                                       ? "Loading permissions…"
                                       : "Select a permission"
                                   }
-                                />
+                                >
+                                  {(() => {
+                                    const selectedPolicy =
+                                      policies.data?.policies.find(
+                                        (policy) =>
+                                          policy.id === field.state.value,
+                                      );
+                                    return selectedPolicy ? (
+                                      <SandboxPolicyIdentity
+                                        policy={selectedPolicy}
+                                      />
+                                    ) : null;
+                                  })()}
+                                </SelectValue>
                               </SelectTrigger>
                               <SelectContent>
                                 {policies.data?.policies.map((policy) => (
-                                  <SelectItem key={policy.id} value={policy.id}>
-                                    {policy.name} · {policy.networkAccess}
+                                  <SelectItem
+                                    key={policy.id}
+                                    value={policy.id}
+                                    className="py-3"
+                                  >
+                                    <SandboxPolicyIdentity
+                                      policy={policy}
+                                      showDescription
+                                    />
                                   </SelectItem>
                                 ))}
                               </SelectContent>
@@ -2037,6 +2057,33 @@ function ModelRoutingIdentity({
         {showDescription && routing.description ? (
           <span className="mt-0.5 block max-w-lg truncate text-[11px] text-muted-foreground">
             {routing.description}
+          </span>
+        ) : null}
+      </span>
+    </span>
+  );
+}
+
+function SandboxPolicyIdentity({
+  policy,
+  showDescription = false,
+}: {
+  policy: SandboxPolicy;
+  showDescription?: boolean;
+}) {
+  return (
+    <span className="flex min-w-0 items-center gap-3 text-left">
+      <span className="grid size-8 shrink-0 place-items-center rounded-sm border bg-muted/40 text-muted-foreground">
+        <ShieldCheck className="size-4" />
+      </span>
+      <span className="min-w-0">
+        <strong className="block text-sm">{policy.name}</strong>
+        <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+          {policy.networkAccess}
+        </span>
+        {showDescription ? (
+          <span className="mt-0.5 block max-w-lg truncate text-[11px] text-muted-foreground">
+            {policy.description}
           </span>
         ) : null}
       </span>

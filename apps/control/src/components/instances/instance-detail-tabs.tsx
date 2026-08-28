@@ -25,15 +25,17 @@ const labels: Record<InstanceDetailTab, string> = {
 export function InstanceTabs({
   active,
   instanceId,
+  logs,
   terminal,
 }: {
   active: InstanceDetailTab;
   instanceId: string;
+  logs?: { enabled: boolean; disabledReason?: string };
   terminal: InstanceAccessState["terminal"];
 }) {
   const projectId = useCurrentProjectId();
   const navRef = useRef<HTMLElement>(null);
-  const activeTabRef = useRef<HTMLAnchorElement>(null);
+  const activeTabRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     const nav = navRef.current;
@@ -57,23 +59,38 @@ export function InstanceTabs({
       >
         <TabsList variant="line" className="min-w-max px-1">
           {instanceDetailTabs.map((tab) => {
-            const disabled = tab === "terminal" && !terminal.enabled;
+            const access =
+              tab === "terminal"
+                ? terminal
+                : tab === "logs"
+                  ? logs
+                  : undefined;
+            const disabled = access ? !access.enabled : false;
             if (disabled)
               return (
                 <Tooltip key={tab}>
                   <TooltipTrigger asChild>
-                    <span className="inline-flex">
+                    <span
+                      ref={
+                        tab === active
+                          ? (element) => {
+                              activeTabRef.current = element;
+                            }
+                          : undefined
+                      }
+                      className="inline-flex"
+                    >
                       <TabsTrigger
                         value={tab}
                         disabled
-                        aria-label={`Terminal unavailable. ${terminal.disabledReason ?? "Terminal access is unavailable."}`}
+                        aria-label={`${labels[tab]} unavailable. ${access?.disabledReason ?? `${labels[tab]} access is unavailable.`}`}
                         className="pointer-events-none min-h-11 snap-start"
                       >
                         {labels[tab]}
                       </TabsTrigger>
                     </span>
                   </TooltipTrigger>
-                  <TooltipContent>{terminal.disabledReason}</TooltipContent>
+                  <TooltipContent>{access?.disabledReason}</TooltipContent>
                 </Tooltip>
               );
             return (
@@ -84,7 +101,13 @@ export function InstanceTabs({
                 className="min-h-11 snap-start"
               >
                 <Link
-                  ref={tab === active ? activeTabRef : undefined}
+                  ref={
+                    tab === active
+                      ? (element) => {
+                          activeTabRef.current = element;
+                        }
+                      : undefined
+                  }
                   to="/$projectId/instances/$instanceId"
                   params={{ projectId, instanceId }}
                   search={{ tab }}

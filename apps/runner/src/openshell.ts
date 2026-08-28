@@ -782,6 +782,28 @@ export function composeOpenShellInferencePolicy(
   if (!isRecord(document) || document.version !== 1)
     throw new Error("OpenShell Policy YAML must be an object with version: 1.");
 
+  if (agentPlatform === "hermes") {
+    const filesystemPolicy = isRecord(document.filesystem_policy)
+      ? { ...document.filesystem_policy }
+      : {};
+    if (
+      filesystemPolicy.read_write !== undefined
+      && !Array.isArray(filesystemPolicy.read_write)
+    ) {
+      throw new Error("OpenShell Policy filesystem_policy.read_write must be an array.");
+    }
+    const readWrite = Array.isArray(filesystemPolicy.read_write)
+      ? [...filesystemPolicy.read_write]
+      : [];
+    // Hermes' browser Chat launches its TUI in a nested PTY. OpenShell 0.0.106
+    // can safely prepare the existing devpts mount, while adding /dev/ptmx
+    // itself would fail because that path is a symlink. Landlock authorizes
+    // the resolved /dev/pts/ptmx device through this mount-level rule.
+    if (!readWrite.includes("/dev/pts")) readWrite.push("/dev/pts");
+    filesystemPolicy.read_write = readWrite;
+    document.filesystem_policy = filesystemPolicy;
+  }
+
   const networkPolicies = isRecord(document.network_policies)
     ? { ...document.network_policies }
     : {};
@@ -816,7 +838,8 @@ export function composeOpenShellInferencePolicy(
         access: "full",
         ...(isKubernetesService ? { allowed_ips: openShellKubernetesServiceCidrs() } : {}),
       }],
-      binaries: ["/usr/local/bin/node"].map((path) => ({ path })),
+      binaries: getAgentPlatformRuntime(agentPlatform).inferenceBinaries
+        .map((path) => ({ path })),
     };
   }
   if (projectRuntimeBridgeUrl) new URL(projectRuntimeBridgeUrl);

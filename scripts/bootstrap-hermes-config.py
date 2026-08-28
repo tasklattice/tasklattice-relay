@@ -273,6 +273,25 @@ def configure_durable_memory(validated: dict, provider: str) -> None:
     memory["provider"] = provider
 
 
+def enable_run_telemetry(validated: dict) -> None:
+    """Keep Relay's bundled lifecycle plugin enabled in the managed config."""
+    plugins = validated.get("plugins")
+    if not isinstance(plugins, dict):
+        plugins = {}
+        validated["plugins"] = plugins
+    enabled_plugins = plugins.get("enabled")
+    if not isinstance(enabled_plugins, list):
+        enabled_plugins = []
+    plugins["enabled"] = list(
+        dict.fromkeys([*enabled_plugins, "tali-run-telemetry"])
+    )
+    disabled_plugins = plugins.get("disabled")
+    if isinstance(disabled_plugins, list):
+        plugins["disabled"] = [
+            plugin for plugin in disabled_plugins if plugin != "tali-run-telemetry"
+        ]
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", type=Path, required=True)
@@ -361,6 +380,7 @@ def main() -> None:
     for route in credential_routes:
         route["api_key"] = managed_credential
     validated = document
+    enable_run_telemetry(validated)
     if bool(args.a2a_registry_url) != bool(args.a2a_registry_token):
         raise RuntimeError("Hermes A2A registry URL and token must be configured together")
     if args.a2a_registry_url:

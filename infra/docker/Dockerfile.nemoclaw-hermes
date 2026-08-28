@@ -39,6 +39,9 @@ RUN set -eux; \
     install -d -m 0755 /opt/hermes/plugins/tali-vector-database; \
     install -m 0444 /tmp/tali-hermes-overlay/hermes-vector-database-plugin/plugin.yaml /opt/hermes/plugins/tali-vector-database/plugin.yaml; \
     install -m 0444 /tmp/tali-hermes-overlay/hermes-vector-database-plugin/__init__.py /opt/hermes/plugins/tali-vector-database/__init__.py; \
+    install -d -m 0755 /opt/hermes/plugins/tali-run-telemetry; \
+    install -m 0444 /tmp/tali-hermes-overlay/hermes-run-telemetry/plugin.yaml /opt/hermes/plugins/tali-run-telemetry/plugin.yaml; \
+    install -m 0444 /tmp/tali-hermes-overlay/hermes-run-telemetry/__init__.py /opt/hermes/plugins/tali-run-telemetry/__init__.py; \
     install -m 0444 /tmp/tali-hermes-overlay/hermes-vector-database-plugin/client.py /opt/hermes/plugins/tali-vector-database/client.py; \
     install -d -m 0755 /opt/hermes/plugins/memory/tali_relay; \
     install -m 0444 /tmp/tali-hermes-overlay/hermes-durable-memory-provider/plugin.yaml /opt/hermes/plugins/memory/tali_relay/plugin.yaml; \
@@ -68,6 +71,7 @@ RUN set -eux; \
     /usr/local/lib/tali/verify-hermes-a2a-plugin.py; \
     /usr/local/lib/tali/verify-hermes-vector-database-plugin.py; \
     /usr/local/lib/tali/verify-hermes-durable-memory-provider.py; \
+    /opt/hermes/.venv/bin/python3 -m py_compile /opt/hermes/plugins/tali-run-telemetry/__init__.py; \
     /opt/hermes/.venv/bin/python3 -m py_compile /usr/local/lib/nemoclaw/seed-hermes-dashboard-config.py; \
     /opt/hermes/.venv/bin/python3 -m py_compile /opt/hermes/hermes_cli/web_server.py; \
     /opt/hermes/.venv/bin/python3 -m py_compile /opt/hermes/gateway/drain_control.py; \

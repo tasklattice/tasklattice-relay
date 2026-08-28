@@ -154,8 +154,8 @@ export class AgentInstanceDetailService {
       },
       observability: {
         logSources: instance.runtime === "kubernetes"
-          ? ["RUNTIME", "LIFECYCLE", "PROTOCOL", "AUDIT"]
-          : ["LIFECYCLE", "PROTOCOL", "AUDIT"],
+          ? ["RUNTIME"]
+          : [],
         terminal: {
           supported: false,
           reason:

@@ -1,7 +1,6 @@
-import { lazy, Suspense, useState } from "react";
+import { lazy, Suspense, useMemo, useState } from "react";
 import { ClientOnly, Link } from "@tanstack/react-router";
 import {
-  getAgentPlatformDefinition,
   type ProjectOverviewAttentionItem,
   type ProjectOverviewRange,
   type ProjectOverviewResponse,
@@ -12,6 +11,7 @@ import {
   ArrowUpRight,
   BrainCircuit,
   CheckCircle2,
+  ChevronDown,
   CircleAlert,
   ServerCog,
   ShieldCheck,
@@ -48,8 +48,8 @@ const rangeLabels: Record<ProjectOverviewRange, string> = {
 };
 
 const metricLabels: Record<UsageMetric, string> = {
-  runs: "Runs",
   tokens: "Tokens",
+  runs: "Runs",
   cost: "Cost",
 };
 
@@ -96,48 +96,41 @@ function Trend({
 }
 
 export function ProjectOverviewHeader({
-  projectId,
+  projectName,
   range,
   onRangeChange,
 }: {
-  projectId: string;
+  projectName: string | undefined;
   range: ProjectOverviewRange;
   onRangeChange: (range: ProjectOverviewRange) => void;
 }) {
   return (
     <PageHeader
-      title="Home"
+      title="Project overview"
       description={
         <>
-          <span className="font-medium text-foreground">Project overview.</span>{" "}
-          Usage, runtime health, spend, and activity across this Project.
+          Operational risk, usage, runtime health, and budget for{" "}
+          <span className="font-medium text-foreground">{projectName ?? "this Project"}</span>.
         </>
       }
       actions={
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <ToggleGroup
-            aria-label="Overview time range"
-            type="single"
-            variant="outline"
-            spacing={0}
-            size="lg"
-            value={range}
-            onValueChange={(value) => {
-              if (value) onRangeChange(value as ProjectOverviewRange);
-            }}
-          >
-            {(Object.keys(rangeLabels) as ProjectOverviewRange[]).map((value) => (
-              <ToggleGroupItem key={value} value={value}>
-                {rangeLabels[value]}
-              </ToggleGroupItem>
-            ))}
-          </ToggleGroup>
-          <Button asChild variant="outline">
-            <Link to="/$projectId/instances" params={{ projectId }}>
-              Review runtime <ArrowRight />
-            </Link>
-          </Button>
-        </div>
+        <ToggleGroup
+          aria-label="Overview time range"
+          type="single"
+          variant="outline"
+          spacing={0}
+          size="lg"
+          value={range}
+          onValueChange={(value) => {
+            if (value) onRangeChange(value as ProjectOverviewRange);
+          }}
+        >
+          {(Object.keys(rangeLabels) as ProjectOverviewRange[]).map((value) => (
+            <ToggleGroupItem key={value} value={value}>
+              {rangeLabels[value]}
+            </ToggleGroupItem>
+          ))}
+        </ToggleGroup>
       }
     />
   );
@@ -160,7 +153,7 @@ export function OverviewKpiGrid({ data }: { data: ProjectOverviewResponse }) {
         : <Trend value={data.kpis.successRateChangePoints} unit="points" />,
     },
     {
-      label: "Ready runtime",
+      label: "Runtime",
       value: `${data.kpis.readyInstances} / ${data.kpis.totalInstances}`,
       detail: (
         <span className={cn(
@@ -205,14 +198,14 @@ export function OverviewKpiGrid({ data }: { data: ProjectOverviewResponse }) {
 }
 
 export function UsageChartCard({ data }: { data: ProjectOverviewResponse }) {
-  const [metric, setMetric] = useState<UsageMetric>("runs");
+  const [metric, setMetric] = useState<UsageMetric>("tokens");
   return (
     <Card className="gap-0 py-0 shadow-none">
       <CardHeader className="flex min-h-16 flex-col items-stretch justify-between gap-3 border-b px-4 py-3 sm:flex-row sm:items-center">
         <div>
-          <CardTitle className="font-sans text-sm font-semibold">Usage</CardTitle>
+          <CardTitle className="font-sans text-sm font-semibold">Usage trend</CardTitle>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            Top-level Run activity and its attributed model usage.
+            Attributed tokens, Agent Runs, and spend over the selected period.
           </p>
         </div>
         <ToggleGroup
@@ -274,7 +267,7 @@ export function BudgetCard({
     return (
       <Card className="h-full">
         <CardHeader className="border-b">
-          <CardTitle className="font-sans text-sm font-semibold">Project budget</CardTitle>
+          <CardTitle className="font-sans text-sm font-semibold">Budget forecast</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-1 flex-col justify-center py-8">
           <p className="text-sm font-medium">No budget configured</p>
@@ -300,10 +293,10 @@ export function BudgetCard({
       <CardHeader className="border-b">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <CardTitle className="font-sans text-sm font-semibold">
-              {budget.duration === "30d" ? "30-day budget" : `${budget.duration} budget`}
-            </CardTitle>
-            <p className="mt-0.5 text-xs text-muted-foreground">Current budget window</p>
+            <CardTitle className="font-sans text-sm font-semibold">Budget forecast</CardTitle>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              {budget.duration === "30d" ? "30-day" : budget.duration} budget window
+            </p>
           </div>
           <Badge variant={usedPercent >= 100 ? "destructive" : "outline"}>
             {usedPercent.toFixed(1)}%
@@ -417,106 +410,303 @@ export function RuntimeHealthCard({
   );
 }
 
-export function WorkloadDistributionCard({
-  workload,
+const overviewSeriesColors = [
+  "var(--overview-series-1)",
+  "var(--overview-series-2)",
+  "var(--overview-series-3)",
+  "var(--overview-series-4)",
+  "var(--overview-series-5)",
+] as const;
+
+export function ModelAssignmentCard({
+  assignment,
   projectId,
 }: {
-  workload: ProjectOverviewResponse["workload"];
+  assignment: ProjectOverviewResponse["modelAssignment"];
   projectId: string;
 }) {
+  const circumference = 2 * Math.PI * 48;
+  const arcs = useMemo(() => {
+    let offset = 0;
+    return assignment.segments.map((segment, index) => {
+      const arc = { segment, index, offset };
+      offset += segment.percentage;
+      return arc;
+    });
+  }, [assignment.segments]);
+
   return (
     <Card>
       <CardHeader className="border-b">
-        <CardTitle className="font-sans text-sm font-semibold">Workload distribution</CardTitle>
-        <p className="mt-0.5 text-xs text-muted-foreground">Top-level Runs by Runtime type.</p>
+        <CardTitle className="font-sans text-sm font-semibold">Model assignment distribution</CardTitle>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          One count per active Agent&apos;s default route.
+        </p>
       </CardHeader>
-      <CardContent className="flex min-h-56 flex-col justify-center py-5">
-        {workload.length ? (
-          <div className="space-y-5">
-            {workload.map((item) => (
-              <div key={item.runtimeType}>
-                <div className="flex items-center justify-between gap-4 text-xs">
-                  <span className="font-medium">
-                    {getAgentPlatformDefinition(item.runtimeType).name}
-                  </span>
-                  <span className="text-muted-foreground">
-                    {number(item.runs)} Runs · {(item.percentage * 100).toFixed(1)}%
-                  </span>
-                </div>
-                <div className="mt-2 h-2 overflow-hidden rounded-full bg-muted">
-                  <div
-                    className="h-full rounded-full bg-[var(--cost-series-1)]"
-                    style={{ width: `${Math.min(100, item.percentage * 100)}%` }}
+      <CardContent className="flex min-h-64 flex-col justify-center py-5">
+        {assignment.totalAgents > 0 ? (
+          <div className="grid items-center gap-6 sm:grid-cols-[11rem_minmax(0,1fr)]">
+            <div className="relative mx-auto size-44">
+              <svg viewBox="0 0 128 128" className="size-full -rotate-90" aria-hidden>
+                <circle cx="64" cy="64" r="48" fill="none" stroke="var(--muted)" strokeWidth="16" />
+                {arcs.map(({ index, offset, segment }) => (
+                  <circle
+                    key={segment.key}
+                    cx="64"
+                    cy="64"
+                    r="48"
+                    fill="none"
+                    stroke={overviewSeriesColors[index % overviewSeriesColors.length]}
+                    strokeDasharray={`${segment.percentage * circumference} ${circumference}`}
+                    strokeDashoffset={-offset * circumference}
+                    strokeWidth="16"
                   />
-                </div>
+                ))}
+              </svg>
+              <div className="absolute inset-0 grid place-content-center text-center">
+                <strong className="font-sans text-3xl font-medium tabular-nums">
+                  {assignment.totalAgents}
+                </strong>
+                <span className="text-xs text-muted-foreground">active Agents</span>
               </div>
-            ))}
+            </div>
+            <ul className="divide-y">
+              {assignment.segments.map((segment, index) => (
+                <li key={segment.key} className="grid min-h-11 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 text-xs">
+                  <span
+                    className="size-2.5 rounded-full"
+                    style={{ backgroundColor: overviewSeriesColors[index % overviewSeriesColors.length] }}
+                    aria-hidden
+                  />
+                  <span className="truncate font-medium">{segment.label}</span>
+                  <span className="tabular-nums text-muted-foreground">
+                    {segment.agents} · {(segment.percentage * 100).toFixed(0)}%
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <ul className="sr-only">
+              {assignment.segments.map((segment) => (
+                <li key={segment.key}>
+                  {segment.label}: {segment.agents} Agent{segment.agents === 1 ? "" : "s"}
+                </li>
+              ))}
+            </ul>
           </div>
         ) : (
           <div className="text-center">
-            <p className="text-sm font-medium">No workload recorded</p>
+            <p className="text-sm font-medium">No active Agents</p>
             <p className="mt-1 text-xs text-muted-foreground">
-              Distribution will appear after a Runtime reports its first Run.
+              Model assignment will appear after an Agent is configured.
             </p>
           </div>
         )}
       </CardContent>
-      <CardFooter className="justify-end">
-        <Button asChild variant="ghost" size="sm">
-          <Link to="/$projectId/traces" params={{ projectId }}>
-            View activity <ArrowRight />
-          </Link>
-        </Button>
+      <CardFooter>
+        <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-xs text-muted-foreground">
+            Resolved-model calls remain in Cost and Usage.
+          </p>
+          <Button asChild variant="ghost" size="sm" className="shrink-0">
+            <Link to="/$projectId/setting" params={{ projectId }} search={{ section: "routing" }}>
+              Manage routing <ArrowRight />
+            </Link>
+          </Button>
+        </div>
       </CardFooter>
     </Card>
   );
 }
 
-function AttentionRow({ item }: { item: ProjectOverviewAttentionItem }) {
+export function AgentActivityRanking({
+  activity,
+  projectId,
+}: {
+  activity: ProjectOverviewResponse["agentActivity"];
+  projectId: string;
+}) {
+  const maximumRuns = Math.max(0, ...activity.map((item) => item.runs));
+  return (
+    <Card className="gap-0 py-0">
+      <CardHeader className="border-b py-4">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <CardTitle className="font-sans text-sm font-semibold">Agent activity ranking</CardTitle>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Actual use in the selected period, including configured Agents with no Runs.
+            </p>
+          </div>
+          <Button asChild variant="ghost" size="sm" className="shrink-0">
+            <Link to="/$projectId/traces" params={{ projectId }}>
+              View Runs <ArrowRight />
+            </Link>
+          </Button>
+        </div>
+      </CardHeader>
+      {activity.length ? (
+        <CardContent className="overflow-x-auto px-0">
+          <table className="w-full min-w-[680px] border-collapse text-xs">
+            <caption className="sr-only">
+              Agent activity ranked by Runs, active users, success rate, and cost
+            </caption>
+            <thead>
+              <tr className="border-b text-left text-muted-foreground">
+                <th scope="col" className="w-10 px-4 py-2.5 font-medium">#</th>
+                <th scope="col" className="min-w-64 px-3 py-2.5 font-medium">Agent</th>
+                <th scope="col" className="px-3 py-2.5 text-right font-medium">Runs</th>
+                <th scope="col" className="px-3 py-2.5 text-right font-medium">Active users</th>
+                <th scope="col" className="px-3 py-2.5 text-right font-medium">Success rate</th>
+                <th scope="col" className="px-4 py-2.5 text-right font-medium">Cost</th>
+              </tr>
+            </thead>
+            <tbody>
+              {activity.map((item, index) => (
+                <tr key={item.agentId} className="border-b last:border-b-0">
+                  <td className="px-4 py-2.5 tabular-nums text-muted-foreground">{index + 1}</td>
+                  <th scope="row" className="px-3 py-2.5 text-left font-medium">
+                    <div className="relative min-h-9 overflow-hidden rounded-sm bg-muted/40">
+                      <span
+                        className="absolute inset-y-0 left-0 bg-[var(--overview-series-1)]/20"
+                        style={{ width: `${maximumRuns ? (item.runs / maximumRuns) * 100 : 0}%` }}
+                        aria-hidden
+                      />
+                      <span className="relative flex min-h-9 items-center truncate px-3">{item.agentName}</span>
+                    </div>
+                  </th>
+                  <td className="px-3 py-2.5 text-right font-medium tabular-nums">{number(item.runs)}</td>
+                  <td
+                    className="px-3 py-2.5 text-right tabular-nums text-muted-foreground"
+                    title={item.activeUsers === null ? "End-user attribution is unavailable" : undefined}
+                  >
+                    {item.activeUsers === null ? "—" : number(item.activeUsers)}
+                  </td>
+                  <td className="px-3 py-2.5 text-right tabular-nums text-muted-foreground">
+                    {item.successRate === null ? "—" : `${(item.successRate * 100).toFixed(1)}%`}
+                  </td>
+                  <td className="px-4 py-2.5 text-right tabular-nums text-muted-foreground">{money(item.costUsd)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </CardContent>
+      ) : (
+        <CardContent className="flex min-h-28 items-center justify-center py-6 text-center">
+          <div>
+            <p className="text-sm font-medium">No Agents configured</p>
+            <p className="mt-1 text-xs text-muted-foreground">Activity will appear after the first Agent is created.</p>
+          </div>
+        </CardContent>
+      )}
+    </Card>
+  );
+}
+
+function durationSince(openedAt: string, generatedAt: string): string {
+  const seconds = Math.max(0, Math.floor((new Date(generatedAt).getTime() - new Date(openedAt).getTime()) / 1_000));
+  if (seconds < 60) return "just opened";
+  if (seconds < 60 * 60) return `open ${Math.floor(seconds / 60)}m`;
+  if (seconds < 24 * 60 * 60) return `open ${Math.floor(seconds / 3_600)}h`;
+  return `open ${Math.floor(seconds / 86_400)}d`;
+}
+
+function AttentionRow({
+  generatedAt,
+  item,
+}: {
+  generatedAt: string;
+  item: ProjectOverviewAttentionItem;
+}) {
   const Icon = item.severity === "critical" ? CircleAlert : TriangleAlert;
   return (
-    <li className="grid gap-3 border-b px-4 py-4 last:border-b-0 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center">
+    <li className="grid gap-4 border-b px-4 py-4 last:border-b-0 lg:grid-cols-[auto_minmax(0,1fr)_auto] lg:items-start">
       <span className={cn(
-        "grid size-8 place-items-center rounded-md",
+        "grid size-9 place-items-center rounded-md",
         item.severity === "critical"
           ? "bg-destructive/10 text-destructive"
-          : "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+          : "bg-amber-500/10 text-amber-700 dark:text-amber-300",
       )}>
         <Icon className="size-4" aria-hidden />
       </span>
       <div className="min-w-0">
-        <p className="text-sm font-medium">{item.title}</p>
-        <p className="mt-0.5 text-xs leading-5 text-muted-foreground">{item.description}</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant={item.severity === "critical" ? "destructive" : "outline"}>
+            {item.severity === "critical" ? "Critical" : "Warning"}
+          </Badge>
+          <p className="text-sm font-medium">{item.title}</p>
+        </div>
+        <p className="mt-2 max-w-3xl text-xs leading-5 text-muted-foreground">{item.reason}</p>
+        <dl className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+          <div className="flex min-w-0 gap-1.5">
+            <dt className="text-muted-foreground">Impact</dt>
+            <dd className="max-w-64 truncate font-medium">{item.impact.label}</dd>
+          </div>
+          <div className="flex gap-1.5">
+            <dt className="text-muted-foreground">Owner</dt>
+            <dd className="font-medium">{item.owner}</dd>
+          </div>
+          <div className="flex gap-1.5">
+            <dt className="sr-only">Duration</dt>
+            <dd className="text-muted-foreground">{durationSince(item.openedAt, generatedAt)}</dd>
+          </div>
+        </dl>
       </div>
-      <Button asChild variant="ghost" size="sm" className="justify-self-start sm:justify-self-end">
-        <a href={item.href}>Inspect <ArrowRight /></a>
+      <Button asChild variant="outline" size="sm" className="min-h-11 justify-self-start lg:justify-self-end">
+        <a href={item.nextStep.href}>{item.nextStep.label} <ArrowRight /></a>
       </Button>
     </li>
   );
 }
 
-export function AttentionListCard({ items }: { items: ProjectOverviewAttentionItem[] }) {
+export function AttentionListCard({
+  generatedAt,
+  items,
+}: {
+  generatedAt: string;
+  items: ProjectOverviewAttentionItem[];
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const critical = items.filter((item) => item.severity === "critical").length;
+  const warning = items.length - critical;
+  const visibleItems = expanded ? items : items.slice(0, 5);
   return (
     <Card className="gap-0 py-0">
       <CardHeader className="border-b py-4">
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex items-start justify-between gap-3">
           <div>
-            <CardTitle className="font-sans text-sm font-semibold">Attention</CardTitle>
-            <p className="mt-0.5 text-xs text-muted-foreground">Signals that may require an operator decision.</p>
+            <CardTitle className="font-sans text-sm font-semibold">Needs attention</CardTitle>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Ordered by severity and age; every item names an owner and one next step.
+            </p>
           </div>
-          {items.length ? <Badge variant="outline">{items.length} open</Badge> : null}
+          {items.length ? (
+            <Badge variant="outline" className="shrink-0">
+              {critical} critical · {warning} warning
+            </Badge>
+          ) : null}
         </div>
       </CardHeader>
       {items.length ? (
-        <ul>{items.map((item) => <AttentionRow key={item.code} item={item} />)}</ul>
+        <>
+          <ul>{visibleItems.map((item) => (
+            <AttentionRow key={item.code} generatedAt={generatedAt} item={item} />
+          ))}</ul>
+          {items.length > 5 ? (
+            <CardFooter className="justify-center">
+              <Button variant="ghost" size="sm" onClick={() => setExpanded((value) => !value)}>
+                {expanded ? "Show fewer" : `Show all ${items.length}`}
+                <ChevronDown className={cn("transition-transform", expanded && "rotate-180")} />
+              </Button>
+            </CardFooter>
+          ) : null}
+        </>
       ) : (
         <CardContent className="flex min-h-24 items-center gap-3 py-5">
-          <span className="grid size-8 place-items-center rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+          <span className="grid size-9 place-items-center rounded-md bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
             <CheckCircle2 className="size-4" />
           </span>
           <div>
             <p className="text-sm font-medium">No issues require attention</p>
-            <p className="mt-0.5 text-xs text-muted-foreground">No alert thresholds are currently active.</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">No operational or governance thresholds are currently active.</p>
           </div>
         </CardContent>
       )}

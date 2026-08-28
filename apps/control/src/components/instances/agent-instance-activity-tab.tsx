@@ -79,16 +79,21 @@ export function AgentInstanceActivityTab({
           {hasMoreLifecycleLogs ? (
             <p className="border-t pt-4 text-xs leading-5 text-muted-foreground">
               Showing the latest {lifecycleLogs.length} of{" "}
-              {detail.instance.logs.length} lifecycle entries.{" "}
-              <Link
-                to="/$projectId/instances/$instanceId"
-                params={{ projectId, instanceId: detail.id }}
-                search={{ tab: "logs" }}
-                className="font-medium text-foreground underline-offset-4 hover:underline"
-              >
-                View complete output in Logs
-              </Link>
-              .
+              {detail.instance.logs.length} lifecycle entries.
+              {detail.kind === "SUPERVISOR" ? (
+                <>
+                  {" "}
+                  <Link
+                    to="/$projectId/instances/$instanceId"
+                    params={{ projectId, instanceId: detail.id }}
+                    search={{ tab: "logs" }}
+                    className="font-medium text-foreground underline-offset-4 hover:underline"
+                  >
+                    View complete output in Logs
+                  </Link>
+                  .
+                </>
+              ) : null}
             </p>
           ) : null}
         </CardContent>

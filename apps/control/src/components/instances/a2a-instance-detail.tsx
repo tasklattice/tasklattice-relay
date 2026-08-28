@@ -23,11 +23,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useCurrentProjectId } from "@/hooks/use-project";
 import { useProjectQueryScope } from "@/hooks/use-project-query-scope";
 import { api } from "@/lib/api";
-import { formatPlatformDateTime } from "@/lib/platform-preferences";
 import { AgentInstanceActivityTab } from "./agent-instance-activity-tab";
 import { AgentLiveLogs } from "./agent-live-logs";
 import { DeleteInstanceSheet } from "./delete-instance-sheet";
@@ -463,153 +461,45 @@ function A2aCapabilities({
 
 function A2aLogs({
   detail,
-  canViewAuditLogs,
   canViewLogs,
 }: {
   detail: A2aStandardAgentInstanceDetail;
-  canViewAuditLogs: boolean;
   canViewLogs: boolean;
 }) {
-  const scope = useProjectQueryScope();
-  const audits = useQuery({
-    queryKey: scope.key("a2a-instance-audit", detail.definition.id),
-    queryFn: () =>
-      api.listAuditLogs({ query: detail.definition.id, limit: 50 }),
-    enabled: canViewAuditLogs,
-    retry: 1,
-  });
-  const runtimeAvailable = canViewLogs && Boolean(detail.runtimeView.podName);
+  const unavailableReason = !canViewLogs
+    ? "You do not have permission to view Agent logs."
+    : !detail.runtimeView.managed
+      ? "Relay can show stdout and stderr only for Agents hosted in its managed runtime."
+      : detail.status !== "READY"
+        ? "Runtime logs become available after the managed Agent is ready."
+        : !detail.runtimeView.podName
+          ? "The managed Agent Pod is not currently available."
+          : undefined;
+
   return (
     <div role="tabpanel" aria-label="Logs" className="space-y-4 pt-5">
       <DetailTabIntro
         title="Agent logs"
-        description="Inspect runtime, lifecycle, protocol, and audit evidence through the sources this Agent exposes."
+        description="Follow standard output and standard error for Agents hosted by Relay."
       />
-      <Tabs
-        defaultValue={runtimeAvailable ? "runtime" : "lifecycle"}
-        className="gap-4"
-      >
-        <TabsList variant="line" className="max-w-full overflow-x-auto">
-          <TabsTrigger value="runtime">Runtime live</TabsTrigger>
-          <TabsTrigger value="lifecycle">Lifecycle</TabsTrigger>
-          <TabsTrigger value="protocol">A2A protocol</TabsTrigger>
-          <TabsTrigger value="audit">Audit</TabsTrigger>
-        </TabsList>
-        <TabsContent value="runtime">
-          {runtimeAvailable && detail.runtimeView.podName ? (
-            <AgentLiveLogs
-              instanceId={detail.id}
-              podName={detail.runtimeView.podName}
-            />
-          ) : (
-            <Card>
-              <CardContent className="py-12 text-center">
-                <ShieldCheck className="mx-auto size-5 text-muted-foreground" />
-                <strong className="mt-3 block text-sm">
-                  Runtime logs unavailable
-                </strong>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  You need Agent log-view permission and an active managed Pod.
-                </p>
-              </CardContent>
-            </Card>
-          )}
-        </TabsContent>
-        <TabsContent value="lifecycle">
-          <Card>
-            <DetailCardHeader
-              title="Lifecycle log"
-              description="Stored reconciliation events remain available when the Pod is gone."
-            />
-            <CardContent>
-              <pre className="max-h-[34rem] overflow-auto whitespace-pre-wrap py-2 font-mono text-xs leading-6">
-                {detail.instance.logs.join("\n") ||
-                  "No lifecycle events recorded."}
-              </pre>
-            </CardContent>
-          </Card>
-        </TabsContent>
-        <TabsContent value="protocol">
-          <Card>
-            <DetailCardHeader
-              title="A2A discovery evidence"
-              description="Agent Card status and errors; request payloads are not exposed here."
-            />
-            <CardContent>
-              <DefinitionList
-                items={[
-                  {
-                    label: "Status",
-                    value: detail.protocols[0]?.agentCardStatus ?? "UNCHECKED",
-                  },
-                  {
-                    label: "Last discovered",
-                    value: detail.protocols[0]?.lastDiscoveredAt
-                      ? formatPlatformDateTime(
-                          detail.protocols[0].lastDiscoveredAt,
-                        )
-                      : "—",
-                  },
-                  {
-                    label: "Discovery error",
-                    value: detail.protocols[0]?.lastDiscoveryError ?? "None",
-                  },
-                  {
-                    label: "Protocol",
-                    value: `${detail.protocols[0]?.binding ?? "A2A"} ${detail.protocols[0]?.version ?? "1.0"}`,
-                  },
-                ]}
-              />
-            </CardContent>
-          </Card>
-        </TabsContent>
-        <TabsContent value="audit">
-          <Card>
-            <DetailCardHeader
-              title="Invocation audit"
-              description="Control-plane discovery and delegation events correlated to this Agent definition."
-            />
-            <CardContent>
-              {!canViewAuditLogs ? (
-                <p className="py-8 text-center text-sm text-muted-foreground">
-                  You do not have permission to view Project audit events.
-                </p>
-              ) : audits.isPending ? (
-                <p className="py-8 text-center text-sm text-muted-foreground">
-                  Loading audit events…
-                </p>
-              ) : audits.data?.data.length ? (
-                <div className="divide-y">
-                  {audits.data.data.map((event) => (
-                    <div key={event.id} className="py-3">
-                      <div className="flex items-center justify-between gap-3">
-                        <strong className="text-xs">{event.action}</strong>
-                        <Badge
-                          variant={
-                            event.outcome === "failed"
-                              ? "destructive"
-                              : "outline"
-                          }
-                        >
-                          {event.outcome}
-                        </Badge>
-                      </div>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {event.summary} ·{" "}
-                        {formatPlatformDateTime(event.occurredAt)}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="py-8 text-center text-sm text-muted-foreground">
-                  No correlated audit events found.
-                </p>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+      {!unavailableReason && detail.runtimeView.podName ? (
+        <AgentLiveLogs
+          instanceId={detail.id}
+          podName={detail.runtimeView.podName}
+        />
+      ) : (
+        <Card>
+          <CardContent className="flex min-h-72 flex-col items-center justify-center text-center">
+            <span className="grid size-12 place-items-center rounded-full bg-muted">
+              <SquareTerminal className="size-5 text-muted-foreground" />
+            </span>
+            <strong className="mt-4 text-base">Runtime logs unavailable</strong>
+            <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
+              {unavailableReason}
+            </p>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
@@ -639,13 +529,11 @@ function DisabledTerminal({ reason }: { reason: string }) {
 export function A2aInstanceDetail({
   activeTab,
   canManage,
-  canViewAuditLogs,
   canViewLogs,
   detail,
 }: {
   activeTab: InstanceDetailTab;
   canManage: boolean;
-  canViewAuditLogs: boolean;
   canViewLogs: boolean;
   detail: A2aStandardAgentInstanceDetail;
 }) {
@@ -657,7 +545,7 @@ export function A2aInstanceDetail({
   const storedLogs = useQuery({
     queryKey: scope.key("agent-logs", detail.id),
     queryFn: () => api.getInstanceLogs(detail.id),
-    enabled: canViewLogs,
+    enabled: canViewLogs && activeTab === "activity",
     retry: 1,
     staleTime: 5_000,
   });
@@ -702,6 +590,12 @@ export function A2aInstanceDetail({
       detail.observability.terminal.reason ??
       "This runtime does not expose an executable terminal.",
   };
+  const logs = {
+    enabled: canViewLogs && detail.runtimeView.managed,
+    disabledReason: !canViewLogs
+      ? "You do not have permission to view Agent logs."
+      : "Runtime logs are available only for Agents hosted by Relay.",
+  };
   return (
     <div>
       <A2aHeader
@@ -714,6 +608,7 @@ export function A2aInstanceDetail({
       <InstanceTabs
         active={activeTab}
         instanceId={detail.id}
+        logs={logs}
         terminal={terminal}
       />
       {refresh.error instanceof Error ? (
@@ -737,11 +632,7 @@ export function A2aInstanceDetail({
         <AgentInstanceActivityTab detail={observedDetail} />
       ) : null}
       {activeTab === "logs" ? (
-        <A2aLogs
-          detail={observedDetail}
-          canViewAuditLogs={canViewAuditLogs}
-          canViewLogs={canViewLogs}
-        />
+        <A2aLogs detail={observedDetail} canViewLogs={canViewLogs} />
       ) : null}
       {activeTab === "terminal" ? (
         <DisabledTerminal reason={terminal.disabledReason} />

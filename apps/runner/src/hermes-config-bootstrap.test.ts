@@ -28,6 +28,32 @@ afterEach(async () => {
 });
 
 describe("Hermes config bootstrap", () => {
+  it("enables the bundled Run telemetry plugin", () => {
+    const program = `
+import importlib.util
+import json
+import sys
+spec = importlib.util.spec_from_file_location("tali_bootstrap", sys.argv[1])
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+document = {
+  "plugins": {"enabled": ["existing"], "disabled": ["tali-run-telemetry", "other"]},
+}
+module.enable_run_telemetry(document)
+print(json.dumps(document))
+`;
+    const result = spawnSync("python3", ["-c", program, bootstrap], {
+      encoding: "utf8",
+    });
+    expect(result.status, result.stderr).toBe(0);
+    expect(JSON.parse(result.stdout)).toEqual({
+      plugins: {
+        enabled: ["existing", "tali-run-telemetry"],
+        disabled: ["other"],
+      },
+    });
+  });
+
   it("selects Relay's scoped MemoryProvider without persisting Runtime credentials", () => {
     const program = `
 import importlib.util
@@ -213,6 +239,7 @@ custom_providers:
     expect(document.model.api_key).toBe(managedCredentialPlaceholder);
     expect(document.providers.deepseek.api_key).toBe(managedCredentialPlaceholder);
     expect(document.custom_providers[0].api_key).toBe(managedCredentialPlaceholder);
+    expect(document.plugins.enabled).toContain("tali-run-telemetry");
 
     const rotatedPlaceholder =
       "openshell:resolve:env:v123457_OPENAI_API_KEY";

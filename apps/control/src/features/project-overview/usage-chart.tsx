@@ -14,9 +14,15 @@ interface UsageLineSeries extends LineSeries {
 }
 
 const metricLabels: Record<UsageMetric, string> = {
-  runs: "Runs",
   tokens: "Tokens",
+  runs: "Runs",
   cost: "Cost",
+};
+
+const emptyDescriptions: Record<UsageMetric, string> = {
+  tokens: "Token usage will appear after the first attributed model request.",
+  runs: "A Run is one complete Agent execution reported by the Runtime.",
+  cost: "Spend will appear after model usage is priced and synchronized.",
 };
 
 function valueFor(point: ProjectOverviewUsagePoint, metric: UsageMetric): number {
@@ -170,7 +176,7 @@ export function UsageChart({
           <div>
             <p className="text-sm font-medium">No {metricLabels[metric].toLowerCase()} recorded</p>
             <p className="mt-1 text-xs text-muted-foreground">
-              This chart will populate after the Project reports activity.
+              {emptyDescriptions[metric]}
             </p>
           </div>
         </div>
