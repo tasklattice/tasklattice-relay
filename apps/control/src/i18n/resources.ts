@@ -123,20 +123,26 @@ const enUS = {
     },
   },
   createInstance: {
-    defineAgent: {
+    agentFoundation: {
       description:
-        "Name the Instance, choose its Role, and configure the Memory that gives this Agent continuity.",
-      stepDescription: "Set identity, Role, and Memory",
-      title: "Define an Agent",
+        "Name the Instance, choose its Agent, and configure the Memory that gives it continuity.",
+      stepDescription: "Set name, Agent, and Memory",
+      title: "Choose an Agent",
     },
     progressLabel: "Create Instance progress",
     review: {
-      stepDescription: "Evaluate and confirm",
-      title: "Review & Approve",
+      stepDescription: "Confirm and create",
+      title: "Review & Create",
     },
-    securityRuntime: {
-      stepDescription: "Choose access, execution, and routing",
-      title: "Security & Runtime",
+    securityBoundaries: {
+      stepDescription: "Set access, execution, and routing",
+      title: "Security Boundaries",
+    },
+    toolbox: {
+      description:
+        "Start from a preset, then configure instructions, tools, and knowledge.",
+      stepDescription: "Choose instructions, tools, and knowledge",
+      title: "Toolbox",
     },
   },
   breadcrumbs: {
@@ -324,20 +330,25 @@ const zhCN = {
     },
   },
   createInstance: {
-    defineAgent: {
+    agentFoundation: {
       description:
-        "为实例命名，选择角色，并配置赋予这个 Agent 连续性的 Memory。",
-      stepDescription: "设置身份、角色与 Memory",
-      title: "定义一个 Agent",
+        "为实例命名、选择 Agent，并配置让它保持连续性的 Memory。",
+      stepDescription: "设置名称、Agent 与 Memory",
+      title: "选择 Agent",
     },
     progressLabel: "创建实例进度",
     review: {
-      stepDescription: "检查配置并确认",
-      title: "审查与批准",
+      stepDescription: "确认并创建",
+      title: "检查并创建",
     },
-    securityRuntime: {
-      stepDescription: "选择访问策略、执行环境与路由",
-      title: "安全与运行时",
+    securityBoundaries: {
+      stepDescription: "设置访问、执行与路由边界",
+      title: "安全边界",
+    },
+    toolbox: {
+      description: "从预设开始，再配置 Instructions、工具与知识。",
+      stepDescription: "选择 Instructions、工具与知识",
+      title: "工具箱",
     },
   },
   breadcrumbs: {
@@ -524,20 +535,25 @@ const zhTW = {
     },
   },
   createInstance: {
-    defineAgent: {
+    agentFoundation: {
       description:
-        "為執行個體命名、選擇角色，並設定讓此 Agent 保有連續性的 Memory。",
-      stepDescription: "設定身分、角色與 Memory",
-      title: "定義一個 Agent",
+        "為執行個體命名、選擇 Agent，並設定讓它保有連續性的 Memory。",
+      stepDescription: "設定名稱、Agent 與 Memory",
+      title: "選擇 Agent",
     },
     progressLabel: "建立執行個體進度",
     review: {
-      stepDescription: "檢查設定並確認",
-      title: "審查與核准",
+      stepDescription: "確認並建立",
+      title: "檢查並建立",
     },
-    securityRuntime: {
-      stepDescription: "選擇存取原則、執行環境與路由",
-      title: "安全性與執行階段",
+    securityBoundaries: {
+      stepDescription: "設定存取、執行與路由邊界",
+      title: "安全邊界",
+    },
+    toolbox: {
+      description: "從預設開始，再設定 Instructions、工具與知識。",
+      stepDescription: "選擇 Instructions、工具與知識",
+      title: "工具箱",
     },
   },
   breadcrumbs: {

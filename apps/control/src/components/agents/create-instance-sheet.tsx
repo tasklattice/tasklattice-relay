@@ -12,16 +12,14 @@ import {
 import {
   ArrowLeft,
   ArrowRight,
-  Bot,
   Check,
   CircleAlert,
   CircleHelp,
   ShieldCheck,
   Waypoints,
 } from "lucide-react";
-import { AgentSelect } from "@/components/agents/agent-select";
 import { activeDefaultAccessPolicyId } from "@/components/agents/access-policy-selection";
-import { ChangeSpecializationDialog } from "@/components/agents/change-specialization-dialog";
+import { ChangeToolboxPresetDialog } from "@/components/agents/change-specialization-dialog";
 import {
   availableCapabilityIds,
   changeSpecializationSelection,
@@ -31,7 +29,10 @@ import {
   updateCapabilitySelection,
   type SelectedCapability,
 } from "@/components/agents/capability-selection";
-import { IdentityCapabilitiesStep } from "@/components/agents/identity-capabilities-step";
+import {
+  AgentFoundationStep,
+  ToolboxStep,
+} from "@/components/agents/agent-creation-steps";
 import {
   bindableDurableMemories,
   supportsDurableMemoryPlatform,
@@ -110,12 +111,16 @@ export function CreateInstanceSheet({
   const { t } = useTranslation("createInstance");
   const steps = [
     {
-      label: t("defineAgent.title"),
-      description: t("defineAgent.stepDescription"),
+      label: t("agentFoundation.title"),
+      description: t("agentFoundation.stepDescription"),
     },
     {
-      label: t("securityRuntime.title"),
-      description: t("securityRuntime.stepDescription"),
+      label: t("toolbox.title"),
+      description: t("toolbox.stepDescription"),
+    },
+    {
+      label: t("securityBoundaries.title"),
+      description: t("securityBoundaries.stepDescription"),
     },
     {
       label: t("review.title"),
@@ -128,6 +133,7 @@ export function CreateInstanceSheet({
   );
   const [customSystemPrompt, setCustomSystemPrompt] = useState("");
   const [systemPrompt, setSystemPrompt] = useState("");
+  const [instructionsTouched, setInstructionsTouched] = useState(false);
   const [systemPromptInitialized, setSystemPromptInitialized] = useState(false);
   const [selectedSkills, setSelectedSkills] = useState<SelectedCapability[]>(
     [],
@@ -360,13 +366,19 @@ export function CreateInstanceSheet({
     setKnowledgeSourcesTouched(
       nextKnowledgeSources.some((item) => item.source === "manual"),
     );
-    setSystemPrompt(id === "custom" ? customSystemPrompt : next.systemPrompt);
+    if (!instructionsTouched)
+      setSystemPrompt(id === "custom" ? customSystemPrompt : next.systemPrompt);
     setPendingSpecializationId(null);
   };
 
   const requestSpecializationChange = (id: SpecializationId) => {
     if (id === specializationId) return;
-    if (skillsTouched || mcpsTouched || knowledgeSourcesTouched)
+    if (
+      instructionsTouched ||
+      skillsTouched ||
+      mcpsTouched ||
+      knowledgeSourcesTouched
+    )
       setPendingSpecializationId(id);
     else applySpecialization(id);
   };
@@ -427,7 +439,7 @@ export function CreateInstanceSheet({
         }
       >
         <div className="flex min-h-72 items-center justify-center border text-sm text-muted-foreground">
-          Loading Roles and resource catalog from PostgreSQL…
+          Loading Toolbox presets and resource catalog from PostgreSQL…
         </div>
       </EntitySheet>
     );
@@ -463,7 +475,7 @@ export function CreateInstanceSheet({
           role="alert"
           className="border-l-2 border-destructive bg-destructive/5 p-4 text-sm text-destructive"
         >
-          The PostgreSQL catalog does not contain an Agent Role.
+          The PostgreSQL catalog does not contain a Toolbox preset.
         </p>
       </EntitySheet>
     );
@@ -506,7 +518,6 @@ export function CreateInstanceSheet({
                     type="button"
                     disabled={
                       String(name).trim().length < 3 ||
-                      currentSystemPrompt.trim().length < 10 ||
                       (durableMemoryEnabled
                         && supportsDurableMemoryPlatform(agentPlatform as AgentPlatformId)
                         && Boolean(durableMemoryId)
@@ -514,11 +525,19 @@ export function CreateInstanceSheet({
                     }
                     onClick={() => setStep(1)}
                   >
-                    Next: Security & Runtime <ArrowRight />
+                    Next: Toolbox <ArrowRight />
                   </Button>
                 )}
               </form.Subscribe>
             ) : step === 1 ? (
+              <Button
+                type="button"
+                disabled={currentSystemPrompt.trim().length < 10}
+                onClick={() => setStep(2)}
+              >
+                Next: Security Boundaries <ArrowRight />
+              </Button>
+            ) : step === 2 ? (
               <form.Subscribe
                 selector={(state) => [
                   state.values.policyId,
@@ -555,7 +574,7 @@ export function CreateInstanceSheet({
                         modelRoutings.isError ||
                         !selectedModelIsReady
                       }
-                      onClick={() => setStep(2)}
+                      onClick={() => setStep(3)}
                     >
                       Next: Review <ArrowRight />
                     </Button>
@@ -643,53 +662,17 @@ export function CreateInstanceSheet({
                 ]}
               >
                 {([name, agentPlatform]) => (
-                  <IdentityCapabilitiesStep
+                  <AgentFoundationStep
                     name={String(name)}
                     agentPlatform={agentPlatform as AgentPlatformId}
-                    specialization={specialization}
-                    specializations={specializations}
-                    skills={skills}
-                    mcpServers={mcpServers}
-                    knowledgeSources={knowledgeSources}
                     durableMemories={availableDurableMemories}
                     durableMemoriesLoading={durableMemories.isPending}
                     durableMemoryEnabled={durableMemoryEnabled}
                     durableMemoryId={durableMemoryId}
-                    customSystemPrompt={customSystemPrompt}
-                    selectedSkillIds={selectedIds(selectedSkills)}
-                    selectedMcpServerIds={selectedIds(selectedMcps)}
-                    selectedKnowledgeSourceIds={selectedIds(
-                      selectedKnowledgeSources,
-                    )}
                     onNameChange={(value) => form.setFieldValue("name", value)}
-                    onCustomSystemPromptChange={(value) => {
-                      setCustomSystemPrompt(value);
-                      setSystemPrompt(value);
-                    }}
-                    onSpecializationChange={requestSpecializationChange}
-                    onSystemPromptChange={setSystemPrompt}
-                    systemPrompt={currentSystemPrompt}
-                    onSkillIdsChange={(ids) => {
-                      setSelectedSkills(
-                        updateCapabilitySelection(selectedSkills, ids),
-                      );
-                      setSkillsTouched(true);
-                    }}
-                    onMcpServerIdsChange={(ids) => {
-                      setSelectedMcps(
-                        updateCapabilitySelection(selectedMcps, ids),
-                      );
-                      setMcpsTouched(true);
-                    }}
-                    onKnowledgeSourceIdsChange={(ids) => {
-                      setSelectedKnowledgeSources(
-                        updateCapabilitySelection(
-                          selectedKnowledgeSources,
-                          ids,
-                        ),
-                      );
-                      setKnowledgeSourcesTouched(true);
-                    }}
+                    onAgentPlatformChange={(value) =>
+                      form.setFieldValue("agentPlatform", value)
+                    }
                     onDurableMemoryIdChange={setDurableMemoryId}
                   />
                 )}
@@ -697,14 +680,59 @@ export function CreateInstanceSheet({
             ) : null}
 
             {step === 1 ? (
+              <ToolboxStep
+                specialization={specialization}
+                specializations={specializations}
+                skills={skills}
+                mcpServers={mcpServers}
+                knowledgeSources={knowledgeSources}
+                customSystemPrompt={customSystemPrompt}
+                selectedSkillIds={selectedIds(selectedSkills)}
+                selectedMcpServerIds={selectedIds(selectedMcps)}
+                selectedKnowledgeSourceIds={selectedIds(
+                  selectedKnowledgeSources,
+                )}
+                onCustomSystemPromptChange={(value) => {
+                  setCustomSystemPrompt(value);
+                  setSystemPrompt(value);
+                  setInstructionsTouched(true);
+                }}
+                onSpecializationChange={requestSpecializationChange}
+                onSystemPromptChange={(value) => {
+                  setSystemPrompt(value);
+                  setInstructionsTouched(true);
+                }}
+                systemPrompt={currentSystemPrompt}
+                onSkillIdsChange={(ids) => {
+                  setSelectedSkills(
+                    updateCapabilitySelection(selectedSkills, ids),
+                  );
+                  setSkillsTouched(true);
+                }}
+                onMcpServerIdsChange={(ids) => {
+                  setSelectedMcps(
+                    updateCapabilitySelection(selectedMcps, ids),
+                  );
+                  setMcpsTouched(true);
+                }}
+                onKnowledgeSourceIdsChange={(ids) => {
+                  setSelectedKnowledgeSources(
+                    updateCapabilitySelection(selectedKnowledgeSources, ids),
+                  );
+                  setKnowledgeSourcesTouched(true);
+                }}
+              />
+            ) : null}
+
+            {step === 2 ? (
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
-                    <ShieldCheck className="size-5" /> Security & Runtime
+                    <ShieldCheck className="size-5" /> Security Boundaries
                   </CardTitle>
                   <CardDescription>
-                    Choose the policies, Agent runtime, and model route this
-                    Instance will use.
+                    Set the access, execution, and model-routing boundaries for
+                    this Instance.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-5">
@@ -872,7 +900,7 @@ export function CreateInstanceSheet({
                         id="works-on-heading"
                         className="flex items-center gap-2 text-sm font-semibold"
                       >
-                        <Bot className="size-4" /> Execution
+                        <Waypoints className="size-4" /> Execution
                       </h3>
                       <nav
                         aria-label="Manage execution settings"
@@ -899,38 +927,17 @@ export function CreateInstanceSheet({
                           params={{ projectId }}
                           className="inline-flex min-h-11 items-center text-xs font-medium underline underline-offset-4"
                         >
-                          Manage Runtime Policies
+                          Manage Sandbox Policies
                         </Link>
                       </nav>
                     </div>
                     <div className="grid items-start gap-x-5 gap-y-5 md:grid-cols-2">
-                      <form.Field name="agentPlatform">
-                        {(field) => (
-                          <div className="space-y-2">
-                            <div className="flex min-h-8 items-center">
-                              <FieldLabel
-                                htmlFor="instance-agent"
-                                label="Agent workbench"
-                                tip="The Agent implementation that performs this work."
-                              />
-                            </div>
-                            <AgentSelect
-                              id="instance-agent"
-                              value={field.state.value}
-                              onValueChange={(value) => {
-                                field.handleChange(value);
-                                if (!durableMemoryEnabled || !supportsDurableMemoryPlatform(value)) setDurableMemoryId("");
-                              }}
-                            />
-                          </div>
-                        )}
-                      </form.Field>
                       <form.Field name="policyId">
                         {(field) => (
                           <div className="space-y-2">
                             <div className="flex min-h-8 items-center justify-between gap-3">
                               <FieldLabel
-                                label="Runtime Policy"
+                                label="Sandbox Policy"
                                 tip="Controls the files, commands, and network resources the Agent can access while it runs."
                               />
                             </div>
@@ -942,7 +949,7 @@ export function CreateInstanceSheet({
                               onValueChange={field.handleChange}
                             >
                               <SelectTrigger
-                                aria-label="Runtime Policy"
+                                aria-label="Sandbox Policy"
                                 className="h-auto min-h-14 w-full"
                               >
                                 <SelectValue
@@ -981,7 +988,7 @@ export function CreateInstanceSheet({
                             (routing) => routing.status === "READY",
                           );
                           return (
-                            <div className="space-y-2 md:col-span-2 md:max-w-2xl">
+                            <div className="space-y-2">
                               <div className="flex min-h-8 items-center">
                                 <FieldLabel
                                   htmlFor="instance-model-routing"
@@ -1135,29 +1142,32 @@ export function CreateInstanceSheet({
               </Card>
             ) : null}
 
-            {step === 2 ? (
+            {step === 3 ? (
               <form.Subscribe selector={(state) => state.values}>
                 {(values) => (
                   <Card>
                     <CardHeader>
                       <CardTitle className="flex items-center gap-2">
-                        <Check className="size-5" /> Review & Approve
+                        <Check className="size-5" /> Review & Create
                       </CardTitle>
                       <CardDescription>
-                        Confirm the Agent, its extensions, and the safeguards
-                        that govern how it runs before provisioning.
+                        Confirm the Agent Foundation, Toolbox, and Security
+                        Boundaries before provisioning.
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-0">
                       <ReviewGroup
-                        title="Agent"
-                        description="Identity, Role, and Memory define who this Agent is."
+                        title="Agent Foundation"
+                        description="The Instance name, Agent implementation, and Memory define its foundation."
                       >
                         <dl className="grid gap-5 sm:grid-cols-3">
                           <ReviewFact label="Name" value={values.name} />
                           <ReviewFact
-                            label="Role"
-                            value={specialization.roleLabel}
+                            label="Agent"
+                            value={
+                              getAgentPlatformPresentation(values.agentPlatform)
+                                .name
+                            }
                           />
                           <ReviewFact
                             label="Memory"
@@ -1171,26 +1181,29 @@ export function CreateInstanceSheet({
                             }
                           />
                         </dl>
-                        <div className="mt-5 border-t pt-4">
-                          <ReviewRow
-                            label="Instructions"
-                            value={
-                              specialization.id === "custom" ||
-                              currentSystemPrompt !==
-                                specialization.systemPrompt
-                                ? "Customized for this Agent"
-                                : `Role default · ${specialization.roleLabel}`
-                            }
-                          />
-                        </div>
                       </ReviewGroup>
 
                       <Separator />
 
                       <ReviewGroup
-                        title="Extensions"
-                        description="Optional capabilities that make this Agent more capable and informed."
+                        title="Toolbox"
+                        description="The preset supplies starting Instructions, tools, and knowledge for this Agent."
                       >
+                        <dl className="mb-5 grid gap-5 border-b pb-5 sm:grid-cols-2">
+                          <ReviewFact
+                            label="Preset"
+                            value={specialization.name}
+                          />
+                          <ReviewFact
+                            label="Instructions"
+                            value={
+                              specialization.id === "custom" ||
+                              currentSystemPrompt !== specialization.systemPrompt
+                                ? "Customized for this Instance"
+                                : "Using preset instructions"
+                            }
+                          />
+                        </dl>
                         <div className="grid gap-5 md:grid-cols-3">
                           <ReviewSection
                             title={`Skills (${selectedSkills.length})`}
@@ -1257,19 +1270,12 @@ export function CreateInstanceSheet({
                       <Separator />
 
                       <ReviewGroup
-                        title="Security & Runtime"
+                        title="Security Boundaries"
                         description="Execution and access boundaries that keep this Agent from doing the wrong thing."
                       >
-                        <dl className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+                        <dl className="grid gap-5 sm:grid-cols-3">
                           <ReviewFact
-                            label="Agent workbench"
-                            value={
-                              getAgentPlatformPresentation(values.agentPlatform)
-                                .name
-                            }
-                          />
-                          <ReviewFact
-                            label="Runtime Policy"
+                            label="Sandbox Policy"
                             value={policyName(values.policyId)}
                           />
                           <ReviewFact
@@ -1325,13 +1331,14 @@ export function CreateInstanceSheet({
         </CreationFlow>
       </EntitySheet>
       {pendingSpecialization ? (
-        <ChangeSpecializationDialog
+        <ChangeToolboxPresetDialog
           open
           add={pendingChange.add}
           keep={pendingChange.keep}
           remove={pendingChange.remove}
           fromName={specialization.name}
           toName={pendingSpecialization.name}
+          instructionsCustomized={instructionsTouched}
           onCancel={() => setPendingSpecializationId(null)}
           onConfirm={() => applySpecialization(pendingSpecialization.id)}
         />
@@ -1386,15 +1393,6 @@ function ReviewSection({
   );
 }
 
-function ReviewRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-start justify-between gap-4 text-xs">
-      <span className="text-muted-foreground">{label}</span>
-      <strong className="max-w-[70%] break-words text-right">{value}</strong>
-    </div>
-  );
-}
-
 function ReviewPill({
   label,
   source,
@@ -1406,7 +1404,7 @@ function ReviewPill({
     <span className="mb-1.5 mr-1.5 inline-flex min-h-8 items-center gap-2 rounded-sm border bg-muted/40 px-2.5 text-xs font-medium">
       {label}
       <span className="text-[10px] font-normal text-muted-foreground">
-        {source === "specialization" ? "Role default" : "Added"}
+        {source === "specialization" ? "Preset" : "Added"}
       </span>
     </span>
   );
@@ -1529,8 +1527,8 @@ function ReviewAssessment({
               : "Ready to create"}
           </h3>
           <p className="mt-1 text-xs leading-5 text-muted-foreground">
-            Agent definition, Access Policies, Agent workbench, Routing,
-            and Runtime Policy are complete.
+            Agent, Memory, Toolbox, Access Policies, Sandbox Policy, and
+            Routing are complete.
           </p>
           {accessPolicyNames.length ? (
             <p className="mt-2 text-xs leading-5">

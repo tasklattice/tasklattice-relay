@@ -44,15 +44,15 @@ describe("platform i18n", () => {
     const traditionalChinese = createPlatformI18n("zh-TW");
 
     expect(english).not.toBe(chinese);
-    expect(english.t("defineAgent.title", { ns: "createInstance" })).toBe(
-      "Define an Agent",
+    expect(english.t("agentFoundation.title", { ns: "createInstance" })).toBe(
+      "Choose an Agent",
     );
-    expect(chinese.t("defineAgent.title", { ns: "createInstance" })).toBe(
-      "定义一个 Agent",
+    expect(chinese.t("agentFoundation.title", { ns: "createInstance" })).toBe(
+      "选择 Agent",
     );
     expect(
-      traditionalChinese.t("defineAgent.title", { ns: "createInstance" }),
-    ).toBe("定義一個 Agent");
+      traditionalChinese.t("agentFoundation.title", { ns: "createInstance" }),
+    ).toBe("選擇 Agent");
   });
 
   it("keeps every supported language resource structurally complete", () => {
