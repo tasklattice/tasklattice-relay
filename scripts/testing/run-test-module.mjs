@@ -24,6 +24,7 @@ function filesBelow(path) {
 const candidateTests = [
   ...filesBelow(join(root, "apps/control")),
   ...filesBelow(join(root, "apps/runner")),
+  ...filesBelow(join(root, "apps/example-mcp-server")),
 ]
   .map((path) => relative(root, path).replaceAll("\\", "/"))
   .filter((path) => /\.test\.(?:ts|tsx)$/.test(path))
@@ -47,6 +48,10 @@ const controlTests = selected(module.controlTestPatterns)
   .map((path) => relative("apps/control", path));
 const runnerTests = selected(module.runnerTestPatterns)
   .map((path) => relative("apps/runner", path));
+const workspaceTests = (module.workspaceTests ?? []).map((entry) => ({
+  ...entry,
+  tests: selected(entry.patterns).map((path) => relative(entry.root, path)),
+}));
 
 console.log(`\n[test-module] ${module.label} (${module.id})`);
 if (controlTests.length) {
@@ -71,6 +76,18 @@ if (runnerTests.length) {
     ...runnerTests,
   ]);
 }
+for (const entry of workspaceTests) {
+  if (!entry.tests.length) continue;
+  console.log(`[test-module] ${entry.tests.length} ${entry.workspace} test files`);
+  run("npm", [
+    "run",
+    "test",
+    "--workspace",
+    entry.workspace,
+    "--",
+    ...entry.tests,
+  ]);
+}
 for (const test of module.pythonTests) {
   console.log(`[test-module] Python ${test}`);
   run("python3", [test]);
@@ -84,6 +101,7 @@ if (
   && !runnerTests.length
   && !module.pythonTests.length
   && !module.nodeTests.length
+  && !workspaceTests.some((entry) => entry.tests.length)
 ) {
   throw new Error(`Test module ${module.id} did not resolve any tests.`);
 }

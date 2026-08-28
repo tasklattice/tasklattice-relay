@@ -31,6 +31,7 @@ for (const platform of requested) {
       env: {
         ...process.env,
         TALI_EXPECT_NEMOCLAW_RUNTIME: "1",
+        TALI_VALIDATION_INFERENCE: process.env.TALI_LIVE_RUNTIME_INFERENCE === "1" ? "1" : "0",
         TALI_VALIDATION_AGENT_PLATFORM: platform,
         TALI_VALIDATION_KEEP_AGENT: "0",
       },
@@ -44,6 +45,7 @@ for (const platform of requested) {
 console.log(JSON.stringify({
   result: "PASS",
   level: "L3-live",
+  inference: process.env.TALI_LIVE_RUNTIME_INFERENCE === "1",
   plane: "data-plane",
   platforms: requested,
 }, null, 2));

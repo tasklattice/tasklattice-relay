@@ -25,32 +25,38 @@ changes expensive and flaky.
 
 ## Test blocks and module rows
 
-The canonical mapping lives in
-`scripts/testing/test-modules.mjs`. Its first division is the block (`block`),
-and its second division is the executable module row. Configuration validation
-fails when a production source has no explicit owner, a deterministic test is
-not assigned, or a module row resolves no test evidence. The broad Control
-fallback remains a second safety net for newly added paths.
+The canonical mapping lives in `scripts/testing/test-modules.mjs`. Its first
+division is the block (`control-plane` or `data-plane`), and its second division
+is the executable module row. Vector Database (`vector-database`) and A2A
+(`a2a`) are deliberately separate rows; there is no Knowledge module.
+Configuration validation fails when a production source has no explicit owner,
+a deterministic test is not assigned, or a module row resolves no evidence.
+The broad Control fallback remains a second safety net for newly added paths.
 
-| Block | Module row | Required evidence |
-| --- | --- | --- |
-| Control plane | `access` | Local auth, SSO/OIDC, external role binding, role switching, capabilities, Access Policies, Projects and embedded Keycloak rendering |
-| Control plane | `inference` | Provider adapters, model discovery/validation, Model Routing, LiteLLM permissions, quota and cost ingestion |
-| Control plane | `agent-lifecycle` | Agent create/provision/delete, Worker queues/retries, Kubernetes reconciliation, runtime policy, TTY and interaction authorization |
-| Control plane | `memory` | Hindsight HTTP contract, provider lifecycle, outbox, recall/retain, governance, redaction and runtime binding |
-| Control plane | `knowledge-a2a` | Docling parse, chunk and embedding pipeline, Vector search, Agent Garden Registry, A2A discovery/call contracts |
-| Control plane | `observability` | Audit, Runs, runtime telemetry, overview and trace presentation |
-| Control plane | `control-ui` | Shared UI, HTTP/OpenAPI contracts, route wiring, navigation and client helpers |
-| Data plane | `openshell-isolation` | Per-Project Namespace/Gateway ownership, route scoping, workspace-qualified state and cross-tenant rejection |
-| Data plane | `runtime` | Hermes, OpenClaw and Deep Agents image/bootstrap/health/terminal definitions and startup paths |
-| Data plane | `runtime-integrations` | Hermes A2A, Knowledge, Durable Memory and telemetry plugins plus authenticated Dashboard HTTP/WebSocket proxy |
-| Cross-block acceptance | `agent-golden-path` | Deterministic L2 orchestration plus the explicit live L4 Hermes journey; it is downstream of both blocks, not a third block |
+The current block/module rows, discovered unit/component case counts,
+independent integrations and deployed/live E2E stages are generated on every PR
+and published in the GitHub Actions job summary. They are not copied into this
+document. Generate the same Markdown locally with:
+
+```bash
+npm run test:matrix:summary
+```
 
 Shared contracts, Prisma migrations, test fixtures, package locks and the module
 map select every module. Documentation-only changes select no test module.
 Workspace typecheck/build jobs remain component-level because TypeScript and
 Vite compile the workspace as a single graph; only test execution is split at
 the domain boundary.
+
+## External integration suites
+
+Third-party components are verified independently in the `External
+integrations` workflow: Keycloak, Hindsight Memory, Docling/Vector Database and
+A2A each have their own executable command, path selection and failure result.
+The exact catalog and evidence text live in
+`scripts/testing/test-scenarios.mjs` and appear in the generated CI matrix.
+`Integration` is a test level, not a third architecture block. None of these
+suites reads a production model secret or calls a paid model API.
 
 Run a module locally with:
 
@@ -103,10 +109,20 @@ The manual L4 entry is `npm run test:e2e:live`. It refuses to run unless
 7. Prove the one-time Dashboard URL cannot be replayed and unauthenticated
    interaction access is rejected, then remove disposable resources.
 
-`npm run test:e2e:runtime-matrix` separately starts OpenClaw and Deep Agents on
-the deployed OpenShell data plane and validates their Web UI/TTY shape. Hermes
-is not duplicated there because L4 already validates its startup, TTY, Chat,
-model inference and runtime integrations.
+`npm run test:e2e:runtime-inference-matrix` separately starts OpenClaw and Deep
+Agents on the deployed OpenShell data plane. Each platform must become READY,
+return one deterministic arithmetic result through its own TTY, retain the
+selected Model Routing, and appear in LiteLLM cost evidence with the expected
+resolved model. Hermes is not duplicated there because its L4 path already
+validates startup, TTY, Chat, inference, Routing and model attribution.
+
+Two no-model deployed checks sit beside that flow. `npm run
+test:e2e:openshell-isolation` tampers a Project-scoped one-time terminal URL and
+requires HTTP 401, rejects a cross-Project Instance lookup, then proves a fresh
+correctly scoped TTY still connects. `npm run test:e2e:sso` completes the real
+Keycloak redirect through Control, validates the stored SSO group claim and
+external Role mapping, and switches to an assigned access context. SSO is an
+optional workflow stage because its test Account is deployment-specific.
 
 ## Historical regression inventory
 
@@ -123,23 +139,25 @@ regression coverage:
 | Hermes persisted a literal provider credential instead of an OpenShell placeholder | `runtime` bootstrap tests |
 | Hermes Dashboard token replay or hostile WebSocket Origin bypassed access | `runtime` Web UI proxy tests |
 | CONFIG_VIEW leaked an interaction credential | `agent-lifecycle` HTTP view and `access` capability tests |
-| A2A accepted invalid cards, non-JSON or oversized responses | `knowledge-a2a` contract tests |
-| Knowledge access was not reflected in LiteLLM object permissions | `agent-lifecycle` and `agent-golden-path` |
+| A2A accepted invalid cards, non-JSON or oversized responses | `a2a` contract tests |
+| Vector Database access was not reflected in LiteLLM object permissions | `agent-lifecycle` and `agent-golden-path` |
 
 ## Live-model cost and secret policy
 
 `DEEPSEEK_API_KEY` and `NVAPI_API_KEY` are never read by PR module tests, the
-runtime startup matrix, or automatic release validation. No secret value,
-prefix or length is logged. The live workflow is `workflow_dispatch` only and
-uses the deployment's preconfigured READY Routing; the test process does not
-copy provider keys into Agent configuration or output. This keeps the GitHub
-Secrets available for deployment/provider setup without exposing them to every
-test job.
+runtime startup matrix, the four external integration suites, or automatic
+release validation. The integrations use local deterministic embedding
+fixtures. No secret value, prefix or length is logged. The live workflow is
+`workflow_dispatch` only and uses the deployment's preconfigured READY Routing;
+the test process does not copy provider keys into Agent configuration or output.
+This keeps the GitHub Secrets available for deployment/provider setup without
+exposing them to every test job.
 
 The live budget is deliberately fixed:
 
-- exactly two user turns: one bounded tool-use turn and one short fresh-session
-  Memory recall turn; there is no provider/model matrix;
+- exactly four live user turns in the complete workflow: one OpenClaw turn, one
+  Deep Agents turn, one Hermes tool-use turn and one short Hermes Memory recall
+  turn; there is no provider/model matrix;
 - one tiny Markdown document for chunking/embedding and one semantic query;
 - only a `SINGLE` Routing with no fallback deployments is accepted; its retry
   count must stay within `TALI_LIVE_E2E_MAX_ROUTING_RETRIES` (default `2`);

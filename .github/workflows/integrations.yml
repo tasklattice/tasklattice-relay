@@ -1,0 +1,142 @@
+name: External integrations
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: integrations-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read
+
+env:
+  DOCKER_BUILD_RECORD_UPLOAD: "false"
+  DOCKER_BUILD_SUMMARY: "false"
+
+jobs:
+  changes:
+    name: Detect affected integrations
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      keycloak: ${{ steps.filter.outputs.keycloak }}
+      memory: ${{ steps.filter.outputs.memory }}
+      vector_database: ${{ steps.filter.outputs.vector_database }}
+      a2a: ${{ steps.filter.outputs.a2a }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2
+      - id: filter
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4
+        with:
+          filters: |
+            keycloak:
+              - '.github/actions/setup-node-workspace/**'
+              - '.github/workflows/integrations.yml'
+              - 'package.json'
+              - 'package-lock.json'
+              - 'charts/tali-relay/templates/keycloak.yaml'
+              - 'charts/tali-relay/values*.yaml'
+              - 'apps/control/server/auth/**'
+              - 'apps/control/server/platform/platform-settings-service*'
+              - 'scripts/configure-dev-keycloak-sso.sh'
+              - 'scripts/testing/integration-keycloak.mjs'
+            memory:
+              - '.github/actions/setup-node-workspace/**'
+              - '.github/workflows/integrations.yml'
+              - 'package.json'
+              - 'package-lock.json'
+              - 'apps/control/server/memories/**'
+              - 'apps/control/server/runtime-bridge/*memory*'
+              - 'apps/runner/src/*memory*'
+              - 'runtime-integrations/*memory*/**'
+              - 'charts/tali-relay/templates/hindsight*.yaml'
+              - 'charts/tali-relay/values*.yaml'
+              - 'scripts/test-hindsight-integration.mjs'
+            vector_database:
+              - '.github/actions/setup-node-workspace/**'
+              - '.github/workflows/integrations.yml'
+              - 'package.json'
+              - 'package-lock.json'
+              - 'apps/control/package.json'
+              - 'apps/control/server/catalog/**'
+              - 'apps/control/server/providers/**'
+              - 'charts/tali-relay/templates/docling.yaml'
+              - 'charts/tali-relay/values*.yaml'
+              - 'runtime-integrations/*vector-database*/**'
+              - 'scripts/testing/integration-docling-vector.mjs'
+            a2a:
+              - '.github/actions/setup-node-workspace/**'
+              - '.github/workflows/integrations.yml'
+              - 'package.json'
+              - 'package-lock.json'
+              - 'apps/example-mcp-server/**'
+              - 'apps/control/server/agent-garden/**'
+              - 'apps/control/server/runtime-bridge/project-agent-runtime-service.ts'
+              - 'apps/runner/src/hermes-a2a-plugin*'
+              - 'runtime-integrations/hermes-a2a-plugin/**'
+              - 'scripts/testing/integration-a2a.mjs'
+
+  keycloak:
+    name: Integration / Keycloak
+    needs: changes
+    if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.keycloak == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup-node-workspace
+      - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+        with:
+          version: v3.18.4
+      - name: Prepare chart dependencies
+        run: npm run helm:dependencies
+      - name: Verify real OIDC login and role claims
+        run: npm run test:integration:keycloak
+
+  memory:
+    name: Integration / Hindsight Memory
+    needs: changes
+    if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.memory == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup-node-workspace
+      - name: Build shared contracts
+        run: npm run build --workspace @tali/contracts
+      - name: Verify retain, recall, curation and deletion
+        run: npm run test:integration:memory
+
+  vector_database:
+    name: Integration / Docling and Vector Database
+    needs: changes
+    if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.vector_database == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup-node-workspace
+      - name: Build shared contracts
+        run: npm run build --workspace @tali/contracts
+      - name: Verify chunk, embedding, pgvector storage and retrieval
+        run: npm run test:integration:vector-database
+
+  a2a:
+    name: Integration / A2A
+    needs: changes
+    if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.a2a == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup-node-workspace
+      - name: Verify Agent Card discovery and JSON-RPC delegation
+        run: npm run test:integration:a2a

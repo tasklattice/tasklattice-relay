@@ -85,20 +85,24 @@ export class RelayClient {
   }
 
   async request(path, init = {}) {
+    const response = await this.rawRequest(path, init);
+    if (!response.ok) await this.#throwResponse(response, path);
+    if (response.status === 204) return undefined;
+    const contentType = response.headers.get("content-type") ?? "";
+    return contentType.includes("json") ? response.json() : response.text();
+  }
+
+  rawRequest(path, init = {}) {
     const headers = new Headers(init.headers);
     if (this.sessionCookie) headers.set("cookie", this.sessionCookie);
     const bodyIsForm = typeof FormData !== "undefined" && init.body instanceof FormData;
     if (init.body !== undefined && !bodyIsForm && !headers.has("content-type")) {
       headers.set("content-type", "application/json");
     }
-    const response = await this.fetch(new URL(path, this.baseUrl), {
+    return this.fetch(new URL(path, this.baseUrl), {
       ...init,
       headers,
     });
-    if (!response.ok) await this.#throwResponse(response, path);
-    if (response.status === 204) return undefined;
-    const contentType = response.headers.get("content-type") ?? "";
-    return contentType.includes("json") ? response.json() : response.text();
   }
 
   project(projectId, path, init) {
@@ -307,4 +311,159 @@ export async function probeRelayTerminal({
       reject(error);
     });
   });
+}
+
+export async function runRelayTerminalInference({
+  baseUrl,
+  websocketPath,
+  expectedText,
+  prompt,
+  timeoutMs = 180_000,
+  WebSocketImplementation = WebSocket,
+}) {
+  const url = websocketUrl(baseUrl, websocketPath);
+  const socket = new WebSocketImplementation(url);
+  return new Promise((resolve, reject) => {
+    let output = "";
+    let runtimeConnected = false;
+    let promptSent = false;
+    const timer = setTimeout(() => {
+      socket.close();
+      reject(new Error(
+        `Relay TTY inference did not return ${expectedText}: ${stripAnsi(output).slice(-1_000)}`,
+      ));
+    }, timeoutMs);
+    socket.on("message", (raw) => {
+      const chunk = raw.toString();
+      output += chunk;
+      if (chunk.startsWith("Connected to NemoClaw runtime")) {
+        runtimeConnected = true;
+        return;
+      }
+      if (runtimeConnected && !promptSent && chunk.length > 0) {
+        promptSent = true;
+        socket.send("\u001b[RESIZE:120;40]");
+        socket.send(`${prompt}\r`);
+        return;
+      }
+      if (promptSent && stripAnsi(output).includes(expectedText)) {
+        clearTimeout(timer);
+        socket.close();
+        resolve(stripAnsi(output));
+      }
+    });
+    socket.once("error", (error) => {
+      clearTimeout(timer);
+      reject(error);
+    });
+  });
+}
+
+export async function expectWebSocketHttpStatus({
+  baseUrl,
+  websocketPath,
+  expectedStatus,
+  timeoutMs = 15_000,
+  WebSocketImplementation = WebSocket,
+}) {
+  const socket = new WebSocketImplementation(websocketUrl(baseUrl, websocketPath));
+  return new Promise((resolve, reject) => {
+    let receivedStatus = false;
+    const timer = setTimeout(() => {
+      socket.close();
+      reject(new Error(`WebSocket did not reject with HTTP ${expectedStatus}.`));
+    }, timeoutMs);
+    socket.once("open", () => {
+      clearTimeout(timer);
+      socket.close();
+      reject(new Error(`WebSocket unexpectedly opened; expected HTTP ${expectedStatus}.`));
+    });
+    socket.once("unexpected-response", (_request, response) => {
+      receivedStatus = true;
+      clearTimeout(timer);
+      socket.close();
+      if (response.statusCode !== expectedStatus) {
+        reject(new Error(
+          `WebSocket returned HTTP ${response.statusCode}; expected ${expectedStatus}.`,
+        ));
+        return;
+      }
+      resolve(response.statusCode);
+    });
+    socket.once("error", (error) => {
+      // ws emits both unexpected-response and error on some versions. The
+      // status callback owns the assertion when the HTTP response is visible.
+      if (!receivedStatus) {
+        clearTimeout(timer);
+        reject(error);
+      }
+    });
+  });
+}
+
+export async function waitForInstanceModelAttribution({
+  instance,
+  projectRequest,
+  routing,
+  startedAt,
+  timeoutMs = 180_000,
+}) {
+  if (instance.modelRoutingId !== routing.id) {
+    throw new Error(
+      `Instance ${instance.id} was assigned Routing ${instance.modelRoutingId}, expected ${routing.id}.`,
+    );
+  }
+  if (routing.routingPolicy?.mode !== "SINGLE") {
+    throw new Error("Model attribution requires the cost-safe SINGLE Routing used by live E2E.");
+  }
+  const modelPage = await projectRequest("/models");
+  const deployment = (modelPage.data ?? modelPage).find(
+    (candidate) => candidate.id === routing.routingPolicy.modelDeploymentId,
+  );
+  if (!deployment) {
+    throw new Error(
+      `Routing ${routing.id} references missing Model Deployment ${routing.routingPolicy.modelDeploymentId}.`,
+    );
+  }
+  if (instance.modelDeploymentId !== deployment.id) {
+    throw new Error(
+      `Instance ${instance.id} was assigned Model Deployment ${instance.modelDeploymentId}, expected ${deployment.id}.`,
+    );
+  }
+  const start = new Date(new Date(startedAt).getTime() - 60_000).toISOString();
+  const item = await eventually(async () => {
+    const end = new Date(Date.now() + 60_000).toISOString();
+    const query = new URLSearchParams({
+      start_time: start,
+      end_time: end,
+      timezone: "UTC",
+      filters: JSON.stringify({ instance: [instance.id] }),
+      group_by: "instance",
+      page: "1",
+      page_size: "25",
+    });
+    const page = await projectRequest(`/costs/breakdown?${query}`);
+    return page.items?.find(
+      (candidate) => candidate.id === instance.id && candidate.requests > 0,
+    );
+  }, {
+    description: `LiteLLM cost attribution for ${instance.agentPlatform ?? instance.id}`,
+    intervalMs: 3_000,
+    timeoutMs,
+  });
+  const expectedNames = [deployment.modelId, deployment.litellmModelName]
+    .filter((value) => typeof value === "string" && value.length > 0);
+  if (!expectedNames.some((name) => item.detail === name || item.detail.includes(name))) {
+    throw new Error(
+      `LiteLLM attributed ${instance.id} to ${item.detail}; expected ${expectedNames.join(" or ")}.`,
+    );
+  }
+  return {
+    instanceId: instance.id,
+    model: item.detail,
+    modelDeploymentId: deployment.id,
+    assignedModelDeploymentId: instance.modelDeploymentId,
+    requests: item.requests,
+    routingId: routing.id,
+  };
 }

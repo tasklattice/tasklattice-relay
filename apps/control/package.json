@@ -19,6 +19,7 @@
     "pretest": "npm run db:generate && npm run validate:migrations",
     "test": "vitest run --config vitest.config.ts",
     "test:hindsight:live": "vitest run --config vitest.config.ts server/memories/hindsight-memory-provider.live.test.ts",
+    "test:docling-vector:live": "vitest run --config vitest.config.ts server/catalog/docling-vector-database.live.test.ts",
     "pretypecheck": "npm run db:generate && npm run validate:migrations",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },

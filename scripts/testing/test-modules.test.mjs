@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import test from "node:test";
 import {
@@ -12,6 +12,7 @@ import {
   sourceOwnerModuleIds,
   testModules,
 } from "./test-modules.mjs";
+import { testScenarios } from "./test-scenarios.mjs";
 
 const root = resolve(import.meta.dirname, "../..");
 
@@ -35,7 +36,7 @@ test("adds the cross-component golden path to core Agent dependencies", () => {
       "apps/control/server/memories/memory-service.ts",
       "apps/control/server/agent-garden/agent-discovery.ts",
     ]),
-    ["memory", "knowledge-a2a", GOLDEN_PATH_MODULE_ID],
+    ["memory", "a2a", GOLDEN_PATH_MODULE_ID],
   );
 });
 
@@ -60,7 +61,8 @@ test("fails safe for an unmapped Control path", () => {
     "inference",
     "agent-lifecycle",
     "memory",
-    "knowledge-a2a",
+    "vector-database",
+    "a2a",
     "observability",
     "control-ui",
     GOLDEN_PATH_MODULE_ID,
@@ -79,6 +81,47 @@ test("routes Keycloak integration changes through Access and the golden path", (
   const modules = selectTestModuleIds(["scripts/configure-dev-keycloak-sso.sh"]);
   assert.ok(modules.includes("access"));
   assert.ok(modules.includes(GOLDEN_PATH_MODULE_ID));
+});
+
+test("keeps external components as independent integration suites", () => {
+  const packageJson = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
+  const integrationScripts = Object.fromEntries(
+    Object.entries(packageJson.scripts)
+      .filter(([name]) => name.startsWith("test:integration:")),
+  );
+  assert.deepEqual(
+    Object.keys(integrationScripts),
+    [
+      "test:integration:keycloak",
+      "test:integration:memory",
+      "test:integration:vector-database",
+      "test:integration:a2a",
+    ],
+  );
+  for (const script of Object.values(integrationScripts)) {
+    assert.doesNotMatch(String(script), /DEEPSEEK_API_KEY|NVAPI_API_KEY/);
+  }
+});
+
+test("keeps the generated scenario catalog executable and cost-safe", () => {
+  const packageJson = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
+  const moduleIds = new Set(testModules.map(({ id }) => id));
+  assert.equal(new Set(testScenarios.map(({ id }) => id)).size, testScenarios.length);
+  for (const scenario of testScenarios) {
+    assert.ok(moduleIds.has(scenario.module), `${scenario.id} has no module owner`);
+    const scriptName = scenario.command.match(/npm run ([\w:-]+)/)?.[1];
+    assert.ok(scriptName && packageJson.scripts[scriptName], `${scenario.id} has no package script`);
+    if (scenario.execution === "automatic") {
+      assert.equal(scenario.cost, "zero model cost");
+      assert.doesNotMatch(
+        `${scenario.command} ${packageJson.scripts[scriptName]}`,
+        /DEEPSEEK_API_KEY|NVAPI_API_KEY/,
+      );
+    }
+    if (scenario.cost !== "zero model cost") {
+      assert.equal(scenario.execution, "manual", `${scenario.id} can spend automatically`);
+    }
+  }
 });
 
 test("organizes modules under Control and Data, with one cross-block suite", () => {
@@ -102,6 +145,7 @@ test("gives every production source an explicit module owner", () => {
   const productionSources = [
     ...filesBelow(join(root, "apps/control")),
     ...filesBelow(join(root, "apps/runner")),
+    ...filesBelow(join(root, "apps/example-mcp-server")),
     ...filesBelow(join(root, "runtime-integrations")),
   ]
     .map((path) => relative(root, path).replaceAll("\\", "/"))
@@ -120,6 +164,7 @@ test("requires every module row to resolve deterministic test evidence", () => {
   const sourceTests = [
     ...filesBelow(join(root, "apps/control")),
     ...filesBelow(join(root, "apps/runner")),
+    ...filesBelow(join(root, "apps/example-mcp-server")),
   ]
     .map((path) => relative(root, path).replaceAll("\\", "/"))
     .filter((path) => /\.test\.(?:ts|tsx)$/.test(path))
@@ -142,6 +187,7 @@ test("assigns every deterministic Control, Runner and runtime integration test",
   const sourceTests = [
     ...filesBelow(join(root, "apps/control")),
     ...filesBelow(join(root, "apps/runner")),
+    ...filesBelow(join(root, "apps/example-mcp-server")),
   ]
     .map((path) => relative(root, path).replaceAll("\\", "/"))
     .filter((path) => /\.test\.(?:ts|tsx)$/.test(path))
@@ -149,6 +195,7 @@ test("assigns every deterministic Control, Runner and runtime integration test",
   const sourcePatterns = testModules.flatMap((module) => [
     ...module.controlTestPatterns,
     ...module.runnerTestPatterns,
+    ...(module.workspaceTests ?? []).flatMap((entry) => entry.patterns),
   ]);
   assert.deepEqual(
     sourceTests.filter((path) => !matchesAny(path, sourcePatterns)),

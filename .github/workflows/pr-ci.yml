@@ -189,6 +189,20 @@ jobs:
       - name: Run affected module
         run: npm run test:module -- ${{ matrix.module }}
 
+  test_matrix:
+    name: Test coverage matrix
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup-node-workspace
+      - name: Build shared contracts
+        run: npm run build --workspace @tali/contracts
+      - name: Generate Prisma client used by test discovery
+        run: npm run db:generate --workspace @tali/control
+      - name: Publish live test inventory to the CI summary
+        run: npm run test:matrix:summary
+
   example_mcp:
     name: Example MCP
     needs: changes
@@ -293,6 +307,7 @@ jobs:
       - control
       - runner
       - module_tests
+      - test_matrix
       - example_mcp
       - litellm
       - helm
@@ -308,6 +323,7 @@ jobs:
           CONTROL_RESULT: ${{ needs.control.result }}
           RUNNER_RESULT: ${{ needs.runner.result }}
           MODULE_TESTS_RESULT: ${{ needs.module_tests.result }}
+          TEST_MATRIX_RESULT: ${{ needs.test_matrix.result }}
           EXAMPLE_MCP_RESULT: ${{ needs.example_mcp.result }}
           LITELLM_RESULT: ${{ needs.litellm.result }}
           HELM_RESULT: ${{ needs.helm.result }}
@@ -321,6 +337,7 @@ jobs:
             CONTROL \
             RUNNER \
             MODULE_TESTS \
+            TEST_MATRIX \
             EXAMPLE_MCP \
             LITELLM \
             HELM \

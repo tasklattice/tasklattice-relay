@@ -6,6 +6,7 @@ import {
   exchangeDashboardSession,
   probeRelayTerminal,
   runHermesDashboardTurn,
+  waitForInstanceModelAttribution,
 } from "./live-hermes-e2e-lib.mjs";
 
 class BlockedError extends Error {
@@ -90,7 +91,7 @@ async function main() {
   }
   const keepResources = process.env.TALI_LIVE_E2E_KEEP_RESOURCES === "1";
   const nonce = crypto.randomUUID().slice(0, 8);
-  const knowledgeMarker = `ORBIT-${nonce.toUpperCase()}`;
+  const vectorMarker = `ORBIT-${nonce.toUpperCase()}`;
   const memoryMarker = `PREFERENCE-${nonce.toUpperCase()}`;
   const responseMarker = `E2E-COMPLETE-${nonce.toUpperCase()}`;
   const client = new RelayClient(baseUrl);
@@ -177,9 +178,9 @@ async function main() {
     evidence.a2aRegistry = { agentId: peer.agentId, instanceId: peer.id, status: peer.status };
 
     const sourceText = [
-      "# TaskLattice live E2E knowledge",
+      "# TaskLattice live E2E vector document",
       "",
-      `The validation constellation code is ${knowledgeMarker}.`,
+      `The validation constellation code is ${vectorMarker}.`,
       "This sentence exists only to prove document parsing, chunking, embedding, and semantic retrieval.",
     ].join("\n");
     const form = new FormData();
@@ -214,16 +215,17 @@ async function main() {
         body: JSON.stringify({ query: "validation constellation code", topK: 4 }),
       },
     );
-    if (!search.results?.some((result) => result.content.includes(knowledgeMarker))) {
-      throw new Error("The uploaded Knowledge document was embedded but the marker was not retrieved.");
+    if (!search.results?.some((result) => result.content.includes(vectorMarker))) {
+      throw new Error("The uploaded Vector Database document was embedded but its marker was not retrieved.");
     }
-    evidence.knowledge = {
+    evidence.vectorDatabase = {
       chunkCount: readyDocument.chunkCount,
       databaseId: vectorDatabase.id,
       documentId: readyDocument.id,
-      retrievedMarker: knowledgeMarker,
+      retrievedMarker: vectorMarker,
     };
 
+    const inferenceStartedAt = new Date().toISOString();
     const creation = await client.project(project.id, "/instances", {
       method: "POST",
       headers: { "idempotency-key": `live-hermes-e2e:${nonce}` },
@@ -292,13 +294,13 @@ async function main() {
       ...dashboard,
       timeoutMs,
       requiredTools: ["a2a_list", "a2a_call", "vector_database_list", "vector_database_search"],
-      responseIncludes: [knowledgeMarker, responseMarker],
+      responseIncludes: [vectorMarker, responseMarker],
       prompt: [
         "Perform this live acceptance flow with actual tools; do not simulate tool output.",
         "1. Call a2a_list, select a READY peer, create the required Kanban task assigned to tali-a2a, then call a2a_call asking the peer for a one-line health acknowledgement.",
         `2. Call vector_database_list and vector_database_search for database ${vectorDatabase.id}, querying \"validation constellation code\".`,
         `3. Remember this durable user preference verbatim: ${memoryMarker}.`,
-        `4. Report the retrieved code ${knowledgeMarker} and finish with ${responseMarker}.`,
+        `4. Report the retrieved code ${vectorMarker} and finish with ${responseMarker}.`,
       ].join("\n"),
     });
     evidence.hermesTools = firstTurn.tools;
@@ -322,9 +324,16 @@ async function main() {
       ...dashboard,
       timeoutMs,
       responseIncludes: [memoryMarker],
-      prompt: "In a fresh session, state the exact durable validation preference you remember. Do not use Knowledge or A2A tools.",
+      prompt: "In a fresh session, state the exact durable validation preference you remember. Do not use Vector Database or A2A tools.",
     });
     evidence.memory.recalledInFreshChat = recallTurn.response.includes(memoryMarker);
+    evidence.modelAttribution = await waitForInstanceModelAttribution({
+      instance: agent,
+      projectRequest: (path, init) => client.project(project.id, path, init),
+      routing,
+      startedAt: inferenceStartedAt,
+      timeoutMs,
+    });
 
     const unauthenticated = await fetch(
       new URL(

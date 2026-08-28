@@ -4,6 +4,7 @@ import {
   RelayClient,
   cookieHeader,
   eventToolNames,
+  waitForInstanceModelAttribution,
   stripAnsi,
   websocketUrl,
 } from "./live-hermes-e2e-lib.mjs";
@@ -19,6 +20,32 @@ test("builds a scoped Hermes WebSocket URL without leaking the access token", ()
   assert.equal(url.searchParams.get("channel"), "project-a");
   assert.equal(url.searchParams.get("fresh"), "1");
   assert.equal(url.searchParams.has("access_token"), false);
+});
+
+test("requires the Instance Routing and LiteLLM spend fact to identify the selected model", async () => {
+  const calls = [];
+  const evidence = await waitForInstanceModelAttribution({
+    instance: {
+      id: "agent-1",
+      agentPlatform: "openclaw",
+      modelDeploymentId: "deployment-1",
+      modelRoutingId: "routing-1",
+    },
+    routing: {
+      id: "routing-1",
+      routingPolicy: { mode: "SINGLE", modelDeploymentId: "deployment-1" },
+    },
+    startedAt: new Date().toISOString(),
+    projectRequest: async (path) => {
+      calls.push(path);
+      if (path === "/models") {
+        return { data: [{ id: "deployment-1", modelId: "deepseek-chat", litellmModelName: "relay/deepseek-chat" }] };
+      }
+      return { items: [{ id: "agent-1", detail: "deepseek-chat", requests: 1 }] };
+    },
+  });
+  assert.equal(evidence.model, "deepseek-chat");
+  assert.ok(calls.some((path) => path.startsWith("/costs/breakdown?")));
 });
 
 test("extracts only cookie pairs from combined Set-Cookie headers", () => {
