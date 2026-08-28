@@ -31,7 +31,12 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ApiError, api } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import { errorMessage, formatMemoryDate, MemoryNotice } from "./memory-ui";
+import {
+  errorMessage,
+  formatMemoryDate,
+  MemoryConflictNotice,
+  MemoryNotice,
+} from "./memory-ui";
 
 export function ConversationSheet({
   canCurate,
@@ -232,7 +237,7 @@ export function FactSheet({
         <section><Label htmlFor="memory-fact-text">Statement</Label>{editing ? <Textarea id="memory-fact-text" autoFocus className="mt-2 min-h-40" value={text} onChange={(event) => setText(event.target.value)} /> : <p id="memory-fact-text" className="mt-2 whitespace-pre-wrap text-base leading-7">{current.text}</p>}</section>
         <div className="grid grid-cols-2 gap-4 border-y py-4 text-xs"><span><span className="block text-muted-foreground">Status</span><strong className="mt-1 block capitalize">{current.status}</strong></span><span><span className="block text-muted-foreground">Evidence</span><strong className="mt-1 block">{current.evidence.length} source{current.evidence.length === 1 ? "" : "s"}</strong></span></div>
         <EvidenceList evidence={current.evidence} />
-        {conflict ? <MemoryNotice tone="warning" action={<Button variant="outline" className="h-11" onClick={() => onOpenChange(false)}>Reload Fact</Button>}>This Fact changed after you opened it. Your draft was not applied; reload before editing again.</MemoryNotice> : null}
+        {conflict ? <MemoryConflictNotice entity="Fact" onReload={() => onOpenChange(false)} /> : null}
         {update.error && !conflict ? <MemoryNotice tone="error">{errorMessage(update.error)}</MemoryNotice> : null}
         {status.error ? <MemoryNotice tone="error">{errorMessage(status.error)}</MemoryNotice> : null}
       </div> : null}
@@ -295,7 +300,7 @@ export function ExperienceSheet({
       ) : (
         <>
           {canCurate ? <Button variant="outline" disabled={pending} onClick={() => { update.reset(); setEditing(true); }}><Pencil />Edit</Button> : null}
-          <Button variant="outline" onClick={() => evidenceHeading.current?.scrollIntoView({ behavior: "smooth", block: "start" })}><FileSearch />View evidence</Button>
+          <Button variant="outline" onClick={() => evidenceHeading.current?.scrollIntoView({ behavior: "auto", block: "start" })}><FileSearch />View evidence</Button>
           {canCurate ? <DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="size-11" aria-label="Experience actions"><ChevronDown /></Button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem disabled={pending} onSelect={() => status.mutate()}>{current?.status === "active" ? <ShieldOff /> : <RotateCcw />}{current?.status === "active" ? "Invalidate" : "Restore"}</DropdownMenuItem></DropdownMenuContent></DropdownMenu> : null}
         </>
       )}
@@ -303,7 +308,7 @@ export function ExperienceSheet({
       {current ? <div className="space-y-6">
         {editing ? <ExperienceForm draft={draft} onChange={set} /> : <ExperienceView experience={current} />}
         <section id="experience-evidence" className="scroll-mt-6" aria-labelledby="experience-evidence-heading"><h3 ref={evidenceHeading} id="experience-evidence-heading" tabIndex={-1} className="text-xs font-semibold uppercase tracking-wide text-muted-foreground outline-none">Source evidence</h3><div className="mt-3"><EvidenceList evidence={current.evidence} sourceIds={current.sourceDocumentIds} /></div></section>
-        {conflict ? <MemoryNotice tone="warning" action={<Button variant="outline" className="h-11" onClick={() => onOpenChange(false)}>Reload Experience</Button>}>This Experience is now a newer version. Your draft was not applied; reload it before editing again.</MemoryNotice> : null}
+        {conflict ? <MemoryConflictNotice entity="Experience" onReload={() => onOpenChange(false)} /> : null}
         {update.error && !conflict ? <MemoryNotice tone="error">{errorMessage(update.error)}</MemoryNotice> : null}
         {status.error ? <MemoryNotice tone="error">{errorMessage(status.error)}</MemoryNotice> : null}
       </div> : null}

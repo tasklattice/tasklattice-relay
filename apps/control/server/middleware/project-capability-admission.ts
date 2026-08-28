@@ -1,7 +1,7 @@
 import { defineMiddleware } from "nitro";
 import { requireAuth, unauthorizedResponse } from "../auth/auth";
 import { prisma } from "../db/prisma";
-import { errorResponse } from "../http/responses";
+import { errorResponse, problemResponse } from "../http/responses";
 import { requireProjectCapability } from "../services";
 import { markProjectAdmissionComplete } from "../authorization/authorization-context";
 import {
@@ -17,6 +17,7 @@ import {
   projectRoleFromBuiltinRole,
   type ProjectRole,
 } from "../projects/project-access";
+import { durableMemoryEnabledForProject } from "../memories/durable-memory-feature";
 
 async function jsonBody(request: Request): Promise<Record<string, unknown>> {
   try {
@@ -86,6 +87,15 @@ export default defineMiddleware(async (event) => {
   const admission = projectRouteAdmissionPolicy(event.req.method, url.pathname);
   const isProjectScoped = /^\/api\/v1\/projects\/[^/]+(?:\/|$)/.test(url.pathname);
   if (!isProjectScoped || event.req.method.toUpperCase() === "OPTIONS") return;
+  const scopedProjectId = projectId(url.pathname);
+  if (
+    /^\/api\/v1\/projects\/[^/]+\/memories(?:\/|$)/.test(url.pathname)
+    && !durableMemoryEnabledForProject(scopedProjectId)
+  ) {
+    return problemResponse(404, "Durable Memory is not enabled for this Project.", {
+      code: "feature_disabled",
+    });
+  }
   if (!admission) {
     return errorResponse(new Error(
       "Access denied: this Project route has no Capability admission policy.",

@@ -190,6 +190,7 @@ the namespace `LimitRange` exists on a first installation.
 When `secrets.existingSecret` is used it must contain `control.toml`,
 `runner-token`, `litellm-master-key`, `postgres-password`, `database-url`,
 `litellm-ui-username`, `litellm-ui-password`, `litellm-salt-key`,
+`metrics-token`,
 `hindsight-database-password`, `hindsight-database-url`, and
 `hindsight-api-key` (the final three are required when `hindsight.enabled=true`).
 `control.toml` contains only the public URL, database and signing bootstrap,
@@ -332,6 +333,15 @@ Pod to run as root as an upgrade shortcut.
 
 ## Project Durable Memory provider (Hindsight)
 
+The product feature is enabled by default with
+`features.durableMemory.enabled=true`. To stage a release, set
+`features.durableMemory.projectAllowlist` to the exact Project IDs that may
+create and manage Durable Memory. A non-empty allowlist takes precedence over
+the environment default. Projects outside it keep the existing Agent creation
+path, but no Memory is auto-provisioned and the Memory navigation/API surface
+is unavailable. Existing bound runtimes continue through the scoped Memory
+Gateway so a rollout change does not interrupt an in-flight Agent response.
+
 Durable Memory uses Hindsight API `0.9.2-slim`, pinned to the reviewed
 multi-architecture OCI index digest
 `sha256:7635a15739361dbdf221ba796ad25a813f876144fe113022eea8e26cb6ee75e7`.
@@ -383,6 +393,16 @@ must scale independently; that renders a StatefulSet with stable Pod-derived
 worker IDs and disables the embedded worker. Both forms keep API and worker
 metrics/health endpoints private. Full LLM prompt/completion tracing, 4xx debug
 dumps, MCP, and provider Control Plane exposure are disabled by default.
+
+Enable Prometheus Operator integration with
+`monitoring.serviceMonitor.enabled=true` and actionable Memory alerts with
+`monitoring.prometheusRule.enabled=true`. This scrapes authenticated Relay and
+Control Worker metrics plus Hindsight's private `/metrics` endpoint. Set an
+independent random `secrets.metricsToken` (or `metrics-token` in
+`secrets.existingSecret`). Hindsight Bank ID labels remain disabled and async
+backlog metrics are enabled. The complete backup, restore, alert-response,
+upgrade, troubleshooting, and uninstall procedure is in
+[`docs/durable-memory-operations.md`](../../docs/durable-memory-operations.md).
 
 Verify a deployment with:
 

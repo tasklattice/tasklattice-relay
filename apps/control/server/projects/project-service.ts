@@ -49,6 +49,7 @@ import {
   ProjectRuntimeTargetService,
   type ProjectRuntimeNamespaceProvisioner,
 } from "./project-runtime-target-service";
+import { durableMemoryEnabledForProject } from "../memories/durable-memory-feature";
 
 export type ProjectRole = ProjectMembershipRole;
 
@@ -62,6 +63,9 @@ export interface ProjectView extends ProjectAccessView {
   name: string;
   avatar?: string;
   memberCount: number;
+  features: {
+    durableMemory: boolean;
+  };
 }
 
 export interface ProjectDeletionActiveResource {
@@ -73,7 +77,8 @@ export interface ProjectDeletionActiveResource {
     | "gateway"
     | "routing"
     | "mcp-server"
-    | "vector-database";
+    | "vector-database"
+    | "memory";
   kindLabel: string;
   name: string;
   status: string;
@@ -380,6 +385,9 @@ export class ProjectService {
           name: project.name,
           ...(project.avatar ? { avatar: project.avatar } : {}),
           memberCount: project._count.humanMembers,
+          features: {
+            durableMemory: durableMemoryEnabledForProject(project.id),
+          },
           ...access,
         };
       }),
@@ -698,6 +706,9 @@ export class ProjectService {
       id: project.id,
       name: project.name,
       memberCount: existingUsers.length + 1,
+      features: {
+        durableMemory: durableMemoryEnabledForProject(project.id),
+      },
       ...access,
     };
   }
@@ -835,6 +846,7 @@ export class ProjectService {
       routings,
       mcpServers,
       knowledgeSources,
+      memories,
       accessPolicyCount,
       skillCount,
     ] = await Promise.all([
@@ -845,6 +857,10 @@ export class ProjectService {
       store.listModelRoutings(),
       store.listMcpServerDefinitions(),
       store.listKnowledgeSourceDefinitions(),
+      this.db.memoryRecord.findMany({
+        where: { projectId, deletedAt: null },
+        select: { id: true, displayName: true, status: true },
+      }),
       this.db.accessPolicyRecord.count({ where: { projectId, deletedAt: null } }),
       this.db.skillRecord.count({ where: { projectId, deletedAt: null } }),
     ]);
@@ -917,6 +933,13 @@ export class ProjectService {
           name: resource.name,
           status: resource.status,
         })),
+      ...memories.map((resource) => ({
+        id: resource.id,
+        kind: "memory" as const,
+        kindLabel: "Memory",
+        name: resource.displayName,
+        status: resource.status,
+      })),
     ].sort(
       (left, right) =>
         left.kindLabel.localeCompare(right.kindLabel) ||
@@ -942,6 +965,7 @@ export class ProjectService {
         label: "Vector Databases",
         count: knowledgeSources.length,
       },
+      { kind: "memories", label: "Memories", count: memories.length },
       { kind: "skills", label: "Skills", count: skillCount },
       {
         kind: "access-policies",

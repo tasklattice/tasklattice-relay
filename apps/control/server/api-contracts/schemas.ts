@@ -263,7 +263,7 @@ export const projectDeletionImpactSchema = z.object({
   activeResources: z.array(z.object({
     id,
     kind: z.enum([
-      "instance", "provider", "model", "gateway", "routing", "mcp-server", "vector-database",
+      "instance", "provider", "model", "gateway", "routing", "mcp-server", "vector-database", "memory",
     ]),
     kindLabel: z.string(),
     name: z.string(),

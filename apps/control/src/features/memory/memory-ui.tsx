@@ -3,6 +3,7 @@ import type { MemoryStatus } from "@tali/contracts";
 import { AlertTriangle, ArrowLeft, ArrowRight, RefreshCw } from "lucide-react";
 import { StatusDot } from "@/components/shared/status-dot";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
 const statusLabels: Record<MemoryStatus, string> = {
@@ -78,6 +79,56 @@ export function MemoryErrorState({
         </Button>
       </div>
     </div>
+  );
+}
+
+export function MemoryLoadingRows({
+  count = 4,
+  label = "Loading Memory resources",
+}: {
+  count?: number;
+  label?: string;
+}) {
+  return (
+    <div className="space-y-3" aria-label={label} role="status">
+      {Array.from({ length: count }, (_, index) => (
+        <Skeleton key={index} className="h-28 w-full rounded-xl" />
+      ))}
+    </div>
+  );
+}
+
+export function memoryEmptyCopy(filtered: boolean): {
+  description: string;
+  title: string;
+} {
+  return filtered
+    ? {
+        title: "No matching Memory",
+        description: "Adjust the search or status filter and try again.",
+      }
+    : {
+        title: "No Durable Memory yet",
+        description: "Create a standalone Memory now, or create an Agent to receive one automatically.",
+      };
+}
+
+export function MemoryConflictNotice({
+  entity,
+  onReload,
+}: {
+  entity: "Fact" | "Experience";
+  onReload: () => void;
+}) {
+  return (
+    <MemoryNotice
+      tone="warning"
+      action={<Button variant="outline" className="h-11" onClick={onReload}>Reload {entity}</Button>}
+    >
+      {entity === "Fact"
+        ? "This Fact changed after you opened it. Your draft was not applied; reload before editing again."
+        : "This Experience is now a newer version. Your draft was not applied; reload it before editing again."}
+    </MemoryNotice>
   );
 }
 

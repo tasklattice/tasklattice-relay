@@ -4,7 +4,7 @@ import {
   type CreateInstanceInput,
   type RunnerSandbox,
 } from "@tali/contracts";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { LiteLLMAdminClient } from "../providers/litellm-client";
 import type { ControlJobPublisher } from "../jobs/control-job-queue";
@@ -27,6 +27,10 @@ import {
 } from "./instance-service";
 
 const accessPolicyId = "11111111-1111-4111-8111-111111111111";
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 
 describe("Agent sandbox naming", () => {
   it("derives the runtime identifier only from the Instance UUID", () => {
@@ -523,6 +527,39 @@ async function instantiateAsExternalRegistryFixture(
 }
 
 describe("Instance Access Policy lifecycle", () => {
+  it("keeps the existing Agent create path when Durable Memory is disabled", async () => {
+    vi.stubEnv("TALI_DURABLE_MEMORY_ENABLED", "false");
+    vi.stubEnv("TALI_DURABLE_MEMORY_PROJECTS", "");
+    const setup = await configuredService();
+    const queued = await setup.service.create({
+      name: "Feature-disabled Agent",
+      description: "",
+      runtime: "openshell",
+      accessPolicyIds: [setup.policy.id],
+      modelRoutingId: "routing-a",
+      agentPlatform: "openclaw",
+      policyId: "restricted",
+      systemPrompt: "Research the request and report the resulting evidence.",
+      knowledgeSourceIds: ["engineering-handbook"],
+    }, "local-admin");
+
+    expect(queued.durableMemoryId).toBeUndefined();
+    expect(setup.memoryProvider.bankCount()).toBe(0);
+    await expect(setup.store.database().memoryRecord.count()).resolves.toBe(0);
+    await expect(setup.service.create({
+      name: "Invalid explicit Memory",
+      description: "",
+      runtime: "openshell",
+      accessPolicyIds: [setup.policy.id],
+      modelRoutingId: "routing-a",
+      agentPlatform: "openclaw",
+      durableMemoryId: "memory-a",
+      policyId: "restricted",
+      systemPrompt: "Research the request and report the resulting evidence.",
+      knowledgeSourceIds: ["engineering-handbook"],
+    }, "local-admin")).rejects.toThrow("not enabled for this Project");
+  });
+
   it("replays an Agent create key without creating another Agent or Memory Bank", async () => {
     const setup = await configuredService();
     const input: CreateInstanceInput = {

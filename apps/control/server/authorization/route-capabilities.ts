@@ -4,6 +4,7 @@ import {
   type ProjectCapability,
   type ResourceRelation,
 } from "@tali/contracts";
+import { durableMemoryEnabledForProject } from "../memories/durable-memory-feature";
 
 export type RelationResolver =
   | "PROJECT"
@@ -528,6 +529,7 @@ export function projectRouteAdmissionPolicy(
 
 export function conditionalInstanceCreateRequirements(
   input: Record<string, unknown>,
+  durableMemoryEnabled = true,
 ): readonly RouteCapabilityRequirement[] {
   const requirements: RouteCapabilityRequirement[] = [
     requirement("CAP_AGENT_INSTANCE_ACCESS_POLICY_ASSIGN", "AgentInstance"),
@@ -549,7 +551,10 @@ export function conditionalInstanceCreateRequirements(
     && isAgentPlatformId(input.agentPlatform)
     ? input.agentPlatform
     : defaultAgentPlatformId;
-  if (requestedPlatform === "openclaw" || requestedPlatform === "hermes") {
+  if (
+    durableMemoryEnabled
+    && (requestedPlatform === "openclaw" || requestedPlatform === "hermes")
+  ) {
     requirements.push(requirement("CAP_AGENT_MEMORY_CONFIG_UPDATE", "AgentMemory"));
   }
   const memory = input.memory;
@@ -566,7 +571,12 @@ export function conditionalRequestRequirements(
   input: Record<string, unknown> = {},
 ): readonly RouteCapabilityRequirement[] {
   if (admission.kind === "INSTANCE_CREATE") {
-    return conditionalInstanceCreateRequirements(input);
+    const match = url.pathname.match(/^\/api\/v1\/projects\/([^/]+)(?:\/|$)/);
+    const projectId = match ? decodeURIComponent(match[1]!) : "";
+    return conditionalInstanceCreateRequirements(
+      input,
+      durableMemoryEnabledForProject(projectId),
+    );
   }
   if (
     admission.kind === "AUDIT_LOG_LIST"

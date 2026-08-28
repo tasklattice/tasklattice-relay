@@ -145,6 +145,14 @@ export function itemIsActive(item: NavItemDefinition, pathname: string, projectI
   return normalizedPathname.startsWith(`${normalizedTarget}/`);
 }
 
+export function navigationItemAvailable(
+  item: NavItemDefinition,
+  options: { canViewAuditLogs: boolean; durableMemoryEnabled: boolean },
+): boolean {
+  return (item.to !== "/$projectId/audit-logs" || options.canViewAuditLogs)
+    && (item.to !== "/$projectId/memory" || options.durableMemoryEnabled);
+}
+
 export function routeUsesFullBleedLayout(pathname: string): boolean {
   const normalizedPathname = pathname.replace(/\/$/, "");
   return normalizedPathname === "/platform/settings"
@@ -242,9 +250,11 @@ function ProjectSidebar({ createProjectOpen, logout, onCreateProjectOpenChange, 
                 <SidebarGroupContent>
                   <SidebarMenu>
                     {group.items
-                      .filter((item) =>
-                        item.to !== "/$projectId/audit-logs" || permissions.canViewAuditLogs,
-                      )
+                      .filter((item) => navigationItemAvailable(item, {
+                        canViewAuditLogs: permissions.canViewAuditLogs,
+                        durableMemoryEnabled:
+                          currentProject.features?.durableMemory !== false,
+                      }))
                       .map((item) => (
                         <NavigationItem
                           key={item.to}

@@ -23,6 +23,9 @@ export interface Project {
   assignedRoles: readonly ProjectRole[];
   activeRole: ProjectRole;
   effectiveCapabilities: readonly ProjectCapability[];
+  features?: {
+    durableMemory: boolean;
+  };
 }
 
 export interface ProjectDeletionActiveResource {
@@ -34,7 +37,8 @@ export interface ProjectDeletionActiveResource {
     | "gateway"
     | "routing"
     | "mcp-server"
-    | "vector-database";
+    | "vector-database"
+    | "memory";
   kindLabel: string;
   name: string;
   status: string;

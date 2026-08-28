@@ -33,6 +33,10 @@ import {
 } from "@/components/agents/capability-selection";
 import { IdentityCapabilitiesStep } from "@/components/agents/identity-capabilities-step";
 import {
+  bindableDurableMemories,
+  supportsDurableMemoryPlatform,
+} from "@/components/agents/durable-memory-selection";
+import {
   getSpecialization,
   type SpecializationId,
 } from "@/components/agents/specializations";
@@ -67,11 +71,7 @@ import {
 import { api } from "@/lib/api";
 import { getAgentPlatformPresentation } from "@/lib/agent-platforms";
 import { useProjectQueryScope } from "@/hooks/use-project-query-scope";
-import { useCurrentProjectId } from "@/hooks/use-project";
-
-function supportsDurableMemory(agentPlatform: AgentPlatformId): boolean {
-  return agentPlatform === "openclaw" || agentPlatform === "hermes";
-}
+import { useCurrentProjectId, useProject } from "@/hooks/use-project";
 
 function capabilityName(
   id: string,
@@ -104,6 +104,8 @@ export function CreateInstanceSheet({
 }) {
   const navigate = useNavigate();
   const projectId = useCurrentProjectId();
+  const { currentProject } = useProject();
+  const durableMemoryEnabled = currentProject?.features?.durableMemory !== false;
   const scope = useProjectQueryScope();
   const { t } = useTranslation("createInstance");
   const steps = [
@@ -164,6 +166,7 @@ export function CreateInstanceSheet({
   const durableMemories = useQuery({
     queryKey: scope.key("durable-memories", "agent-create"),
     queryFn: () => api.listMemories({ limit: 100, statuses: ["ready", "unbound"] }),
+    enabled: durableMemoryEnabled,
   });
   const policies = useQuery({
     queryKey: scope.key("runtime-policies"),
@@ -219,15 +222,17 @@ export function CreateInstanceSheet({
         skillIds: selectedIds(selectedSkills),
         mcpServerIds: selectedIds(selectedMcps),
         knowledgeSourceIds: selectedIds(selectedKnowledgeSources),
-        ...(supportsDurableMemory(value.agentPlatform) && durableMemoryId
+        ...(durableMemoryEnabled
+          && supportsDurableMemoryPlatform(value.agentPlatform)
+          && durableMemoryId
           ? { durableMemoryId }
           : {}),
       } satisfies CreateInstanceInput);
     },
   });
 
-  const availableDurableMemories = (durableMemories.data?.items ?? []).filter(
-    (item) => !item.activeBinding && (item.status === "ready" || item.status === "unbound"),
+  const availableDurableMemories = bindableDurableMemories(
+    durableMemories.data?.items ?? [],
   );
 
   useEffect(() => {
@@ -502,7 +507,8 @@ export function CreateInstanceSheet({
                     disabled={
                       String(name).trim().length < 3 ||
                       currentSystemPrompt.trim().length < 10 ||
-                      (supportsDurableMemory(agentPlatform as AgentPlatformId)
+                      (durableMemoryEnabled
+                        && supportsDurableMemoryPlatform(agentPlatform as AgentPlatformId)
                         && Boolean(durableMemoryId)
                         && !availableDurableMemories.some((item) => item.id === durableMemoryId))
                     }
@@ -647,6 +653,7 @@ export function CreateInstanceSheet({
                     knowledgeSources={knowledgeSources}
                     durableMemories={availableDurableMemories}
                     durableMemoriesLoading={durableMemories.isPending}
+                    durableMemoryEnabled={durableMemoryEnabled}
                     durableMemoryId={durableMemoryId}
                     customSystemPrompt={customSystemPrompt}
                     selectedSkillIds={selectedIds(selectedSkills)}
@@ -912,7 +919,7 @@ export function CreateInstanceSheet({
                               value={field.state.value}
                               onValueChange={(value) => {
                                 field.handleChange(value);
-                                if (!supportsDurableMemory(value)) setDurableMemoryId("");
+                                if (!durableMemoryEnabled || !supportsDurableMemoryPlatform(value)) setDurableMemoryId("");
                               }}
                             />
                           </div>
@@ -1155,7 +1162,8 @@ export function CreateInstanceSheet({
                           <ReviewFact
                             label="Memory"
                             value={
-                              !supportsDurableMemory(values.agentPlatform)
+                              !durableMemoryEnabled
+                                || !supportsDurableMemoryPlatform(values.agentPlatform)
                                 ? "Workbench-managed"
                                 : durableMemoryId
                                   ? `Continue · ${availableDurableMemories.find((item) => item.id === durableMemoryId)?.displayName ?? "Existing Memory"}`

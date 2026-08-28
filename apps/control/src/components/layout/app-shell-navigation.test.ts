@@ -3,6 +3,7 @@ import { createPlatformI18n } from "@/i18n/create-i18n";
 import {
   itemIsActive,
   navGroups,
+  navigationItemAvailable,
   routeIsGlobal,
   routeUsesFullBleedLayout,
   routeUsesStandaloneContextSidebar,
@@ -51,6 +52,23 @@ describe("Project control-plane navigation", () => {
     expect(itemIsActive(instances, "/p-hr/memory", "p-hr")).toBe(false);
     expect(itemIsActive(memory, "/p-hr/memory", "p-hr")).toBe(true);
     expect(itemIsActive(memory, "/p-hr/instances", "p-hr")).toBe(false);
+  });
+
+  it("hides Memory when the Project rollout flag is disabled", () => {
+    const memory = navGroups[0]!.items[1]!;
+    const instances = navGroups[0]!.items[0]!;
+    expect(navigationItemAvailable(memory, {
+      canViewAuditLogs: true,
+      durableMemoryEnabled: false,
+    })).toBe(false);
+    expect(navigationItemAvailable(memory, {
+      canViewAuditLogs: true,
+      durableMemoryEnabled: true,
+    })).toBe(true);
+    expect(navigationItemAvailable(instances, {
+      canViewAuditLogs: false,
+      durableMemoryEnabled: false,
+    })).toBe(true);
   });
 
   it("keeps nested resource pages active within their visible navigation item", () => {

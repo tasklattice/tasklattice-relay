@@ -170,6 +170,10 @@ app.kubernetes.io/component: {{ .component }}
   value: "false"
 - name: HINDSIGHT_API_LLM_DEBUG_DUMP_4XX
   value: "false"
+- name: HINDSIGHT_API_METRICS_INCLUDE_BANK_ID
+  value: "false"
+- name: HINDSIGHT_API_METRICS_BACKLOG_ENABLED
+  value: "true"
 - name: HINDSIGHT_API_LOG_FORMAT
   value: json
 - name: HINDSIGHT_API_LOG_JSON_FIELDS

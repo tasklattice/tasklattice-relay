@@ -30,6 +30,17 @@ describe("permissionsForCapabilities", () => {
       canUpdateVectorDatabases: false,
       canDeleteVectorDatabases: false,
       canManageProject: true,
+      canViewMemories: false,
+      canViewMemoryContent: false,
+      canManageMemories: false,
+      canViewMemorySettings: false,
+      canCurateMemory: false,
+      canDeleteMemoryContent: false,
+      canPurgeMemories: false,
+      canExportMemories: false,
+      canReextractMemory: false,
+      canViewMemoryOutbox: false,
+      canReplayMemoryOutbox: false,
       canViewAuditLogs: true,
       canViewResources: true,
     });
@@ -55,6 +66,17 @@ describe("permissionsForCapabilities", () => {
       canUpdateVectorDatabases: false,
       canDeleteVectorDatabases: false,
       canManageProject: false,
+      canViewMemories: false,
+      canViewMemoryContent: false,
+      canManageMemories: false,
+      canViewMemorySettings: false,
+      canCurateMemory: false,
+      canDeleteMemoryContent: false,
+      canPurgeMemories: false,
+      canExportMemories: false,
+      canReextractMemory: false,
+      canViewMemoryOutbox: false,
+      canReplayMemoryOutbox: false,
       canViewAuditLogs: false,
       canViewResources: false,
     });
@@ -88,6 +110,27 @@ describe("permissionsForCapabilities", () => {
       canCreateVectorDatabases: false,
       canUpdateVectorDatabases: true,
       canDeleteVectorDatabases: false,
+    });
+  });
+
+  it("keeps Durable Memory inventory, content, governance, and provider gates independent", () => {
+    expect(permissionsForCapabilities([
+      "CAP_AGENT_MEMORY_ITEM_VIEW",
+      "CAP_AGENT_MEMORY_CONTENT_VIEW",
+      "CAP_AGENT_MEMORY_CONTENT_WRITE",
+      "CAP_AGENT_MEMORY_EXPORT",
+    ])).toMatchObject({
+      canViewMemories: true,
+      canViewMemoryContent: true,
+      canManageMemories: false,
+      canViewMemorySettings: false,
+      canCurateMemory: true,
+      canDeleteMemoryContent: false,
+      canPurgeMemories: false,
+      canExportMemories: true,
+      canReextractMemory: false,
+      canViewMemoryOutbox: false,
+      canReplayMemoryOutbox: false,
     });
   });
 

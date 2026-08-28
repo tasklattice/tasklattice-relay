@@ -22,6 +22,12 @@ spec:
             matchLabels:
               app.kubernetes.io/instance: {{ .Release.Name }}
               app.kubernetes.io/component: control-worker
+        {{- if .Values.monitoring.serviceMonitor.enabled }}
+        - namespaceSelector:
+            {{- toYaml .Values.monitoring.networkPolicy.namespaceSelector | nindent 12 }}
+          podSelector:
+            {{- toYaml .Values.monitoring.networkPolicy.podSelector | nindent 12 }}
+        {{- end }}
       ports:
         - protocol: TCP
           port: {{ .Values.hindsight.service.port }}
@@ -65,6 +71,12 @@ spec:
   ingress:
     - from:
         - podSelector: {}
+        {{- if .Values.monitoring.serviceMonitor.enabled }}
+        - namespaceSelector:
+            {{- toYaml .Values.monitoring.networkPolicy.namespaceSelector | nindent 12 }}
+          podSelector:
+            {{- toYaml .Values.monitoring.networkPolicy.podSelector | nindent 12 }}
+        {{- end }}
       ports:
         - protocol: TCP
           port: {{ .Values.hindsight.worker.service.port }}

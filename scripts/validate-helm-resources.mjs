@@ -239,6 +239,8 @@ for (const [name, value] of [
   ["HINDSIGHT_API_MCP_ENABLED", "false"],
   ["HINDSIGHT_API_LLM_TRACE_ENABLED", "false"],
   ["HINDSIGHT_API_LLM_DEBUG_DUMP_4XX", "false"],
+  ["HINDSIGHT_API_METRICS_INCLUDE_BANK_ID", "false"],
+  ["HINDSIGHT_API_METRICS_BACKLOG_ENABLED", "true"],
   ["HINDSIGHT_API_LLM_PROVIDER", "openai"],
   ["HINDSIGHT_API_EMBEDDINGS_PROVIDER", "litellm"],
   ["HINDSIGHT_API_RERANKER_PROVIDER", "litellm"],
@@ -510,6 +512,7 @@ if (
   throw new Error("Control must use the internal Hindsight Service and Secret-backed root credential.");
 }
 for (const key of [
+  "metrics-token",
   "hindsight-database-password",
   "hindsight-database-url",
   "hindsight-api-key",
@@ -524,6 +527,7 @@ for (const [name, value] of [
   ["TALI_BOOTSTRAP_LITELLM_URL", `http://${releaseName}-litellm.${releaseNamespace}.svc.cluster.local:4000`],
   ["TALI_BOOTSTRAP_RUNTIME_NAMESPACES_ENABLED", "true"],
   ["TALI_BOOTSTRAP_RUNTIME_CLUSTER_ID", "in-cluster"],
+  ["TALI_DURABLE_MEMORY_ENABLED", "true"],
 ]) {
   if (localControlEnv.find((entry) => entry.name === name)?.value !== value) {
     throw new Error(`${name} must seed the initial Platform infrastructure setting.`);
@@ -532,12 +536,106 @@ for (const [name, value] of [
 for (const [name, key] of [
   ["TALI_BOOTSTRAP_RUNNER_TOKEN", "runner-token"],
   ["TALI_BOOTSTRAP_LITELLM_MASTER_KEY", "litellm-master-key"],
+  ["TALI_METRICS_TOKEN", "metrics-token"],
 ]) {
   if (
     localControlEnv.find((entry) => entry.name === name)?.valueFrom
       ?.secretKeyRef?.key !== key
   ) {
     throw new Error(`${name} must seed Platform settings from the component Secret.`);
+  }
+}
+
+const gradualMemoryObjects = parseObjects(renderChart([
+  "--set", "features.durableMemory.enabled=false",
+  "--set-string", "features.durableMemory.projectAllowlist[0]=project-canary",
+]));
+const gradualMemoryControl = requireComponentObject(
+  gradualMemoryObjects,
+  "Deployment",
+  "control",
+);
+const gradualMemoryEnv = gradualMemoryControl.spec?.template?.spec?.containers
+  ?.find((container) => container.name === "control")?.env ?? [];
+if (
+  gradualMemoryEnv.find((entry) => entry.name === "TALI_DURABLE_MEMORY_ENABLED")?.value
+    !== "false"
+  || gradualMemoryEnv.find((entry) => entry.name === "TALI_DURABLE_MEMORY_PROJECTS")?.value
+    !== "project-canary"
+) {
+  throw new Error("Durable Memory must support environment disablement and Project canary rollout.");
+}
+
+const monitoredObjects = parseObjects(renderChart([
+  "--set", "monitoring.serviceMonitor.enabled=true",
+  "--set", "monitoring.prometheusRule.enabled=true",
+]));
+const relayMemoryMonitor = requireComponentObject(
+  monitoredObjects,
+  "ServiceMonitor",
+  "memory",
+);
+const relayMetricsEndpoint = relayMemoryMonitor.spec?.endpoints?.[0];
+if (
+  relayMetricsEndpoint?.path !== "/api/metrics"
+  || relayMetricsEndpoint?.authorization?.credentials?.key !== "metrics-token"
+) {
+  throw new Error("Relay Memory metrics must be scraped with the Secret-backed bearer token.");
+}
+const hindsightMonitor = requireComponentObject(
+  monitoredObjects,
+  "ServiceMonitor",
+  "hindsight",
+);
+if (hindsightMonitor.spec?.endpoints?.[0]?.path !== "/metrics") {
+  throw new Error("Hindsight's private Prometheus endpoint must be included in monitoring.");
+}
+const monitoredHindsightPolicy = requireComponentObject(
+  monitoredObjects,
+  "NetworkPolicy",
+  "hindsight-api",
+);
+const monitoringPeer = monitoredHindsightPolicy.spec?.ingress
+  ?.flatMap((rule) => rule.from ?? [])
+  .find((peer) =>
+    peer.namespaceSelector?.matchLabels?.["kubernetes.io/metadata.name"] === "monitoring"
+    && peer.podSelector?.matchLabels?.["app.kubernetes.io/name"] === "prometheus"
+  );
+if (!monitoringPeer) {
+  throw new Error("Hindsight metrics ingress must be limited to the configured Prometheus identity.");
+}
+const workerMemoryMonitor = requireComponentObject(
+  monitoredObjects,
+  "ServiceMonitor",
+  "control-worker",
+);
+if (
+  workerMemoryMonitor.spec?.endpoints?.[0]?.path !== "/metrics"
+  || workerMemoryMonitor.spec?.endpoints?.[0]?.authorization?.credentials?.key
+    !== "metrics-token"
+) {
+  throw new Error("Control Worker retain metrics must use the Secret-backed bearer token.");
+}
+const memoryRules = requireComponentObject(
+  monitoredObjects,
+  "PrometheusRule",
+  "memory",
+);
+const alertNames = new Set(
+  memoryRules.spec?.groups?.flatMap((group) => group.rules ?? [])
+    .map((rule) => rule.alert)
+    .filter(Boolean),
+);
+for (const alert of [
+  "TaliMemoryOutboxBacklog",
+  "TaliMemoryProviderUnavailable",
+  "TaliMemoryRecallFailureRate",
+  "TaliMemoryRetainFailureRate",
+  "TaliMemoryDeletionFailure",
+  "HindsightAsyncOperationFailure",
+]) {
+  if (!alertNames.has(alert)) {
+    throw new Error(`Memory PrometheusRule is missing ${alert}.`);
   }
 }
 
@@ -557,6 +655,12 @@ if (
 
 const controlWorkerEnv = controlWorker.spec?.template?.spec?.containers
   ?.find((container) => container.name === "control-worker")?.env ?? [];
+if (
+  controlWorkerEnv.find((entry) => entry.name === "TALI_METRICS_TOKEN")
+    ?.valueFrom?.secretKeyRef?.key !== "metrics-token"
+) {
+  throw new Error("The Control Worker metrics endpoint must use the metrics token Secret.");
+}
 if (
   controlWorkerEnv.find((entry) => entry.name === "TALI_HINDSIGHT_URL")?.value
     !== `http://${releaseName}-hindsight-api.${releaseNamespace}.svc.cluster.local:8888`

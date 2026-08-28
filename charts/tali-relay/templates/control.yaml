@@ -135,6 +135,17 @@ spec:
                 secretKeyRef:
                   name: {{ include "tali.secretName" . }}
                   key: litellm-master-key
+            - name: TALI_METRICS_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tali.secretName" . }}
+                  key: metrics-token
+            - name: TALI_DURABLE_MEMORY_ENABLED
+              value: {{ .Values.features.durableMemory.enabled | quote }}
+            {{- if .Values.features.durableMemory.projectAllowlist }}
+            - name: TALI_DURABLE_MEMORY_PROJECTS
+              value: {{ join "," .Values.features.durableMemory.projectAllowlist | quote }}
+            {{- end }}
             {{- if .Values.hindsight.enabled }}
             - name: TALI_HINDSIGHT_URL
               value: {{ include "tali.hindsightUrl" . | quote }}

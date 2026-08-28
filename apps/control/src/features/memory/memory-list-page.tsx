@@ -28,7 +28,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
 import { useCurrentProjectId } from "@/hooks/use-project";
 import { useProjectPermissions } from "@/hooks/use-project-permissions";
 import { useProjectQueryScope } from "@/hooks/use-project-query-scope";
@@ -38,6 +37,8 @@ import {
   errorMessage,
   formatRelativeMemoryDate,
   MemoryErrorState,
+  memoryEmptyCopy,
+  MemoryLoadingRows,
   MemoryNotice,
   MemoryStatus,
   saveDownloadedFile,
@@ -146,6 +147,7 @@ export function MemoryListPage() {
 
   const items = memories.data?.items ?? [];
   const degradedCount = items.filter(({ status: itemStatus }) => itemStatus === "degraded" || itemStatus === "deletion_failed").length;
+  const emptyCopy = memoryEmptyCopy(Boolean(query || status !== "all"));
 
   return (
     <div className="space-y-6 pb-10">
@@ -199,9 +201,7 @@ export function MemoryListPage() {
       </form>
 
       {memories.isPending ? (
-        <div className="space-y-3" aria-label="Loading Memory resources">
-          {Array.from({ length: 4 }, (_, index) => <Skeleton key={index} className="h-28 w-full rounded-xl" />)}
-        </div>
+        <MemoryLoadingRows />
       ) : memories.error ? (
         <MemoryErrorState error={memories.error} onRetry={() => void memories.refetch()} />
       ) : items.length ? (
@@ -272,10 +272,8 @@ export function MemoryListPage() {
       ) : (
         <EmptyState
           icon={BrainCircuit}
-          title={query || status !== "all" ? "No matching Memory" : "No Durable Memory yet"}
-          description={query || status !== "all"
-            ? "Adjust the search or status filter and try again."
-            : "Create a standalone Memory now, or create an Agent to receive one automatically."}
+          title={emptyCopy.title}
+          description={emptyCopy.description}
           action={!query && status === "all" && permissions.canManageMemories ? <Button className="h-11" onClick={() => setCreateOpen(true)}><Plus />Create Memory</Button> : undefined}
         />
       )}

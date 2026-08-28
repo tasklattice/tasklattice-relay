@@ -50,11 +50,12 @@ function mcpStatusTone(server: McpServerDefinition): "danger" | "neutral" | "suc
   return "neutral";
 }
 
-export function IdentityCapabilitiesStep({ agentPlatform, customSystemPrompt, durableMemories, durableMemoriesLoading, durableMemoryId, knowledgeSources, mcpServers, name, onCustomSystemPromptChange, onDurableMemoryIdChange, onKnowledgeSourceIdsChange, onMcpServerIdsChange, onNameChange, onSkillIdsChange, onSpecializationChange, onSystemPromptChange, selectedKnowledgeSourceIds, selectedMcpServerIds, selectedSkillIds, skills, specialization, specializations, systemPrompt }: {
+export function IdentityCapabilitiesStep({ agentPlatform, customSystemPrompt, durableMemories, durableMemoriesLoading, durableMemoryEnabled, durableMemoryId, knowledgeSources, mcpServers, name, onCustomSystemPromptChange, onDurableMemoryIdChange, onKnowledgeSourceIdsChange, onMcpServerIdsChange, onNameChange, onSkillIdsChange, onSpecializationChange, onSystemPromptChange, selectedKnowledgeSourceIds, selectedMcpServerIds, selectedSkillIds, skills, specialization, specializations, systemPrompt }: {
   agentPlatform: AgentPlatformId;
   customSystemPrompt: string;
   durableMemories: readonly MemoryResourceView[];
   durableMemoriesLoading: boolean;
+  durableMemoryEnabled: boolean;
   durableMemoryId: string;
   knowledgeSources: readonly KnowledgeSourceDefinition[];
   mcpServers: readonly McpServerDefinition[];
@@ -155,6 +156,7 @@ export function IdentityCapabilitiesStep({ agentPlatform, customSystemPrompt, du
               agentPlatform={agentPlatform}
               durableMemories={durableMemories}
               durableMemoriesLoading={durableMemoriesLoading}
+              durableMemoryEnabled={durableMemoryEnabled}
               durableMemoryId={durableMemoryId}
               onDurableMemoryIdChange={onDurableMemoryIdChange}
               onOpenChange={setMemoryOpen}
@@ -232,10 +234,11 @@ export function IdentityCapabilitiesStep({ agentPlatform, customSystemPrompt, du
   );
 }
 
-function MemoryCapabilityRow({ agentPlatform, durableMemories, durableMemoriesLoading, durableMemoryId, onDurableMemoryIdChange, onOpenChange, open, projectId, roleLabel }: {
+function MemoryCapabilityRow({ agentPlatform, durableMemories, durableMemoriesLoading, durableMemoryEnabled, durableMemoryId, onDurableMemoryIdChange, onOpenChange, open, projectId, roleLabel }: {
   agentPlatform: AgentPlatformId;
   durableMemories: readonly MemoryResourceView[];
   durableMemoriesLoading: boolean;
+  durableMemoryEnabled: boolean;
   durableMemoryId: string;
   onDurableMemoryIdChange: (memoryId: string) => void;
   onOpenChange: (open: boolean) => void;
@@ -243,7 +246,8 @@ function MemoryCapabilityRow({ agentPlatform, durableMemories, durableMemoriesLo
   projectId: string;
   roleLabel: string;
 }) {
-  const supported = agentPlatform === "openclaw" || agentPlatform === "hermes";
+  const supported = durableMemoryEnabled
+    && (agentPlatform === "openclaw" || agentPlatform === "hermes");
   const selected = durableMemories.find(({ id }) => id === durableMemoryId);
 
   return (
@@ -259,7 +263,7 @@ function MemoryCapabilityRow({ agentPlatform, durableMemories, durableMemoriesLo
                   <button
                     type="button"
                     aria-label="Memory tips"
-                    className="relative inline-flex size-8 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors after:absolute after:-inset-1.5 after:content-[''] hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+                    className="relative inline-flex size-8 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors motion-reduce:transition-none after:absolute after:-inset-1.5 after:content-[''] hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
                   >
                     <CircleHelp className="size-3.5" />
                   </button>
@@ -276,14 +280,16 @@ function MemoryCapabilityRow({ agentPlatform, durableMemories, durableMemoriesLo
           <p className="mt-1 text-xs text-muted-foreground">
             {supported
               ? `Project-level context that gives the ${roleLabel} Role continuity across Agent replacement.`
-              : `Durable Memory is currently available for OpenClaw and Hermes Agents.`}
+              : durableMemoryEnabled
+                ? "Durable Memory is currently available for OpenClaw and Hermes Agents."
+                : "Durable Memory is not enabled for this Project."}
           </p>
           {supported ? <p className="mt-2 text-xs font-medium text-primary">{selected ? selected.displayName : "A new durable Memory will be created automatically"}</p> : null}
         </div>
         {supported ? (
           <CollapsibleTrigger asChild>
             <Button type="button" size="icon" variant="ghost" aria-label={`${open ? "Collapse" : "Expand"} Memory`}>
-              <ChevronDown className={cn("transition-transform", open && "rotate-180")} />
+              <ChevronDown className={cn("transition-transform motion-reduce:transition-none", open && "rotate-180")} />
             </Button>
           </CollapsibleTrigger>
         ) : null}
@@ -347,7 +353,7 @@ function CapabilityRow({ description, footer, icon, onChange, onOpenChange, open
           <p className="mt-1 text-xs text-muted-foreground">{description}</p>
           {selected.length ? <div className="mt-2 flex flex-wrap gap-2">{selected.map((option) => <button key={option.value} type="button" className="inline-flex min-h-7 items-center gap-1.5 rounded-full bg-primary/10 px-2.5 text-xs font-medium text-primary hover:bg-primary/15" onClick={() => onChange(resolvedSelectedIds.filter((id) => id !== option.value))}>{option.label}<X className="size-3" /><span className="sr-only">Remove</span></button>)}</div> : <p className="mt-2 text-xs text-muted-foreground">None selected</p>}
         </div>
-        <CollapsibleTrigger asChild><Button type="button" size="icon" variant="ghost" aria-label={`${open ? "Collapse" : "Expand"} ${title}`}><ChevronDown className={cn("transition-transform", open && "rotate-180")} /></Button></CollapsibleTrigger>
+        <CollapsibleTrigger asChild><Button type="button" size="icon" variant="ghost" aria-label={`${open ? "Collapse" : "Expand"} ${title}`}><ChevronDown className={cn("transition-transform motion-reduce:transition-none", open && "rotate-180")} /></Button></CollapsibleTrigger>
       </div>
       <CollapsibleContent className="border-t bg-muted/10 p-4">
         <MultiSelectCombobox ariaLabel={`Select ${title}`} emptyMessage={`No ${title.toLowerCase()} match`} noOptionsMessage={`No ${title} are available in this Project.`} onValueChange={onChange} options={options} placeholder={`Select ${title.toLowerCase()}…`} searchPlaceholder={`Search ${title.toLowerCase()}…`} value={resolvedSelectedIds} />

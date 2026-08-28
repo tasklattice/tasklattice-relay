@@ -42,6 +42,10 @@ import {
   type PreparedAgentMemory,
   type ResolvedAgentMemory,
 } from "../memories/memory-service";
+import {
+  DurableMemoryFeatureDisabledError,
+  durableMemoryEnabledForProject,
+} from "../memories/durable-memory-feature";
 
 export function agentSandboxName(id: string): string {
   const compactId = BigInt(`0x${id.replaceAll("-", "")}`)
@@ -247,6 +251,12 @@ export class InstanceService {
       : input.agentPlatform === "hermes"
         ? "hermes"
         : undefined;
+    const durableMemoryEnabled = durableMemoryEnabledForProject(
+      this.store.projectId,
+    );
+    if (input.durableMemoryId && !durableMemoryEnabled) {
+      throw new DurableMemoryFeatureDisabledError();
+    }
     if (input.durableMemoryId && !durableRuntime) {
       throw new Error(
         "Durable Memory is currently available only for OpenClaw and Hermes Instances.",
@@ -254,7 +264,7 @@ export class InstanceService {
     }
     const actorId = ownerUserId ?? "memory-service";
     let resolvedMemory: ResolvedAgentMemory | undefined;
-    if (durableRuntime) {
+    if (durableRuntime && durableMemoryEnabled) {
       resolvedMemory = await this.memories.resolveForAgent({
         actorId,
         displayName: input.name,

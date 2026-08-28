@@ -30,7 +30,7 @@ describe("Project route capability declarations", () => {
       const pathname = `/api/v1/projects/individual${route ? `/${route}` : ""}`;
       if (!projectRouteAdmissionPolicy(method, pathname)) uncovered.push(file);
     }
-    expect(files).toHaveLength(123);
+    expect(files).toHaveLength(124);
     expect(uncovered).toEqual([]);
   });
 
@@ -98,6 +98,7 @@ describe("Project route capability declarations", () => {
       ["PATCH", "/api/v1/projects/individual/memories/memory-1/facts/fact-1", "CAP_AGENT_MEMORY_CONTENT_WRITE"],
       ["POST", "/api/v1/projects/individual/memories/memory-1/items/fact-1/invalidate", "CAP_AGENT_MEMORY_CONTENT_WRITE"],
       ["DELETE", "/api/v1/projects/individual/memories/memory-1/conversations/conversation-1", "CAP_AGENT_MEMORY_CONTENT_DELETE"],
+      ["POST", "/api/v1/projects/individual/memories/memory-1/conversations/conversation-1/redact", "CAP_AGENT_MEMORY_CONTENT_WRITE"],
       ["POST", "/api/v1/projects/individual/memories/memory-1/exports", "CAP_AGENT_MEMORY_EXPORT"],
       ["DELETE", "/api/v1/projects/individual/memories/memory-1", "CAP_AGENT_MEMORY_CONTENT_PURGE"],
       ["POST", "/api/v1/projects/individual/memories/memory-1/outbox/outbox-1/replay", "CAP_AGENT_MEMORY_INDEX_REBUILD"],
@@ -220,6 +221,15 @@ describe("Project route capability declarations", () => {
       "CAP_AGENT_INSTANCE_KNOWLEDGE_SOURCE_ASSIGN",
       "CAP_AGENT_MEMORY_CONFIG_UPDATE",
       "CAP_AGENT_MEMORY_EMBEDDING_ASSIGN",
+    ]);
+  });
+
+  it("does not require Memory configuration when the rollout is disabled", () => {
+    expect(conditionalInstanceCreateRequirements({
+      agentPlatform: "hermes",
+    }, false).map(({ capability }) => capability)).toEqual([
+      "CAP_AGENT_INSTANCE_ACCESS_POLICY_ASSIGN",
+      "CAP_AGENT_INSTANCE_MODEL_ROUTING_ASSIGN",
     ]);
   });
 

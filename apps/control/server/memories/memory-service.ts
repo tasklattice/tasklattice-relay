@@ -37,6 +37,7 @@ import { createMemoryProvider } from "./memory-provider-factory";
 import { MemoryOutboxCipher } from "./memory-outbox-cipher";
 import { MemoryRepository } from "./memory-repository";
 import { sanitizeRuntimeMemoryText } from "../runtime-bridge/memory-runtime-sanitizer";
+import { memoryMetrics } from "./memory-metrics";
 
 const SYSTEM_ACTOR = "memory-service";
 const MAX_OUTBOX_ATTEMPTS = 8;
@@ -300,6 +301,7 @@ export class MemoryService {
     const health = await this.provider().healthCheck({
       ...(memory.providerRef ? { providerRef: memory.providerRef } : {}),
     });
+    memoryMetrics.recordProviderHealth(health.status);
     return {
       provider: memory.provider === "hindsight" ? "Hindsight" : memory.provider,
       providerHealth: health.status,
@@ -497,6 +499,7 @@ export class MemoryService {
         lastErrorSummary: null,
       });
     } catch (error) {
+      memoryMetrics.recordLifecycleFailure("provisioning");
       await this.repository.transitionMemory({
         memoryId: memory.id,
         to: "degraded",
@@ -723,6 +726,7 @@ export class MemoryService {
         deletedAt: new Date(),
       });
     } catch (error) {
+      memoryMetrics.recordLifecycleFailure("deletion");
       await this.repository.transitionMemory({
         memoryId: memory.id,
         to: "deletion_failed",
@@ -732,6 +736,44 @@ export class MemoryService {
       }).catch(() => undefined);
       throw error;
     }
+  }
+
+  /**
+   * Project teardown is the one lifecycle path allowed to detach an active
+   * binding before deleting its provider Bank. A provisioning retry uses the
+   * original idempotency key so an already-created Bank is recovered before
+   * verified deletion instead of being orphaned.
+   */
+  async deleteForProjectCleanup(
+    memoryId: string,
+    actorId = SYSTEM_ACTOR,
+  ): Promise<MemoryRecord> {
+    const activeBindings = await this.repository.db().memoryBinding.findMany({
+      where: {
+        projectId: this.repository.projectId,
+        memoryId,
+        bindingKind: "primary",
+        status: "active",
+      },
+      select: { instanceId: true },
+    });
+    for (const binding of activeBindings) {
+      await this.detachFromAgent(binding.instanceId, actorId);
+    }
+
+    let memory = await this.repository.getMemory(memoryId, true);
+    if (!memory) throw new Error("Memory not found.");
+    if (memory.status === "deleted") return memory;
+    if (!memory.providerRef && ["provisioning", "degraded"].includes(memory.status)) {
+      await this.retryProvisioning(memory.id, actorId);
+      memory = await this.repository.getMemory(memory.id, true);
+    }
+    if (!memory?.providerRef) {
+      throw new Error(
+        "Project cleanup could not verify the Memory provider Bank reference.",
+      );
+    }
+    return this.delete(memory.id, actorId);
   }
 
   async enqueueConversation(input: {
@@ -1235,6 +1277,7 @@ export class MemoryService {
       throw new Error("This Memory is unavailable for recall.");
     }
     const controller = new AbortController();
+    const startedAt = performance.now();
     let timeout: ReturnType<typeof setTimeout> | undefined;
     const timeoutFailure = new Promise<never>((_resolve, reject) => {
       timeout = setTimeout(() => {
@@ -1272,8 +1315,15 @@ export class MemoryService {
         });
       }
       await this.repository.setMemoryActivity(memory.id, new Date(), false);
+      memoryMetrics.observeRecall("success", (performance.now() - startedAt) / 1_000);
       return { ...result, items: visibleItems };
     } catch (error) {
+      memoryMetrics.observeRecall(
+        error instanceof MemoryProviderError && error.code === "timeout"
+          ? "timeout"
+          : "failure",
+        (performance.now() - startedAt) / 1_000,
+      );
       if (memory.status === "ready") {
         await this.repository.transitionMemory({
           memoryId: memory.id,
@@ -1302,6 +1352,7 @@ export class MemoryService {
     const events = await this.repository.claimDueOutbox(limit, now);
     result.claimed = events.length;
     for (const event of events) {
+      const startedAt = performance.now();
       try {
         const memory = await this.repository.getMemory(event.memoryId);
         if (!memory?.providerRef) {
@@ -1339,11 +1390,21 @@ export class MemoryService {
           });
         }
         result.delivered += 1;
+        memoryMetrics.observeRetain(
+          "success",
+          (performance.now() - startedAt) / 1_000,
+          "delivered",
+        );
       } catch (error) {
         const retryCount = event.retryCount + 1;
         const retryable = !(error instanceof MemoryProviderError)
           || error.retryable;
         const deadLetter = !retryable || retryCount >= MAX_OUTBOX_ATTEMPTS;
+        memoryMetrics.observeRetain(
+          "failure",
+          (performance.now() - startedAt) / 1_000,
+          deadLetter ? "dead_letter" : "retry",
+        );
         await this.repository.markOutboxFailed({
           outboxId: event.id,
           errorSummary: safeError(error),

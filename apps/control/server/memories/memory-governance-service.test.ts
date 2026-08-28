@@ -384,6 +384,46 @@ describe("Memory curation", () => {
     }
   });
 
+  it("redacts selected Conversation messages and invalidates orphaned derivations", async () => {
+    const setup = await fixture();
+    setup.provider.seedItem(setup.providerRef, fact());
+    await setup.provider.appendConversation({
+      projectId: "individual",
+      memoryId: setup.memoryId,
+      providerRef: setup.providerRef,
+      conversation,
+      idempotencyKey: "append-before-redaction",
+    });
+
+    await expect(setup.service.redactConversation({
+      actorId: "local-admin",
+      conversationId: conversation.id,
+      idempotencyKey: "redact-message-a",
+      memoryId: setup.memoryId,
+      messageIds: ["message-a"],
+      replacement: "[Sensitive content removed] Authorization: Bearer abcdefghijklmnop",
+    })).resolves.toMatchObject({
+      redactedMessages: 1,
+      invalidatedDerivedItems: 1,
+    });
+
+    const redacted = await setup.provider.getConversation({
+      projectId: "individual",
+      memoryId: setup.memoryId,
+      providerRef: setup.providerRef,
+      conversationId: conversation.id,
+    });
+    expect(redacted.messages[0]?.text).toContain("[Sensitive content removed]");
+    expect(redacted.messages[0]?.text).not.toContain("abcdefghijklmnop");
+    await expect(setup.service.getItem(setup.memoryId, "fact-a"))
+      .resolves.toMatchObject({ status: "invalidated" });
+    const audit = await setup.database.memoryCurationEvent.findFirstOrThrow({
+      where: { projectId: "individual", action: "memory.conversation.redacted" },
+    });
+    expect(JSON.stringify(audit)).not.toContain("The launch is Friday");
+    expect(JSON.stringify(audit)).not.toContain("abcdefghijklmnop");
+  });
+
   it("re-extracts a retained Conversation idempotently and audits the request", async () => {
     const setup = await fixture();
     await setup.provider.appendConversation({

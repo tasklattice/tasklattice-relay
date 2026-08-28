@@ -160,6 +160,45 @@ describe("MemoryService lifecycle", () => {
     });
     expect(provider.hasBank(prepared.memory.providerRef!)).toBe(false);
   });
+
+  it("detaches and verifies provider Bank deletion during Project cleanup", async () => {
+    const { database, provider, repository, service } = await fixture();
+    const prepared = await service.prepareForAgent({
+      actorId: "local-admin",
+      displayName: "Cleanup Agent",
+      instanceId: "agent-a",
+      requestIdempotencyKey: "cleanup-request",
+      runtimeType: "openclaw",
+    });
+
+    await expect(
+      service.deleteForProjectCleanup(prepared.memory.id, "project-deletion"),
+    ).resolves.toMatchObject({ status: "deleted", providerRef: null });
+    expect(provider.hasBank(prepared.memory.providerRef!)).toBe(false);
+    await expect(repository.countBindings(prepared.memory.id, "detached"))
+      .resolves.toBe(1);
+    await expect(database.memoryCurationEvent.findMany({
+      where: { memoryId: prepared.memory.id },
+      select: { action: true },
+    })).resolves.toEqual(expect.arrayContaining([
+      { action: "memory.binding.detached" },
+      { action: "memory.deleted" },
+    ]));
+  });
+
+  it("recovers an idempotent provisioning attempt before Project cleanup", async () => {
+    const { provider, repository, service } = await fixture();
+    const memory = await repository.createMemory({
+      displayName: "Interrupted Memory",
+      idempotencyKey: "interrupted-memory",
+      provider: provider.kind,
+    });
+
+    await expect(
+      service.deleteForProjectCleanup(memory.id, "project-deletion"),
+    ).resolves.toMatchObject({ status: "deleted", providerRef: null });
+    expect(provider.bankCount()).toBe(0);
+  });
 });
 
 describe("MemoryService retain outbox", () => {
