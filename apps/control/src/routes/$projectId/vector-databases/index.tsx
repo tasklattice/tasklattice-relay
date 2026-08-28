@@ -1,12 +1,14 @@
 import { useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import {
   createVectorDatabaseDefinitionSchema,
+  hasValidatedEmbeddingModel,
   type CreateVectorDatabaseDefinitionInput,
 } from "@tali/contracts";
 import { ArrowRight, Database, Plus } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
+import { EmbeddingModelSetupNotice } from "@/components/providers/embedding-model-setup-notice";
 import {
   getVectorStoreProvider,
   VectorStoreProviderIcon,
@@ -50,6 +52,7 @@ function VectorDatabases() {
   const embeddingModels = (models.data ?? []).filter(
     (model) => model.status === "VALIDATED" && model.modelType === "text-embedding",
   );
+  const embeddingModelReady = hasValidatedEmbeddingModel(models.data ?? []);
   const [formOpen, setFormOpen] = useState(false);
   const [draft, setDraft] = useState<CreateVectorDatabaseDefinitionInput>(emptyDraft);
   const [formError, setFormError] = useState("");
@@ -68,6 +71,10 @@ function VectorDatabases() {
   });
 
   const submit = () => {
+    if (!embeddingModelReady) {
+      setFormError("Configure a validated embedding model before creating a Vector Database.");
+      return;
+    }
     const parsed = createVectorDatabaseDefinitionSchema.safeParse({
       ...draft,
       apiBase: draft.apiBase || undefined,
@@ -88,17 +95,39 @@ function VectorDatabases() {
       <PageHeader
         title="Vector Databases"
         description="Create a built-in PostgreSQL Vector Database or connect an advanced provider for Project-scoped Agent recall."
-        actions={(
+        actions={!permissions.canCreateVectorDatabases && !permissions.canManageProject ? undefined : models.isPending ? (
+          <Button className="h-11" disabled>Checking embedding…</Button>
+        ) : models.error ? (
+          <Button className="h-11" disabled>Embedding unavailable</Button>
+        ) : !embeddingModelReady && permissions.canManageProject ? (
+          <Button asChild className="h-11">
+            <Link
+              to="/$projectId/setting"
+              params={{ projectId }}
+              search={{ section: "models" }}
+            >
+              Configure embedding <ArrowRight />
+            </Link>
+          </Button>
+        ) : embeddingModelReady ? (
           <Button
             className="h-11"
-            disabled={!permissions.canManageResources}
+            disabled={!permissions.canCreateVectorDatabases}
             onClick={() => { setDraft(emptyDraft); setFormError(""); create.reset(); setFormOpen(true); }}
           >
             <Plus /> Create Vector Database
           </Button>
-        )}
+        ) : undefined}
       />
 
+      {models.error ? <Notice tone="error">Embedding model availability could not be loaded: {models.error.message}</Notice> : null}
+      {!models.isPending && !models.error && !embeddingModelReady ? (
+        <EmbeddingModelSetupNotice
+          canManageProject={permissions.canManageProject}
+          projectId={projectId}
+          showAction={false}
+        />
+      ) : null}
       {catalog.error ? <Notice tone="error">{catalog.error.message}</Notice> : null}
       {catalog.isPending ? (
         <div className="space-y-3"><Skeleton className="h-28 w-full" /><Skeleton className="h-28 w-full" /></div>
@@ -152,7 +181,7 @@ function VectorDatabases() {
         footer={(
           <>
             <Button variant="outline" disabled={create.isPending} onClick={() => setFormOpen(false)}>Cancel</Button>
-            <Button disabled={create.isPending} onClick={submit}>{create.isPending ? "Creating…" : "Create"}</Button>
+            <Button disabled={!embeddingModelReady || create.isPending} onClick={submit}>{create.isPending ? "Creating…" : "Create"}</Button>
           </>
         )}
       >

@@ -37,6 +37,7 @@ export interface AgentPlatformRuntime {
     projectRuntimeBridgeUrl?: string,
     coordinatorInstanceId?: string,
     runtimeBridgeEnabled?: boolean,
+    durableMemoryEnabled?: boolean,
   ) => string;
   healthProbe: (dashboardPort: string) => string;
   startupLogs: readonly string[];
@@ -51,13 +52,17 @@ const openClawBootstrapScript = (
   projectRuntimeBridgeUrl?: string,
   coordinatorInstanceId?: string,
   runtimeBridgeEnabled = false,
+  durableMemoryEnabled = false,
 ) => {
   const memoryPayload = Buffer.from(
     JSON.stringify(memory ?? null),
     "utf8",
   ).toString("base64");
   const durableMemoryEndpoint =
-    runtimeBridgeEnabled && projectRuntimeBridgeUrl && coordinatorInstanceId
+    durableMemoryEnabled
+      && runtimeBridgeEnabled
+      && projectRuntimeBridgeUrl
+      && coordinatorInstanceId
       ? `${projectRuntimeBridgeUrl.replace(/\/$/, "")}/v1/memory/coordinators/${encodeURIComponent(coordinatorInstanceId)}`
       : "";
   const durableMemoryEndpointPayload = Buffer.from(
@@ -73,6 +78,11 @@ rm -f "$telemetry_env_file"
 export TALI_RUN_TELEMETRY_ENDPOINT="$(printf '%s' "$TALI_RUN_TELEMETRY_ENDPOINT_B64" | base64 -d)"
 unset TALI_RUN_TELEMETRY_ENDPOINT_B64
 export TALI_DURABLE_MEMORY_ENDPOINT="$(printf '%s' '${durableMemoryEndpointPayload}' | base64 -d)"
+if [ -n "$TALI_DURABLE_MEMORY_ENDPOINT" ] && [ -n "\${TALI_PROJECT_RUNTIME_BRIDGE_TOKEN:-}" ]; then
+  export TALI_DURABLE_MEMORY_TOKEN="$TALI_PROJECT_RUNTIME_BRIDGE_TOKEN"
+else
+  unset TALI_DURABLE_MEMORY_TOKEN
+fi
 readonly config_file=/sandbox/.openclaw/openclaw.json
 readonly hash_file=/sandbox/.openclaw/.config-hash
 
@@ -195,6 +205,7 @@ const hermesBootstrapScript = (
   projectRuntimeBridgeUrl?: string,
   coordinatorInstanceId?: string,
   runtimeBridgeEnabled = false,
+  durableMemoryRequested = false,
 ) => {
   const upstreamDashboardPort = dashboardPort === "18790" ? "18791" : "18790";
   const secureCookie = new URL(dashboardOrigin).protocol === "https:";
@@ -212,7 +223,7 @@ const hermesBootstrapScript = (
     projectRuntimeBridgeUrl && coordinatorInstanceId && projectRuntimeBridgeToken
       ? ` \\\n  --vector-database-registry-url "${projectRuntimeBridgeUrl.replace(/\/$/, "")}/v1/hermes/vector-databases?coordinatorInstanceId=${encodeURIComponent(coordinatorInstanceId)}" \\\n  --vector-database-registry-token "${projectRuntimeBridgeToken}"`
       : "";
-  const durableMemoryEnabled = Boolean(
+  const durableMemoryEnabled = durableMemoryRequested && Boolean(
     projectRuntimeBridgeUrl && coordinatorInstanceId && projectRuntimeBridgeToken,
   );
   const durableMemoryEndpoint = durableMemoryEnabled
@@ -244,6 +255,11 @@ readonly webui_public_port=${dashboardPort}
 readonly webui_upstream_port=${upstreamDashboardPort}
 readonly webui_secure_cookie=${secureCookie ? "1" : "0"}
 export TALI_DURABLE_MEMORY_ENDPOINT="$(printf '%s' '${durableMemoryEndpointPayload}' | base64 -d)"
+if [ -n "$TALI_DURABLE_MEMORY_ENDPOINT" ] && [ -n "\${TALI_PROJECT_RUNTIME_BRIDGE_TOKEN:-}" ]; then
+  export TALI_DURABLE_MEMORY_TOKEN="$TALI_PROJECT_RUNTIME_BRIDGE_TOKEN"
+else
+  unset TALI_DURABLE_MEMORY_TOKEN
+fi
 
 # OpenShell provisions the persistent workspace root with a setgid, writable
 # mode so uploaded files can be staged before the workload starts. Hermes

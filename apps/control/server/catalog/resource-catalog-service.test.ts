@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import type { ModelDeployment } from "@tali/contracts";
 import { describe, expect, it, vi } from "vitest";
 import type { LiteLLMAdminClient } from "../providers/litellm-client";
 import { ProjectQuotaService } from "../quotas/project-quota-service";
@@ -55,6 +56,34 @@ function serviceWithAdapter(overrides: Partial<LiteLLMAdminClient> = {}) {
       litellm,
     ),
   };
+}
+
+function markEmbeddingReady(store: ReturnType<typeof createTestStore>): void {
+  const now = new Date().toISOString();
+  const embedding: ModelDeployment = {
+    id: "embedding-model-a",
+    providerAccountId: "provider-a",
+    modelId: "text-embedding-3-small",
+    displayName: "Text Embedding 3 Small",
+    modelType: "text-embedding",
+    capabilities: [],
+    inputModalities: ["text"],
+    outputModalities: ["embedding"],
+    providerPresetId: "openai",
+    providerName: "OpenAI",
+    endpoint: "https://api.openai.com/v1",
+    complianceDomain: "GLOBAL",
+    endpointRegion: "global",
+    crossBorderTransfer: false,
+    litellmModelName: "tali/provider-a/text-embedding-3-small",
+    status: "VALIDATED",
+    checks: [],
+    validationMessage: "Ready",
+    validatedAt: now,
+    createdAt: now,
+    updatedAt: now,
+  };
+  vi.spyOn(store, "listModelDeployments").mockResolvedValue([embedding]);
 }
 
 const connection = {
@@ -344,7 +373,8 @@ describe("ResourceCatalogService", () => {
   });
 
   it("registers a Vector Database as a LiteLLM Vector Store and adds it to the Project Team", async () => {
-    const { service, litellm } = serviceWithAdapter();
+    const { service, store, litellm } = serviceWithAdapter();
+    markEmbeddingReady(store);
     const created = await service.createKnowledgeSource({
       name: "Engineering Handbook",
       description: "Approved engineering standards and operational runbooks.",
@@ -373,6 +403,7 @@ describe("ResourceCatalogService", () => {
 
   it("registers the native LiteLLM PGVector connector", async () => {
     const store = createTestStore();
+    markEmbeddingReady(store);
     const litellm = adapter();
     const secrets: SecretStore = {
       put: vi.fn(),
@@ -410,6 +441,7 @@ describe("ResourceCatalogService", () => {
 
   it("provisions a built-in PostgreSQL Knowledge Vector Database behind the Control bridge", async () => {
     const store = createTestStore();
+    markEmbeddingReady(store);
     const litellm = adapter();
     const service = new ResourceCatalogService(
       store,
@@ -531,6 +563,7 @@ describe("ResourceCatalogService", () => {
 
   it("registers Elasticsearch through the authenticated TaskLattice Relay bridge", async () => {
     const store = createTestStore();
+    markEmbeddingReady(store);
     const litellm = adapter();
     const secrets: SecretStore = {
       put: vi.fn(),
@@ -574,8 +607,32 @@ describe("ResourceCatalogService", () => {
     expect(secrets.get).not.toHaveBeenCalled();
   });
 
+  it("rejects every Vector Database provider when the Project has no effective embedding model", async () => {
+    const { service, litellm } = serviceWithAdapter();
+
+    await expect(service.createKnowledgeSource({
+      name: "Missing embedding",
+      description: "This Project has no registered or inherited embedding model.",
+      vectorStoreId: "missing-embedding",
+      provider: "openai",
+      topK: 8,
+      credentialReference: "",
+    })).rejects.toThrow("require a validated text embedding model");
+    expect(litellm.registerVectorStore).not.toHaveBeenCalled();
+  });
+
+  it("blocks retrieval from an existing Vector Database without an effective embedding model", async () => {
+    const { service } = serviceWithAdapter();
+
+    await expect(service.searchVectorDatabase("existing-vectors", {
+      query: "test",
+      topK: 8,
+    })).rejects.toThrow("require a validated text embedding model");
+  });
+
   it("builds real scoped retrieval filters from the persisted metadata schema", async () => {
     const store = createTestStore();
+    markEmbeddingReady(store);
     const litellm = adapter();
     const source = await store.saveKnowledgeSourceDefinition({
       id: "research-vectors",

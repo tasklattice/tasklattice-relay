@@ -493,6 +493,7 @@ export function projectRouteAdmissionPolicy(
     if (tail.length === 2 && tail[1] === "inheritable" && method === "GET") return policy("PROJECT", [requirement("CAP_MODEL_VIEW", "Model")]);
     if (tail.length === 3 && tail[2] === "inherit" && method === "POST") return policy("PROJECT", [requirement("CAP_MODEL_CREATE", "Model")], tail[1]);
     if (tail.length === 3 && tail[2] === "inherit" && method === "DELETE") return policy("PROJECT", [requirement("CAP_MODEL_DELETE", "Model")], tail[1]);
+    if (tail.length === 3 && tail[2] === "removal-impact" && method === "GET") return policy("PROJECT", [requirement("CAP_MODEL_DELETE", "Model")], tail[1]);
     if (tail.length === 2 && tail[1] && method === "DELETE") return policy("PROJECT", [requirement("CAP_MODEL_DELETE", "Model")], tail[1]);
   }
   if (tail[0] === "inference-gateways" && tail.length === 1 && method === "GET") {

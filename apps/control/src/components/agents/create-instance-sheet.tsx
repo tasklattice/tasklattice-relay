@@ -5,6 +5,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import {
   defaultAgentPlatformId,
+  hasValidatedEmbeddingModel,
   isAgentPlatformId,
   type AccessPolicy,
   type AgentPlatformId,
@@ -39,6 +40,7 @@ import {
 import {
   bindableDurableMemories,
   supportsDurableMemoryPlatform,
+  supportsNativeMemoryPlatform,
 } from "@/components/agents/durable-memory-selection";
 import {
   getSpecialization,
@@ -76,6 +78,7 @@ import { api } from "@/lib/api";
 import { getAgentPlatformPresentation } from "@/lib/agent-platforms";
 import { useProjectQueryScope } from "@/hooks/use-project-query-scope";
 import { useCurrentProjectId, useProject } from "@/hooks/use-project";
+import { useProjectPermissions } from "@/hooks/use-project-permissions";
 
 function capabilityName(
   id: string,
@@ -95,7 +98,7 @@ function selectedIds(items: readonly SelectedCapability[]): string[] {
   return items.map((item) => item.id);
 }
 
-const CREATE_INSTANCE_DRAFT_VERSION = 7;
+const CREATE_INSTANCE_DRAFT_VERSION = 8;
 const CREATE_INSTANCE_DRAFT_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
 interface CreateInstanceFormValues {
@@ -243,7 +246,8 @@ export function CreateInstanceSheet({
   const navigate = useNavigate();
   const projectId = useCurrentProjectId();
   const { currentProject } = useProject();
-  const durableMemoryEnabled = currentProject?.features?.durableMemory !== false;
+  const permissions = useProjectPermissions();
+  const durableMemoryFeatureEnabled = currentProject?.features?.durableMemory !== false;
   const scope = useProjectQueryScope();
   const { t } = useTranslation("createInstance");
   const draftStorageKey = createInstanceDraftStorageKey(
@@ -324,10 +328,22 @@ export function CreateInstanceSheet({
     queryKey: scope.key("model-routings"),
     queryFn: api.listModelRoutings,
   });
+  const modelDeployments = useQuery({
+    queryKey: scope.key("model-deployments"),
+    queryFn: api.listModelDeployments,
+  });
+  const embeddingModelReady = hasValidatedEmbeddingModel(
+    modelDeployments.data ?? [],
+  );
+  const selectableKnowledgeSources = embeddingModelReady
+    ? knowledgeSources
+    : [];
+  const durableMemoryAvailable = durableMemoryFeatureEnabled
+    && embeddingModelReady;
   const durableMemories = useQuery({
     queryKey: scope.key("durable-memories", "agent-create"),
     queryFn: () => api.listMemories({ limit: 100, statuses: ["ready", "unbound"] }),
-    enabled: durableMemoryEnabled,
+    enabled: durableMemoryAvailable,
   });
   const policies = useQuery({
     queryKey: scope.key("runtime-policies"),
@@ -376,11 +392,17 @@ export function CreateInstanceSheet({
         specializationId,
         skillIds: selectedIds(selectedSkills),
         mcpServerIds: selectedIds(selectedMcps),
-        knowledgeSourceIds: selectedIds(selectedKnowledgeSources),
-        ...(durableMemoryEnabled
+        knowledgeSourceIds: embeddingModelReady
+          ? selectedIds(selectedKnowledgeSources)
+          : [],
+        ...(durableMemoryAvailable
           && supportsDurableMemoryPlatform(value.agentPlatform)
           && durableMemoryId
           ? { durableMemoryId }
+          : {}),
+        ...(!durableMemoryAvailable
+          && supportsNativeMemoryPlatform(value.agentPlatform)
+          ? { memory: { mode: "native", citations: "auto" } as const }
           : {}),
       } satisfies CreateInstanceInput);
     },
@@ -389,6 +411,12 @@ export function CreateInstanceSheet({
   const availableDurableMemories = bindableDurableMemories(
     durableMemories.data?.items ?? [],
   );
+
+  useEffect(() => {
+    if (!modelDeployments.isPending && !durableMemoryAvailable) {
+      setDurableMemoryId("");
+    }
+  }, [durableMemoryAvailable, modelDeployments.isPending]);
 
   const persistDraftSnapshot = (
     values: CreateInstanceFormValues = draftFormValues,
@@ -548,7 +576,7 @@ export function CreateInstanceSheet({
       specializationSelections(
         availableCapabilityIds(
           specialization.defaultKnowledgeSourceIds,
-          knowledgeSources.map((item) => item.id),
+          selectableKnowledgeSources.map((item) => item.id),
         ),
       ),
     );
@@ -556,7 +584,7 @@ export function CreateInstanceSheet({
   }, [
     capabilitiesInitialized,
     draftHydrated,
-    knowledgeSources,
+    selectableKnowledgeSources,
     mcpServers,
     resourceCatalog.data,
     skills,
@@ -582,11 +610,11 @@ export function CreateInstanceSheet({
     setSelectedKnowledgeSources((current) => {
       const next = reconcileCapabilitySelection(
         current,
-        knowledgeSources.map((item) => item.id),
+        selectableKnowledgeSources.map((item) => item.id),
       );
       return next.length === current.length ? current : next;
     });
-  }, [capabilitiesInitialized, knowledgeSources, mcpServers, skills]);
+  }, [capabilitiesInitialized, mcpServers, selectableKnowledgeSources, skills]);
 
   const policyName = (id: string) =>
     policies.data?.policies.find((policy) => policy.id === id)?.name ??
@@ -613,7 +641,7 @@ export function CreateInstanceSheet({
       selectedKnowledgeSources,
       availableCapabilityIds(
         next.defaultKnowledgeSourceIds,
-        knowledgeSources.map((item) => item.id),
+        selectableKnowledgeSources.map((item) => item.id),
       ),
     );
     setSpecializationId(id);
@@ -662,7 +690,7 @@ export function CreateInstanceSheet({
       selectedKnowledgeSources,
       availableCapabilityIds(
         pendingSpecialization.defaultKnowledgeSourceIds,
-        knowledgeSources.map((item) => item.id),
+        selectableKnowledgeSources.map((item) => item.id),
       ),
     );
     return {
@@ -676,7 +704,7 @@ export function CreateInstanceSheet({
         capabilityName(id, skills, mcpServers, knowledgeSources),
       ),
     };
-  }, [knowledgeSources, mcpServers, pendingSpecialization, selectedKnowledgeSources, selectedMcps, selectedSkills, skills]);
+  }, [knowledgeSources, mcpServers, pendingSpecialization, selectableKnowledgeSources, selectedKnowledgeSources, selectedMcps, selectedSkills, skills]);
 
   const discardAndClose = () => {
     clearCreateInstanceDraft(draftStorageKey);
@@ -809,9 +837,13 @@ export function CreateInstanceSheet({
               >
                 {([name, agentPlatform]) => {
                   const instanceName = String(name).trim();
-                  const unavailableMemory = durableMemoryEnabled
+                  const selectedPlatform = agentPlatform as AgentPlatformId;
+                  const memoryReadinessPending = durableMemoryFeatureEnabled
+                    && supportsNativeMemoryPlatform(selectedPlatform)
+                    && modelDeployments.isPending;
+                  const unavailableMemory = durableMemoryAvailable
                     && supportsDurableMemoryPlatform(
-                      agentPlatform as AgentPlatformId,
+                      selectedPlatform,
                     )
                     && Boolean(durableMemoryId)
                     && !availableDurableMemories.some(
@@ -819,6 +851,12 @@ export function CreateInstanceSheet({
                     );
                   const reason = instanceName.length < 3
                     ? "Enter an Instance name using 3–64 characters."
+                    : memoryReadinessPending
+                      ? "Checking Project embedding model availability…"
+                      : durableMemoryFeatureEnabled
+                        && supportsNativeMemoryPlatform(selectedPlatform)
+                        && modelDeployments.error
+                        ? "Embedding model availability could not be checked."
                     : unavailableMemory
                       ? "Choose an available Memory or create a new one."
                       : "";
@@ -1039,8 +1077,12 @@ export function CreateInstanceSheet({
                     agentPlatform={agentPlatform as AgentPlatformId}
                     durableMemories={durableMemories.data?.items ?? []}
                     durableMemoriesLoading={durableMemories.isPending}
-                    durableMemoryEnabled={durableMemoryEnabled}
+                    durableMemoryAvailable={durableMemoryAvailable}
+                    durableMemoryFeatureEnabled={durableMemoryFeatureEnabled}
                     durableMemoryId={durableMemoryId}
+                    embeddingModelsError={modelDeployments.error}
+                    embeddingModelsPending={modelDeployments.isPending}
+                    canManageProject={permissions.canManageProject}
                     onNameChange={(value) => {
                       const values = {
                         ...draftFormValues,
@@ -1067,11 +1109,15 @@ export function CreateInstanceSheet({
 
             {step === 1 ? (
               <ToolboxStep
+                canManageProject={permissions.canManageProject}
                 specialization={specialization}
                 specializations={specializations}
                 skills={skills}
                 mcpServers={mcpServers}
                 knowledgeSources={knowledgeSources}
+                embeddingModelReady={embeddingModelReady}
+                embeddingModelsError={modelDeployments.error}
+                embeddingModelsPending={modelDeployments.isPending}
                 customSystemPrompt={customSystemPrompt}
                 selectedSkillIds={selectedIds(selectedSkills)}
                 selectedMcpServerIds={selectedIds(selectedMcps)}
@@ -1654,12 +1700,13 @@ export function CreateInstanceSheet({
                           <ReviewFact
                             label="Memory"
                             value={
-                              !durableMemoryEnabled
-                                || !supportsDurableMemoryPlatform(values.agentPlatform)
-                                ? "Workbench-managed"
-                                : durableMemoryId
+                              !supportsNativeMemoryPlatform(values.agentPlatform)
+                                ? "Not available"
+                                : durableMemoryAvailable && durableMemoryId
                                   ? `Continue · ${availableDurableMemories.find((item) => item.id === durableMemoryId)?.displayName ?? "Existing Memory"}`
-                                  : "Durable Memory · automatic"
+                                  : durableMemoryAvailable
+                                    ? "Durable Memory · automatic"
+                                    : "Native text Memory · Instance-scoped"
                             }
                           />
                         </dl>

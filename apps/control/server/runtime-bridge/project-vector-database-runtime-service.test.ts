@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type {
   Instance,
   KnowledgeSourceDefinition,
+  ModelDeployment,
   VectorDatabaseSearchResult,
 } from "@tali/contracts";
 import { ProjectVectorDatabaseRuntimeService } from "./project-vector-database-runtime-service";
@@ -26,9 +27,15 @@ const unavailableDatabase = {
   status: "UNAVAILABLE",
 } as KnowledgeSourceDefinition;
 
+const embeddingModel = {
+  modelType: "text-embedding",
+  status: "VALIDATED",
+} as ModelDeployment;
+
 function service(input: {
   agent?: Instance;
   databases?: KnowledgeSourceDefinition[];
+  embeddingReady?: boolean;
   searchResult?: VectorDatabaseSearchResult;
 } = {}) {
   const databases = input.databases ?? [registeredDatabase, unavailableDatabase];
@@ -37,6 +44,8 @@ function service(input: {
     getKnowledgeSourceDefinition: vi.fn(async (id: string) =>
       databases.find((database) => database.id === id)),
     listKnowledgeSourceDefinitions: vi.fn(async () => databases),
+    listModelDeployments: vi.fn(async () =>
+      input.embeddingReady === false ? [] : [embeddingModel]),
   };
   const catalog = {
     searchVectorDatabase: vi.fn(async () => input.searchResult ?? ({
@@ -114,5 +123,17 @@ describe("ProjectVectorDatabaseRuntimeService", () => {
     await expect(nonHermes.runtime.list(coordinator.id)).rejects.toThrow(
       "available to Hermes Instances only",
     );
+  });
+
+  it("blocks runtime discovery and retrieval without a Project embedding model", async () => {
+    const { runtime } = service({ embeddingReady: false });
+
+    await expect(runtime.list(coordinator.id)).rejects.toThrow(
+      "require a validated text embedding model",
+    );
+    await expect(runtime.search(coordinator.id, "papers", {
+      query: "test",
+      topK: 8,
+    })).rejects.toThrow("require a validated text embedding model");
   });
 });

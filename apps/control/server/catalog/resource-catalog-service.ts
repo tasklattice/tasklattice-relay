@@ -1,29 +1,30 @@
 import { createHash, randomUUID } from "node:crypto";
-import type {
-  CreateVectorFolderInput,
-  CreateKnowledgeSourceDefinitionInput,
-  CreateMcpServerDefinitionInput,
-  CreateSkillDefinitionInput,
-  ResourceCatalog,
-  ResourceKind,
-  KnowledgeSourceDefinition,
-  UpsertVectorChunksInput,
-  McpServerDefinition,
-  SkillDefinition,
-  UpdateKnowledgeSourceDefinitionInput,
-  UpdateMcpServerDefinitionInput,
-  UpdateSkillDefinitionInput,
-  VectorDatabaseOverview,
-  VectorDeletionImpact,
-  VectorDocument,
-  VectorDocumentChunks,
-  VectorDocumentDetail,
-  VectorFolder,
-  VectorIngestionJob,
-  VectorDatabaseSearchInput,
-  VectorDatabaseSearchResult,
-  UpdateVectorDocumentInput,
-  UpdateVectorFolderInput,
+import {
+  hasValidatedEmbeddingModel,
+  type CreateVectorFolderInput,
+  type CreateKnowledgeSourceDefinitionInput,
+  type CreateMcpServerDefinitionInput,
+  type CreateSkillDefinitionInput,
+  type ResourceCatalog,
+  type ResourceKind,
+  type KnowledgeSourceDefinition,
+  type UpsertVectorChunksInput,
+  type McpServerDefinition,
+  type SkillDefinition,
+  type UpdateKnowledgeSourceDefinitionInput,
+  type UpdateMcpServerDefinitionInput,
+  type UpdateSkillDefinitionInput,
+  type VectorDatabaseOverview,
+  type VectorDeletionImpact,
+  type VectorDocument,
+  type VectorDocumentChunks,
+  type VectorDocumentDetail,
+  type VectorFolder,
+  type VectorIngestionJob,
+  type VectorDatabaseSearchInput,
+  type VectorDatabaseSearchResult,
+  type UpdateVectorDocumentInput,
+  type UpdateVectorFolderInput,
 } from "@tali/contracts";
 import { controlJobQueue } from "../jobs/control-job-queue";
 import {
@@ -69,6 +70,18 @@ function liteLLMVectorStoreProvider(
     return "pg_vector";
   }
   return provider;
+}
+
+export class VectorDatabaseEmbeddingRequiredError extends Error {
+  readonly code = "embedding_model_required";
+  readonly status = 409;
+
+  constructor() {
+    super(
+      "Vector Databases require a validated text embedding model. Register or inherit an embedding model in Project Settings before creating one.",
+    );
+    this.name = "VectorDatabaseEmbeddingRequiredError";
+  }
 }
 
 export class ResourceCatalogService {
@@ -217,6 +230,7 @@ export class ResourceCatalogService {
   }
 
   async createKnowledgeSource(input: CreateKnowledgeSourceDefinitionInput): Promise<KnowledgeSourceDefinition> {
+    await this.assertEmbeddingModelAvailable();
     await this.quotas.assertCanCreate("knowledge-base");
     const resolvedInput = await this.resolveKnowledgeSourceEmbedding(input);
     const source = await this.store.saveKnowledgeSourceDefinition({
@@ -246,6 +260,7 @@ export class ResourceCatalogService {
   }
 
   async updateKnowledgeSource(id: string, input: UpdateKnowledgeSourceDefinitionInput): Promise<KnowledgeSourceDefinition> {
+    await this.assertEmbeddingModelAvailable();
     const current = await this.store.getKnowledgeSourceDefinition(id);
     if (!current) throw new Error("Vector Database was not found.");
     if (current.vectorStoreId !== input.vectorStoreId) {
@@ -316,6 +331,7 @@ export class ResourceCatalogService {
     sourceId: string,
     input: UpsertVectorChunksInput,
   ): Promise<{ upserted: number }> {
+    await this.assertEmbeddingModelAvailable();
     return this.vectorDatabase.upsertChunks(sourceId, input);
   }
 
@@ -345,6 +361,7 @@ export class ResourceCatalogService {
     directoryPath = "/",
     folderId?: string | null,
   ): Promise<{ document: VectorDocument; job: VectorIngestionJob }> {
+    await this.assertEmbeddingModelAvailable();
     return this.vectorDocuments.queue(
       id,
       file,
@@ -392,6 +409,7 @@ export class ResourceCatalogService {
     id: string,
     input: VectorDatabaseSearchInput,
   ): Promise<VectorDatabaseSearchResult> {
+    await this.assertEmbeddingModelAvailable();
     const database = await this.store.getKnowledgeSourceDefinition(id);
     if (!database) throw new Error("Vector Database was not found.");
     const startedAt = Date.now();
@@ -481,6 +499,12 @@ export class ResourceCatalogService {
       mcpServers,
       vectorStores,
     });
+  }
+
+  private async assertEmbeddingModelAvailable(): Promise<void> {
+    if (!hasValidatedEmbeddingModel(await this.store.listModelDeployments())) {
+      throw new VectorDatabaseEmbeddingRequiredError();
+    }
   }
 
   private async resolveKnowledgeSourceEmbedding<

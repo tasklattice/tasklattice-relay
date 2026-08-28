@@ -170,10 +170,7 @@ export function taliRuntimeBridgeProviderProfile(
         {
           name: "runtime_bridge_token",
           description: "TaskLattice Relay Instance Runtime Bridge token",
-          env_vars: [
-            "TALI_PROJECT_RUNTIME_BRIDGE_TOKEN",
-            "TALI_DURABLE_MEMORY_TOKEN",
-          ],
+          env_vars: ["TALI_PROJECT_RUNTIME_BRIDGE_TOKEN"],
           required: true,
           auth_style: "bearer",
           header_name: "authorization",
@@ -370,7 +367,6 @@ export function runtimeBridgeProviderCreateCommand(
   env: NodeJS.ProcessEnv;
 } {
   const runtimeBridgeToken = input.projectRuntimeBridgeToken;
-  const durableMemoryEndpoint = `${runtimeBridgeUrl.replace(/\/$/, "")}/v1/memory/coordinators/${encodeURIComponent(input.instanceId)}`;
   return {
     args: openShellArguments([
       "provider",
@@ -382,19 +378,14 @@ export function runtimeBridgeProviderCreateCommand(
       "--global-profile",
       "--credential",
       "TALI_PROJECT_RUNTIME_BRIDGE_TOKEN",
-      "--credential",
-      "TALI_DURABLE_MEMORY_TOKEN",
       "--config",
       `TALI_PROJECT_RUNTIME_BRIDGE_URL=${runtimeBridgeUrl}`,
-      "--config",
-      `TALI_DURABLE_MEMORY_ENDPOINT=${durableMemoryEndpoint}`,
     ], target),
     env: {
       ...process.env,
       ...(runtimeBridgeToken
         ? {
             TALI_PROJECT_RUNTIME_BRIDGE_TOKEN: runtimeBridgeToken,
-            TALI_DURABLE_MEMORY_TOKEN: runtimeBridgeToken,
           }
         : {}),
     },
@@ -883,9 +874,6 @@ export function openShellSandboxCreateArguments(
     ?? process.env.OPENSHELL_SANDBOX_CPU
     ?? "1";
   const cpuRequest = process.env.OPENSHELL_SANDBOX_CPU_REQUEST?.trim();
-  const durableMemoryEndpoint = input.projectRuntimeBridgeToken && target
-    ? `http://tali-agent-runtime-bridge.${target.workspace}.svc.cluster.local:8080/v1/memory/coordinators/${encodeURIComponent(input.instanceId)}`
-    : undefined;
   const cpuArguments = cpuRequest && cpuRequest !== cpuLimit
     ? [
         "--driver-config-json",
@@ -930,9 +918,6 @@ export function openShellSandboxCreateArguments(
     `tali.io/nemoclaw-version=${process.env.NEMOCLAW_VERSION ?? "0.0.114"}`,
     "--env",
     `TALI_AGENT_INSTANCE_ID=${input.instanceId}`,
-    ...(durableMemoryEndpoint
-      ? ["--env", `TALI_DURABLE_MEMORY_ENDPOINT=${durableMemoryEndpoint}`]
-      : []),
     ...(input.agentPlatform === "hermes"
       ? ["--env", "HERMES_LAZY_INSTALL_TARGET=/sandbox/.hermes/lazy-packages"]
       : []),
@@ -1476,7 +1461,7 @@ async function ensureRuntimeBridgeProvider(
   }
   if (!input.projectRuntimeBridgeToken)
     throw new Error(
-      "An Instance-scoped Runtime Bridge token is required to attach durable Memory.",
+      "An Instance-scoped Runtime Bridge token is required to attach Project runtime capabilities.",
     );
   const command = runtimeBridgeProviderCreateCommand(
     input,
@@ -1548,7 +1533,7 @@ export async function provisionOpenShellSandbox(
   try {
     await writeFile(
       instructionsFile,
-      `## TaskLattice Relay Agent Instructions\n\n${input.systemPrompt.trim()}${agentMemoryInstructions(input.memory)}${hermesRuntimeInstructions}\n`,
+      `## TaskLattice Relay Agent Instructions\n\n${input.systemPrompt.trim()}${agentMemoryInstructions(input.memory, input.agentPlatform)}${hermesRuntimeInstructions}\n`,
       { mode: 0o600 },
     );
     await writeFile(
@@ -1562,6 +1547,7 @@ export async function provisionOpenShellSandbox(
         projectRuntimeBridgeUrl,
         input.instanceId,
         Boolean(projectRuntimeBridgeUrl),
+        Boolean(input.durableMemoryEnabled),
       ),
       { mode: 0o600 },
     );

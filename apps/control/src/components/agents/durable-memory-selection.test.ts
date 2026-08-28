@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   bindableDurableMemories,
   supportsDurableMemoryPlatform,
+  supportsNativeMemoryPlatform,
 } from "./durable-memory-selection";
 
 function memory(
@@ -27,6 +28,12 @@ describe("Durable Memory selection for Agent creation", () => {
     expect(supportsDurableMemoryPlatform("openclaw")).toBe(true);
     expect(supportsDurableMemoryPlatform("hermes")).toBe(true);
     expect(supportsDurableMemoryPlatform("deepagents")).toBe(false);
+  });
+
+  it("uses Native text Memory as the fallback only for supported runtimes", () => {
+    expect(supportsNativeMemoryPlatform("openclaw")).toBe(true);
+    expect(supportsNativeMemoryPlatform("hermes")).toBe(true);
+    expect(supportsNativeMemoryPlatform("deepagents")).toBe(false);
   });
 
   it("offers only ready or unbound Memories without an active binding", () => {

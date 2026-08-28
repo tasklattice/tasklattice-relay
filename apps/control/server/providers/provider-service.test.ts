@@ -23,6 +23,12 @@ function mockDeepSeekCatalog(): void {
   }), { status: 200 })));
 }
 
+function mockOpenAIEmbeddingCatalog(...modelIds: string[]): void {
+  vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
+    data: modelIds.map((id) => ({ id })),
+  }), { status: 200 })));
+}
+
 function liteLLM(): LiteLLMAdminClient {
   return {
     baseUrl: "http://litellm:4000",
@@ -181,6 +187,107 @@ describe("ProviderService", () => {
     expect(await service.listModels(account.id)).toEqual([
       expect.objectContaining({ id: models[1]!.id }),
     ]);
+  });
+
+  it("blocks removal of the last validated embedding model while Durable Memory depends on it", async () => {
+    mockOpenAIEmbeddingCatalog("text-embedding-3-small", "text-embedding-3-large");
+    const store = createTestStore();
+    const litellm = liteLLM();
+    const service = new ProviderService(store, litellm);
+    const { account, models } = await service.createConnection({
+      connection: {
+        provider: "openai",
+        name: "OpenAI embeddings",
+        config: { endpoint: "https://api.openai.com/v1" },
+        credentials: { apiKey: "provider-secret-value" },
+      },
+      models: [{
+        modelId: "text-embedding-3-small",
+        displayName: "Embedding Small",
+        modelType: "text-embedding",
+      }],
+      complianceDomain: "GLOBAL",
+    });
+    await store.database().memoryRecord.create({
+      data: {
+        projectId: store.projectId,
+        id: "11111111-1111-4111-8111-111111111111",
+        displayName: "Hermes project memory",
+        status: "ready",
+      },
+    });
+
+    await expect(service.modelRemovalImpact(models[0]!.id)).resolves.toMatchObject({
+      blocking: true,
+      dependencies: [{
+        kind: "DURABLE_MEMORY",
+        name: "Hermes project memory",
+      }],
+      remainingValidatedEmbeddingModels: 0,
+    });
+    await expect(service.deleteModelDeployment(models[0]!.id)).rejects.toMatchObject({
+      code: "embedding_model_dependency_conflict",
+      status: 409,
+    });
+    await expect(service.deleteAccount(account.id)).rejects.toMatchObject({
+      code: "embedding_model_dependency_conflict",
+      status: 409,
+    });
+    expect(litellm.deleteModel).not.toHaveBeenCalled();
+
+    await service.registerModel({
+      providerAccountId: account.id,
+      modelId: "text-embedding-3-large",
+      displayName: "Embedding Large",
+      modelType: "text-embedding",
+    });
+    await expect(service.deleteModelDeployment(models[0]!.id)).resolves.toBe(true);
+  });
+
+  it("blocks removal of an embedding model directly bound to a Vector Database even when a replacement exists", async () => {
+    mockOpenAIEmbeddingCatalog("text-embedding-3-small", "text-embedding-3-large");
+    const store = createTestStore();
+    const service = new ProviderService(store, liteLLM());
+    const result = await service.createConnection({
+      connection: {
+        provider: "openai",
+        name: "OpenAI embeddings",
+        config: { endpoint: "https://api.openai.com/v1" },
+        credentials: { apiKey: "provider-secret-value" },
+      },
+      models: [
+        {
+          modelId: "text-embedding-3-small",
+          displayName: "Embedding Small",
+          modelType: "text-embedding",
+        },
+        {
+          modelId: "text-embedding-3-large",
+          displayName: "Embedding Large",
+          modelType: "text-embedding",
+        },
+      ],
+      complianceDomain: "GLOBAL",
+    });
+    const boundModel = result.models[0]!;
+    await store.saveKnowledgeSourceDefinition({
+      id: "project-vectors",
+      name: "Project vectors",
+      description: "Project documents embedded with the explicitly selected model.",
+      vectorStoreId: "project-vectors",
+      provider: "postgresql",
+      embeddingModelDeploymentId: boundModel.id,
+      embeddingModel: boundModel.litellmModelName,
+      embeddingDimensions: 1536,
+      credentialReference: "",
+      status: "REGISTERED",
+      lastReconciliationError: null,
+      topK: 8,
+    });
+
+    await expect(service.deleteModelDeployment(boundModel.id)).rejects.toThrow(
+      "1 Vector Database",
+    );
   });
 
   it("blocks Provider deletion while a Model Routing references one of its deployments", async () => {

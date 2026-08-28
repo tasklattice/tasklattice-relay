@@ -29,6 +29,7 @@ export * from "./project-overview.js";
 export * from "./organization.js";
 export * from "./department-settings.js";
 export * from "./memory.js";
+export * from "./model-readiness.js";
 
 export const instanceStatuses = [
   "PROVISIONING",
@@ -1954,6 +1955,13 @@ export const createInstanceSchema = z.object({
   memory: agentMemoryConfigurationSchema.optional(),
   durableMemoryId: z.string().uuid().optional(),
 }).strict().superRefine((value, context) => {
+  if (value.memory && value.durableMemoryId) {
+    context.addIssue({
+      code: "custom",
+      path: ["memory"],
+      message: "Choose either Project Durable Memory or an Instance-native Memory mode.",
+    });
+  }
   if (
     value.memory
     && getAgentPlatformDefinition(value.agentPlatform).capabilities.memory
@@ -1962,7 +1970,18 @@ export const createInstanceSchema = z.object({
     context.addIssue({
       code: "custom",
       path: ["memory"],
-      message: "Memory is currently available only for OpenClaw Instances.",
+      message: "This Agent does not support Instance-native Memory.",
+    });
+  }
+  if (
+    value.memory?.mode === "hybrid"
+    && getAgentPlatformDefinition(value.agentPlatform).capabilities.memory
+      !== "native-hybrid"
+  ) {
+    context.addIssue({
+      code: "custom",
+      path: ["memory"],
+      message: "Hybrid Memory is currently available only for OpenClaw Instances.",
     });
   }
 }).meta({ id: "CreateInstanceInput" });
@@ -2489,6 +2508,28 @@ export interface ModelDeployment extends CreateModelDeploymentInput {
   createdAt: string;
   updatedAt: string;
   origin?: InferenceResourceOrigin;
+}
+
+export type ModelRemovalDependencyKind =
+  | "DURABLE_MEMORY"
+  | "INSTANCE"
+  | "MODEL_ROUTING"
+  | "PROJECT"
+  | "VECTOR_DATABASE";
+
+export interface ModelRemovalDependency {
+  direct: boolean;
+  id: string;
+  kind: ModelRemovalDependencyKind;
+  name: string;
+}
+
+export interface ModelRemovalImpact {
+  blocking: boolean;
+  dependencies: ModelRemovalDependency[];
+  modelId: string;
+  modelName: string;
+  remainingValidatedEmbeddingModels: number;
 }
 
 export interface DepartmentInferenceAvailability {

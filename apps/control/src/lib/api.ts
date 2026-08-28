@@ -56,6 +56,7 @@ import type {
   UpdateModelRoutingInput,
   McpServerDefinition,
   ModelDeployment,
+  ModelRemovalImpact,
   MemoryActivityPage,
   MemoryBindingPage,
   MemoryBindingView,
@@ -460,6 +461,10 @@ export const api = {
     request<{ message: string }>(`/api/v1/models/${encodeURIComponent(id)}`, {
       method: "DELETE",
     }),
+  getModelRemovalImpact: (id: string) =>
+    request<ModelRemovalImpact>(
+      `/api/v1/models/${encodeURIComponent(id)}/removal-impact`,
+    ),
   listInheritableModels: () =>
     request<Pick<DepartmentInferenceAvailability, "departmentId" | "departmentName" | "models">>(
       "/api/v1/models/inheritable",
@@ -797,6 +802,10 @@ export function departmentInferenceApi(departmentId: string) {
       request<ModelDeployment>(`${base}/models`, { method: "POST", body: JSON.stringify(input) }),
     deleteModelDeployment: (id: string) =>
       request<{ message: string }>(`${base}/models/${encodeURIComponent(id)}`, { method: "DELETE" }),
+    getModelRemovalImpact: (id: string) =>
+      request<ModelRemovalImpact>(
+        `${base}/models/${encodeURIComponent(id)}/removal-impact`,
+      ),
     listModelAssignments: (id: string) =>
       request<DepartmentInferenceResourceAssignmentView>(
         `${base}/models/${encodeURIComponent(id)}/assignments`,

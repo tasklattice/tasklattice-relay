@@ -21,6 +21,7 @@ import {
   X,
 } from "lucide-react";
 import { AgentSelect } from "@/components/agents/agent-select";
+import { EmbeddingModelSetupNotice } from "@/components/providers/embedding-model-setup-notice";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -70,8 +71,12 @@ export function AgentFoundationStep({
   agentPlatform,
   durableMemories,
   durableMemoriesLoading,
-  durableMemoryEnabled,
+  durableMemoryAvailable,
+  durableMemoryFeatureEnabled,
   durableMemoryId,
+  embeddingModelsError,
+  embeddingModelsPending,
+  canManageProject,
   name,
   onAgentPlatformChange,
   onDurableMemoryIdChange,
@@ -80,8 +85,12 @@ export function AgentFoundationStep({
   agentPlatform: AgentPlatformId;
   durableMemories: readonly MemoryResourceView[];
   durableMemoriesLoading: boolean;
-  durableMemoryEnabled: boolean;
+  durableMemoryAvailable: boolean;
+  durableMemoryFeatureEnabled: boolean;
   durableMemoryId: string;
+  embeddingModelsError: Error | null | undefined;
+  embeddingModelsPending: boolean;
+  canManageProject: boolean;
   name: string;
   onAgentPlatformChange: (value: AgentPlatformId) => void;
   onDurableMemoryIdChange: (memoryId: string) => void;
@@ -138,8 +147,12 @@ export function AgentFoundationStep({
             agentPlatform={agentPlatform}
             durableMemories={durableMemories}
             durableMemoriesLoading={durableMemoriesLoading}
-            durableMemoryEnabled={durableMemoryEnabled}
+            durableMemoryAvailable={durableMemoryAvailable}
+            durableMemoryFeatureEnabled={durableMemoryFeatureEnabled}
             durableMemoryId={durableMemoryId}
+            embeddingModelsError={embeddingModelsError}
+            embeddingModelsPending={embeddingModelsPending}
+            canManageProject={canManageProject}
             onDurableMemoryIdChange={onDurableMemoryIdChange}
             projectId={projectId}
           />
@@ -175,7 +188,11 @@ function mcpStatusTone(
 }
 
 export function ToolboxStep({
+  canManageProject,
   customSystemPrompt,
+  embeddingModelReady,
+  embeddingModelsError,
+  embeddingModelsPending,
   knowledgeSources,
   mcpServers,
   onCustomSystemPromptChange,
@@ -192,7 +209,11 @@ export function ToolboxStep({
   specializations,
   systemPrompt,
 }: {
+  canManageProject: boolean;
   customSystemPrompt: string;
+  embeddingModelReady: boolean;
+  embeddingModelsError: Error | null | undefined;
+  embeddingModelsPending: boolean;
   knowledgeSources: readonly KnowledgeSourceDefinition[];
   mcpServers: readonly McpServerDefinition[];
   onCustomSystemPromptChange: (value: string) => void;
@@ -234,7 +255,7 @@ export function ToolboxStep({
       ? source.provider.toUpperCase()
       : "Unavailable",
     metaTone: source.status === "REGISTERED" ? "success" : "neutral",
-    disabled: source.status === "UNAVAILABLE",
+    disabled: !embeddingModelReady || source.status === "UNAVAILABLE",
   }));
   const incompleteMcpServers = selectedMcpServerIds
     .map((id) => mcpServers.find((item) => item.id === id))
@@ -351,7 +372,10 @@ export function ToolboxStep({
                 <DropdownMenuItem onSelect={() => setMcpOpen(true)}>
                   <ServerCog /> MCP Servers
                 </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => setKnowledgeOpen(true)}>
+                <DropdownMenuItem
+                  disabled={!embeddingModelReady}
+                  onSelect={() => setKnowledgeOpen(true)}
+                >
                   <BookOpenText /> Vector Databases
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -409,6 +433,23 @@ export function ToolboxStep({
             options={knowledgeOptions}
             selectedIds={selectedKnowledgeSourceIds}
             onChange={onKnowledgeSourceIdsChange}
+            footer={
+              embeddingModelsPending ? (
+                <p className="text-xs text-muted-foreground">
+                  Checking Project embedding model availability…
+                </p>
+              ) : embeddingModelsError ? (
+                <p role="alert" className="text-xs text-destructive">
+                  Embedding model availability could not be checked: {embeddingModelsError.message}
+                </p>
+              ) : !embeddingModelReady ? (
+                <EmbeddingModelSetupNotice
+                  canManageProject={canManageProject}
+                  className="mt-2"
+                  projectId={projectId}
+                />
+              ) : undefined
+            }
           />
         </CardContent>
       </Card>
@@ -431,21 +472,29 @@ function MemoryCapabilityRow({
   agentPlatform,
   durableMemories,
   durableMemoriesLoading,
-  durableMemoryEnabled,
+  durableMemoryAvailable,
+  durableMemoryFeatureEnabled,
   durableMemoryId,
+  embeddingModelsError,
+  embeddingModelsPending,
+  canManageProject,
   onDurableMemoryIdChange,
   projectId,
 }: {
   agentPlatform: AgentPlatformId;
   durableMemories: readonly MemoryResourceView[];
   durableMemoriesLoading: boolean;
-  durableMemoryEnabled: boolean;
+  durableMemoryAvailable: boolean;
+  durableMemoryFeatureEnabled: boolean;
   durableMemoryId: string;
+  embeddingModelsError: Error | null | undefined;
+  embeddingModelsPending: boolean;
+  canManageProject: boolean;
   onDurableMemoryIdChange: (memoryId: string) => void;
   projectId: string;
 }) {
-  const supported = durableMemoryEnabled
-    && (agentPlatform === "openclaw" || agentPlatform === "hermes");
+  const supportsNative = agentPlatform === "openclaw" || agentPlatform === "hermes";
+  const supportsDurable = durableMemoryAvailable && supportsNative;
   const newMemoryValue = "new-memory";
   const sourceValue = durableMemoryId || newMemoryValue;
 
@@ -463,23 +512,29 @@ function MemoryCapabilityRow({
             <PopoverContent align="start" className="w-[min(90vw,22rem)] p-4">
               <h4 className="text-sm font-semibold">Memory tips</h4>
               <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                Economy uses the Project&apos;s managed low-cost Memory defaults. A new Memory is prepared automatically unless you select an existing one.
+                {supportsDurable
+                  ? "Economy uses the Project's managed low-cost Memory defaults. A new Memory is prepared automatically unless you select an existing one."
+                  : "Native Memory stores text inside this Instance's Sandbox and does not require an embedding model."}
               </p>
               <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                Durable Memory remains available after Instance deletion and can be attached to another supported Instance.
+                {supportsDurable
+                  ? "Durable Memory remains available after Instance deletion and can be attached to another supported Instance."
+                  : "Native Memory is deleted with the Instance and cannot be attached to a replacement Agent."}
               </p>
-              <Button asChild variant="link" size="sm" className="mt-2 h-auto min-h-0 p-0">
-                <Link to="/$projectId/memory" params={{ projectId }}>Manage Memory</Link>
-              </Button>
+              {supportsDurable ? (
+                <Button asChild variant="link" size="sm" className="mt-2 h-auto min-h-0 p-0">
+                  <Link to="/$projectId/memory" params={{ projectId }}>Manage Memory</Link>
+                </Button>
+              ) : null}
             </PopoverContent>
           </Popover>
         </div>
-        <Badge variant={supported ? "secondary" : "outline"} className="font-normal">
-          {supported ? "Enabled" : "Not available"}
+        <Badge variant={supportsDurable ? "secondary" : "outline"} className="font-normal">
+          {supportsDurable ? "Durable" : supportsNative ? "Native" : "Not available"}
         </Badge>
       </div>
 
-      {supported ? (
+      {supportsDurable ? (
         <div className="mt-3 grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
             <Label htmlFor="durable-memory-selection">Memory source</Label>
@@ -529,11 +584,29 @@ function MemoryCapabilityRow({
             </div>
           </div>
         </div>
+      ) : supportsNative ? (
+        <div className="mt-3 space-y-3">
+          <p className="text-xs leading-5 text-muted-foreground">
+            This Agent will use built-in Native text Memory inside its Sandbox.
+            Native Memory is removed with the Instance and cannot be reattached.
+          </p>
+          {embeddingModelsPending ? (
+            <p className="text-xs text-muted-foreground">Checking Project embedding models…</p>
+          ) : embeddingModelsError ? (
+            <p role="alert" className="text-xs text-destructive">
+              Embedding readiness could not be checked: {embeddingModelsError.message}
+            </p>
+          ) : durableMemoryFeatureEnabled ? (
+            <EmbeddingModelSetupNotice
+              canManageProject={canManageProject}
+              className="mt-3"
+              projectId={projectId}
+            />
+          ) : null}
+        </div>
       ) : (
         <p className="mt-2 text-xs text-muted-foreground">
-          {durableMemoryEnabled
-            ? "Available for Hermes and OpenClaw Agents."
-            : "Not enabled for this Project."}
+          Memory is not available for this Agent definition.
         </p>
       )}
     </section>

@@ -4,6 +4,10 @@ export function supportsDurableMemoryPlatform(agentPlatform: AgentPlatformId): b
   return agentPlatform === "openclaw" || agentPlatform === "hermes";
 }
 
+export function supportsNativeMemoryPlatform(agentPlatform: AgentPlatformId): boolean {
+  return agentPlatform === "openclaw" || agentPlatform === "hermes";
+}
+
 export function bindableDurableMemories(
   memories: readonly MemoryResourceView[],
 ): MemoryResourceView[] {

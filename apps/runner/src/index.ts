@@ -99,6 +99,7 @@ const createSchema = z.object({
     .regex(/^tali_prc_v1\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/)
     .max(2_048)
     .optional(),
+  durableMemoryEnabled: z.boolean().optional(),
   sandboxImage: z.string().trim().min(3).max(500).regex(/^\S+$/).optional(),
   sandboxResources: z.object({
     cpu: z.string().trim().min(1).max(32).regex(
@@ -383,6 +384,9 @@ app.post("/v1/sandboxes", (request, response, next) => {
       ...(parsedInput.apiKey ? { apiKey: parsedInput.apiKey } : {}),
       ...(parsedInput.projectRuntimeBridgeToken
         ? { projectRuntimeBridgeToken: parsedInput.projectRuntimeBridgeToken }
+        : {}),
+      ...(parsedInput.durableMemoryEnabled !== undefined
+        ? { durableMemoryEnabled: parsedInput.durableMemoryEnabled }
         : {}),
       ...(parsedInput.sandboxImage
         ? { sandboxImage: parsedInput.sandboxImage }

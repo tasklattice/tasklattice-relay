@@ -8,6 +8,11 @@ import type { MemoryBinding, MemoryRecord } from "../generated/prisma/client";
 import { prisma } from "../db/prisma";
 import { MemoryRepository } from "../memories/memory-repository";
 import { MemoryService } from "../memories/memory-service";
+import {
+  assertDurableMemoryAvailableForProject,
+  type ProjectModelInventory,
+} from "../memories/durable-memory-feature";
+import { ProjectStore } from "../projects/project-store";
 import type { ProjectRuntimeCoordinatorIdentity } from "./project-runtime-bridge-token";
 import { sanitizeRuntimeMemoryText } from "./memory-runtime-sanitizer";
 
@@ -57,11 +62,13 @@ interface BoundRuntimeMemory {
 export class ProjectMemoryRuntimeService {
   private readonly repository: MemoryRepository;
   private readonly memories: MemoryService;
+  private readonly models: ProjectModelInventory;
 
   constructor(
     readonly projectId: string,
     dependencies: {
       memories?: MemoryService;
+      models?: ProjectModelInventory;
       repository?: MemoryRepository;
     } = {},
   ) {
@@ -69,6 +76,7 @@ export class ProjectMemoryRuntimeService {
       ?? new MemoryRepository(projectId, prisma());
     this.memories = dependencies.memories
       ?? new MemoryService(this.repository);
+    this.models = dependencies.models ?? new ProjectStore(projectId);
   }
 
   async recall(
@@ -77,6 +85,7 @@ export class ProjectMemoryRuntimeService {
   ): Promise<MemoryRuntimeRecallResponse> {
     const input = memoryRuntimeRecallInputSchema.parse(rawInput);
     const { memory } = await this.requireBoundMemory(identity);
+    await assertDurableMemoryAvailableForProject(this.projectId, this.models);
     const query = sanitizeRuntimeMemoryText(input.query, 8_000).trim();
     if (!query) return { context: null, degraded: false, itemCount: 0 };
     try {
@@ -106,6 +115,7 @@ export class ProjectMemoryRuntimeService {
   ): Promise<MemoryRuntimeRetainResponse> {
     const input = memoryRuntimeRetainInputSchema.parse(rawInput);
     const { binding, memory } = await this.requireBoundMemory(identity);
+    await assertDurableMemoryAvailableForProject(this.projectId, this.models);
     const occurredAt = input.occurredAt ?? new Date().toISOString();
     const conversationId = `runtime:${identity.coordinatorInstanceId}:${input.conversationId}`;
     const messages: MemoryConversation["messages"] = [

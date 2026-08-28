@@ -1,7 +1,11 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
-import type { MemoryResourceView, MemoryStatus as MemoryStatusValue } from "@tali/contracts";
+import {
+  hasValidatedEmbeddingModel,
+  type MemoryResourceView,
+  type MemoryStatus as MemoryStatusValue,
+} from "@tali/contracts";
 import {
   ArrowRight,
   BrainCircuit,
@@ -13,6 +17,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
+import { EmbeddingModelSetupNotice } from "@/components/providers/embedding-model-setup-notice";
 import { DeleteEntitySheet } from "@/components/shared/delete-entity-sheet";
 import { EmptyState } from "@/components/shared/empty-state";
 import { EntitySheet } from "@/components/shared/entity-sheet";
@@ -65,6 +70,13 @@ export function MemoryListPage() {
   const [deleteTarget, setDeleteTarget] = useState<MemoryResourceView | null>(null);
   const [notice, setNotice] = useState("");
 
+  const models = useQuery({
+    queryKey: scope.key("model-deployments"),
+    queryFn: api.listModelDeployments,
+    enabled: permissions.canViewMemories,
+  });
+  const embeddingModelReady = hasValidatedEmbeddingModel(models.data ?? []);
+
   const memories = useQuery({
     queryKey: scope.key("durable-memories", cursor ?? "first", query, status),
     queryFn: () => api.listMemories({
@@ -81,7 +93,12 @@ export function MemoryListPage() {
 
   const invalidateList = () => queryClient.invalidateQueries({ queryKey: scope.key("durable-memories") });
   const create = useMutation({
-    mutationFn: () => api.createMemory({ displayName: createName }),
+    mutationFn: () => {
+      if (!embeddingModelReady) {
+        throw new Error("Configure a validated embedding model before creating Durable Memory.");
+      }
+      return api.createMemory({ displayName: createName });
+    },
     onSuccess: async (memory) => {
       await invalidateList();
       setCreateOpen(false);
@@ -154,7 +171,21 @@ export function MemoryListPage() {
       <PageHeader
         title="Memory"
         description="Durable context that survives Agent replacement. Create, curate, and reattach it independently of an Agent Instance."
-        actions={permissions.canManageMemories ? (
+        actions={!permissions.canManageMemories && !permissions.canManageProject ? undefined : models.isPending ? (
+          <Button className="h-11" disabled>Checking embedding…</Button>
+        ) : models.error ? (
+          <Button className="h-11" disabled>Embedding unavailable</Button>
+        ) : !embeddingModelReady && permissions.canManageProject ? (
+          <Button asChild className="h-11">
+            <Link
+              to="/$projectId/setting"
+              params={{ projectId }}
+              search={{ section: "models" }}
+            >
+              Configure embedding <ArrowRight />
+            </Link>
+          </Button>
+        ) : embeddingModelReady && permissions.canManageMemories ? (
           <Button className="h-11" onClick={() => {
             create.reset();
             setCreateName("");
@@ -164,6 +195,18 @@ export function MemoryListPage() {
           </Button>
         ) : undefined}
       />
+
+      {models.error ? (
+        <MemoryNotice tone="error">
+          Embedding model availability could not be loaded: {models.error.message}
+        </MemoryNotice>
+      ) : !models.isPending && !embeddingModelReady ? (
+        <EmbeddingModelSetupNotice
+          canManageProject={permissions.canManageProject}
+          projectId={projectId}
+          showAction={false}
+        />
+      ) : null}
 
       {notice ? <MemoryNotice tone="success">{notice}</MemoryNotice> : null}
       {degradedCount ? (
@@ -274,7 +317,7 @@ export function MemoryListPage() {
           icon={BrainCircuit}
           title={emptyCopy.title}
           description={emptyCopy.description}
-          action={!query && status === "all" && permissions.canManageMemories ? <Button className="h-11" onClick={() => setCreateOpen(true)}><Plus />Create Memory</Button> : undefined}
+          action={!query && status === "all" && embeddingModelReady && permissions.canManageMemories ? <Button className="h-11" onClick={() => setCreateOpen(true)}><Plus />Create Memory</Button> : undefined}
         />
       )}
 
@@ -285,7 +328,7 @@ export function MemoryListPage() {
         title="Create Memory"
         description="Create a Project-level Memory that can be attached to one OpenClaw or Hermes Agent at a time."
         width="md"
-        footer={<><Button variant="outline" disabled={create.isPending} onClick={() => setCreateOpen(false)}>Cancel</Button><Button disabled={!createName.trim() || create.isPending} onClick={() => create.mutate()}>{create.isPending ? "Creating…" : "Create Memory"}</Button></>}
+        footer={<><Button variant="outline" disabled={create.isPending} onClick={() => setCreateOpen(false)}>Cancel</Button><Button disabled={!embeddingModelReady || !createName.trim() || create.isPending} onClick={() => create.mutate()}>{create.isPending ? "Creating…" : "Create Memory"}</Button></>}
       >
         <div className="space-y-2"><Label htmlFor="memory-create-name">Name</Label><Input id="memory-create-name" autoFocus className="h-11" value={createName} onChange={(event) => setCreateName(event.target.value)} placeholder="Customer Support Memory" maxLength={120} /></div>
         <p className="mt-3 text-xs leading-5 text-muted-foreground">The Memory remains available when its Agent Instance is deleted or replaced.</p>

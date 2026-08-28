@@ -154,7 +154,7 @@ describe("OpenShell Kubernetes command contract", () => {
 
     expect(command.args).toContain(taliRuntimeBridgeProviderProfileId);
     expect(command.args).toContain("TALI_PROJECT_RUNTIME_BRIDGE_TOKEN");
-    expect(command.args).toContain("TALI_DURABLE_MEMORY_TOKEN");
+    expect(command.args).not.toContain("TALI_DURABLE_MEMORY_TOKEN");
     expect(command.args.join(" ")).not.toContain(
       "tali_prc_v1.test-payload.test-signature",
     );
@@ -163,7 +163,7 @@ describe("OpenShell Kubernetes command contract", () => {
     );
     expect(profile).toContain("id: tali-runtime-bridge");
     expect(profile).toContain("inference_capable: false");
-    expect(profile).toContain("TALI_DURABLE_MEMORY_TOKEN");
+    expect(profile).not.toContain("TALI_DURABLE_MEMORY_TOKEN");
     expect(openShellRuntimeBridgeProfileExportArguments()).toContain("--global");
     expect(openShellRuntimeBridgeProfileApplyArguments("/tmp/bridge.yaml"))
       .toContain("--global");
@@ -462,9 +462,7 @@ describe("OpenShell Kubernetes command contract", () => {
     );
     expect(createArgs).toContain("/tmp/SOUL.md:/sandbox/.hermes/SOUL.md");
     expect(createArgs).toContain(openShellRuntimeBridgeProviderName(hermesInput.name));
-    expect(createArgs).toContain(
-      `TALI_DURABLE_MEMORY_ENDPOINT=http://tali-agent-runtime-bridge.tp-abcdefghijklmnop.svc.cluster.local:8080/v1/memory/coordinators/${hermesInput.instanceId}`,
-    );
+    expect(createArgs.join(" ")).not.toContain("TALI_DURABLE_MEMORY_ENDPOINT");
     expect(createArgs).toContain(
       "/tmp/tali-run-telemetry.env:/tmp/tali-run-telemetry.env",
     );
@@ -496,6 +494,7 @@ describe("OpenShell Kubernetes command contract", () => {
       "http://tali-agent-runtime-bridge.tp-abcdefghijklmnop.svc.cluster.local:8080",
       hermesInput.instanceId,
       true,
+      true,
     );
     expect(bootstrap).toContain("--a2a-registry-url");
     expect(bootstrap).toContain(
@@ -511,8 +510,29 @@ describe("OpenShell Kubernetes command contract", () => {
     expect(bootstrap).toContain("--durable-memory-provider tali_relay");
     expect(bootstrap).toContain("TALI_DURABLE_MEMORY_ENDPOINT");
     expect(bootstrap).not.toContain("tali_prc_v1.test-payload.test-signature");
-    expect(bootstrap).not.toContain("export TALI_DURABLE_MEMORY_TOKEN=");
+    expect(bootstrap).toContain(
+      'export TALI_DURABLE_MEMORY_TOKEN="$TALI_PROJECT_RUNTIME_BRIDGE_TOKEN"',
+    );
     expect(bootstrap).not.toContain("\n+");
+
+    const nativeBootstrap = getAgentPlatformRuntime("hermes").bootstrapScript(
+      "https://hermes.example.test",
+      "18789",
+      "http://inference.example.test/v1",
+      "tali/provider/deepseek-chat",
+      { mode: "native", citations: "auto" },
+      "http://tali-agent-runtime-bridge.tp-abcdefghijklmnop.svc.cluster.local:8080",
+      hermesInput.instanceId,
+      true,
+      false,
+    );
+    expect(nativeBootstrap).toContain("--a2a-registry-url");
+    expect(nativeBootstrap).toContain("--vector-database-registry-url");
+    expect(nativeBootstrap).not.toContain("--durable-memory-provider tali_relay");
+    expect(agentMemoryInstructions(
+      { mode: "native", citations: "auto" },
+      "hermes",
+    )).toContain("Hermes Instance uses its built-in, Instance-scoped text memory");
   });
 
   it("uses the Deep Agents image, managed state path, TUI, and headless contract", () => {
@@ -653,13 +673,16 @@ describe("OpenShell Kubernetes command contract", () => {
       bridge,
       input.instanceId,
       true,
+      true,
     );
 
     expect(bootstrap).toContain("/usr/local/lib/tali/openclaw-durable-memory");
     expect(bootstrap).toContain('pluginEntries["tali-durable-memory"]');
     expect(bootstrap).toContain("allowPromptInjection: true");
     expect(bootstrap).not.toContain("tali_prc_v1.test-payload.test-signature");
-    expect(bootstrap).not.toContain("export TALI_DURABLE_MEMORY_TOKEN=");
+    expect(bootstrap).toContain(
+      'export TALI_DURABLE_MEMORY_TOKEN="$TALI_PROJECT_RUNTIME_BRIDGE_TOKEN"',
+    );
     expect(bootstrap).toContain(Buffer.from(
       `${bridge}/v1/memory/coordinators/${input.instanceId}`,
     ).toString("base64"));

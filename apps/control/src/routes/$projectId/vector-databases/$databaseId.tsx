@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import type { VectorDocument } from "@tali/contracts";
+import { hasValidatedEmbeddingModel, type VectorDocument } from "@tali/contracts";
 import { Activity, Database, FileUp, MoreHorizontal, Search, Settings, Trash2 } from "lucide-react";
 import { DeleteEntitySheet } from "@/components/shared/delete-entity-sheet";
+import { EmbeddingModelSetupNotice } from "@/components/providers/embedding-model-setup-notice";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -59,6 +60,15 @@ function VectorDatabaseDetail() {
     queryFn: () => api.getVectorDatabase(databaseId),
     refetchInterval: (query) => query.state.data?.stats.processingDocumentCount ? 2_000 : false,
   });
+  const modelDeployments = useQuery({
+    queryKey: scope.key("model-deployments"),
+    queryFn: api.listModelDeployments,
+  });
+  const embeddingModelReady = hasValidatedEmbeddingModel(
+    modelDeployments.data ?? [],
+  );
+  const vectorDatabaseAvailable = modelDeployments.isSuccess
+    && embeddingModelReady;
   const refresh = async () => {
     await queryClient.invalidateQueries({ queryKey: scope.key("vector-database", databaseId) });
   };
@@ -226,15 +236,21 @@ function VectorDatabaseDetail() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" className="h-11" disabled={!permissions.canViewVectorDatabaseContent} onClick={() => { setFileAction(null); setSelection(null); setSearchOpen(true); }}><Search />Test retrieval</Button>
-          {database.provider === "postgresql" ? <Button className="h-11" disabled={!permissions.canUpdateVectorDatabases} onClick={() => { upload.reset(); setUploadFiles([]); setUploadOpen(true); }}><FileUp />Upload files</Button> : null}
+          <Button variant="outline" className="h-11" disabled={!vectorDatabaseAvailable || !permissions.canViewVectorDatabaseContent} onClick={() => { setFileAction(null); setSelection(null); setSearchOpen(true); }}><Search />Test retrieval</Button>
+          {database.provider === "postgresql" ? <Button className="h-11" disabled={!vectorDatabaseAvailable || !permissions.canUpdateVectorDatabases} onClick={() => { upload.reset(); setUploadFiles([]); setUploadOpen(true); }}><FileUp />Upload files</Button> : null}
           <DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="size-11" aria-label={`Actions for ${database.name}`}><MoreHorizontal /></Button></DropdownMenuTrigger><DropdownMenuContent align="end" className="w-56"><DropdownMenuItem onSelect={() => setSettingsOpen(true)}><Settings />Database settings</DropdownMenuItem><DropdownMenuItem onSelect={() => setActivityOpen(true)}><Activity />View activity</DropdownMenuItem>{permissions.canDeleteVectorDatabases ? <><DropdownMenuSeparator /><DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={() => setDeleteDatabaseOpen(true)}><Trash2 />Delete vector database</DropdownMenuItem></> : null}</DropdownMenuContent></DropdownMenu>
         </div>
       </header>
+      {!modelDeployments.isPending && !embeddingModelReady ? (
+        <EmbeddingModelSetupNotice
+          canManageProject={permissions.canManageProject}
+          projectId={projectId}
+        />
+      ) : null}
       {notice ? <p role="status" className="border-l-2 border-primary bg-primary/5 px-4 py-3 text-sm">{notice}</p> : null}
 
       <div className="min-h-[42rem] min-w-0 overflow-hidden rounded-md border bg-card">
-        <VectorDatabaseFileBrowser builtIn={database.provider === "postgresql"} canManage={permissions.canUpdateVectorDatabases} currentFolderId={currentFolderId} documents={documents} folders={folders} refreshing={overview.isFetching} selection={selection} onAction={objectAction} onCurrentFolderChange={changeFolder} onNewFolder={() => { createFolder.reset(); setNewFolderName(""); setNewFolderOpen(true); }} onRefresh={() => void refresh()} onSelectionChange={select} onUpload={() => { upload.reset(); setUploadFiles([]); setUploadOpen(true); }} />
+        <VectorDatabaseFileBrowser builtIn={database.provider === "postgresql"} canManage={vectorDatabaseAvailable && permissions.canUpdateVectorDatabases} currentFolderId={currentFolderId} documents={documents} folders={folders} refreshing={overview.isFetching} selection={selection} onAction={objectAction} onCurrentFolderChange={changeFolder} onNewFolder={() => { createFolder.reset(); setNewFolderName(""); setNewFolderOpen(true); }} onRefresh={() => void refresh()} onSelectionChange={select} onUpload={() => { upload.reset(); setUploadFiles([]); setUploadOpen(true); }} />
       </div>
 
       <UploadFilesSheet destination={currentFolder?.path ?? "/"} error={errorMessage(upload.error)} files={uploadFiles} open={uploadOpen} pending={upload.isPending} onFiles={setUploadFiles} onOpenChange={setUploadOpen} onUpload={() => upload.mutate()} />
@@ -248,7 +264,7 @@ function VectorDatabaseDetail() {
         </SheetContent>
       </Sheet>
       <VectorDocumentActionSheet canManage={permissions.canUpdateVectorDatabases} databaseId={databaseId} document={actionDocument ?? null} initialView={fileAction?.view ?? "preview"} open={Boolean(fileAction) && !searchOpen} targetChunkId={fileAction?.targetChunkId} onOpenChange={(open) => { if (!open) setFileAction(null); }} onUpdated={() => void refresh()} />
-      <SearchVectorsSheet canViewContent={permissions.canViewVectorDatabaseContent} currentFolderId={currentFolderId} currentFolderPath={currentFolder?.path ?? "/"} databaseId={databaseId} metadataSchema={overview.data.metadataSchema} open={searchOpen && !fileAction} onOpenChange={(open) => setSearchOpen(open)} onViewSource={({ chunkId, documentId }) => { const document = documents.find((item) => item.id === documentId); if (document) openFileAction(document, "chunks", { targetChunkId: chunkId }); }} />
+      <SearchVectorsSheet canViewContent={vectorDatabaseAvailable && permissions.canViewVectorDatabaseContent} currentFolderId={currentFolderId} currentFolderPath={currentFolder?.path ?? "/"} databaseId={databaseId} metadataSchema={overview.data.metadataSchema} open={searchOpen && !fileAction} onOpenChange={(open) => setSearchOpen(open)} onViewSource={({ chunkId, documentId }) => { const document = documents.find((item) => item.id === documentId); if (document) openFileAction(document, "chunks", { targetChunkId: chunkId }); }} />
       <VectorDatabaseActivitySheet jobs={overview.data.jobs} open={activityOpen} onOpenChange={setActivityOpen} />
       <Sheet open={settingsOpen} onOpenChange={setSettingsOpen}><SheetContent side="right" className="w-[min(94vw,25rem)] sm:max-w-[25rem]"><SheetHeader className="sr-only"><SheetTitle>Database settings</SheetTitle><SheetDescription>Vector Database provider and index settings</SheetDescription></SheetHeader><VectorDatabaseProperties canManage={permissions.canUpdateVectorDatabases} overview={overview.data} onDelete={() => setDeleteDatabaseOpen(true)} onMove={() => undefined} onOpenFile={() => undefined} onRename={() => undefined} /></SheetContent></Sheet>
       <DeleteEntitySheet open={deleteDatabaseOpen} onOpenChange={setDeleteDatabaseOpen} title="Delete Vector Database" description={<>Permanently delete <strong>{database.name}</strong>.</>} entityName={database.name} confirmLabel="Delete Vector Database" deleting={removeDatabase.isPending} onConfirm={() => removeDatabase.mutate()} {...(errorMessage(removeDatabase.error) ? { error: errorMessage(removeDatabase.error) } : {})} impactDescription={`${overview.data.stats.documentCount} files and ${overview.data.stats.chunkCount} Vector Records will be deleted permanently. ${overview.data.stats.processingDocumentCount} files are processing and ${overview.data.stats.failedDocumentCount} have failed.`} />

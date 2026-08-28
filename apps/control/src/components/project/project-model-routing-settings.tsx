@@ -4,6 +4,7 @@ import {
   type ModelCapability,
   type DepartmentInferenceResourceAssignmentView,
   type ModelDeployment,
+  type ModelRemovalDependencyKind,
   type ModelRouting,
   type ModelType,
   type ProviderAccount,
@@ -68,6 +69,20 @@ const modelTypeLabels: Record<ModelType, string> = {
   "text-embedding": "Embedding",
   "speech-to-text": "Speech to text",
 };
+
+const modelRemovalDependencyLabels: Record<ModelRemovalDependencyKind, string> = {
+  DURABLE_MEMORY: "Durable Memory",
+  INSTANCE: "Instance",
+  MODEL_ROUTING: "Model Routing",
+  PROJECT: "Project",
+  VECTOR_DATABASE: "Vector Database",
+};
+
+function modelRemovalDependencyLabel(
+  kind: ModelRemovalDependencyKind,
+): string {
+  return modelRemovalDependencyLabels[kind] ?? kind;
+}
 
 const capabilityLabels: Record<ModelCapability, string> = {
   reasoning: "Reasoning",
@@ -186,6 +201,11 @@ function ModelRoutingsSettingsContent({
   const accounts = useQuery({
     queryKey: key("provider-accounts"),
     queryFn: client.listProviderAccounts,
+  });
+  const modelRemovalImpact = useQuery({
+    queryKey: key("model-removal-impact", removingModel?.id ?? "none"),
+    queryFn: () => client.getModelRemovalImpact(removingModel!.id),
+    enabled: Boolean(removingModel),
   });
   const setDefault = useMutation({
     mutationFn: (routing: ModelRouting) =>
@@ -599,12 +619,64 @@ function ModelRoutingsSettingsContent({
           title="Delete registered model"
           description={<>Remove <strong>{removingModel.displayName}</strong> from this {scopeLabel}.</>}
           entityName={removingModel.displayName}
+          blocked={
+            modelRemovalImpact.isPending
+            || modelRemovalImpact.isError
+            || Boolean(modelRemovalImpact.data?.blocking)
+          }
+          {...(modelRemovalImpact.isPending
+            ? { eyebrow: "Checking dependencies" }
+            : modelRemovalImpact.isError
+              ? { eyebrow: "Dependency check failed" }
+              : modelRemovalImpact.data?.blocking
+                ? { eyebrow: "Deletion blocked" }
+                : {})}
+          {...(modelRemovalImpact.isError
+            ? {
+                blockedAction: () => void modelRemovalImpact.refetch(),
+                blockedActionLabel: "Retry dependency check",
+              }
+            : {})}
           confirmLabel="Delete model"
           deleting={removeModel.isPending}
           onConfirm={() => removeModel.mutate(removingModel)}
           {...(removeModel.error instanceof Error ? { error: removeModel.error.message } : {})}
-          impactDescription="The registered model disappears from this scope and its LiteLLM registration is permanently removed."
-        />
+          impactDescription="The registered model disappears from this scope and its LiteLLM registration is permanently removed. Dependency checks run again when deletion is confirmed."
+        >
+          {modelRemovalImpact.isPending ? (
+            <p className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Spinner /> Checking Instances, Routings, Durable Memories, and Vector Databases…
+            </p>
+          ) : null}
+          {modelRemovalImpact.isError ? (
+            <p role="alert" className="border-l-2 border-destructive bg-destructive/5 px-3 py-2 text-sm text-destructive">
+              {modelRemovalImpact.error.message}
+            </p>
+          ) : null}
+          {modelRemovalImpact.data?.blocking ? (
+            <div className="space-y-3">
+              <p className="flex gap-2 border-l-2 border-amber-500 bg-amber-500/5 px-3 py-2 text-sm">
+                <CircleAlert className="mt-0.5 size-4 shrink-0 text-amber-700 dark:text-amber-300" />
+                Reconfigure or migrate these dependencies before removing the model.
+              </p>
+              <div className="divide-y border">
+                {modelRemovalImpact.data.dependencies.map((dependency) => (
+                  <div key={`${dependency.kind}:${dependency.id}`} className="flex min-h-12 items-center justify-between gap-3 px-3 py-2 text-sm">
+                    <span className="min-w-0 truncate font-medium">{dependency.name}</span>
+                    <span className="shrink-0 text-xs text-muted-foreground">
+                      {modelRemovalDependencyLabel(dependency.kind)}{dependency.direct ? " · Direct" : ""}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              {removingModel.modelType === "text-embedding" ? (
+                <p className="text-xs leading-5 text-muted-foreground">
+                  Validated replacement Embedding models remaining: {modelRemovalImpact.data.remainingValidatedEmbeddingModels}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+        </DeleteEntitySheet>
       ) : null}
       <RegisterModelsDrawer
         accounts={providerAccounts}

@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 import {
+  defaultNativeAgentMemoryConfiguration,
   getAgentPlatformDefinition,
+  hasValidatedEmbeddingModel,
   type Instance as Agent,
   type AgentMemoryConfiguration,
   type CreateInstanceInput,
@@ -11,7 +13,10 @@ import {
 import { AccessPolicyService } from "../access-policies/access-policy-service";
 import { AccessPolicyStore } from "../access-policies/access-policy-store";
 import { ProjectStore } from "../projects/project-store";
-import { ResourceCatalogService } from "../catalog/resource-catalog-service";
+import {
+  ResourceCatalogService,
+  VectorDatabaseEmbeddingRequiredError,
+} from "../catalog/resource-catalog-service";
 import {
   NemoClawRunnerClient,
   type CreateSandboxInput,
@@ -43,6 +48,7 @@ import {
   type ResolvedAgentMemory,
 } from "../memories/memory-service";
 import {
+  DurableMemoryEmbeddingRequiredError,
   DurableMemoryFeatureDisabledError,
   durableMemoryEnabledForProject,
 } from "../memories/durable-memory-feature";
@@ -201,6 +207,12 @@ export class InstanceService {
     }
     await this.quotas.assertCanCreate("instances");
     const catalog = await this.catalog.catalog();
+    const embeddingModelAvailable = hasValidatedEmbeddingModel(
+      await this.store.listModelDeployments(),
+    );
+    if (input.knowledgeSourceIds?.length && !embeddingModelAvailable) {
+      throw new VectorDatabaseEmbeddingRequiredError();
+    }
     if (
       input.specializationId &&
       !catalog.specializations.some(
@@ -244,12 +256,6 @@ export class InstanceService {
       throw new Error(
         "The selected Routing LiteLLM Gateway is unavailable.",
       );
-    const memoryConfiguration = input.memory;
-    await this.resolveMemory(
-      input.agentPlatform,
-      memoryConfiguration,
-      routing,
-    );
     const durableRuntime = input.agentPlatform === "openclaw"
       ? "openclaw"
       : input.agentPlatform === "hermes"
@@ -266,9 +272,28 @@ export class InstanceService {
         "Durable Memory is currently available only for OpenClaw and Hermes Instances.",
       );
     }
+    if (input.durableMemoryId && input.memory) {
+      throw new Error(
+        "Choose either Project Durable Memory or an Instance-native Memory mode.",
+      );
+    }
+    if (input.durableMemoryId && !embeddingModelAvailable) {
+      throw new DurableMemoryEmbeddingRequiredError();
+    }
+    const durableMemoryAvailable = durableMemoryEnabled
+      && embeddingModelAvailable;
+    const memoryConfiguration = input.memory
+      ?? (durableRuntime && !durableMemoryAvailable
+        ? defaultNativeAgentMemoryConfiguration
+        : undefined);
+    await this.resolveMemory(
+      input.agentPlatform,
+      memoryConfiguration,
+      routing,
+    );
     const actorId = ownerUserId ?? "memory-service";
     let resolvedMemory: ResolvedAgentMemory | undefined;
-    if (durableRuntime && durableMemoryEnabled) {
+    if (durableRuntime && durableMemoryAvailable && !memoryConfiguration) {
       resolvedMemory = await this.memories.resolveForAgent({
         actorId,
         displayName: input.name,
@@ -871,7 +896,7 @@ export class InstanceService {
     if (
       getAgentPlatformDefinition(agentPlatform).capabilities.memory === "none"
     ) {
-      throw new Error("Memory is currently available only for OpenClaw Instances.");
+      throw new Error("This Agent does not support Instance-native Memory.");
     }
     if (memory.mode === "native") {
       return {
@@ -880,6 +905,14 @@ export class InstanceService {
           citations: memory.citations,
         },
       };
+    }
+    if (
+      getAgentPlatformDefinition(agentPlatform).capabilities.memory
+        !== "native-hybrid"
+    ) {
+      throw new Error(
+        "Hybrid Memory is currently available only for OpenClaw Instances.",
+      );
     }
     const embedding = await this.store.getModelDeployment(
       memory.embeddingModelDeploymentId,
@@ -987,9 +1020,11 @@ export class InstanceService {
             getControlConfig().auth.secret,
           )
         : undefined;
-    const runtimeInput = projectRuntimeBridgeToken
-      ? { ...input, projectRuntimeBridgeToken }
-      : input;
+    const runtimeInput: CreateSandboxInput = {
+      ...input,
+      durableMemoryEnabled: Boolean(durableMemoryId),
+      ...(projectRuntimeBridgeToken ? { projectRuntimeBridgeToken } : {}),
+    };
     return target
       ? this.runner.createSandbox(runtimeInput, target)
       : this.runner.createSandbox(runtimeInput);

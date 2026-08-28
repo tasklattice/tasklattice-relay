@@ -21,6 +21,7 @@ export type InferenceManagementClient = Pick<
   | "listModelDeployments"
   | "registerModelDeployment"
   | "deleteModelDeployment"
+  | "getModelRemovalImpact"
 >;
 
 interface InferenceManagementContextValue {

@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { durableMemoryEnabledForProject } from "./durable-memory-feature";
+import {
+  DurableMemoryEmbeddingRequiredError,
+  assertDurableMemoryAvailableForProject,
+  durableMemoryAvailableForProject,
+  durableMemoryEnabledForProject,
+} from "./durable-memory-feature";
 
 describe("Durable Memory feature rollout", () => {
   it("defaults on because Hindsight is the default production provider", () => {
@@ -19,5 +24,31 @@ describe("Durable Memory feature rollout", () => {
     };
     expect(durableMemoryEnabledForProject("project-a", environment)).toBe(true);
     expect(durableMemoryEnabledForProject("project-b", environment)).toBe(false);
+  });
+
+  it("requires a validated embedding model in the effective Project inventory", async () => {
+    const unavailableStore = { listModelDeployments: async () => [] };
+    const availableStore = {
+      listModelDeployments: async () => [{
+        modelType: "text-embedding",
+        status: "VALIDATED",
+      }],
+    };
+
+    await expect(durableMemoryAvailableForProject(
+      "project-a",
+      unavailableStore,
+      {},
+    )).resolves.toBe(false);
+    await expect(durableMemoryAvailableForProject(
+      "project-a",
+      availableStore,
+      {},
+    )).resolves.toBe(true);
+    await expect(assertDurableMemoryAvailableForProject(
+      "project-a",
+      unavailableStore,
+      {},
+    )).rejects.toBeInstanceOf(DurableMemoryEmbeddingRequiredError);
   });
 });

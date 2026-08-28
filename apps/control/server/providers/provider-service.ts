@@ -6,6 +6,7 @@ import {
   type CreateModelDeploymentInput,
   type CreateProviderConnectionInput,
   type ModelDeployment,
+  type ModelRemovalImpact,
   type ModelRouting,
   type ProviderAccount,
   type ProviderConnectionCreationResult,
@@ -332,6 +333,10 @@ export class ProviderService {
     const account = await this.store.getProviderAccount(id);
     if (!account) return false;
     const models = await this.store.listModelDeployments(id);
+    await this.store.assertCanRemoveEmbeddingModels(
+      models.map((model) => model.id),
+      `${account.name}'s embedding model`,
+    );
     const agentIds = await this.store.listAgentIdsUsingModelDeployments(models.map((model) => model.id));
     if (agentIds.length)
       throw new Error(
@@ -353,6 +358,7 @@ export class ProviderService {
   async deleteModelDeployment(id: string): Promise<boolean> {
     const model = await this.store.getModelDeployment(id);
     if (!model) return false;
+    await this.store.assertCanRemoveEmbeddingModels([id], model.displayName);
     const agentIds = await this.store.listAgentIdsUsingModelDeployments([id]);
     if (agentIds.length) {
       throw new Error(
@@ -373,6 +379,47 @@ export class ProviderService {
     }
     await this.litellm.deleteModel(model.litellmModelName).catch(() => undefined);
     return this.store.deleteModelDeployment(id);
+  }
+
+  async modelRemovalImpact(id: string): Promise<ModelRemovalImpact | undefined> {
+    const model = await this.store.getModelDeployment(id);
+    if (!model) return undefined;
+    const [agentIds, routings, embeddingImpact] = await Promise.all([
+      this.store.listAgentIdsUsingModelDeployments([id]),
+      this.store.listModelRoutings().then((items) => items.filter((routing) =>
+        routingUsesAnyModel(routing, new Set([id])))),
+      this.store.embeddingModelRemovalImpact([id]),
+    ]);
+    const departmentScope = this.store.projectId.startsWith("department:");
+    const dependencies: ModelRemovalImpact["dependencies"] = [
+      ...agentIds.map((dependencyId) => ({
+        direct: true,
+        id: dependencyId,
+        kind: departmentScope ? "PROJECT" as const : "INSTANCE" as const,
+        name: dependencyId,
+      })),
+      ...routings.map((routing) => ({
+        direct: true,
+        id: routing.id,
+        kind: "MODEL_ROUTING" as const,
+        name: routing.name,
+      })),
+      ...embeddingImpact.dependencies,
+    ];
+    const uniqueDependencies = new Map(
+      dependencies.map((dependency) => [
+        `${dependency.kind}:${dependency.id}`,
+        dependency,
+      ]),
+    );
+    return {
+      blocking: uniqueDependencies.size > 0,
+      dependencies: [...uniqueDependencies.values()],
+      modelId: model.id,
+      modelName: model.displayName,
+      remainingValidatedEmbeddingModels:
+        embeddingImpact.remainingValidatedEmbeddingModels,
+    };
   }
 
   async registerModel(input: CreateModelDeploymentInput): Promise<ModelDeployment> {

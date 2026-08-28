@@ -227,7 +227,7 @@ describe("Agent selection", () => {
     ).toBe("routing-selected");
   });
 
-  it("accepts Memory only for OpenClaw Instances", () => {
+  it("accepts Native Memory for OpenClaw and Hermes but keeps Hybrid OpenClaw-only", () => {
     expect(
       createInstanceSchema.parse({
         ...input,
@@ -235,13 +235,21 @@ describe("Agent selection", () => {
         memory: { mode: "native" },
       }).memory,
     ).toEqual({ mode: "native", citations: "auto" });
-    expect(() =>
+    expect(
       createInstanceSchema.parse({
         ...input,
         agentPlatform: "hermes",
         memory: { mode: "native" },
-      }),
-    ).toThrow("Memory is currently available only for OpenClaw Instances");
+      }).memory,
+    ).toEqual({ mode: "native", citations: "auto" });
+    expect(() => createInstanceSchema.parse({
+      ...input,
+        agentPlatform: "hermes",
+        memory: {
+          mode: "hybrid",
+          embeddingModelDeploymentId: "22222222-2222-4222-8222-222222222222",
+        },
+    })).toThrow("Hybrid Memory is currently available only for OpenClaw Instances");
   });
 
   it("resolves Role and capability references from the PostgreSQL catalog", async () => {
@@ -306,6 +314,7 @@ describe("Instance Access Policy lifecycle", () => {
     }, "local-admin");
 
     expect(queued.durableMemoryId).toBeUndefined();
+    expect(queued.memory).toEqual({ mode: "native", citations: "auto" });
     expect(setup.memoryProvider.bankCount()).toBe(0);
     await expect(setup.store.database().memoryRecord.count()).resolves.toBe(0);
     await expect(setup.service.create({
@@ -320,6 +329,50 @@ describe("Instance Access Policy lifecycle", () => {
       systemPrompt: "Research the request and report the resulting evidence.",
       knowledgeSourceIds: ["engineering-handbook"],
     }, "local-admin")).rejects.toThrow("not enabled for this Project");
+  });
+
+  it.each(["openclaw", "hermes"] as const)(
+    "falls back to Native text Memory for %s when the Project has no embedding model",
+    async (agentPlatform) => {
+      const setup = await configuredService({
+        includeValidatedEmbeddingModel: false,
+      });
+      const agent = await createConfiguredInstance(setup, {
+        agentPlatform,
+        knowledgeSourceIds: [],
+      });
+
+      expect(agent.memory).toEqual({ mode: "native", citations: "auto" });
+      expect(agent.durableMemoryId).toBeUndefined();
+      expect(setup.memoryProvider.bankCount()).toBe(0);
+      await expect(setup.store.database().memoryRecord.count()).resolves.toBe(0);
+      expect(setup.runner.createSandbox).toHaveBeenCalledWith(
+        expect.objectContaining({
+          durableMemoryEnabled: false,
+          memory: { mode: "native", citations: "auto" },
+        }),
+      );
+    },
+  );
+
+  it("rejects assigning a Vector Database when the Project has no embedding model", async () => {
+    const setup = await configuredService({
+      includeValidatedEmbeddingModel: false,
+    });
+
+    await expect(setup.service.create({
+      name: "Vector-backed Agent",
+      description: "",
+      runtime: "openshell",
+      accessPolicyIds: [setup.policy.id],
+      modelRoutingId: "routing-a",
+      agentPlatform: "hermes",
+      policyId: "restricted",
+      systemPrompt: "Research the request and report the resulting evidence.",
+      knowledgeSourceIds: ["engineering-handbook"],
+    }, "local-admin")).rejects.toThrow(
+      "require a validated text embedding model",
+    );
   });
 
   it("replays an Agent create key without creating another Agent or Memory Bank", async () => {

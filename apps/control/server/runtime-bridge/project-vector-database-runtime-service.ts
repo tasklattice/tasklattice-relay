@@ -1,11 +1,15 @@
 import {
+  hasValidatedEmbeddingModel,
   vectorDatabaseSearchInputSchema,
   type Instance,
   type KnowledgeSourceDefinition,
   type VectorDatabaseSearchInput,
   type VectorDatabaseSearchResult,
 } from "@tali/contracts";
-import { ResourceCatalogService } from "../catalog/resource-catalog-service";
+import {
+  ResourceCatalogService,
+  VectorDatabaseEmbeddingRequiredError,
+} from "../catalog/resource-catalog-service";
 import { ProjectStore } from "../projects/project-store";
 
 export interface ProjectVectorDatabase {
@@ -30,7 +34,7 @@ export interface ProjectVectorDatabaseSearchResult {
 
 type RuntimeProjectStore = Pick<
   ProjectStore,
-  "get" | "getKnowledgeSourceDefinition" | "listKnowledgeSourceDefinitions"
+  "get" | "getKnowledgeSourceDefinition" | "listKnowledgeSourceDefinitions" | "listModelDeployments"
 >;
 
 type RuntimeVectorCatalog = Pick<ResourceCatalogService, "searchVectorDatabase">;
@@ -54,6 +58,7 @@ export class ProjectVectorDatabaseRuntimeService {
 
   async list(coordinatorInstanceId: string): Promise<ProjectVectorDatabase[]> {
     await this.requireHermesCoordinator(coordinatorInstanceId);
+    await this.requireEmbeddingModel();
     return (await this.store.listKnowledgeSourceDefinitions())
       .filter(availableVectorDatabase)
       .map(publicVectorDatabase);
@@ -65,6 +70,7 @@ export class ProjectVectorDatabaseRuntimeService {
     input: VectorDatabaseSearchInput,
   ): Promise<ProjectVectorDatabaseSearchResult> {
     await this.requireHermesCoordinator(coordinatorInstanceId);
+    await this.requireEmbeddingModel();
     const database = await this.store.getKnowledgeSourceDefinition(databaseId);
     if (!database || !availableVectorDatabase(database)) {
       throw new Error("Project Vector Database was not found or is unavailable.");
@@ -85,6 +91,12 @@ export class ProjectVectorDatabaseRuntimeService {
       throw new Error("Vector Database runtime tools are available to Hermes Instances only.");
     }
     return coordinator;
+  }
+
+  private async requireEmbeddingModel(): Promise<void> {
+    if (!hasValidatedEmbeddingModel(await this.store.listModelDeployments())) {
+      throw new VectorDatabaseEmbeddingRequiredError();
+    }
   }
 }
 

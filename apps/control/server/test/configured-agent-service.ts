@@ -68,6 +68,7 @@ function liteLLMAdapter(): LiteLLMAdminClient {
 
 export async function configuredService(options: {
   httpEndpoint?: HttpEndpoint;
+  includeValidatedEmbeddingModel?: boolean;
 } = {}) {
   const store = createTestStore();
   const now = new Date().toISOString();
@@ -128,6 +129,31 @@ export async function configuredService(options: {
     createdAt: now,
     updatedAt: now,
   });
+  if (options.includeValidatedEmbeddingModel !== false) {
+    await store.saveModelDeployment({
+      id: "embedding-model-a",
+      providerAccountId: "provider-a",
+      modelId: "text-embedding-3-small",
+      displayName: "Text Embedding 3 Small",
+      modelType: "text-embedding",
+      capabilities: [],
+      inputModalities: ["text"],
+      outputModalities: ["embedding"],
+      providerPresetId: "deepseek",
+      providerName: "DeepSeek",
+      endpoint: "https://api.deepseek.com/v1",
+      complianceDomain: "GLOBAL",
+      endpointRegion: "global",
+      crossBorderTransfer: false,
+      litellmModelName: "tali/provider-a/text-embedding-3-small",
+      status: "VALIDATED",
+      checks: [],
+      validationMessage: "Ready",
+      validatedAt: now,
+      createdAt: now,
+      updatedAt: now,
+    });
+  }
   await store.saveModelRouting({
     id: "routing-a",
     name: "Production inference",

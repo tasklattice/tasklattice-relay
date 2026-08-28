@@ -157,7 +157,11 @@ describe("Agent deterministic golden path", () => {
     const memoryId = agent.durableMemoryId!;
     const memoryRuntime = new ProjectMemoryRuntimeService(
       setup.store.projectId,
-      { memories: setup.memories, repository: setup.memories.repository },
+      {
+        memories: setup.memories,
+        models: setup.store,
+        repository: setup.memories.repository,
+      },
     );
     await expect(memoryRuntime.retain({
       projectId: setup.store.projectId,

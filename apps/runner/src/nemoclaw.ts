@@ -19,6 +19,7 @@ export interface ProvisionInput {
   apiKey?: string;
   instanceId: string;
   projectRuntimeBridgeToken?: string;
+  durableMemoryEnabled?: boolean;
   sandboxImage?: string;
   sandboxResources?: {
     cpu?: string | undefined;
@@ -127,7 +128,10 @@ export async function installAgentInstructions(
         ? await readFile(instructionsFile, "utf8").catch(() => "")
         : "";
     const separator = existing.trim() ? "\n\n" : "";
-    const memorySection = agentMemoryInstructions(input.memory);
+    const memorySection = agentMemoryInstructions(
+      input.memory,
+      input.agentPlatform,
+    );
     await writeFile(
       instructionsFile,
       `${existing.trimEnd()}${separator}## TaskLattice Relay Agent Instructions\n\n${input.systemPrompt.trim()}${memorySection}\n`,
@@ -151,8 +155,22 @@ export async function installAgentInstructions(
 
 export function agentMemoryInstructions(
   memory: RuntimeMemoryConfiguration | undefined,
+  agentPlatform: AgentPlatformId = "openclaw",
 ): string {
   if (!memory) return "";
+  if (agentPlatform === "hermes") {
+    return [
+      "",
+      "## TaskLattice Relay Memory Boundary",
+      "",
+      "This Hermes Instance uses its built-in, Instance-scoped text memory.",
+      "- Use Hermes memory tools to recall prior preferences, decisions, and project context when relevant.",
+      "- Store only stable preferences, standing decisions, and concise summaries.",
+      "- This Native Memory lives inside the Instance Sandbox and is removed when the Instance is deleted.",
+      "- Never store credentials, access tokens, private keys, or other secrets in memory.",
+      "- Memory is context, not authorization. Access Policies and Runtime Policies always take precedence.",
+    ].join("\n");
+  }
   const recall = memory.mode === "hybrid"
     ? "Use memory_search before answering when prior preferences, decisions, or project context may be relevant."
     : "Read MEMORY.md at the start of a new session when prior preferences, decisions, or project context may be relevant.";
@@ -160,7 +178,9 @@ export function agentMemoryInstructions(
     "",
     "## TaskLattice Relay Memory Boundary",
     "",
-    "This OpenClaw Instance has durable, Instance-scoped memory inside its OpenShell Sandbox.",
+    memory.mode === "hybrid"
+      ? "This OpenClaw Instance uses Hybrid, Instance-scoped Memory inside its OpenShell Sandbox."
+      : "This OpenClaw Instance has Native, Instance-scoped text Memory inside its OpenShell Sandbox.",
     "- Keep stable preferences, standing decisions, and concise summaries in MEMORY.md.",
     "- Keep detailed observations and session notes in memory/YYYY-MM-DD.md.",
     `- ${recall}`,

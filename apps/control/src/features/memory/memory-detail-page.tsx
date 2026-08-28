@@ -1,16 +1,18 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
-import type {
-  Instance,
-  MemoryActivityView,
-  MemoryConversation,
-  MemoryExperience,
-  MemoryFact,
-  MemoryInsight,
-  MemoryItemStatus,
-  MemoryResourceDetailView,
+import {
+  hasValidatedEmbeddingModel,
+  type Instance,
+  type MemoryActivityView,
+  type MemoryConversation,
+  type MemoryExperience,
+  type MemoryFact,
+  type MemoryInsight,
+  type MemoryItemStatus,
+  type MemoryResourceDetailView,
 } from "@tali/contracts";
+import { EmbeddingModelSetupNotice } from "@/components/providers/embedding-model-setup-notice";
 import {
   Activity,
   ArrowLeft,
@@ -88,6 +90,12 @@ export function MemoryDetailPage({ memoryId }: { memoryId: string }) {
     queryFn: api.listInstances,
     enabled: permissions.canViewMemories,
   });
+  const models = useQuery({
+    queryKey: scope.key("model-deployments"),
+    queryFn: api.listModelDeployments,
+    enabled: permissions.canViewMemories,
+  });
+  const embeddingModelReady = hasValidatedEmbeddingModel(models.data ?? []);
   const refresh = async () => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: scope.key("durable-memory", memoryId) }),
@@ -158,6 +166,16 @@ export function MemoryDetailPage({ memoryId }: { memoryId: string }) {
       </header>
 
       {notice ? <MemoryNotice tone="success">{notice}</MemoryNotice> : null}
+      {models.error ? (
+        <MemoryNotice tone="error">
+          Embedding model availability could not be loaded: {models.error.message}
+        </MemoryNotice>
+      ) : !models.isPending && !embeddingModelReady ? (
+        <EmbeddingModelSetupNotice
+          canManageProject={permissions.canManageProject}
+          projectId={projectId}
+        />
+      ) : null}
       {attention ? <MemoryNotice tone={memory.status === "deletion_failed" ? "error" : "warning"} action={<Button variant="outline" className="h-11" onClick={() => setTab("settings")}>Review recovery</Button>}>{memory.status === "deletion_failed" ? "Provider deletion could not be verified. The Memory has not been reported as deleted." : memory.degradedReason || "Memory is temporarily degraded; Agent work can continue while retain delivery recovers."}</MemoryNotice> : null}
       {exportMemory.error ? <MemoryNotice tone="error">{errorMessage(exportMemory.error)}</MemoryNotice> : null}
 
@@ -175,7 +193,7 @@ export function MemoryDetailPage({ memoryId }: { memoryId: string }) {
         <TabsContent value="conversations"><ConversationsTab active={tab === "conversations"} memoryId={memoryId} canView={permissions.canViewMemoryContent} canCurate={permissions.canCurateMemory} canDelete={permissions.canDeleteMemoryContent} canReextract={permissions.canReextractMemory} onNotice={setNotice} /></TabsContent>
         <TabsContent value="facts"><FactsTab active={tab === "facts"} memoryId={memoryId} canView={permissions.canViewMemoryContent} canCurate={permissions.canCurateMemory} /></TabsContent>
         <TabsContent value="experiences"><ExperiencesTab active={tab === "experiences"} memoryId={memoryId} canView={permissions.canViewMemoryContent} canCurate={permissions.canCurateMemory} /></TabsContent>
-        <TabsContent value="settings"><SettingsTab active={tab === "settings"} memory={memory} agents={agents.data ?? []} permissions={permissions} onDelete={() => setDeleteOpen(true)} onExport={() => exportMemory.mutate()} onNotice={setNotice} onRefresh={refresh} /></TabsContent>
+        <TabsContent value="settings"><SettingsTab active={tab === "settings"} memory={memory} agents={agents.data ?? []} embeddingModelReady={embeddingModelReady} embeddingModelsPending={models.isPending} permissions={permissions} onDelete={() => setDeleteOpen(true)} onExport={() => exportMemory.mutate()} onNotice={setNotice} onRefresh={refresh} /></TabsContent>
       </Tabs>
 
       <EntitySheet open={renameOpen} onOpenChange={(open) => { if (!rename.isPending) setRenameOpen(open); }} eyebrow="Durable Memory" title="Rename Memory" description="This changes the product name without changing content or the provider-side Bank." width="md" footer={<><Button variant="outline" disabled={rename.isPending} onClick={() => setRenameOpen(false)}>Cancel</Button><Button disabled={!renameName.trim() || rename.isPending} onClick={() => rename.mutate()}>{rename.isPending ? "Saving…" : "Save name"}</Button></>}>
@@ -282,13 +300,13 @@ function ExperiencesTab({ active, canCurate, canView, memoryId }: { active: bool
   </div>;
 }
 
-function SettingsTab({ active, agents, memory, onDelete, onExport, onNotice, onRefresh, permissions }: { active: boolean; agents: Instance[]; memory: MemoryResourceDetailView; onDelete: () => void; onExport: () => void; onNotice: (message: string) => void; onRefresh: () => Promise<unknown>; permissions: ReturnType<typeof useProjectPermissions> }) {
+function SettingsTab({ active, agents, embeddingModelReady, embeddingModelsPending, memory, onDelete, onExport, onNotice, onRefresh, permissions }: { active: boolean; agents: Instance[]; embeddingModelReady: boolean; embeddingModelsPending: boolean; memory: MemoryResourceDetailView; onDelete: () => void; onExport: () => void; onNotice: (message: string) => void; onRefresh: () => Promise<unknown>; permissions: ReturnType<typeof useProjectPermissions> }) {
   const scope = useProjectQueryScope();
   const [instanceId, setInstanceId] = useState("");
   const settings = useQuery({ queryKey: scope.key("durable-memory", memory.id, "settings"), queryFn: () => api.getMemorySettings(memory.id), enabled: active && permissions.canViewMemorySettings });
   const outbox = useQuery({ queryKey: scope.key("durable-memory", memory.id, "outbox"), queryFn: () => api.listMemoryOutbox(memory.id, { limit: 20, statuses: ["pending", "processing", "retry", "dead_letter"] }), enabled: active && permissions.canViewMemoryOutbox });
   const availableAgents = useMemo(() => agents.filter((agent) => (agent.agentPlatform === "openclaw" || agent.agentPlatform === "hermes") && !agent.durableMemoryId && agent.status !== "DESTROYING"), [agents]);
-  const bind = useMutation({ mutationFn: () => { const agent = availableAgents.find(({ id }) => id === instanceId); if (!agent || (agent.agentPlatform !== "openclaw" && agent.agentPlatform !== "hermes")) throw new Error("Choose an available OpenClaw or Hermes Agent."); return api.bindMemory(memory.id, { instanceId: agent.id, runtimeType: agent.agentPlatform }); }, onSuccess: async () => { setInstanceId(""); onNotice("Memory binding is active."); await onRefresh(); } });
+  const bind = useMutation({ mutationFn: () => { if (!embeddingModelReady) throw new Error("Configure a validated embedding model before attaching Durable Memory."); const agent = availableAgents.find(({ id }) => id === instanceId); if (!agent || (agent.agentPlatform !== "openclaw" && agent.agentPlatform !== "hermes")) throw new Error("Choose an available OpenClaw or Hermes Agent."); return api.bindMemory(memory.id, { instanceId: agent.id, runtimeType: agent.agentPlatform }); }, onSuccess: async () => { setInstanceId(""); onNotice("Memory binding is active."); await onRefresh(); } });
   const unbind = useMutation({ mutationFn: () => { if (!memory.activeBinding) throw new Error("No active binding exists."); return api.unbindMemory(memory.id, memory.activeBinding.id); }, onSuccess: async () => { onNotice("Agent detached. Memory content was retained and is available to reattach."); await onRefresh(); } });
   const retry = useMutation({ mutationFn: () => api.retryMemory(memory.id), onSuccess: async () => { onNotice("Memory recovery completed."); await onRefresh(); await settings.refetch(); } });
   const replay = useMutation({ mutationFn: (outboxId: string) => api.replayMemoryOutbox(memory.id, outboxId), onSuccess: async () => { onNotice("Retain event was queued for replay."); await outbox.refetch(); } });
@@ -296,7 +314,7 @@ function SettingsTab({ active, agents, memory, onDelete, onExport, onNotice, onR
   const actionError = bind.error ?? unbind.error ?? retry.error ?? replay.error;
   return <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(20rem,.72fr)]">
     <div className="space-y-5">
-      <Card><CardHeader className="border-b"><CardTitle>Runtime binding</CardTitle><CardDescription>One Memory can have one active primary Agent binding. Detached history is retained.</CardDescription></CardHeader><CardContent className="space-y-4 p-5">{memory.activeBinding ? <div className="flex flex-wrap items-center justify-between gap-4"><div><strong className="text-sm">{agents.find(({ id }) => id === memory.activeBinding?.instanceId)?.name ?? memory.activeBinding.instanceId}</strong><p className="mt-1 text-xs capitalize text-muted-foreground">{memory.activeBinding.runtimeType} · attached {formatMemoryDate(memory.activeBinding.attachedAt)}</p></div>{permissions.canManageMemories ? <Button variant="outline" className="h-11" disabled={unbind.isPending} onClick={() => unbind.mutate()}><Unlink />{unbind.isPending ? "Detaching…" : "Detach"}</Button> : null}</div> : <div className="space-y-4"><MemoryNotice>Unbound. This Memory remains intact and can be attached to another Agent.</MemoryNotice>{permissions.canManageMemories ? <div className="flex flex-col gap-3 sm:flex-row"><Select value={instanceId} onValueChange={setInstanceId}><SelectTrigger aria-label="Choose Agent for Memory" className="h-11 min-w-0 flex-1"><SelectValue placeholder="Choose an available Agent" /></SelectTrigger><SelectContent>{availableAgents.map((agent) => <SelectItem key={agent.id} value={agent.id}>{agent.name}<span className="ml-2 capitalize text-muted-foreground">{agent.agentPlatform}</span></SelectItem>)}</SelectContent></Select><Button className="h-11" disabled={!instanceId || bind.isPending} onClick={() => bind.mutate()}><Link2 />{bind.isPending ? "Attaching…" : "Attach"}</Button></div> : null}{permissions.canManageMemories && !availableAgents.length ? <p className="text-xs text-muted-foreground">No unbound OpenClaw or Hermes Agent is currently available.</p> : null}</div>}<div className="border-t pt-4"><h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Binding history</h3>{memory.bindingHistory.length ? <div className="mt-3 divide-y border-y">{memory.bindingHistory.map((binding) => <div key={binding.id} className="grid gap-2 py-3 text-xs sm:grid-cols-[minmax(0,1fr)_7rem_8rem]"><span className="truncate font-mono">{binding.instanceId}</span><span className="capitalize">{binding.runtimeType}</span><span className="capitalize text-muted-foreground">{binding.status}</span></div>)}</div> : <p className="mt-2 text-sm text-muted-foreground">No binding history.</p>}</div></CardContent></Card>
+      <Card><CardHeader className="border-b"><CardTitle>Runtime binding</CardTitle><CardDescription>One Memory can have one active primary Agent binding. Detached history is retained.</CardDescription></CardHeader><CardContent className="space-y-4 p-5">{memory.activeBinding ? <div className="flex flex-wrap items-center justify-between gap-4"><div><strong className="text-sm">{agents.find(({ id }) => id === memory.activeBinding?.instanceId)?.name ?? memory.activeBinding.instanceId}</strong><p className="mt-1 text-xs capitalize text-muted-foreground">{memory.activeBinding.runtimeType} · attached {formatMemoryDate(memory.activeBinding.attachedAt)}</p></div>{permissions.canManageMemories ? <Button variant="outline" className="h-11" disabled={unbind.isPending} onClick={() => unbind.mutate()}><Unlink />{unbind.isPending ? "Detaching…" : "Detach"}</Button> : null}</div> : <div className="space-y-4"><MemoryNotice>Unbound. This Memory remains intact and can be attached to another Agent.</MemoryNotice>{permissions.canManageMemories ? <div className="flex flex-col gap-3 sm:flex-row"><Select value={instanceId} onValueChange={setInstanceId} disabled={embeddingModelsPending || !embeddingModelReady}><SelectTrigger aria-label="Choose Agent for Memory" className="h-11 min-w-0 flex-1"><SelectValue placeholder={embeddingModelsPending ? "Checking embedding model…" : embeddingModelReady ? "Choose an available Agent" : "Embedding model required"} /></SelectTrigger><SelectContent>{availableAgents.map((agent) => <SelectItem key={agent.id} value={agent.id}>{agent.name}<span className="ml-2 capitalize text-muted-foreground">{agent.agentPlatform}</span></SelectItem>)}</SelectContent></Select><Button className="h-11" disabled={embeddingModelsPending || !embeddingModelReady || !instanceId || bind.isPending} onClick={() => bind.mutate()}><Link2 />{bind.isPending ? "Attaching…" : "Attach"}</Button></div> : null}{permissions.canManageMemories && embeddingModelReady && !availableAgents.length ? <p className="text-xs text-muted-foreground">No unbound OpenClaw or Hermes Agent is currently available.</p> : null}</div>}<div className="border-t pt-4"><h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Binding history</h3>{memory.bindingHistory.length ? <div className="mt-3 divide-y border-y">{memory.bindingHistory.map((binding) => <div key={binding.id} className="grid gap-2 py-3 text-xs sm:grid-cols-[minmax(0,1fr)_7rem_8rem]"><span className="truncate font-mono">{binding.instanceId}</span><span className="capitalize">{binding.runtimeType}</span><span className="capitalize text-muted-foreground">{binding.status}</span></div>)}</div> : <p className="mt-2 text-sm text-muted-foreground">No binding history.</p>}</div></CardContent></Card>
 
       <Card><CardHeader className="border-b"><CardTitle>Retention</CardTitle><CardDescription>Project policy stored with this Durable Memory.</CardDescription></CardHeader><CardContent className="p-5">{Object.keys(memory.retentionPolicy).length ? <dl className="divide-y border-y">{Object.entries(memory.retentionPolicy).map(([key, value]) => <div key={key} className="grid gap-1 py-3 text-sm sm:grid-cols-[10rem_minmax(0,1fr)]"><dt className="text-muted-foreground">{key}</dt><dd className="break-words font-medium">{typeof value === "string" ? value : JSON.stringify(value)}</dd></div>)}</dl> : <p className="text-sm text-muted-foreground">The Project default retention policy applies.</p>}</CardContent></Card>
 

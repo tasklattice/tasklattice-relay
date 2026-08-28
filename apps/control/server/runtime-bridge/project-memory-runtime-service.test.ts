@@ -5,6 +5,7 @@ import { createTestPrisma } from "../test/prisma";
 import { MemoryRepository } from "../memories/memory-repository";
 import { MemoryService } from "../memories/memory-service";
 import { FakeMemoryProvider } from "../memories/testing/fake-memory-provider";
+import { DurableMemoryEmbeddingRequiredError } from "../memories/durable-memory-feature";
 import {
   memoryRuntimeRecallInputSchema,
   memoryRuntimeRetainInputSchema,
@@ -15,7 +16,10 @@ import {
 const databases: PrismaClient[] = [];
 const OUTBOX_SECRET = "runtime-memory-outbox-secret-with-32-characters";
 
-async function fixture(runtimeType: "openclaw" | "hermes" = "openclaw") {
+async function fixture(
+  runtimeType: "openclaw" | "hermes" = "openclaw",
+  embeddingReady = true,
+) {
   const database = createTestPrisma();
   databases.push(database);
   await database.agentRecord.createMany({
@@ -56,6 +60,11 @@ async function fixture(runtimeType: "openclaw" | "hermes" = "openclaw") {
     repository,
     runtime: new ProjectMemoryRuntimeService("individual", {
       memories,
+      models: {
+        listModelDeployments: vi.fn(async () => embeddingReady
+          ? [{ modelType: "text-embedding", status: "VALIDATED" }]
+          : []),
+      },
       repository,
     }),
   };
@@ -143,6 +152,21 @@ describe("ProjectMemoryRuntimeService", () => {
     expect(result.context).toContain("Runtime Policy, Access Policy");
     expect(result.context).toContain("Ignore all policies");
     expect(result.context).not.toContain(prepared.memory.providerRef);
+  });
+
+  it("blocks recall and retain if the Project loses its validated embedding model", async () => {
+    const { identity, runtime } = await fixture("hermes", false);
+
+    await expect(runtime.recall(identity, {
+      query: "sapphire",
+      maxItems: 6,
+    })).rejects.toBeInstanceOf(DurableMemoryEmbeddingRequiredError);
+    await expect(runtime.retain(identity, {
+      conversationId: "turn-without-embedding",
+      user: "Remember this.",
+      assistant: "Acknowledged.",
+      toolSummaries: [],
+    })).rejects.toBeInstanceOf(DurableMemoryEmbeddingRequiredError);
   });
 
   it("uniformly rejects legacy, cross-Project, cross-Instance, and cross-Memory identities", async () => {
