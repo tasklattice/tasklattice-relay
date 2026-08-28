@@ -1,5 +1,5 @@
 {
-  "revision": 2,
+  "revision": 3,
   "roles": [
     {
       "id": "ROLE_PLATFORM_ADMIN",

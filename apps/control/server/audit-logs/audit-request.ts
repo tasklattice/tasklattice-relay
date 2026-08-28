@@ -20,6 +20,7 @@ const operationSegments = new Set([
   "invalidate",
   "provision",
   "refresh",
+  "redact",
   "reextract",
   "replay",
   "restore",

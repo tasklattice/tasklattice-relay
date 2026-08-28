@@ -33,6 +33,17 @@ export function permissionsForCapabilities(
     canUpdateVectorDatabases: granted.has("CAP_VECTOR_DATABASE_UPDATE"),
     canDeleteVectorDatabases: granted.has("CAP_VECTOR_DATABASE_DELETE"),
     canManageProject: granted.has("CAP_PROJECT_SETTINGS_UPDATE"),
+    canViewMemories: granted.has("CAP_AGENT_MEMORY_ITEM_VIEW"),
+    canViewMemoryContent: granted.has("CAP_AGENT_MEMORY_CONTENT_VIEW"),
+    canManageMemories: granted.has("CAP_AGENT_MEMORY_CONFIG_UPDATE"),
+    canViewMemorySettings: granted.has("CAP_AGENT_MEMORY_CONFIG_VIEW"),
+    canCurateMemory: granted.has("CAP_AGENT_MEMORY_CONTENT_WRITE"),
+    canDeleteMemoryContent: granted.has("CAP_AGENT_MEMORY_CONTENT_DELETE"),
+    canPurgeMemories: granted.has("CAP_AGENT_MEMORY_CONTENT_PURGE"),
+    canExportMemories: granted.has("CAP_AGENT_MEMORY_EXPORT"),
+    canReextractMemory: granted.has("CAP_AGENT_MEMORY_SESSION_INDEX_MANAGE"),
+    canViewMemoryOutbox: granted.has("CAP_AGENT_MEMORY_INDEX_STATUS_VIEW"),
+    canReplayMemoryOutbox: granted.has("CAP_AGENT_MEMORY_INDEX_REBUILD"),
     canViewAuditLogs:
       granted.has("CAP_AUDIT_VIEW") || granted.has("CAP_AUDIT_DETAIL_VIEW"),
     canViewResources: [

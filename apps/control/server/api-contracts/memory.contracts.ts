@@ -5,6 +5,8 @@ import {
   memoryBindingPageSchema,
   memoryConversationActionInputSchema,
   memoryConversationDeleteResultSchema,
+  memoryConversationRedactInputSchema,
+  memoryConversationRedactResultSchema,
   memoryConversationPageSchema,
   memoryConversationSchema,
   memoryCreateInputSchema,
@@ -166,6 +168,12 @@ export const memoryContracts = defineContracts([
     summary: "Re-extract a retained Conversation", tags: ["Memory"],
     request: { params: reextractParams, body: memoryConversationActionInputSchema },
     responses: { 202: response("Re-extraction accepted", memoryReextractResultSchema) },
+  }),
+  projectRoute({
+    method: "post", path: "/memories/{memoryId}/conversations/{conversationId}/redact", operationId: "redactMemoryConversation",
+    summary: "Redact selected Conversation messages and rebuild derived content", tags: ["Memory"],
+    request: { params: memoryConversationParamsSchema, body: memoryConversationRedactInputSchema },
+    responses: { 202: response("Conversation redaction accepted", memoryConversationRedactResultSchema) },
   }),
   projectRoute({
     method: "get", path: "/memories/{memoryId}/facts", operationId: "listMemoryFacts",

@@ -10,6 +10,7 @@ import {
 import { cn } from "@/lib/utils";
 
 const widthClasses = {
+  memory: "!w-full sm:!w-[min(96vw,35rem)] sm:!max-w-[35rem]",
   md: "!w-full sm:!w-[min(96vw,40rem)] sm:!max-w-[40rem]",
   lg: "!w-full sm:!w-[min(96vw,48rem)] sm:!max-w-[48rem]",
   xl: "!w-full sm:!w-[min(96vw,56rem)] sm:!max-w-[56rem]",

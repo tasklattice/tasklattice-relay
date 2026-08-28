@@ -30,7 +30,7 @@ independent Project capability and is not structurally replaced by this work.
 - [x] Phase 2: Hindsight chart resources, provider adapter, live integration tests.
 - [x] Phase 3: Memory lifecycle, binding, deletion, worker recovery, Agent compensation.
 - [x] Phase 4: runtime gateway, Hermes/OpenClaw hooks, fail-open recall and retain capture.
-- [ ] Phase 5: complete REST API, RBAC, audit-safe projections and server pagination.
+- [x] Phase 5: complete REST API, RBAC, audit-safe projections and server pagination.
 - [ ] Phase 6: Memory console and Agent lifecycle UI with complete state coverage.
 - [ ] Phase 7: threat model, observability, 16 end-to-end scenarios, runbooks and rollback.
 
@@ -192,3 +192,32 @@ do not remove the index until every in-flight create request has expired.
   images built; the Hermes in-image ABI/recall/retain verifier passed; Helm lint,
   resource validation, OpenShift arbitrary-UID validation, and `git diff
   --check` passed.
+
+## Phase 5 completion record
+
+- Added the complete Project-scoped REST surface for Memory resources,
+  bindings, overview/activity/settings, Conversations, Facts, Experiences,
+  Insights, evidence detail, curation, exports, and outbox administration.
+  OpenAPI contracts cover every route and use the existing problem response
+  model for stable provider, conflict, validation, and rate-limit errors.
+- Added opaque stable cursors and server-side query, status, source-document,
+  and Conversation time filtering. Resource counts come from the provider and
+  the Relay projection rather than UI fixtures or cached demonstration values.
+- Added optimistic Fact and structured Experience revision, status overlays for
+  provider-derived Insights, evidence-aware Conversation deletion, and stable
+  re-extraction idempotency. Invalidated content stays auditable and restorable
+  while normal recall excludes it.
+- Added Relay-owned sanitized JSON export with actor/Project/Memory-scoped
+  short-lived HMAC grants. Provider credentials, opaque provider references,
+  secrets, and outbox ciphertext are excluded; authorization and download are
+  separately audited.
+- Added database-backed operation budgets for dangerous deletion, export, and
+  outbox replay. Every route is admitted by Project ownership and the existing
+  capability model. Built-in role catalog revision 3 grants Developer curation
+  and export, End user content read, and Auditor read-only content access while
+  preserving the product mutation boundaries.
+- Verification: Memory governance/provider/export tests passed (9 files / 52
+  tests); contract, authorization, audit, and response tests passed (5 files /
+  45 tests); Control typecheck and exact OpenAPI/route coverage passed. After
+  the role revision and sanitizer assertions were finalized, the focused role,
+  audit, and provider contract suite passed (3 files / 27 tests).

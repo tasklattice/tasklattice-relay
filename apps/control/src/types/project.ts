@@ -91,6 +91,17 @@ export interface ProjectPermissions {
   canUpdateVectorDatabases: boolean;
   canDeleteVectorDatabases: boolean;
   canManageProject: boolean;
+  canViewMemories: boolean;
+  canViewMemoryContent: boolean;
+  canManageMemories: boolean;
+  canViewMemorySettings: boolean;
+  canCurateMemory: boolean;
+  canDeleteMemoryContent: boolean;
+  canPurgeMemories: boolean;
+  canExportMemories: boolean;
+  canReextractMemory: boolean;
+  canViewMemoryOutbox: boolean;
+  canReplayMemoryOutbox: boolean;
   canViewAuditLogs: boolean;
   canViewResources: boolean;
 }

@@ -240,7 +240,7 @@ export function InstanceOverviewTab({ access, agent, modelRoutingName, platform 
   const capabilitySummary = capabilitySentence({
     allowedToolCount: allowedTools.length,
     knowledgeCount: selectedKnowledge.length,
-    memoryEnabled: Boolean(agent.memory),
+    memoryEnabled: Boolean(agent.durableMemoryId || agent.memory),
     serverCount: selectedServers.length,
     skillCount: selectedSkills.length,
     toolAccessKnown,
@@ -338,7 +338,7 @@ export function InstanceOverviewTab({ access, agent, modelRoutingName, platform 
                 }
               />
               <ContextFact label="Vector Databases" value={selectedKnowledge.length} />
-              <ContextFact label="Memory" value={agent.memory ? `${agent.memory.mode} enabled` : "Not attached"} />
+              <ContextFact label="Memory" value={agent.durableMemoryId ? "Durable Memory attached" : agent.memory ? `${agent.memory.mode} enabled` : "Not attached"} />
               <ContextFact label="Data boundary" value={boundary} />
             </dl>
           </div>
@@ -423,7 +423,7 @@ export function InstanceOverviewTab({ access, agent, modelRoutingName, platform 
 
             <CapabilitySection
               icon={BookOpen}
-              title={`Vector Databases & memory · ${selectedKnowledge.length + (agent.memory ? 1 : 0)}`}
+              title={`Vector Databases & memory · ${selectedKnowledge.length + (agent.durableMemoryId || agent.memory ? 1 : 0)}`}
               description="Approved sources and durable context available for grounded, continuous work."
               action={(
                 <Button asChild variant="link" className="min-h-11 px-0">
@@ -434,7 +434,13 @@ export function InstanceOverviewTab({ access, agent, modelRoutingName, platform 
               <NamedCapabilityList
                 items={[
                   ...selectedKnowledge,
-                  ...(agent.memory
+                  ...(agent.durableMemoryId
+                    ? [{
+                        id: agent.durableMemoryId,
+                        name: "Durable Memory",
+                        description: "Project-level context that survives Agent replacement.",
+                      }]
+                    : agent.memory
                     ? [{
                         id: "memory",
                         name: agent.memory.mode === "hybrid" ? "Hybrid memory" : "Native memory",
@@ -444,7 +450,7 @@ export function InstanceOverviewTab({ access, agent, modelRoutingName, platform 
                       }]
                     : []),
                 ]}
-                empty="No Vector Databases or durable memory are attached."
+                empty="No Vector Databases or Durable Memory are attached."
               />
             </CapabilitySection>
           </CardContent>

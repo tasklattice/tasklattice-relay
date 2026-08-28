@@ -66,9 +66,18 @@ export function InstanceCapabilitiesTab({ agent }: { agent: Agent }) {
         </Card>
 
         <Card id="memory" className="scroll-mt-24">
-          <DetailCardHeader title="Memory" description="Durable context isolated to this OpenClaw Instance." action={<BrainCircuit className="size-5 text-primary" />} />
+          <DetailCardHeader title="Memory" description="Project-level context that survives Agent replacement." action={<BrainCircuit className="size-5 text-primary" />} />
           <CardContent>
-            {agent.memory ? (
+            {agent.durableMemoryId ? (
+              <div className="space-y-4">
+                <div className="rounded-md border p-4">
+                  <h3 className="text-sm font-medium">Durable Memory</h3>
+                  <p className="mt-1 text-xs leading-5 text-muted-foreground">Bound through Relay with scoped recall and asynchronous retain.</p>
+                  <p className="mt-2 truncate font-mono text-[11px] text-muted-foreground">{agent.durableMemoryId}</p>
+                </div>
+                <Link to="/$projectId/memory/$memoryId" params={{ projectId, memoryId: agent.durableMemoryId }} className="inline-flex min-h-11 items-center text-xs font-medium text-primary underline underline-offset-4">Open retained Memory</Link>
+              </div>
+            ) : agent.memory ? (
               <div className="space-y-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
@@ -81,7 +90,7 @@ export function InstanceCapabilitiesTab({ agent }: { agent: Agent }) {
                   <div className="flex justify-between gap-3"><dt className="text-muted-foreground">Scope</dt><dd className="font-medium">Instance sandbox</dd></div>
                   <div className="flex justify-between gap-3"><dt className="text-muted-foreground">Session recall</dt><dd className="font-medium">{agent.memory.mode === "hybrid" && agent.memory.includeSessionTranscripts ? "Included" : "Not indexed"}</dd></div>
                 </dl>
-                <Link to="/$projectId/memory" params={{ projectId }} className="inline-flex min-h-11 items-center text-xs font-medium text-primary underline underline-offset-4">Review Memory architecture</Link>
+                <Link to="/$projectId/memory" params={{ projectId }} className="inline-flex min-h-11 items-center text-xs font-medium text-primary underline underline-offset-4">Manage Memory</Link>
               </div>
             ) : <EmptyCapability label="Memory" />}
           </CardContent>

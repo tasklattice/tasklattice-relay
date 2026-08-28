@@ -912,6 +912,94 @@ export class MemoryService {
     return this.changeItemStatus(memoryId, itemId, "active", actorId);
   }
 
+  async redactConversation(input: {
+    actorId: string;
+    conversationId: string;
+    idempotencyKey: string;
+    memoryId: string;
+    messageIds: string[];
+    replacement: string;
+  }): Promise<{
+    acceptedAt: string;
+    operationId: string;
+    redactedMessages: number;
+    invalidatedDerivedItems: number;
+  }> {
+    const memory = await this.requireWritableMemory(input.memoryId);
+    const conversation = await this.provider().getConversation({
+      ...this.scope(memory),
+      conversationId: input.conversationId,
+    });
+    const requested = new Set(input.messageIds);
+    const redactedMessages = conversation.messages.filter(({ id }) =>
+      requested.has(id)
+    ).length;
+    if (redactedMessages !== requested.size) {
+      throw new Error("One or more selected Conversation messages no longer exist.");
+    }
+    const replacement = sanitizeRuntimeMemoryText(input.replacement, 240);
+    const redactedConversation: MemoryConversation = {
+      ...conversation,
+      messages: conversation.messages.map((message) => requested.has(message.id)
+        ? { ...message, text: replacement }
+        : message),
+    };
+    const derived = await this.derivedItemsWithOnlySource(memory, input.conversationId);
+    let invalidatedDerivedItems = 0;
+    for (const item of derived) {
+      await this.changeItemStatus(memory.id, item.id, "invalidated", input.actorId);
+      invalidatedDerivedItems += 1;
+    }
+    const deleted = await this.provider().deleteConversation({
+      ...this.scope(memory),
+      conversationId: input.conversationId,
+      idempotencyKey: `redact-delete:${input.idempotencyKey}`,
+    });
+    if (!deleted.verifiedAbsent) {
+      throw new MemoryProviderError({
+        code: "internal",
+        message: "The Memory provider could not verify Conversation redaction.",
+        retryable: true,
+      });
+    }
+    let acceptedAt: string;
+    let operationId: string;
+    try {
+      const retained = await this.provider().appendConversation({
+        ...this.scope(memory),
+        conversation: redactedConversation,
+        idempotencyKey: `redact-retain:${input.idempotencyKey}`,
+      });
+      acceptedAt = retained.acceptedAt;
+      operationId = retained.operationId;
+    } catch (error) {
+      if (!(error instanceof MemoryProviderError && error.retryable)) throw error;
+      const queued = await this.enqueueConversation({
+        memoryId: memory.id,
+        conversation: redactedConversation,
+        idempotencyKey: `redact-retain:${input.idempotencyKey}`,
+      });
+      acceptedAt = queued.createdAt.toISOString();
+      operationId = `outbox:${queued.id}`;
+    }
+    await this.repository.recordCurationEvent({
+      memoryId: memory.id,
+      providerItemId: conversation.id,
+      action: "memory.conversation.redacted",
+      actorId: input.actorId,
+      before: {
+        messageCount: conversation.messages.length,
+        sourceDocumentIds: conversation.sourceDocumentIds,
+      },
+      after: {
+        operationId,
+        redactedMessages,
+        status: "accepted",
+      },
+    });
+    return { acceptedAt, operationId, redactedMessages, invalidatedDerivedItems };
+  }
+
   async deleteConversation(input: {
     actorId: string;
     conversationId: string;

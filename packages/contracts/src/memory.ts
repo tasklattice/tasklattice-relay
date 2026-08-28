@@ -148,6 +148,13 @@ export const memoryConversationActionInputSchema = z.object({
   idempotencyKey: z.string().trim().min(1).max(240),
 }).strict();
 
+export const memoryConversationRedactInputSchema = z.object({
+  idempotencyKey: z.string().trim().min(1).max(240),
+  messageIds: z.array(z.string().trim().min(1).max(240)).min(1).max(1_000)
+    .refine((ids) => new Set(ids).size === ids.length, "Message IDs must be unique."),
+  replacement: z.string().trim().min(1).max(240).default("[Redacted]"),
+}).strict();
+
 export const memoryExportRequestInputSchema = z.object({
   format: z.literal("json").default("json"),
 }).strict();
@@ -231,6 +238,19 @@ export interface MemoryOutboxView {
 export interface MemoryExportGrantView {
   downloadUrl: string;
   expiresAt: string;
+}
+
+export interface RetainedMemoryReferenceView {
+  id: string;
+  displayName: string;
+  status: MemoryStatus;
+}
+
+export interface InstanceDeletionAcceptedView {
+  accepted: true;
+  id: string;
+  status: "DESTROYING";
+  retainedMemory: RetainedMemoryReferenceView | null;
 }
 
 export const memoryBindingViewSchema = z.object({
@@ -357,3 +377,24 @@ export const memoryReextractResultSchema = z.object({
   acceptedAt: isoDateTimeSchema,
   operationId: z.string(),
 }).strict().meta({ id: "MemoryReextractResult" });
+
+export const memoryConversationRedactResultSchema = z.object({
+  acceptedAt: isoDateTimeSchema,
+  operationId: z.string(),
+  redactedMessages: z.number().int().positive(),
+  invalidatedDerivedItems: z.number().int().nonnegative(),
+}).strict().meta({ id: "MemoryConversationRedactResult" });
+
+export type MemoryOverviewView = z.infer<typeof memoryOverviewSchema>;
+export type MemorySettingsView = z.infer<typeof memorySettingsSchema>;
+export type MemoryActivityPage = z.infer<typeof memoryActivityPageSchema>;
+export type MemoryBindingPage = z.infer<typeof memoryBindingPageSchema>;
+export type MemoryOutboxPage = z.infer<typeof memoryOutboxPageSchema>;
+export type MemoryConversationDeleteResult = z.infer<
+  typeof memoryConversationDeleteResultSchema
+>;
+export type MemoryReextractResult = z.infer<typeof memoryReextractResultSchema>;
+export type MemoryConversationRedactResult = z.infer<
+  typeof memoryConversationRedactResultSchema
+>;
+export type MemoryDeleteResult = z.infer<typeof memoryDeleteResultSchema>;

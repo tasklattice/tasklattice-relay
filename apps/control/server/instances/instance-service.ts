@@ -1,6 +1,5 @@
 import { randomUUID } from "node:crypto";
 import {
-  defaultNativeAgentMemoryConfiguration,
   getAgentPlatformDefinition,
   type Instance as Agent,
   type AgentMemoryConfiguration,
@@ -237,11 +236,7 @@ export class InstanceService {
       throw new Error(
         "The selected Routing LiteLLM Gateway is unavailable.",
       );
-    const memoryConfiguration =
-      getAgentPlatformDefinition(input.agentPlatform).capabilities.memory
-        !== "none"
-        ? (input.memory ?? defaultNativeAgentMemoryConfiguration)
-        : input.memory;
+    const memoryConfiguration = input.memory;
     await this.resolveMemory(
       input.agentPlatform,
       memoryConfiguration,

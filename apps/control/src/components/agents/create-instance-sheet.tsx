@@ -4,13 +4,9 @@ import { useForm } from "@tanstack/react-form";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import {
-  defaultNativeAgentMemoryConfiguration,
   defaultAgentPlatformId,
-  getAgentPlatformDefinition,
-  type AgentMemoryConfiguration,
   type AgentPlatformId,
   type CreateInstanceInput,
-  type ModelDeployment,
   type ModelRouting,
 } from "@tali/contracts";
 import {
@@ -73,8 +69,8 @@ import { getAgentPlatformPresentation } from "@/lib/agent-platforms";
 import { useProjectQueryScope } from "@/hooks/use-project-query-scope";
 import { useCurrentProjectId } from "@/hooks/use-project";
 
-function supportsMemory(agentPlatform: AgentPlatformId): boolean {
-  return getAgentPlatformDefinition(agentPlatform).capabilities.memory !== "none";
+function supportsDurableMemory(agentPlatform: AgentPlatformId): boolean {
+  return agentPlatform === "openclaw" || agentPlatform === "hermes";
 }
 
 function capabilityName(
@@ -141,12 +137,7 @@ export function CreateInstanceSheet({
   const [skillsTouched, setSkillsTouched] = useState(false);
   const [mcpsTouched, setMcpsTouched] = useState(false);
   const [knowledgeSourcesTouched, setKnowledgeSourcesTouched] = useState(false);
-  const [memoryEnabled, setMemoryEnabled] = useState(
-    initialAgentPlatform === "openclaw",
-  );
-  const [memory, setMemory] = useState<AgentMemoryConfiguration>(
-    defaultNativeAgentMemoryConfiguration,
-  );
+  const [durableMemoryId, setDurableMemoryId] = useState("");
   const [capabilitiesInitialized, setCapabilitiesInitialized] = useState(false);
   const [pendingSpecializationId, setPendingSpecializationId] =
     useState<SpecializationId | null>(null);
@@ -170,9 +161,9 @@ export function CreateInstanceSheet({
     queryKey: scope.key("model-routings"),
     queryFn: api.listModelRoutings,
   });
-  const modelDeployments = useQuery({
-    queryKey: scope.key("model-deployments"),
-    queryFn: api.listModelDeployments,
+  const durableMemories = useQuery({
+    queryKey: scope.key("durable-memories", "agent-create"),
+    queryFn: () => api.listMemories({ limit: 100, statuses: ["ready", "unbound"] }),
   });
   const policies = useQuery({
     queryKey: scope.key("runtime-policies"),
@@ -228,22 +219,15 @@ export function CreateInstanceSheet({
         skillIds: selectedIds(selectedSkills),
         mcpServerIds: selectedIds(selectedMcps),
         knowledgeSourceIds: selectedIds(selectedKnowledgeSources),
-        ...(supportsMemory(value.agentPlatform) && memoryEnabled
-          ? { memory }
+        ...(supportsDurableMemory(value.agentPlatform) && durableMemoryId
+          ? { durableMemoryId }
           : {}),
       } satisfies CreateInstanceInput);
     },
   });
 
-  const selectedRoutingComplianceDomain = modelRoutings.data?.find(
-    (routing) => routing.id === form.state.values.modelRoutingId,
-  )?.complianceDomain;
-  const embeddingModels = (modelDeployments.data ?? []).filter(
-    (model): model is ModelDeployment =>
-      model.status === "VALIDATED" &&
-      model.modelType === "text-embedding" &&
-      (!selectedRoutingComplianceDomain ||
-        model.complianceDomain === selectedRoutingComplianceDomain),
+  const availableDurableMemories = (durableMemories.data?.items ?? []).filter(
+    (item) => !item.activeBinding && (item.status === "ready" || item.status === "unbound"),
   );
 
   useEffect(() => {
@@ -371,7 +355,6 @@ export function CreateInstanceSheet({
     setKnowledgeSourcesTouched(
       nextKnowledgeSources.some((item) => item.source === "manual"),
     );
-    setMemoryEnabled(supportsMemory(form.state.values.agentPlatform));
     setSystemPrompt(id === "custom" ? customSystemPrompt : next.systemPrompt);
     setPendingSpecializationId(null);
   };
@@ -519,13 +502,9 @@ export function CreateInstanceSheet({
                     disabled={
                       String(name).trim().length < 3 ||
                       currentSystemPrompt.trim().length < 10 ||
-                      (memoryEnabled &&
-                        supportsMemory(agentPlatform as AgentPlatformId) &&
-                        memory.mode === "hybrid" &&
-                        !embeddingModels.some(
-                          (model) =>
-                            model.id === memory.embeddingModelDeploymentId,
-                        ))
+                      (supportsDurableMemory(agentPlatform as AgentPlatformId)
+                        && Boolean(durableMemoryId)
+                        && !availableDurableMemories.some((item) => item.id === durableMemoryId))
                     }
                     onClick={() => setStep(1)}
                   >
@@ -666,9 +645,9 @@ export function CreateInstanceSheet({
                     skills={skills}
                     mcpServers={mcpServers}
                     knowledgeSources={knowledgeSources}
-                    embeddingModels={embeddingModels}
-                    memory={memory}
-                    memoryEnabled={memoryEnabled}
+                    durableMemories={availableDurableMemories}
+                    durableMemoriesLoading={durableMemories.isPending}
+                    durableMemoryId={durableMemoryId}
                     customSystemPrompt={customSystemPrompt}
                     selectedSkillIds={selectedIds(selectedSkills)}
                     selectedMcpServerIds={selectedIds(selectedMcps)}
@@ -704,8 +683,7 @@ export function CreateInstanceSheet({
                       );
                       setKnowledgeSourcesTouched(true);
                     }}
-                    onMemoryChange={setMemory}
-                    onMemoryEnabledChange={setMemoryEnabled}
+                    onDurableMemoryIdChange={setDurableMemoryId}
                   />
                 )}
               </form.Subscribe>
@@ -934,7 +912,7 @@ export function CreateInstanceSheet({
                               value={field.state.value}
                               onValueChange={(value) => {
                                 field.handleChange(value);
-                                setMemoryEnabled(value === "openclaw");
+                                if (!supportsDurableMemory(value)) setDurableMemoryId("");
                               }}
                             />
                           </div>
@@ -1177,13 +1155,11 @@ export function CreateInstanceSheet({
                           <ReviewFact
                             label="Memory"
                             value={
-                              !supportsMemory(values.agentPlatform)
+                              !supportsDurableMemory(values.agentPlatform)
                                 ? "Workbench-managed"
-                                : memoryEnabled
-                                  ? memory.mode === "hybrid"
-                                    ? `Hybrid · ${embeddingModels.find((model) => model.id === memory.embeddingModelDeploymentId)?.displayName ?? "Embedding unavailable"}`
-                                    : "Native · curated notes"
-                                  : "Off"
+                                : durableMemoryId
+                                  ? `Continue · ${availableDurableMemories.find((item) => item.id === durableMemoryId)?.displayName ?? "Existing Memory"}`
+                                  : "Create new durable Memory"
                             }
                           />
                         </dl>

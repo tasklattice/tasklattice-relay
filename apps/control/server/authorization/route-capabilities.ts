@@ -1,6 +1,5 @@
 import {
   defaultAgentPlatformId,
-  getAgentPlatformDefinition,
   isAgentPlatformId,
   type ProjectCapability,
   type ResourceRelation,
@@ -314,6 +313,14 @@ export function projectRouteAdmissionPolicy(
     }
     if (
       tail.length === 5
+      && tail[2] === "conversations"
+      && tail[4] === "redact"
+      && method === "POST"
+    ) {
+      return policy("PROJECT", [requirement("CAP_AGENT_MEMORY_CONTENT_WRITE", "DurableMemory")], memoryId);
+    }
+    if (
+      tail.length === 5
       && tail[2] === "outbox"
       && tail[4] === "replay"
       && method === "POST"
@@ -542,9 +549,7 @@ export function conditionalInstanceCreateRequirements(
     && isAgentPlatformId(input.agentPlatform)
     ? input.agentPlatform
     : defaultAgentPlatformId;
-  if (
-    getAgentPlatformDefinition(requestedPlatform).capabilities.memory !== "none"
-  ) {
+  if (requestedPlatform === "openclaw" || requestedPlatform === "hermes") {
     requirements.push(requirement("CAP_AGENT_MEMORY_CONFIG_UPDATE", "AgentMemory"));
   }
   const memory = input.memory;

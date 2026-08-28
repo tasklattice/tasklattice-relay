@@ -1,12 +1,10 @@
 import { useState, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import {
-  getAgentPlatformDefinition,
-  type AgentMemoryConfiguration,
   type AgentPlatformId,
   type KnowledgeSourceDefinition,
   type McpServerDefinition,
-  type ModelDeployment,
+  type MemoryResourceView,
   type SkillDefinition,
 } from "@tali/contracts";
 import { useTranslation } from "react-i18next";
@@ -20,7 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { MultiSelectCombobox, type MultiSelectOption } from "@/components/ui/multi-select-combobox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
@@ -52,20 +50,19 @@ function mcpStatusTone(server: McpServerDefinition): "danger" | "neutral" | "suc
   return "neutral";
 }
 
-export function IdentityCapabilitiesStep({ agentPlatform, customSystemPrompt, embeddingModels, knowledgeSources, mcpServers, memory, memoryEnabled, name, onCustomSystemPromptChange, onKnowledgeSourceIdsChange, onMcpServerIdsChange, onMemoryChange, onMemoryEnabledChange, onNameChange, onSkillIdsChange, onSpecializationChange, onSystemPromptChange, selectedKnowledgeSourceIds, selectedMcpServerIds, selectedSkillIds, skills, specialization, specializations, systemPrompt }: {
+export function IdentityCapabilitiesStep({ agentPlatform, customSystemPrompt, durableMemories, durableMemoriesLoading, durableMemoryId, knowledgeSources, mcpServers, name, onCustomSystemPromptChange, onDurableMemoryIdChange, onKnowledgeSourceIdsChange, onMcpServerIdsChange, onNameChange, onSkillIdsChange, onSpecializationChange, onSystemPromptChange, selectedKnowledgeSourceIds, selectedMcpServerIds, selectedSkillIds, skills, specialization, specializations, systemPrompt }: {
   agentPlatform: AgentPlatformId;
   customSystemPrompt: string;
-  embeddingModels: readonly ModelDeployment[];
+  durableMemories: readonly MemoryResourceView[];
+  durableMemoriesLoading: boolean;
+  durableMemoryId: string;
   knowledgeSources: readonly KnowledgeSourceDefinition[];
   mcpServers: readonly McpServerDefinition[];
-  memory: AgentMemoryConfiguration;
-  memoryEnabled: boolean;
   name: string;
   onCustomSystemPromptChange: (value: string) => void;
+  onDurableMemoryIdChange: (memoryId: string) => void;
   onKnowledgeSourceIdsChange: (ids: string[]) => void;
   onMcpServerIdsChange: (ids: string[]) => void;
-  onMemoryChange: (memory: AgentMemoryConfiguration) => void;
-  onMemoryEnabledChange: (enabled: boolean) => void;
   onNameChange: (value: string) => void;
   onSkillIdsChange: (ids: string[]) => void;
   onSpecializationChange: (id: SpecializationId) => void;
@@ -156,11 +153,10 @@ export function IdentityCapabilitiesStep({ agentPlatform, customSystemPrompt, em
           <div className="border-t pt-5">
             <MemoryCapabilityRow
               agentPlatform={agentPlatform}
-              embeddingModels={embeddingModels}
-              enabled={memoryEnabled}
-              memory={memory}
-              onEnabledChange={onMemoryEnabledChange}
-              onMemoryChange={onMemoryChange}
+              durableMemories={durableMemories}
+              durableMemoriesLoading={durableMemoriesLoading}
+              durableMemoryId={durableMemoryId}
+              onDurableMemoryIdChange={onDurableMemoryIdChange}
               onOpenChange={setMemoryOpen}
               open={memoryOpen}
               projectId={projectId}
@@ -236,34 +232,19 @@ export function IdentityCapabilitiesStep({ agentPlatform, customSystemPrompt, em
   );
 }
 
-function MemoryCapabilityRow({ agentPlatform, embeddingModels, enabled, memory, onEnabledChange, onMemoryChange, onOpenChange, open, projectId, roleLabel }: {
+function MemoryCapabilityRow({ agentPlatform, durableMemories, durableMemoriesLoading, durableMemoryId, onDurableMemoryIdChange, onOpenChange, open, projectId, roleLabel }: {
   agentPlatform: AgentPlatformId;
-  embeddingModels: readonly ModelDeployment[];
-  enabled: boolean;
-  memory: AgentMemoryConfiguration;
-  onEnabledChange: (enabled: boolean) => void;
-  onMemoryChange: (memory: AgentMemoryConfiguration) => void;
+  durableMemories: readonly MemoryResourceView[];
+  durableMemoriesLoading: boolean;
+  durableMemoryId: string;
+  onDurableMemoryIdChange: (memoryId: string) => void;
   onOpenChange: (open: boolean) => void;
   open: boolean;
   projectId: string;
   roleLabel: string;
 }) {
-  const supported = getAgentPlatformDefinition(agentPlatform).capabilities
-    .memory !== "none";
-  const selectMode = (mode: "native" | "hybrid") => {
-    if (mode === "native") {
-      onMemoryChange({ mode: "native", citations: memory.citations });
-      return;
-    }
-    onMemoryChange({
-      mode: "hybrid",
-      embeddingModelDeploymentId: embeddingModels[0]?.id ?? "",
-      includeSessionTranscripts: false,
-      citations: memory.citations,
-      maxResults: 6,
-      minScore: 0.35,
-    });
-  };
+  const supported = agentPlatform === "openclaw" || agentPlatform === "hermes";
+  const selected = durableMemories.find(({ id }) => id === durableMemoryId);
 
   return (
     <Collapsible open={open} onOpenChange={onOpenChange} className="rounded-md border">
@@ -284,101 +265,57 @@ function MemoryCapabilityRow({ agentPlatform, embeddingModels, enabled, memory, 
                   </button>
                 </TooltipTrigger>
                 <TooltipContent side="top" sideOffset={6} className="max-w-72 leading-5">
-                  Memory belongs to the Agent itself. The selected Role starts with Memory enabled when the workbench supports Relay-managed Memory.
+                  Durable Memory is a Project resource. It survives Agent deletion and can be attached to another OpenClaw or Hermes Agent later.
                 </TooltipContent>
               </Tooltip>
             </div>
             <Badge variant="outline" className="font-normal">
-              {!supported ? "Workbench managed" : enabled ? `${memory.mode === "hybrid" ? "Hybrid" : "Native"} · default on` : "Off"}
+              {!supported ? "Not available" : selected ? "Continue existing" : "New · recommended"}
             </Badge>
           </div>
           <p className="mt-1 text-xs text-muted-foreground">
             {supported
-              ? `Durable, Instance-isolated context that gives the ${roleLabel} Role continuity across work.`
-              : `The ${roleLabel} Role uses Memory managed by its selected workbench.`}
+              ? `Project-level context that gives the ${roleLabel} Role continuity across Agent replacement.`
+              : `Durable Memory is currently available for OpenClaw and Hermes Agents.`}
           </p>
-          {supported && enabled ? <p className="mt-2 text-xs font-medium text-primary">{memory.mode === "hybrid" ? "Curated notes + semantic recall" : "Curated memory + daily notes"}</p> : null}
+          {supported ? <p className="mt-2 text-xs font-medium text-primary">{selected ? selected.displayName : "A new durable Memory will be created automatically"}</p> : null}
         </div>
         {supported ? (
-          <>
-            <Switch
-              checked={enabled}
-              aria-label="Enable Memory"
-              onCheckedChange={onEnabledChange}
-              className="mt-1"
-            />
-            <CollapsibleTrigger asChild>
-              <Button type="button" size="icon" variant="ghost" aria-label={`${open ? "Collapse" : "Expand"} Memory`}>
-                <ChevronDown className={cn("transition-transform", open && "rotate-180")} />
-              </Button>
-            </CollapsibleTrigger>
-          </>
+          <CollapsibleTrigger asChild>
+            <Button type="button" size="icon" variant="ghost" aria-label={`${open ? "Collapse" : "Expand"} Memory`}>
+              <ChevronDown className={cn("transition-transform", open && "rotate-180")} />
+            </Button>
+          </CollapsibleTrigger>
         ) : null}
       </div>
       <CollapsibleContent className="border-t bg-muted/10 p-4">
         {!supported ? (
-          <p className="text-xs text-muted-foreground">Select OpenClaw as the Agent workbench to configure Memory.</p>
+          <p className="text-xs text-muted-foreground">Select OpenClaw or Hermes as the Agent workbench to configure Durable Memory.</p>
         ) : (
-          <div className={cn("space-y-4", !enabled && "pointer-events-none opacity-50")} aria-disabled={!enabled}>
-            <div className="grid gap-4 md:grid-cols-[minmax(0,14rem)_minmax(0,1fr)]">
+          <div className="space-y-4" role="radiogroup" aria-label="Durable Memory choice">
+            <button type="button" role="radio" aria-checked={!durableMemoryId} onClick={() => onDurableMemoryIdChange("")} className={cn("flex min-h-20 w-full items-start gap-3 rounded-md border p-4 text-left outline-none hover:bg-muted/35 focus-visible:ring-2 focus-visible:ring-ring/35", !durableMemoryId && "border-primary bg-primary/5")}>
+              <span className={cn("mt-0.5 grid size-5 shrink-0 place-items-center rounded-full border", !durableMemoryId && "border-primary bg-primary text-primary-foreground")}>{!durableMemoryId ? <Check className="size-3" /> : null}</span>
+              <span><strong className="block text-sm">Create a new durable Memory (recommended)</strong><span className="mt-1 block text-xs leading-5 text-muted-foreground">A new Project-level Memory is created and bound before the Agent starts.</span></span>
+            </button>
+            <button type="button" role="radio" aria-checked={Boolean(durableMemoryId)} onClick={() => onDurableMemoryIdChange(durableMemories[0]?.id ?? "")} disabled={!durableMemories.length && !durableMemoriesLoading} className={cn("flex min-h-20 w-full items-start gap-3 rounded-md border p-4 text-left outline-none hover:bg-muted/35 focus-visible:ring-2 focus-visible:ring-ring/35 disabled:cursor-not-allowed disabled:opacity-50", durableMemoryId && "border-primary bg-primary/5")}>
+              <span className={cn("mt-0.5 grid size-5 shrink-0 place-items-center rounded-full border", durableMemoryId && "border-primary bg-primary text-primary-foreground")}>{durableMemoryId ? <Check className="size-3" /> : null}</span>
+              <span><strong className="block text-sm">Continue with an existing Memory</strong><span className="mt-1 block text-xs leading-5 text-muted-foreground">Attach an unbound Memory from this Project and recall its prior context on the first turn.</span></span>
+            </button>
+            {durableMemoriesLoading ? <Skeleton className="h-12 w-full" /> : durableMemoryId ? (
               <div className="space-y-2">
-                <Label htmlFor="memory-mode">Memory mode</Label>
-                <Select value={memory.mode} onValueChange={(value) => selectMode(value as "native" | "hybrid")}>
-                  <SelectTrigger id="memory-mode" className="min-h-11 w-full"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="native">Native · recommended</SelectItem>
-                    <SelectItem value="hybrid">Hybrid · semantic recall</SelectItem>
-                  </SelectContent>
+                <Label htmlFor="durable-memory-selection">Existing Memory</Label>
+                <Select value={durableMemoryId} onValueChange={onDurableMemoryIdChange}>
+                  <SelectTrigger id="durable-memory-selection" className="min-h-11 w-full"><SelectValue placeholder="Select an unbound Memory" /></SelectTrigger>
+                  <SelectContent>{durableMemories.map((item) => <SelectItem key={item.id} value={item.id}>{item.displayName}<span className="ml-2 text-muted-foreground">{item.counts ? `${item.counts.conversations} conversations · ${item.counts.facts} facts` : item.status}</span></SelectItem>)}</SelectContent>
                 </Select>
+                {selected ? <div className="grid grid-cols-3 gap-3 rounded-md border bg-background p-3 text-xs"><span><span className="block text-muted-foreground">Conversations</span><strong className="mt-1 block">{selected.counts?.conversations ?? "—"}</strong></span><span><span className="block text-muted-foreground">Facts</span><strong className="mt-1 block">{selected.counts?.facts ?? "—"}</strong></span><span><span className="block text-muted-foreground">Experiences</span><strong className="mt-1 block">{selected.counts?.experiences ?? "—"}</strong></span></div> : null}
               </div>
-              <div className="border-l-2 border-primary bg-primary/5 px-3 py-2.5 text-xs leading-5">
-                {memory.mode === "native"
-                  ? "No embedding dependency. OpenClaw reads curated MEMORY.md and maintains dated notes inside this Instance."
-                  : "TaskLattice Relay routes recall through LiteLLM and enforces the same compliance boundary as this Instance's model Routing."}
-              </div>
-            </div>
-
-            {memory.mode === "hybrid" ? (
-              <div className="space-y-4 border-t pt-4">
-                <div className="space-y-2">
-                  <Label htmlFor="memory-embedding-model">Embedding model</Label>
-                  <Select
-                    value={memory.embeddingModelDeploymentId}
-                    disabled={!embeddingModels.length}
-                    onValueChange={(embeddingModelDeploymentId) => onMemoryChange({ ...memory, embeddingModelDeploymentId })}
-                  >
-                    <SelectTrigger id="memory-embedding-model" className="min-h-11 w-full"><SelectValue placeholder="Select a validated text-embedding model" /></SelectTrigger>
-                    <SelectContent>
-                      {embeddingModels.map((model) => (
-                        <SelectItem key={model.id} value={model.id}>{model.displayName} · {model.complianceDomain}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {!embeddingModels.length ? (
-                    <p role="alert" className="border-l-2 border-amber-500 bg-amber-500/5 px-3 py-2 text-xs">
-                      Register and validate a text-embedding model in the same compliance boundary before using Hybrid memory.
-                    </p>
-                  ) : null}
-                </div>
-                <button
-                  type="button"
-                  role="checkbox"
-                  aria-checked={memory.includeSessionTranscripts}
-                  onClick={() => onMemoryChange({ ...memory, includeSessionTranscripts: !memory.includeSessionTranscripts })}
-                  className="flex min-h-11 w-full items-start gap-3 border p-3 text-left hover:bg-muted/35 focus-visible:outline-2"
-                >
-                  <span className={cn("mt-0.5 grid size-5 shrink-0 place-items-center border", memory.includeSessionTranscripts && "border-primary bg-primary text-primary-foreground")}>
-                    {memory.includeSessionTranscripts ? <Check className="size-3.5" /> : null}
-                  </span>
-                  <span><strong className="block text-xs">Include session transcripts</strong><span className="mt-1 block text-xs leading-5 text-muted-foreground">Make recent OpenClaw sessions searchable in addition to curated notes.</span></span>
-                </button>
-              </div>
-            ) : null}
+            ) : !durableMemories.length ? <p className="text-xs text-muted-foreground">No ready or unbound Memory is available. A new one will be created.</p> : null}
 
             <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-3 text-xs text-muted-foreground">
               <span>Memory is capability context, not an authorization source.</span>
               <Button asChild variant="link" size="sm" className="h-auto min-h-0 p-0">
-                <Link to="/$projectId/memory" params={{ projectId }}>Review Memory architecture</Link>
+                <Link to="/$projectId/memory" params={{ projectId }}>Manage Memory</Link>
               </Button>
             </div>
           </div>

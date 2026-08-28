@@ -133,9 +133,17 @@ function SupervisorInstanceDetail({
   });
   const remove = useMutation({
     mutationFn: () => api.deleteInstance(agentId),
-    onSuccess: async () => {
+    onSuccess: async (result) => {
       await queryClient.invalidateQueries({ queryKey: scope.key("agents") });
-      await navigate({ to: "/$projectId/instances", params: { projectId }, replace: true });
+      await navigate({
+        to: "/$projectId/instances",
+        params: { projectId },
+        search: result.retainedMemory ? {
+          retainedMemory: result.retainedMemory.id,
+          retainedMemoryName: result.retainedMemory.displayName,
+        } : {},
+        replace: true,
+      });
     },
   });
   const terminalWasOpen = useRef(false);
@@ -204,7 +212,7 @@ function SupervisorInstanceDetail({
       {renderedTab === "activity" ? <AgentInstanceActivityTab detail={{ ...detail, instance: visibleAgent }} /> : null}
       {renderedTab === "logs" ? <InstanceAuditorLogTab agent={visibleAgent} includeSandboxAudit={permissions.canViewSensitiveAgentAudit} /> : null}
       {renderedTab === "terminal" ? <InstanceTerminalTab agent={visibleAgent} targets={(terminalTargets.data ?? []).filter((target) => target.available)} /> : null}
-      {permissions.canDeleteAgents ? <DeleteInstanceSheet open={deleteOpen} onOpenChange={setDeleteOpen} instanceName={visibleAgent.name} deleting={remove.isPending} onConfirm={() => remove.mutate()} {...(remove.error instanceof Error ? { error: remove.error.message } : {})} /> : null}
+      {permissions.canDeleteAgents ? <DeleteInstanceSheet open={deleteOpen} onOpenChange={setDeleteOpen} instanceName={visibleAgent.name} retainsMemory={Boolean(visibleAgent.durableMemoryId)} deleting={remove.isPending} onConfirm={() => remove.mutate()} {...(remove.error instanceof Error ? { error: remove.error.message } : {})} /> : null}
     </div>
   );
 }
