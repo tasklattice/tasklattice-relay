@@ -26,6 +26,7 @@ import { PlatformSettingsService } from "../platform/platform-settings-service";
 interface StoredProviderCredential {
   version: 1;
   provider: ProviderKind;
+  skipTlsVerify?: boolean;
   config: Record<string, unknown>;
   credentials: Record<string, unknown>;
 }
@@ -165,6 +166,9 @@ function encodeCredential(draft: ProviderConnectionDraft): string {
   return JSON.stringify({
     version: 1,
     provider: draft.provider,
+    ...(draft.skipTlsVerify !== undefined
+      ? { skipTlsVerify: draft.skipTlsVerify }
+      : {}),
     config: draft.config,
     credentials: draft.credentials,
   } satisfies StoredProviderCredential);
@@ -182,6 +186,9 @@ function decodeCredential(account: ProviderAccount, rawCredential: string): Prov
   return {
     provider: stored.provider,
     name: account.name,
+    ...(stored.skipTlsVerify !== undefined
+      ? { skipTlsVerify: stored.skipTlsVerify }
+      : {}),
     config: stored.config,
     credentials: stored.credentials,
   } as ProviderConnectionDraft;
@@ -415,6 +422,7 @@ export class ProviderService {
       providerKind: input.connection.provider,
       presetId: input.connection.provider,
       endpoint: adapter.endpoint(input.connection),
+      skipTlsVerify: input.connection.skipTlsVerify === true,
       config: input.connection.config,
       complianceDomain: input.complianceDomain,
       endpointRegion:
@@ -483,7 +491,10 @@ export class ProviderService {
         accountId: account.id,
         providerKind: draft.provider,
         model,
-        litellmParams: adapter.toLiteLLMParams(draft, model),
+        litellmParams: {
+          ...adapter.toLiteLLMParams(draft, model),
+          ...(draft.skipTlsVerify ? { ssl_verify: false } : {}),
+        },
         complianceDomain: account.complianceDomain,
         endpointRegion: account.endpointRegion,
       });

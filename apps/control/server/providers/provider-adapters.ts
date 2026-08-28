@@ -11,6 +11,7 @@ import {
   type ProviderPresetModel,
   type ProviderValidationCheck,
 } from "@tali/contracts";
+import { Agent } from "undici";
 
 export interface ProviderAdapter {
   readonly kind: ProviderKind;
@@ -136,6 +137,48 @@ function apiUrl(base: string, path: string): string {
   return `${base.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}`;
 }
 
+const insecureProviderDispatcher = new Agent({
+  connect: { rejectUnauthorized: false },
+});
+
+type ProviderFetchInit = RequestInit & { dispatcher?: Agent };
+
+function fetchProvider(
+  draft: ProviderConnectionDraft,
+  url: string,
+  init: RequestInit,
+): Promise<Response> {
+  const request: ProviderFetchInit = {
+    ...init,
+    ...(draft.skipTlsVerify && new URL(url).protocol === "https:"
+      ? { dispatcher: insecureProviderDispatcher }
+      : {}),
+  };
+  return fetch(url, request);
+}
+
+const TLS_CERTIFICATE_ERROR_CODES = new Set([
+  "CERT_HAS_EXPIRED",
+  "DEPTH_ZERO_SELF_SIGNED_CERT",
+  "ERR_TLS_CERT_ALTNAME_INVALID",
+  "SELF_SIGNED_CERT_IN_CHAIN",
+  "UNABLE_TO_GET_ISSUER_CERT_LOCALLY",
+  "UNABLE_TO_VERIFY_LEAF_SIGNATURE",
+]);
+
+function providerErrorMessage(error: unknown, fallback: string): string {
+  const cause = error instanceof Error && "cause" in error
+    ? error.cause
+    : undefined;
+  const code = cause && typeof cause === "object" && "code" in cause
+    ? String(cause.code)
+    : "";
+  if (TLS_CERTIFICATE_ERROR_CODES.has(code)) {
+    return `TLS certificate verification failed (${code}). Enable Skip TLS verification only if this endpoint is trusted.`;
+  }
+  return error instanceof Error ? error.message : fallback;
+}
+
 async function discoverOpenAI(
   kind: ProviderKind,
   draft: ProviderConnectionDraft,
@@ -143,7 +186,7 @@ async function discoverOpenAI(
 ): Promise<ProviderDiscoveryResult> {
   const startedAt = Date.now();
   try {
-    const response = await fetch(apiUrl(endpoint(draft), "models"), {
+    const response = await fetchProvider(draft, apiUrl(endpoint(draft), "models"), {
       headers: {
         ...(apiKey(draft) ? { authorization: `Bearer ${apiKey(draft)}` } : {}),
         ...extraHeaders,
@@ -180,7 +223,7 @@ async function discoverOpenAI(
         { id: "catalog", label: "Manual model entry available", status: "PASS" },
       ],
       latencyMs: Date.now() - startedAt,
-      message: `${error instanceof Error ? error.message : "Model discovery failed."} You can still enter a model ID and validate it through LiteLLM.`,
+      message: `${providerErrorMessage(error, "Model discovery failed.")} You can still enter a model ID and validate it through LiteLLM.`,
     };
   }
 }
@@ -191,7 +234,7 @@ async function discoverOllama(
 ): Promise<ProviderDiscoveryResult> {
   const startedAt = Date.now();
   try {
-    const response = await fetch(apiUrl(endpoint(draft), "api/tags"), {
+    const response = await fetchProvider(draft, apiUrl(endpoint(draft), "api/tags"), {
       signal: AbortSignal.timeout(8_000),
     });
     const body = await response.text();
@@ -217,7 +260,7 @@ async function discoverOllama(
     return {
       ...suggestions(kind),
       latencyMs: Date.now() - startedAt,
-      message: `${error instanceof Error ? error.message : "Ollama discovery failed."} Enter a model name to continue.`,
+      message: `${providerErrorMessage(error, "Ollama discovery failed.")} Enter a model name to continue.`,
     };
   }
 }

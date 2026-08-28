@@ -110,12 +110,45 @@ describe("ProviderService", () => {
     ]));
     expect(await service.listModels(account.id)).toHaveLength(2);
     expect(litellm.registerModel).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(litellm.registerModel).mock.calls[0]?.[0].litellmParams)
+      .not.toHaveProperty("ssl_verify");
     expect(JSON.parse((await store.getProviderAccountCredential(account.id))!)).toMatchObject({
       version: 1,
       provider: "deepseek",
       credentials: { apiKey: "provider-secret-value" },
     });
     expect(JSON.stringify(await service.listAccounts())).not.toContain("provider-secret-value");
+  });
+
+  it("persists skipped TLS verification and forwards it to LiteLLM", async () => {
+    mockDeepSeekCatalog();
+    const store = createTestStore();
+    const litellm = liteLLM();
+    const service = new ProviderService(store, litellm);
+    const result = await service.createConnection({
+      ...deepSeekConnection,
+      connection: {
+        ...deepSeekConnection.connection,
+        skipTlsVerify: true,
+      },
+      models: [deepSeekConnection.models[0]!],
+    });
+
+    expect(result.account.skipTlsVerify).toBe(true);
+    expect(litellm.registerModel).toHaveBeenCalledWith(expect.objectContaining({
+      litellmParams: expect.objectContaining({ ssl_verify: false }),
+    }));
+    expect(JSON.parse((await store.getProviderAccountCredential(result.account.id))!))
+      .toMatchObject({ skipTlsVerify: true });
+
+    vi.mocked(litellm.registerModel).mockClear();
+    await service.registerModel({
+      providerAccountId: result.account.id,
+      ...deepSeekConnection.models[1]!,
+    });
+    expect(litellm.registerModel).toHaveBeenCalledWith(expect.objectContaining({
+      litellmParams: expect.objectContaining({ ssl_verify: false }),
+    }));
   });
 
   it("deletes an unused account and unregisters its LiteLLM models", async () => {

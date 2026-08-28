@@ -110,6 +110,11 @@ export function ProviderConnectionsManagement({
                         <span className="mt-0.5 block max-w-xs truncate text-[11px] text-muted-foreground">
                           {account.endpoint}
                         </span>
+                        {account.skipTlsVerify ? (
+                          <span className="mt-1 block text-[11px] font-medium text-amber-700 dark:text-amber-300">
+                            TLS verification skipped
+                          </span>
+                        ) : null}
                       </td>
                       <td className="px-4 py-3">
                         <ProviderIdentity account={account} />
@@ -176,6 +181,11 @@ export function ProviderConnectionsManagement({
                     />
                   </div>
                   <ProviderIdentity account={account} />
+                  {account.skipTlsVerify ? (
+                    <p className="text-xs font-medium text-amber-700 dark:text-amber-300">
+                      TLS verification skipped
+                    </p>
+                  ) : null}
                   <div className="flex items-center justify-between border-t pt-3 text-xs">
                     <ProviderStatus status={account.status} />
                     <DataBoundaryLabel

@@ -1040,6 +1040,7 @@ const connectionNameSchema = z.string().trim().min(3, "Connection name must cont
 const apiKeySchema = z.string().trim().min(1, "API key is required.").max(8_192);
 const endpointSchema = z.string().trim().url("Enter a valid API endpoint URL.");
 const optionalText = z.string().trim().max(512).optional();
+const skipTlsVerifySchema = z.boolean().optional();
 
 const keyedDraft = <T extends (typeof providerKinds)[number]>(
   provider: T,
@@ -1047,6 +1048,7 @@ const keyedDraft = <T extends (typeof providerKinds)[number]>(
 ) => z.object({
   provider: z.literal(provider),
   name: connectionNameSchema,
+  skipTlsVerify: skipTlsVerifySchema,
   config: z.object({ endpoint: endpointSchema.default(endpoint) }),
   credentials: z.object({ apiKey: apiKeySchema }),
 });
@@ -1058,22 +1060,22 @@ export const providerConnectionDraftSchema = z.discriminatedUnion("provider", [
   keyedDraft("anthropic", "https://api.anthropic.com"),
   keyedDraft("gemini", "https://generativelanguage.googleapis.com"),
   keyedDraft("deepseek", "https://api.deepseek.com/v1"),
-  z.object({ provider: z.literal("qwen"), name: connectionNameSchema, config: z.object({ region: z.enum(["cn", "international"]), endpoint: endpointSchema }), credentials: z.object({ apiKey: apiKeySchema }) }),
-  z.object({ provider: z.literal("moonshot"), name: connectionNameSchema, config: z.object({ region: z.enum(["cn", "global"]), endpoint: endpointSchema }), credentials: z.object({ apiKey: apiKeySchema }) }),
+  z.object({ provider: z.literal("qwen"), name: connectionNameSchema, skipTlsVerify: skipTlsVerifySchema, config: z.object({ region: z.enum(["cn", "international"]), endpoint: endpointSchema }), credentials: z.object({ apiKey: apiKeySchema }) }),
+  z.object({ provider: z.literal("moonshot"), name: connectionNameSchema, skipTlsVerify: skipTlsVerifySchema, config: z.object({ region: z.enum(["cn", "global"]), endpoint: endpointSchema }), credentials: z.object({ apiKey: apiKeySchema }) }),
   keyedDraft("zai", "https://api.z.ai/api/paas/v4"),
   keyedDraft("minimax", "https://api.minimax.io/v1"),
-  z.object({ provider: z.literal("baidu-qianfan"), name: connectionNameSchema, config: z.object({ endpoint: endpointSchema.default("https://qianfan.baidubce.com/v2"), appId: optionalText }), credentials: z.object({ apiKey: apiKeySchema }) }),
-  z.object({ provider: z.literal("volcengine"), name: connectionNameSchema, config: z.object({ endpoint: endpointSchema.default("https://ark.cn-beijing.volces.com/api/v3"), endpointId: z.string().trim().min(1, "Endpoint ID is required.").max(256) }), credentials: z.object({ apiKey: apiKeySchema }) }),
+  z.object({ provider: z.literal("baidu-qianfan"), name: connectionNameSchema, skipTlsVerify: skipTlsVerifySchema, config: z.object({ endpoint: endpointSchema.default("https://qianfan.baidubce.com/v2"), appId: optionalText }), credentials: z.object({ apiKey: apiKeySchema }) }),
+  z.object({ provider: z.literal("volcengine"), name: connectionNameSchema, skipTlsVerify: skipTlsVerifySchema, config: z.object({ endpoint: endpointSchema.default("https://ark.cn-beijing.volces.com/api/v3"), endpointId: z.string().trim().min(1, "Endpoint ID is required.").max(256) }), credentials: z.object({ apiKey: apiKeySchema }) }),
   keyedDraft("nvidia-nim", "https://integrate.api.nvidia.com/v1"),
-  z.object({ provider: z.literal("azure-openai"), name: connectionNameSchema, config: z.object({ endpoint: endpointSchema, apiVersion: z.string().trim().min(1, "API version is required.").max(64), deployment: z.string().trim().min(1, "Deployment name is required.").max(256) }), credentials: z.object({ apiKey: apiKeySchema }) }),
-  z.object({ provider: z.literal("aws-bedrock"), name: connectionNameSchema, config: z.object({ region: z.string().trim().min(2, "AWS region is required.").max(64), roleArn: optionalText }), credentials: z.object({ accessKeyId: apiKeySchema, secretAccessKey: apiKeySchema, sessionToken: z.string().trim().max(8_192).optional() }) }),
-  z.object({ provider: z.literal("vertex-ai"), name: connectionNameSchema, config: z.object({ project: z.string().trim().min(1, "Google Cloud project is required.").max(256), location: z.string().trim().min(1, "Google Cloud location is required.").max(128) }), credentials: z.object({ serviceAccountJson: z.string().trim().min(2, "Service-account JSON is required.").max(64_000) }) }),
-  z.object({ provider: z.literal("openrouter"), name: connectionNameSchema, config: z.object({ endpoint: endpointSchema.default("https://openrouter.ai/api/v1"), siteUrl: z.string().trim().url().optional(), appName: optionalText }), credentials: z.object({ apiKey: apiKeySchema }) }),
-  z.object({ provider: z.literal("ollama"), name: connectionNameSchema, config: z.object({ endpoint: endpointSchema }), credentials: z.object({}) }),
-  z.object({ provider: z.literal("vllm"), name: connectionNameSchema, config: z.object({ endpoint: endpointSchema }), credentials: z.object({ apiKey: z.string().trim().max(8_192).optional() }) }),
-  z.object({ provider: z.literal("huggingface"), name: connectionNameSchema, config: z.object({ mode: z.enum(["serverless", "dedicated"]), endpoint: endpointSchema.optional(), inferenceProvider: optionalText }), credentials: z.object({ apiKey: apiKeySchema }) }),
-  z.object({ provider: z.literal("custom-openai-compatible"), name: connectionNameSchema, config: z.object({ endpoint: endpointSchema }), credentials: z.object({ apiKey: z.string().trim().max(8_192).optional() }) }),
-  z.object({ provider: z.literal("custom-anthropic-compatible"), name: connectionNameSchema, config: z.object({ endpoint: endpointSchema }), credentials: z.object({ apiKey: apiKeySchema }) }),
+  z.object({ provider: z.literal("azure-openai"), name: connectionNameSchema, skipTlsVerify: skipTlsVerifySchema, config: z.object({ endpoint: endpointSchema, apiVersion: z.string().trim().min(1, "API version is required.").max(64), deployment: z.string().trim().min(1, "Deployment name is required.").max(256) }), credentials: z.object({ apiKey: apiKeySchema }) }),
+  z.object({ provider: z.literal("aws-bedrock"), name: connectionNameSchema, skipTlsVerify: skipTlsVerifySchema, config: z.object({ region: z.string().trim().min(2, "AWS region is required.").max(64), roleArn: optionalText }), credentials: z.object({ accessKeyId: apiKeySchema, secretAccessKey: apiKeySchema, sessionToken: z.string().trim().max(8_192).optional() }) }),
+  z.object({ provider: z.literal("vertex-ai"), name: connectionNameSchema, skipTlsVerify: skipTlsVerifySchema, config: z.object({ project: z.string().trim().min(1, "Google Cloud project is required.").max(256), location: z.string().trim().min(1, "Google Cloud location is required.").max(128) }), credentials: z.object({ serviceAccountJson: z.string().trim().min(2, "Service-account JSON is required.").max(64_000) }) }),
+  z.object({ provider: z.literal("openrouter"), name: connectionNameSchema, skipTlsVerify: skipTlsVerifySchema, config: z.object({ endpoint: endpointSchema.default("https://openrouter.ai/api/v1"), siteUrl: z.string().trim().url().optional(), appName: optionalText }), credentials: z.object({ apiKey: apiKeySchema }) }),
+  z.object({ provider: z.literal("ollama"), name: connectionNameSchema, skipTlsVerify: skipTlsVerifySchema, config: z.object({ endpoint: endpointSchema }), credentials: z.object({}) }),
+  z.object({ provider: z.literal("vllm"), name: connectionNameSchema, skipTlsVerify: skipTlsVerifySchema, config: z.object({ endpoint: endpointSchema }), credentials: z.object({ apiKey: z.string().trim().max(8_192).optional() }) }),
+  z.object({ provider: z.literal("huggingface"), name: connectionNameSchema, skipTlsVerify: skipTlsVerifySchema, config: z.object({ mode: z.enum(["serverless", "dedicated"]), endpoint: endpointSchema.optional(), inferenceProvider: optionalText }), credentials: z.object({ apiKey: apiKeySchema }) }),
+  z.object({ provider: z.literal("custom-openai-compatible"), name: connectionNameSchema, skipTlsVerify: skipTlsVerifySchema, config: z.object({ endpoint: endpointSchema }), credentials: z.object({ apiKey: z.string().trim().max(8_192).optional() }) }),
+  z.object({ provider: z.literal("custom-anthropic-compatible"), name: connectionNameSchema, skipTlsVerify: skipTlsVerifySchema, config: z.object({ endpoint: endpointSchema }), credentials: z.object({ apiKey: apiKeySchema }) }),
 ]);
 
 export const providerModelSelectionSchema = z.object({
@@ -2430,6 +2432,7 @@ export interface ProviderAccount {
   providerKind: ProviderKind;
   presetId: ProviderKind;
   endpoint: string;
+  skipTlsVerify?: boolean;
   config: Record<string, unknown>;
   complianceDomain: ComplianceDomain;
   endpointRegion: string;

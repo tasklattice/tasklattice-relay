@@ -63,6 +63,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
+import { Switch } from "@/components/ui/switch";
 import {
   Tooltip,
   TooltipContent,
@@ -93,6 +94,11 @@ const validationStatusLabels = {
   FAIL: "Failed",
   SKIP: "Not required",
 } as const;
+
+function hasHttpsEndpoint(draft: ProviderConnectionDraft): boolean {
+  const endpoint = (draft.config as Record<string, unknown>).endpoint;
+  return typeof endpoint === "string" && /^https:\/\//i.test(endpoint.trim());
+}
 
 type Step = "source" | "models" | "complete";
 type ConnectionMode = "existing" | "new";
@@ -405,6 +411,13 @@ export function RegisterModelsDrawer({
                     Credentials stay encrypted on the server and are used only
                     for discovery and LiteLLM registration.
                   </p>
+                  {activeAccount?.skipTlsVerify ? (
+                    <p className="flex gap-2 border-l-2 border-amber-500 bg-amber-500/5 px-3 py-2 text-xs leading-5 text-amber-800 dark:text-amber-300">
+                      <TriangleAlert className="mt-0.5 size-3.5 shrink-0" />
+                      TLS certificate verification is disabled for discovery
+                      and inference through this connection.
+                    </p>
+                  ) : null}
                 </div>
               ) : (
                 <div className="space-y-5">
@@ -555,10 +568,48 @@ export function RegisterModelsDrawer({
                       </div>
                       <Configurator
                         value={draft}
-                        onChange={setDraft}
+                        onChange={(next) =>
+                          setDraft(hasHttpsEndpoint(next)
+                            ? next
+                            : { ...next, skipTlsVerify: false })
+                        }
                         errors={errors}
                         disabled={pending}
                       />
+                      {hasHttpsEndpoint(draft) ? (
+                        <div className="space-y-3 border border-amber-500/30 bg-amber-500/5 p-4">
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex min-w-0 items-start gap-2.5">
+                              <TriangleAlert className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                              <div>
+                                <Label htmlFor="provider-skip-tls-verify">
+                                  Skip TLS certificate verification
+                                </Label>
+                                <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                                  Use only for a trusted endpoint with a private
+                                  or self-signed certificate.
+                                </p>
+                              </div>
+                            </div>
+                            <Switch
+                              id="provider-skip-tls-verify"
+                              aria-label="Skip TLS certificate verification"
+                              checked={draft.skipTlsVerify === true}
+                              disabled={pending}
+                              onCheckedChange={(skipTlsVerify) =>
+                                setDraft({ ...draft, skipTlsVerify })
+                              }
+                            />
+                          </div>
+                          {draft.skipTlsVerify ? (
+                            <p className="border-l-2 border-amber-500 pl-3 text-xs leading-5 text-amber-800 dark:text-amber-300">
+                              Certificate-chain and hostname verification will
+                              be disabled for model discovery and all inference
+                              requests using this Provider connection.
+                            </p>
+                          ) : null}
+                        </div>
+                      ) : null}
                       {errors.form ? (
                         <p
                           role="alert"

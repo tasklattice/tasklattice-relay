@@ -1,9 +1,15 @@
-import { describe, expect, it } from "vitest";
-import { providerKinds, type ProviderConnectionDraft } from "@tali/contracts";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  providerConnectionDraftSchema,
+  providerKinds,
+  type ProviderConnectionDraft,
+} from "@tali/contracts";
 import { createProviderDraft } from "../../src/components/providers/provider-ui-registry";
 import { providerAdapterRegistry } from "./provider-adapters";
 
 describe("providerAdapterRegistry", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
   it("registers exactly one adapter for every built-in Provider", () => {
     expect(Object.keys(providerAdapterRegistry).sort()).toEqual([...providerKinds].sort());
     expect(new Set(Object.values(providerAdapterRegistry).map((adapter) => adapter.kind)).size).toBe(20);
@@ -124,5 +130,63 @@ describe("providerAdapterRegistry", () => {
       config: { mode: "dedicated", endpoint: "https://dedicated.endpoints.huggingface.cloud" },
       credentials: { apiKey: "hf-secret" },
     }, model)).toMatchObject({ model: "huggingface/tgi", api_base: "https://dedicated.endpoints.huggingface.cloud", api_key: "hf-secret" });
+  });
+
+  it("preserves the connection-level TLS verification policy", () => {
+    expect(providerConnectionDraftSchema.parse({
+      provider: "custom-openai-compatible",
+      name: "Private gateway",
+      skipTlsVerify: true,
+      config: { endpoint: "https://models.internal.example/v1" },
+      credentials: { apiKey: "secret" },
+    })).toMatchObject({ skipTlsVerify: true });
+  });
+
+  it("uses a request-scoped dispatcher only when TLS verification is skipped", async () => {
+    const request = vi.fn(async (
+      _input: RequestInfo | URL,
+      _init?: RequestInit,
+    ) => new Response(JSON.stringify({
+      data: [{ id: "private-model" }],
+    }), { status: 200 }));
+    vi.stubGlobal("fetch", request);
+    const draft = {
+      provider: "custom-openai-compatible",
+      name: "Private gateway",
+      skipTlsVerify: true,
+      config: { endpoint: "https://models.internal.example/v1" },
+      credentials: { apiKey: "secret" },
+    } satisfies ProviderConnectionDraft;
+
+    await providerAdapterRegistry["custom-openai-compatible"].discover(draft);
+    expect(request).toHaveBeenCalledOnce();
+    expect(request.mock.calls[0]?.[1]).toEqual(expect.objectContaining({
+      dispatcher: expect.anything(),
+    }));
+
+    request.mockClear();
+    await providerAdapterRegistry["custom-openai-compatible"].discover({
+      ...draft,
+      skipTlsVerify: false,
+    });
+    expect(request.mock.calls[0]?.[1]).not.toHaveProperty("dispatcher");
+  });
+
+  it("reports certificate verification failures with an actionable message", async () => {
+    const cause = Object.assign(new Error("self-signed certificate"), {
+      code: "DEPTH_ZERO_SELF_SIGNED_CERT",
+    });
+    vi.stubGlobal("fetch", vi.fn(async () => {
+      throw new TypeError("fetch failed", { cause });
+    }));
+
+    const result = await providerAdapterRegistry["custom-openai-compatible"].discover({
+      provider: "custom-openai-compatible",
+      name: "Private gateway",
+      config: { endpoint: "https://models.internal.example/v1" },
+      credentials: { apiKey: "secret" },
+    });
+    expect(result.message).toContain("TLS certificate verification failed");
+    expect(result.message).toContain("Skip TLS verification");
   });
 });
