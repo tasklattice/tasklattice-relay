@@ -71,7 +71,10 @@ function renderRealm(baseUrl) {
   if (typeof realm !== "string" || !realm.includes('"realm": "tali"')) {
     throw new Error("The Helm chart did not render the embedded Keycloak realm.");
   }
-  writeFileSync(realmPath, realm, { mode: 0o600 });
+  // The Keycloak image runs as a non-root UID on Linux. Docker Desktop can
+  // obscure this bind-mount permission mismatch, so make the generated,
+  // placeholder-only realm import readable inside the container.
+  writeFileSync(realmPath, realm, { mode: 0o644 });
 }
 
 async function waitForDiscovery(baseUrl, timeoutMs = 180_000) {
