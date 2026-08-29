@@ -870,6 +870,8 @@ export function openShellSandboxCreateArguments(
   const runtime = getAgentPlatformRuntime(input.agentPlatform);
   const capabilities = getAgentPlatformDefinition(input.agentPlatform)
     .capabilities;
+  const nemoClawVersion = (process.env.NEMOCLAW_VERSION ?? "0.0.114")
+    .replace(/^v/, "");
   const cpuLimit = input.sandboxResources?.cpu
     ?? process.env.OPENSHELL_SANDBOX_CPU
     ?? "1";
@@ -915,7 +917,7 @@ export function openShellSandboxCreateArguments(
     "--label",
     "tali.io/runtime-provider=nemoclaw",
     "--label",
-    `tali.io/nemoclaw-version=${process.env.NEMOCLAW_VERSION ?? "0.0.114"}`,
+    `tali.io/nemoclaw-version=${nemoClawVersion}`,
     "--env",
     `TALI_AGENT_INSTANCE_ID=${input.instanceId}`,
     ...(input.agentPlatform === "hermes"

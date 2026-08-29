@@ -257,6 +257,23 @@ describe("OpenShell Kubernetes command contract", () => {
     ]);
   });
 
+  it("normalizes a release-tag NemoClaw version in the Sandbox label", () => {
+    vi.stubEnv("NEMOCLAW_VERSION", "v0.0.114");
+    try {
+      const args = openShellSandboxCreateArguments(
+        input,
+        "/tmp/AGENTS.md",
+        "/tmp/tali-nemoclaw-start",
+        "/tmp/openshell-policy.yaml",
+      );
+
+      expect(args).toContain("tali.io/nemoclaw-version=0.0.114");
+      expect(args).not.toContain("tali.io/nemoclaw-version=v0.0.114");
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it("pins the managed lazy-install boundary for Hermes Sandboxes", () => {
     const args = openShellSandboxCreateArguments(
       { ...input, agentPlatform: "hermes" },
