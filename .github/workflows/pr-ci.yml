@@ -31,6 +31,8 @@ jobs:
       litellm: ${{ steps.filter.outputs.litellm }}
       helm: ${{ steps.filter.outputs.helm }}
       core_images: ${{ steps.filter.outputs.core_images }}
+      test_modules_any: ${{ steps.modules.outputs.any }}
+      test_modules_matrix: ${{ steps.modules.outputs.matrix }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -87,10 +89,30 @@ jobs:
               - 'scripts/prepare-helm-dependencies.sh'
               - 'scripts/package-control-plane-chart.sh'
               - 'scripts/validate-helm-*.mjs'
+              - 'scripts/validate-development-defaults.mjs'
             core_images:
               - '.dockerignore'
               - '.github/workflows/pr-ci.yml'
               - 'infra/docker/Dockerfile'
+
+      - name: Validate test module configuration
+        run: npm run test:modules:config
+
+      - id: modules
+        name: Select affected test modules
+        shell: bash
+        env:
+          EVENT_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          EVENT_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          base_sha="${EVENT_BASE_SHA}"
+          if [[ -z "${base_sha}" || "${base_sha}" =~ ^0+$ ]]; then
+            base_sha="$(git rev-parse HEAD^)"
+          fi
+          node scripts/testing/select-test-modules.mjs \
+            --base "${base_sha}" \
+            --head "${EVENT_HEAD_SHA}"
 
   contracts:
     name: Contracts
@@ -119,8 +141,6 @@ jobs:
         run: npm run build --workspace @tali/contracts
       - name: Verify packaged Skill artifacts
         run: npm run skills:check
-      - name: Test control
-        run: npm run test --workspace @tali/control
       - name: Typecheck control
         run: npm run typecheck --workspace @tali/control
       - name: Build control
@@ -137,12 +157,51 @@ jobs:
       - uses: ./.github/actions/setup-node-workspace
       - name: Build shared contracts
         run: npm run build --workspace @tali/contracts
-      - name: Test runner
-        run: npm run test --workspace @tali/runner
       - name: Typecheck runner
         run: npm run typecheck --workspace @tali/runner
       - name: Build runner
         run: npm run build --workspace @tali/runner
+
+  module_tests:
+    name: Test / ${{ matrix.label }}
+    needs: changes
+    if: needs.changes.outputs.test_modules_any == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.changes.outputs.test_modules_matrix) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup-node-workspace
+      - name: Build shared contracts
+        run: npm run build --workspace @tali/contracts
+      - name: Prepare Hermes proxy test environment
+        if: matrix.module == 'runtime-integrations'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m venv "${RUNNER_TEMP}/tali-runtime-tests"
+          "${RUNNER_TEMP}/tali-runtime-tests/bin/python3" -m pip install \
+            --disable-pip-version-check \
+            -r runtime-integrations/requirements-test.txt
+          echo "${RUNNER_TEMP}/tali-runtime-tests/bin" >> "${GITHUB_PATH}"
+      - name: Run affected module
+        run: npm run test:module -- ${{ matrix.module }}
+
+  test_matrix:
+    name: Test coverage matrix
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup-node-workspace
+      - name: Build shared contracts
+        run: npm run build --workspace @tali/contracts
+      - name: Generate Prisma client used by test discovery
+        run: npm run db:generate --workspace @tali/control
+      - name: Publish live test inventory to the CI summary
+        run: npm run test:matrix:summary
 
   example_mcp:
     name: Example MCP
@@ -197,6 +256,8 @@ jobs:
         run: helm lint charts/tali-relay
       - name: Validate rendered resources
         run: npm run helm:validate:resources
+      - name: Validate embedded Keycloak development integration
+        run: npm run helm:validate:dev-defaults
       - name: Validate OpenShift compatibility
         run: npm run helm:validate:openshift
       - name: Validate air-gapped configuration
@@ -245,6 +306,8 @@ jobs:
       - contracts
       - control
       - runner
+      - module_tests
+      - test_matrix
       - example_mcp
       - litellm
       - helm
@@ -259,6 +322,8 @@ jobs:
           CONTRACTS_RESULT: ${{ needs.contracts.result }}
           CONTROL_RESULT: ${{ needs.control.result }}
           RUNNER_RESULT: ${{ needs.runner.result }}
+          MODULE_TESTS_RESULT: ${{ needs.module_tests.result }}
+          TEST_MATRIX_RESULT: ${{ needs.test_matrix.result }}
           EXAMPLE_MCP_RESULT: ${{ needs.example_mcp.result }}
           LITELLM_RESULT: ${{ needs.litellm.result }}
           HELM_RESULT: ${{ needs.helm.result }}
@@ -271,6 +336,8 @@ jobs:
             CONTRACTS \
             CONTROL \
             RUNNER \
+            MODULE_TESTS \
+            TEST_MATRIX \
             EXAMPLE_MCP \
             LITELLM \
             HELM \

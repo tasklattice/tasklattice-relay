@@ -1,5 +1,0 @@
-name: tali-run-telemetry
-description: Report sanitized top-level Run lifecycle events to TaskLattice Relay.
-events:
-  - agent:start
-  - agent:end

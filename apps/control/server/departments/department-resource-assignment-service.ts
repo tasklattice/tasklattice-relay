@@ -277,9 +277,13 @@ export class DepartmentResourceAssignmentService {
           projectId,
           resourceId,
         );
+        const projectStore = new ProjectStore(projectId, this.db);
+        if (!remainsViaRouting) {
+          await projectStore.assertCanRemoveEmbeddingModels([resourceId]);
+        }
         if (
           !remainsViaRouting
-          && (await new ProjectStore(projectId, this.db)
+          && (await projectStore
             .listAgentIdsUsingModelDeployments([resourceId])).length
         ) {
           throw new Error("Reassign Instances using this Model before removing its assignment.");
@@ -325,7 +329,11 @@ export class DepartmentResourceAssignmentService {
       );
     }
     if (!binding.projectInheritedAt) {
-      const consumers = (await new ProjectStore(projectId, this.db)
+      const projectStore = new ProjectStore(projectId, this.db);
+      await projectStore.assertCanRemoveEmbeddingModels(
+        await projectStore.departmentRoutingModelIdsLostAfterRemoving(resourceId),
+      );
+      const consumers = (await projectStore
         .listModelRoutingBindings(resourceId))
         .filter((consumer) => !consumer.revokedAt);
       if (consumers.length) {

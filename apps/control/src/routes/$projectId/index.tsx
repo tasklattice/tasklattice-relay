@@ -7,14 +7,15 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
+  AgentActivityRanking,
   AttentionListCard,
   BudgetCard,
+  ModelAssignmentCard,
   OverviewKpiGrid,
   ProjectOverviewHeader,
   ProjectResourcesSummary,
   RuntimeHealthCard,
   UsageChartCard,
-  WorkloadDistributionCard,
 } from "@/features/project-overview/project-overview";
 import { useCurrentProjectId, useProject } from "@/hooks/use-project";
 import { useProjectQueryScope } from "@/hooks/use-project-query-scope";
@@ -61,13 +62,19 @@ function ProjectHome() {
   }
 
   if (overview.isPending) {
-    return <OverviewLoading projectId={projectId} range={range} onRangeChange={setRange} />;
+    return (
+      <OverviewLoading
+        projectName={currentProject?.name}
+        range={range}
+        onRangeChange={setRange}
+      />
+    );
   }
 
   if (overview.isError || !overview.data) {
     return (
       <div className="space-y-7">
-        <ProjectOverviewHeader projectId={projectId} range={range} onRangeChange={setRange} />
+        <ProjectOverviewHeader projectName={currentProject?.name} range={range} onRangeChange={setRange} />
         <Card>
           <CardContent className="flex min-h-60 flex-col items-center justify-center py-10 text-center">
             <p className="text-sm font-medium">Project overview is unavailable</p>
@@ -88,21 +95,23 @@ function ProjectHome() {
   const data = overview.data;
   return (
     <div className="space-y-7">
-      <ProjectOverviewHeader projectId={projectId} range={range} onRangeChange={setRange} />
+      <ProjectOverviewHeader projectName={currentProject?.name} range={range} onRangeChange={setRange} />
 
       <OverviewKpiGrid data={data} />
+
+      <AttentionListCard generatedAt={data.generatedAt} items={data.attention} />
 
       <section aria-label="Usage and budget" className="grid gap-5 xl:grid-cols-[minmax(0,2fr)_minmax(20rem,1fr)]">
         <UsageChartCard data={data} />
         <BudgetCard budget={data.budget} generatedAt={data.generatedAt} projectId={projectId} />
       </section>
 
-      <section aria-label="Runtime status and workload" className="grid gap-5 lg:grid-cols-2">
+      <section aria-label="Model assignment and Runtime health" className="grid gap-5 lg:grid-cols-2">
+        <ModelAssignmentCard assignment={data.modelAssignment} projectId={projectId} />
         <RuntimeHealthCard data={data.runtime} projectId={projectId} />
-        <WorkloadDistributionCard workload={data.workload} projectId={projectId} />
       </section>
 
-      <AttentionListCard items={data.attention} />
+      <AgentActivityRanking activity={data.agentActivity} projectId={projectId} />
       <ProjectResourcesSummary projectId={projectId} resources={data.resources} />
 
       <p className="text-right font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
@@ -120,7 +129,7 @@ function RestrictedOverview() {
   return (
     <div className="space-y-7">
       <header className="border-b pb-5">
-        <h1 className="font-display text-3xl font-medium tracking-tight">Home</h1>
+        <h1 className="font-display text-[1.625rem] font-light leading-tight tracking-[0.005em]">Project overview</h1>
         <p className="mt-2 text-sm text-muted-foreground">
           <span className="font-medium text-foreground">Project overview.</span>{" "}
           Usage, runtime health, spend, and activity across this Project.
@@ -143,16 +152,16 @@ function RestrictedOverview() {
 
 function OverviewLoading({
   onRangeChange,
-  projectId,
+  projectName,
   range,
 }: {
   onRangeChange: (range: ProjectOverviewRange) => void;
-  projectId: string;
+  projectName: string | undefined;
   range: ProjectOverviewRange;
 }) {
   return (
     <div className="space-y-7" aria-label="Loading Project overview">
-      <ProjectOverviewHeader projectId={projectId} range={range} onRangeChange={onRangeChange} />
+      <ProjectOverviewHeader projectName={projectName} range={range} onRangeChange={onRangeChange} />
       <div className="grid overflow-hidden rounded-lg border border-border/65 sm:grid-cols-2 xl:grid-cols-4">
         {Array.from({ length: 4 }, (_, index) => (
           <div key={index} className="min-h-32 border-b p-4 xl:border-b-0 xl:border-r xl:last:border-r-0">
@@ -162,6 +171,7 @@ function OverviewLoading({
           </div>
         ))}
       </div>
+      <Skeleton className="h-44 w-full rounded-lg" />
       <div className="grid gap-5 xl:grid-cols-[minmax(0,2fr)_minmax(20rem,1fr)]">
         <Skeleton className="h-[410px] w-full rounded-lg" />
         <Skeleton className="h-[410px] w-full rounded-lg" />
@@ -170,6 +180,7 @@ function OverviewLoading({
         <Skeleton className="h-72 w-full rounded-lg" />
         <Skeleton className="h-72 w-full rounded-lg" />
       </div>
+      <Skeleton className="h-72 w-full rounded-lg" />
     </div>
   );
 }

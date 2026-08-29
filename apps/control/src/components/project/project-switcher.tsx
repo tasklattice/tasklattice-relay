@@ -133,7 +133,7 @@ export function ProjectSwitcher({
       <div
         aria-label={t("projectSwitcher.loading")}
         className={cn(
-          "h-12 animate-pulse rounded-md bg-muted/70",
+          "h-12 animate-pulse rounded-md bg-sidebar-accent",
           collapsed ? "w-12" : "w-full",
         )}
       />
@@ -153,8 +153,8 @@ export function ProjectSwitcher({
               : t("projectSwitcher.noProject")
           }
           className={cn(
-            "group flex min-h-12 items-center rounded-md border border-sidebar-border bg-sidebar text-left shadow-xs outline-none transition-colors",
-            "hover:border-sidebar-ring/40 hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-ring/40 data-[state=open]:border-primary/30 data-[state=open]:bg-primary/[0.055]",
+            "group flex min-h-12 items-center rounded-md border border-sidebar-border bg-sidebar text-left outline-none transition-colors",
+            "hover:border-sidebar-ring/45 hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-ring/55 data-[state=open]:border-sidebar-ring/45 data-[state=open]:bg-sidebar-accent",
             collapsed
               ? "mx-auto size-12 justify-center px-0"
               : "w-full gap-2.5 px-2.5",
@@ -169,7 +169,7 @@ export function ProjectSwitcher({
           ) : (
             <span
               aria-hidden="true"
-              className="grid size-7 shrink-0 place-items-center rounded-full bg-muted text-xs font-semibold text-muted-foreground"
+              className="grid size-7 shrink-0 place-items-center rounded-full bg-sidebar-accent text-xs font-semibold text-sidebar-foreground"
             >
               P
             </span>
@@ -177,21 +177,21 @@ export function ProjectSwitcher({
           {collapsed ? null : (
             <>
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-semibold leading-5 text-foreground">
+                <span className="block truncate text-sm font-semibold leading-5 text-sidebar-foreground">
                   {currentProject
                     ? currentProject.name
                     : t("projectSwitcher.noProject")}
                 </span>
                 {currentProject ? (
-                  <span className="block truncate text-[11px] leading-4 text-muted-foreground">
+                  <span className="block truncate text-[11px] leading-4 text-sidebar-foreground/55">
                     {currentProject.department.name}
                   </span>
                 ) : null}
               </span>
               {isSwitching ? (
-                <LoaderCircle className="size-4 shrink-0 animate-spin text-muted-foreground" />
+                <LoaderCircle className="size-4 shrink-0 animate-spin text-sidebar-foreground/55" />
               ) : (
-                <ChevronsUpDown className="size-4 shrink-0 text-muted-foreground transition-colors group-hover:text-foreground" />
+                <ChevronsUpDown className="size-4 shrink-0 text-sidebar-foreground/55 transition-colors group-hover:text-sidebar-foreground" />
               )}
             </>
           )}

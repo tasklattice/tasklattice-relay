@@ -12,10 +12,19 @@ export default defineHandler(async (event) => {
   }
   try {
     const { instanceId: id } = instanceParamsSchema.parse(event.context.params);
-    const destroyed = await (await getInstanceService(event.req)).destroy(id);
+    const service = await getInstanceService(event.req);
+    const instance = await service.get(id);
+    const retainedMemory = instance?.durableMemoryId
+      ? await service.memories.getResource(instance.durableMemoryId).then((memory) => ({
+          id: memory.id,
+          displayName: memory.displayName,
+          status: memory.status,
+        })).catch(() => null)
+      : null;
+    const destroyed = await service.destroy(id);
     return destroyed
       ? jsonResponse(
-          { id, status: "DESTROYING", accepted: true },
+          { id, status: "DESTROYING", accepted: true, retainedMemory },
           { status: 202 },
         )
       : problemResponse(404, "Instance not found.");

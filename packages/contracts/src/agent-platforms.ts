@@ -7,7 +7,7 @@ export interface AgentPlatformCapabilities {
   canDelegate: boolean;
   embeddedRunTelemetry: boolean;
   interactive: boolean;
-  memory: "native-hybrid" | "none";
+  memory: "native" | "native-hybrid" | "none";
 }
 
 export interface AgentPlatformDefinition {
@@ -44,8 +44,8 @@ export const agentPlatforms = [
       interactive: true,
       canDelegate: true,
       acceptsDelegation: false,
-      embeddedRunTelemetry: false,
-      memory: "none",
+      embeddedRunTelemetry: true,
+      memory: "native",
     },
     catalog: {
       id: "hermes-deep-researcher",

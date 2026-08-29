@@ -6,6 +6,7 @@ import {
   type CreateModelDeploymentInput,
   type CreateProviderConnectionInput,
   type ModelDeployment,
+  type ModelRemovalImpact,
   type ModelRouting,
   type ProviderAccount,
   type ProviderConnectionCreationResult,
@@ -26,6 +27,7 @@ import { PlatformSettingsService } from "../platform/platform-settings-service";
 interface StoredProviderCredential {
   version: 1;
   provider: ProviderKind;
+  skipTlsVerify?: boolean;
   config: Record<string, unknown>;
   credentials: Record<string, unknown>;
 }
@@ -165,6 +167,9 @@ function encodeCredential(draft: ProviderConnectionDraft): string {
   return JSON.stringify({
     version: 1,
     provider: draft.provider,
+    ...(draft.skipTlsVerify !== undefined
+      ? { skipTlsVerify: draft.skipTlsVerify }
+      : {}),
     config: draft.config,
     credentials: draft.credentials,
   } satisfies StoredProviderCredential);
@@ -182,6 +187,9 @@ function decodeCredential(account: ProviderAccount, rawCredential: string): Prov
   return {
     provider: stored.provider,
     name: account.name,
+    ...(stored.skipTlsVerify !== undefined
+      ? { skipTlsVerify: stored.skipTlsVerify }
+      : {}),
     config: stored.config,
     credentials: stored.credentials,
   } as ProviderConnectionDraft;
@@ -325,10 +333,14 @@ export class ProviderService {
     const account = await this.store.getProviderAccount(id);
     if (!account) return false;
     const models = await this.store.listModelDeployments(id);
+    await this.store.assertCanRemoveEmbeddingModels(
+      models.map((model) => model.id),
+      `${account.name}'s embedding model`,
+    );
     const agentIds = await this.store.listAgentIdsUsingModelDeployments(models.map((model) => model.id));
     if (agentIds.length)
       throw new Error(
-        `Delete the ${agentIds.length} Instance${agentIds.length === 1 ? "" : "s"} using this Provider before deleting the account.`,
+        `Delete the ${agentIds.length} Instance${agentIds.length === 1 ? "" : "s"} using this Provider before deleting the Provider.`,
       );
     const deploymentIds = new Set(models.map((model) => model.id));
     const routings = (await this.store.listModelRoutings()).filter((routing) =>
@@ -336,7 +348,7 @@ export class ProviderService {
     );
     if (routings.length)
       throw new Error(
-        `Reconfigure the ${routings.length} Model Routing${routings.length === 1 ? "" : "s"} using this Provider before deleting the account.`,
+        `Reconfigure the ${routings.length} Model Routing${routings.length === 1 ? "" : "s"} using this Provider before deleting the Provider.`,
       );
     for (const model of models)
       await this.litellm.deleteModel(model.litellmModelName).catch(() => undefined);
@@ -346,6 +358,7 @@ export class ProviderService {
   async deleteModelDeployment(id: string): Promise<boolean> {
     const model = await this.store.getModelDeployment(id);
     if (!model) return false;
+    await this.store.assertCanRemoveEmbeddingModels([id], model.displayName);
     const agentIds = await this.store.listAgentIdsUsingModelDeployments([id]);
     if (agentIds.length) {
       throw new Error(
@@ -368,10 +381,51 @@ export class ProviderService {
     return this.store.deleteModelDeployment(id);
   }
 
+  async modelRemovalImpact(id: string): Promise<ModelRemovalImpact | undefined> {
+    const model = await this.store.getModelDeployment(id);
+    if (!model) return undefined;
+    const [agentIds, routings, embeddingImpact] = await Promise.all([
+      this.store.listAgentIdsUsingModelDeployments([id]),
+      this.store.listModelRoutings().then((items) => items.filter((routing) =>
+        routingUsesAnyModel(routing, new Set([id])))),
+      this.store.embeddingModelRemovalImpact([id]),
+    ]);
+    const departmentScope = this.store.projectId.startsWith("department:");
+    const dependencies: ModelRemovalImpact["dependencies"] = [
+      ...agentIds.map((dependencyId) => ({
+        direct: true,
+        id: dependencyId,
+        kind: departmentScope ? "PROJECT" as const : "INSTANCE" as const,
+        name: dependencyId,
+      })),
+      ...routings.map((routing) => ({
+        direct: true,
+        id: routing.id,
+        kind: "MODEL_ROUTING" as const,
+        name: routing.name,
+      })),
+      ...embeddingImpact.dependencies,
+    ];
+    const uniqueDependencies = new Map(
+      dependencies.map((dependency) => [
+        `${dependency.kind}:${dependency.id}`,
+        dependency,
+      ]),
+    );
+    return {
+      blocking: uniqueDependencies.size > 0,
+      dependencies: [...uniqueDependencies.values()],
+      modelId: model.id,
+      modelName: model.displayName,
+      remainingValidatedEmbeddingModels:
+        embeddingImpact.remainingValidatedEmbeddingModels,
+    };
+  }
+
   async registerModel(input: CreateModelDeploymentInput): Promise<ModelDeployment> {
     const account = await this.store.getProviderAccount(input.providerAccountId);
     const rawCredential = await this.store.getProviderAccountCredential(input.providerAccountId);
-    if (!account || !rawCredential) throw new Error("Provider Account was not found.");
+    if (!account || !rawCredential) throw new Error("Provider was not found.");
     const draft = decodeCredential(account, rawCredential);
     const supportedTypes = catalog(draft.provider).modelTypes as readonly string[];
     if (!supportedTypes.includes(input.modelType))
@@ -415,6 +469,7 @@ export class ProviderService {
       providerKind: input.connection.provider,
       presetId: input.connection.provider,
       endpoint: adapter.endpoint(input.connection),
+      skipTlsVerify: input.connection.skipTlsVerify === true,
       config: input.connection.config,
       complianceDomain: input.complianceDomain,
       endpointRegion:
@@ -483,7 +538,10 @@ export class ProviderService {
         accountId: account.id,
         providerKind: draft.provider,
         model,
-        litellmParams: adapter.toLiteLLMParams(draft, model),
+        litellmParams: {
+          ...adapter.toLiteLLMParams(draft, model),
+          ...(draft.skipTlsVerify ? { ssl_verify: false } : {}),
+        },
         complianceDomain: account.complianceDomain,
         endpointRegion: account.endpointRegion,
       });

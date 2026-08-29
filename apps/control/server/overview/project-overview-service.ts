@@ -1,6 +1,8 @@
 import {
   projectRunSources,
   type Instance as Agent,
+  type ModelDeployment,
+  type ModelRouting,
   type ProjectOverviewAttentionItem,
   type ProjectOverviewRange,
   type ProjectOverviewResponse,
@@ -16,6 +18,137 @@ const rangeMilliseconds: Record<ProjectOverviewRange, number> = {
   "7d": 7 * 24 * 60 * 60 * 1_000,
   "30d": 30 * 24 * 60 * 60 * 1_000,
 };
+
+const provisioningTimeoutMs = 15 * 60 * 1_000;
+
+function issueOpenedAt(value: Date | string | null | undefined, now: Date): string {
+  if (!value) return now.toISOString();
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? now.toISOString() : date.toISOString();
+}
+
+function quotaRatio(used: number, limit: number | bigint | null | undefined): number | null {
+  if (limit === null || limit === undefined) return null;
+  const numericLimit = Number(limit);
+  if (numericLimit === 0) return used > 0 ? Number.POSITIVE_INFINITY : 0;
+  return used / numericLimit;
+}
+
+function activeConfiguredInstances(
+  observed: Agent[],
+  stored: Agent[],
+): Agent[] {
+  const storedById = new Map(stored.map((instance) => [instance.id, instance]));
+  return observed
+    .map((instance) => ({ ...storedById.get(instance.id), ...instance }) as Agent)
+    .filter((instance) => instance.status !== "DESTROYING");
+}
+
+function modelAssignmentDistribution(
+  instances: Agent[],
+  routings: ModelRouting[],
+  models: ModelDeployment[],
+): ProjectOverviewResponse["modelAssignment"] {
+  const routingById = new Map(routings.map((routing) => [routing.id, routing]));
+  const modelById = new Map(models.map((model) => [model.id, model]));
+  const counts = new Map<string, {
+    key: string;
+    label: string;
+    kind: "model" | "auto" | "unavailable";
+    agents: number;
+  }>();
+
+  for (const instance of instances) {
+    const routing = routingById.get(instance.modelRoutingId);
+    let definition: Omit<NonNullable<ReturnType<typeof counts.get>>, "agents">;
+    if (!routing) {
+      definition = {
+        key: "unavailable-route",
+        label: "Unavailable route",
+        kind: "unavailable",
+      };
+    } else if (routing.routingPolicy.mode !== "SINGLE") {
+      definition = { key: "auto-route", label: "Auto route", kind: "auto" };
+    } else {
+      const model = modelById.get(routing.routingPolicy.modelDeploymentId);
+      definition = {
+        key: `model:${routing.routingPolicy.modelDeploymentId}`,
+        label: model?.displayName ?? routing.name,
+        kind: model ? "model" : "unavailable",
+      };
+    }
+    const current = counts.get(definition.key);
+    counts.set(definition.key, {
+      ...definition,
+      agents: (current?.agents ?? 0) + 1,
+    });
+  }
+
+  const totalAgents = instances.length;
+  return {
+    totalAgents,
+    segments: [...counts.values()]
+      .map((segment) => ({
+        ...segment,
+        percentage: totalAgents ? segment.agents / totalAgents : 0,
+      }))
+      .sort((left, right) => right.agents - left.agents || left.label.localeCompare(right.label)),
+  };
+}
+
+function agentActivityRanking(
+  instances: Agent[],
+  runs: Array<{ instanceId: string; status: string }>,
+  facts: Array<{
+    instanceId: string | null;
+    endUserId: string | null;
+    totalCostUsd: unknown;
+  }>,
+): ProjectOverviewResponse["agentActivity"] {
+  const runsByAgent = new Map<string, Array<{ status: string }>>();
+  for (const run of runs) {
+    runsByAgent.set(run.instanceId, [
+      ...(runsByAgent.get(run.instanceId) ?? []),
+      { status: run.status },
+    ]);
+  }
+  const costByAgent = new Map<string, number>();
+  const usersByAgent = new Map<string, Set<string>>();
+  const factsByAgent = new Set<string>();
+  for (const fact of facts) {
+    if (!fact.instanceId) continue;
+    factsByAgent.add(fact.instanceId);
+    costByAgent.set(
+      fact.instanceId,
+      (costByAgent.get(fact.instanceId) ?? 0) + Number(fact.totalCostUsd ?? 0),
+    );
+    if (fact.endUserId) {
+      const users = usersByAgent.get(fact.instanceId) ?? new Set<string>();
+      users.add(fact.endUserId);
+      usersByAgent.set(fact.instanceId, users);
+    }
+  }
+
+  return instances
+    .map((instance) => {
+      const agentRuns = runsByAgent.get(instance.id) ?? [];
+      return {
+        agentId: instance.id,
+        agentName: instance.name || instance.id,
+        runs: agentRuns.length,
+        activeUsers: usersByAgent.get(instance.id)?.size
+          ?? (factsByAgent.has(instance.id) || agentRuns.length > 0 ? null : 0),
+        successRate: successRate(agentRuns),
+        costUsd: costByAgent.get(instance.id) ?? 0,
+      };
+    })
+    .sort((left, right) =>
+      right.runs - left.runs
+      || (right.activeUsers ?? -1) - (left.activeUsers ?? -1)
+      || right.costUsd - left.costUsd
+      || left.agentName.localeCompare(right.agentName),
+    );
+}
 
 function percentChange(current: number, previous: number): number | null {
   if (previous === 0) return current === 0 ? 0 : null;
@@ -146,7 +279,23 @@ export class ProjectOverviewService {
       ? localDayStart(previousDayBuckets[0]!, timezone)
       : new Date(start.getTime() - duration);
 
-    const [runs, facts, quota, checkpoint, liveInstances, storedInstances, skills, policies] = await Promise.all([
+    const [
+      runs,
+      facts,
+      quota,
+      checkpoint,
+      liveInstances,
+      storedInstances,
+      skills,
+      mcpServers,
+      knowledgeSources,
+      policies,
+      providerAccounts,
+      modelRoutings,
+      modelDeployments,
+      memories,
+      vectorJobs,
+    ] = await Promise.all([
       this.db.projectRunRecord.findMany({
         where: {
           projectId: this.store.projectId,
@@ -171,9 +320,26 @@ export class ProjectOverviewService {
       ),
       this.store.list(),
       this.store.listSkillDefinitions(),
+      this.store.listMcpServerDefinitions(),
+      this.store.listKnowledgeSourceDefinitions(),
       this.db.accessPolicyRecord.findMany({
         where: { projectId: this.store.projectId, deletedAt: null },
-        select: { payload: true },
+        select: { id: true, payload: true, updatedAt: true },
+      }),
+      this.store.listProviderAccounts(),
+      this.store.listModelRoutings(),
+      this.store.listModelDeployments(),
+      this.db.memoryRecord.findMany({
+        where: {
+          projectId: this.store.projectId,
+          deletedAt: null,
+          status: { in: ["degraded", "deletion_failed"] },
+        },
+        orderBy: { updatedAt: "asc" },
+      }),
+      this.db.vectorIngestionJob.findMany({
+        where: { projectId: this.store.projectId },
+        orderBy: { updatedAt: "desc" },
       }),
     ]);
 
@@ -206,6 +372,7 @@ export class ProjectOverviewService {
     }
 
     const observedInstances = liveInstances.available ? liveInstances.value : storedInstances;
+    const activeInstances = activeConfiguredInstances(observedInstances, storedInstances);
     const runtime = runtimeCounts(observedInstances);
     const workloadCounts = new Map<ProjectRunSource, number>();
     for (const run of currentRuns) {
@@ -220,6 +387,12 @@ export class ProjectOverviewService {
         percentage: totalWorkload ? (workloadCounts.get(runtimeType) ?? 0) / totalWorkload : 0,
       }))
       .filter((item) => item.runs > 0);
+    const modelAssignment = modelAssignmentDistribution(
+      activeInstances,
+      modelRoutings,
+      modelDeployments,
+    );
+    const agentActivity = agentActivityRanking(activeInstances, currentRuns, currentFacts);
 
     const budgetDuration = quota?.budgetDuration as "1d" | "7d" | "30d" | null | undefined;
     const budgetLimit = quota?.hardBudgetUsd === null || quota?.hardBudgetUsd === undefined
@@ -253,54 +426,181 @@ export class ProjectOverviewService {
       : null;
 
     const attention: ProjectOverviewAttentionItem[] = [];
-    if (budgetPercent !== null && budgetPercent >= 0.8) {
+    const projectId = encodeURIComponent(this.store.projectId);
+    const latestCostObservation = currentFacts.at(-1)?.requestStartTime ?? checkpoint?.lastSyncAt;
+
+    for (const instance of activeInstances.filter((item) => item.status === "FAILED")) {
+      const name = instance.name || instance.id;
       attention.push({
-        code: "BUDGET_THRESHOLD",
-        severity: budgetPercent >= 1 ? "critical" : "warning",
-        title: "Budget usage",
-        description: `Project has used ${(budgetPercent * 100).toFixed(1)}% of its ${budgetDuration ?? "configured"} budget.`,
-        href: `/${this.store.projectId}/cost`,
+        code: `INSTANCE_FAILED:${instance.id}`,
+        source: "runtime",
+        severity: "critical",
+        title: `${name} is unavailable`,
+        impact: { kind: "Runtime Instance", id: instance.id, label: name },
+        owner: instance.createdBy?.displayName ?? "Agent Platform",
+        openedAt: issueOpenedAt(instance.updatedAt, now),
+        reason: instance.error || "The Runtime reported a failed lifecycle state and cannot accept new work.",
+        nextStep: {
+          label: "Investigate instance",
+          href: `/${projectId}/instances/${encodeURIComponent(instance.id)}`,
+        },
+      });
+    }
+    for (const instance of activeInstances.filter((item) =>
+      item.status === "PROVISIONING"
+      && now.getTime() - new Date(item.createdAt || item.updatedAt).getTime() >= provisioningTimeoutMs,
+    )) {
+      const openedAt = issueOpenedAt(instance.createdAt || instance.updatedAt, now);
+      const elapsedMs = now.getTime() - new Date(openedAt).getTime();
+      const name = instance.name || instance.id;
+      attention.push({
+        code: `INSTANCE_PROVISIONING_TIMEOUT:${instance.id}`,
+        source: "runtime",
+        severity: elapsedMs >= 60 * 60 * 1_000 ? "critical" : "warning",
+        title: `${name} provisioning is delayed`,
+        impact: { kind: "Runtime Instance", id: instance.id, label: name },
+        owner: instance.createdBy?.displayName ?? "Agent Platform",
+        openedAt,
+        reason: `Provisioning has exceeded the ${provisioningTimeoutMs / 60_000}-minute operational threshold${instance.provisioningStage ? ` at ${instance.provisioningStage}` : ""}.`,
+        nextStep: {
+          label: "Review provisioning",
+          href: `/${projectId}/instances/${encodeURIComponent(instance.id)}`,
+        },
+      });
+    }
+
+    if (budgetPercent !== null && budgetPercent >= 1) {
+      attention.push({
+        code: "BUDGET_LIMIT",
+        source: "budget",
+        severity: "critical",
+        title: "Project budget has been reached",
+        impact: { kind: "Budget", label: `$${budgetUsed.toFixed(2)} / $${budgetLimit?.toFixed(2)}` },
+        owner: "Project Admin",
+        openedAt: issueOpenedAt(latestCostObservation, now),
+        reason: `Recorded spend is ${(budgetPercent * 100).toFixed(1)}% of the active ${budgetDuration ?? "configured"} budget.`,
+        nextStep: { label: "Review budget", href: `/${projectId}/cost` },
       });
     } else if (budgetLimit !== null && budgetForecast !== null && budgetForecast > budgetLimit) {
       attention.push({
         code: "BUDGET_FORECAST",
+        source: "budget",
         severity: "warning",
-        title: "Budget forecast",
-        description: `Current spend is projected to exceed the configured budget by $${(budgetForecast - budgetLimit).toFixed(2)}.`,
-        href: `/${this.store.projectId}/cost`,
+        title: "Forecast exceeds the project budget",
+        impact: { kind: "Budget", label: `$${budgetForecast.toFixed(2)} forecast / $${budgetLimit.toFixed(2)} limit` },
+        owner: "Project Admin",
+        openedAt: issueOpenedAt(latestCostObservation, now),
+        reason: `At the current spend rate, this budget window is projected to exceed its limit by $${(budgetForecast - budgetLimit).toFixed(2)}.`,
+        nextStep: { label: "Review forecast", href: `/${projectId}/cost` },
       });
-    }
-    if (runtime.failed > 0) {
+    } else if (budgetPercent !== null && budgetPercent >= 0.8) {
       attention.push({
-        code: "INSTANCE_FAILED",
-        severity: "critical",
-        title: `${runtime.failed} failed Instance${runtime.failed === 1 ? "" : "s"}`,
-        description: "One or more Runtime Instances require operator review.",
-        href: `/${this.store.projectId}/instances`,
+        code: "BUDGET_THRESHOLD",
+        source: "budget",
+        severity: "warning",
+        title: "Budget usage is nearing its limit",
+        impact: { kind: "Budget", label: `$${budgetUsed.toFixed(2)} / $${budgetLimit?.toFixed(2)}` },
+        owner: "Project Admin",
+        openedAt: issueOpenedAt(latestCostObservation, now),
+        reason: `Recorded spend is ${(budgetPercent * 100).toFixed(1)}% of the active ${budgetDuration ?? "configured"} budget.`,
+        nextStep: { label: "Review budget", href: `/${projectId}/cost` },
       });
     }
+
+    const addQuotaAttention = (
+      code: string,
+      label: string,
+      used: number,
+      limit: number | bigint | null | undefined,
+    ) => {
+      const ratio = quotaRatio(used, limit);
+      if (ratio === null || ratio < 0.8) return;
+      const numericLimit = Number(limit);
+      attention.push({
+        code,
+        source: "quota",
+        severity: ratio >= 1 ? "critical" : "warning",
+        title: `${label} quota ${ratio >= 1 ? "has been reached" : "is nearing its limit"}`,
+        impact: { kind: "Quota", label: `${used.toLocaleString()} / ${numericLimit.toLocaleString()} ${label}` },
+        owner: "Project Admin",
+        openedAt: issueOpenedAt(quota?.updatedAt, now),
+        reason: `${(Math.min(ratio, 9.99) * 100).toFixed(1)}% of the configured ${label.toLowerCase()} quota is currently in use.`,
+        nextStep: { label: "Review quota", href: `/${projectId}/setting?section=quota` },
+      });
+    };
+    const trailingMinuteTokens = currentFacts
+      .filter((fact) => fact.requestStartTime >= new Date(now.getTime() - 60_000))
+      .reduce((sum, fact) => sum + Number(fact.totalTokens), 0);
+    addQuotaAttention("QUOTA_INSTANCES", "Instances", activeInstances.length, quota?.maxInstances);
+    addQuotaAttention("QUOTA_TPM", "TPM", trailingMinuteTokens, quota?.tpmLimit);
+    addQuotaAttention("QUOTA_MCP", "MCP integrations", mcpServers.length, quota?.maxMcpIntegrations);
+    addQuotaAttention(
+      "QUOTA_KNOWLEDGE",
+      "Knowledge integrations",
+      knowledgeSources.length,
+      quota?.maxKnowledgeBaseIntegrations,
+    );
+
+    if (quota?.syncStatus === "failed") {
+      attention.push({
+        code: "QUOTA_SYNC_FAILED",
+        source: "quota",
+        severity: "warning",
+        title: "Quota reconciliation failed",
+        impact: { kind: "Quota", label: "Project quota" },
+        owner: "Project Admin",
+        openedAt: issueOpenedAt(quota.updatedAt, now),
+        reason: quota.lastSyncError || "The latest quota configuration was not reconciled to LiteLLM.",
+        nextStep: { label: "Retry quota sync", href: `/${projectId}/setting?section=quota` },
+      });
+    }
+
+    for (const account of providerAccounts.filter((item) =>
+      item.checks.some((check) => check.id === "credentials" && check.status === "FAIL"),
+    )) {
+      attention.push({
+        code: `PROVIDER_CREDENTIAL_FAILED:${account.id}`,
+        source: "provider",
+        severity: "critical",
+        title: `${account.name} credentials are invalid`,
+        impact: { kind: "Provider", id: account.id, label: account.name },
+        owner: "Project Admin",
+        openedAt: issueOpenedAt(account.updatedAt, now),
+        reason: account.validationMessage || "The Provider rejected the stored credential during validation.",
+        nextStep: { label: "Revalidate provider", href: `/${projectId}/setting?section=models` },
+      });
+    }
+
     const eligibleRunCount = currentRuns.filter((run) =>
       run.status === "SUCCEEDED" || run.status === "FAILED" || run.status === "TIMED_OUT",
     ).length;
     if (eligibleRunCount >= 5 && currentSuccess !== null && currentSuccess < 0.95) {
       attention.push({
         code: "RUN_SUCCESS_RATE",
+        source: "runs",
         severity: currentSuccess < 0.8 ? "critical" : "warning",
-        title: "Run success rate",
-        description: `Run success rate is ${(currentSuccess * 100).toFixed(1)}% for the selected period.`,
-        href: `/${this.store.projectId}/traces`,
+        title: "Run success rate is below target",
+        impact: { kind: "Runs", label: `${eligibleRunCount} completed Runs` },
+        owner: "Agent Platform",
+        openedAt: issueOpenedAt(currentRuns.find((run) => run.status !== "SUCCEEDED")?.startedAt, now),
+        reason: `Run success rate is ${(currentSuccess * 100).toFixed(1)}% for the selected period, below the 95% operating target.`,
+        nextStep: { label: "Inspect failed runs", href: `/${projectId}/traces` },
       });
     }
-    const staleRuns = currentRuns.filter((run) =>
+    const staleRunRows = currentRuns.filter((run) =>
       run.status === "RUNNING" && run.startedAt < new Date(now.getTime() - 60 * 60 * 1_000),
-    ).length;
-    if (staleRuns > 0) {
+    );
+    if (staleRunRows.length > 0) {
       attention.push({
         code: "RUN_STALE",
+        source: "runs",
         severity: "warning",
-        title: `${staleRuns} long-running Run${staleRuns === 1 ? "" : "s"}`,
-        description: "Run telemetry has not received a terminal event for more than one hour.",
-        href: `/${this.store.projectId}/traces`,
+        title: `${staleRunRows.length} Run${staleRunRows.length === 1 ? " is" : "s are"} still open`,
+        impact: { kind: "Runs", label: `${staleRunRows.length} long-running` },
+        owner: "Agent Platform",
+        openedAt: staleRunRows[0]!.startedAt.toISOString(),
+        reason: "Run telemetry has not received a terminal event for more than one hour.",
+        nextStep: { label: "Find stalled runs", href: `/${projectId}/traces` },
       });
     }
     const costSyncAgeMs = checkpoint?.lastSyncAt
@@ -309,12 +609,16 @@ export class ProjectOverviewService {
     if (quota?.litellmTeamId && (costSyncAgeMs === null || costSyncAgeMs > 5 * 60 * 1_000)) {
       attention.push({
         code: "COST_DATA_STALE",
-        severity: "warning",
-        title: "Cost data is stale",
-        description: checkpoint?.lastSyncAt
+        source: "telemetry",
+        severity: costSyncAgeMs !== null && costSyncAgeMs > 30 * 60 * 1_000 ? "critical" : "warning",
+        title: "Cost telemetry is delayed",
+        impact: { kind: "Telemetry", label: "LiteLLM cost sync" },
+        owner: "Platform operations",
+        openedAt: issueOpenedAt(checkpoint?.lastSyncAt ?? quota.createdAt, now),
+        reason: checkpoint?.lastSyncAt
           ? "LiteLLM cost facts have not refreshed in the last five minutes."
           : "No successful LiteLLM cost ingestion has completed for this Project.",
-        href: `/${this.store.projectId}/cost`,
+        nextStep: { label: "Inspect cost sync", href: `/${projectId}/cost` },
       });
     }
     const costQualityIssues = currentFacts.filter((fact) =>
@@ -323,12 +627,85 @@ export class ProjectOverviewService {
     if (costQualityIssues > 0) {
       attention.push({
         code: "COST_DATA_QUALITY",
+        source: "telemetry",
         severity: "warning",
         title: "Cost attribution needs review",
-        description: `${costQualityIssues} model request${costQualityIssues === 1 ? "" : "s"} lack a known price or Instance attribution.`,
-        href: `/${this.store.projectId}/cost`,
+        impact: { kind: "Telemetry", label: `${costQualityIssues} model request${costQualityIssues === 1 ? "" : "s"}` },
+        owner: "Platform operations",
+        openedAt: issueOpenedAt(
+          currentFacts.find((fact) => fact.costStatus !== "known" || !fact.instanceId)?.requestStartTime,
+          now,
+        ),
+        reason: `${costQualityIssues} model request${costQualityIssues === 1 ? "" : "s"} lack a known price or Instance attribution.`,
+        nextStep: { label: "Fix attribution", href: `/${projectId}/cost` },
       });
     }
+
+    for (const memory of memories) {
+      attention.push({
+        code: `MEMORY_INDEX_FAILED:${memory.id}`,
+        source: "memory",
+        severity: memory.status === "deletion_failed" ? "critical" : "warning",
+        title: `${memory.displayName} memory needs recovery`,
+        impact: { kind: "Memory", id: memory.id, label: memory.displayName },
+        owner: "Agent Platform",
+        openedAt: memory.updatedAt.toISOString(),
+        reason: memory.lastErrorSummary || "The Memory provider reported a degraded indexing or delivery state.",
+        nextStep: {
+          label: "Review memory recovery",
+          href: `/${projectId}/memory/${encodeURIComponent(memory.id)}`,
+        },
+      });
+    }
+    const latestVectorJobByDocument = new Map<string, (typeof vectorJobs)[number]>();
+    for (const job of vectorJobs) {
+      const key = `${job.databaseId}:${job.documentId}`;
+      if (!latestVectorJobByDocument.has(key)) latestVectorJobByDocument.set(key, job);
+    }
+    for (const job of [...latestVectorJobByDocument.values()].filter((item) => item.status === "FAILED")) {
+      attention.push({
+        code: `MEMORY_INDEX_JOB_FAILED:${job.id}`,
+        source: "memory",
+        severity: "warning",
+        title: "Vector index update failed",
+        impact: { kind: "Vector database", id: job.databaseId, label: job.documentId },
+        owner: "Agent Platform",
+        openedAt: job.updatedAt.toISOString(),
+        reason: job.error || "The most recent document ingestion job did not complete its index update.",
+        nextStep: {
+          label: "Review indexing job",
+          href: `/${projectId}/vector-databases/${encodeURIComponent(job.databaseId)}`,
+        },
+      });
+    }
+    for (const policyRow of policies) {
+      const policy = policyRow.payload as Record<string, unknown>;
+      if (typeof policy.lastReconciliationError !== "string" || !policy.lastReconciliationError) continue;
+      const name = typeof policy.name === "string" ? policy.name : policyRow.id;
+      attention.push({
+        code: `POLICY_RECONCILIATION_FAILED:${policyRow.id}`,
+        source: "policy",
+        severity: "critical",
+        title: `${name} policy is not reconciled`,
+        impact: { kind: "Access Policy", id: policyRow.id, label: name },
+        owner: "Project Admin",
+        openedAt: issueOpenedAt(
+          typeof policy.lastReconciledAt === "string" ? policy.lastReconciledAt : policyRow.updatedAt,
+          now,
+        ),
+        reason: policy.lastReconciliationError,
+        nextStep: {
+          label: "Reconcile policy",
+          href: `/${projectId}/access-policies/${encodeURIComponent(policyRow.id)}`,
+        },
+      });
+    }
+
+    attention.sort((left, right) =>
+      (left.severity === right.severity ? 0 : left.severity === "critical" ? -1 : 1)
+      || new Date(left.openedAt).getTime() - new Date(right.openedAt).getTime()
+      || left.title.localeCompare(right.title),
+    );
 
     const runtimeObservedAt = observedInstances
       .map((instance) => instance.updatedAt)
@@ -370,7 +747,9 @@ export class ProjectOverviewService {
       },
       runtime: { available: liveInstances.available, ...runtime },
       workload,
-      attention: attention.slice(0, 5),
+      modelAssignment,
+      agentActivity,
+      attention,
       resources: {
         runtimeCount: observedInstances.length,
         publishedSkillCount: skills.filter((skill) => skill.status === "PUBLISHED").length,

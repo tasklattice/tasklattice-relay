@@ -89,6 +89,11 @@ images:
     tag: v1.29.0
     pullPolicy: IfNotPresent
     useGlobalRegistry: false
+  hindsight:
+    repository: ghcr.io/vectorize-io/hindsight-api
+    tag: 0.9.2-slim@sha256:7635a15739361dbdf221ba796ad25a813f876144fe113022eea8e26cb6ee75e7
+    pullPolicy: IfNotPresent
+    useGlobalRegistry: false
 
 control:
   replicaCount: 1
@@ -151,6 +156,109 @@ docling:
     limits:
       cpu: "4"
       memory: 8Gi
+
+# Project Durable Memory provider. Hindsight is internal-only and uses the
+# existing PostgreSQL/pgvector and LiteLLM Services through dedicated scopes.
+features:
+  durableMemory:
+    # Environment default. Set projectAllowlist for a gradual Project rollout.
+    enabled: true
+    projectAllowlist: []
+
+monitoring:
+  networkPolicy:
+    # Override these selectors when Prometheus runs elsewhere or uses different labels.
+    namespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: monitoring
+    podSelector:
+      matchLabels:
+        app.kubernetes.io/name: prometheus
+  serviceMonitor:
+    enabled: false
+    interval: 30s
+    scrapeTimeout: 10s
+    additionalLabels: {}
+  prometheusRule:
+    enabled: false
+    additionalLabels: {}
+  alerts:
+    outboxBacklog: 100
+    outboxOldestAgeSeconds: 300
+    failureRate: 0.1
+
+hindsight:
+  enabled: true
+  # Relay's response-before-recall latency budget. Provider timeout is fail-open.
+  runtimeRecallTimeoutMs: 1500
+  replicaCount: 1
+  service:
+    port: 8888
+  database:
+    name: hindsight
+    user: hindsight
+    schema: hindsight
+  models:
+    # These are stable aliases expected on the existing LiteLLM gateway. The
+    # provider selectors remain explicit so an installation can use a
+    # deterministic local fallback (for example RRF) without patching the
+    # Deployment after Helm has reconciled it.
+    llmProvider: openai
+    llm: hindsight-chat
+    # Use Hindsight's OpenAI-compatible adapter because it propagates Bank
+    # attribution on every embedding request; the localhost Project Router
+    # still resolves and invokes the Project's actual embedding provider.
+    embeddingProvider: openai
+    embedding: hindsight-embedding
+    embeddingDimensions: 1536
+    # Reciprocal-rank fusion is local and requires no model during bootstrap.
+    rerankerProvider: rrf
+    reranker: hindsight-reranker
+  router:
+    port: 4010
+    resources:
+      requests:
+        cpu: 25m
+        memory: 64Mi
+      limits:
+        cpu: 250m
+        memory: 256Mi
+  worker:
+    # Keep extraction inside the API process until load testing justifies a
+    # separately scaled worker. The optional StatefulSet uses the same queue.
+    enabled: false
+    replicaCount: 1
+    service:
+      port: 8889
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: "1"
+        memory: 2Gi
+  migration:
+    activeDeadlineSeconds: 900
+    ttlSecondsAfterFinished: 60
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+  networkPolicy:
+    enabled: true
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 2Gi
 
 # Initial Platform Setting imported only when the database has no runtime
 # configuration yet. Change it later under Platform Setting -> Infrastructure.
@@ -223,7 +331,15 @@ projectRuntimeBridge:
 
 litellm:
   replicaCount: 1
-  workers: 2
+  # LiteLLM workers are separate Python processes, not threads. Each worker
+  # initializes its own Router and Prisma query engine. Keep one worker per Pod
+  # so Kubernetes can report process exits and scale with replicaCount instead
+  # of hiding child OOM kills behind Uvicorn's multiprocess supervisor.
+  workers: 1
+  # Use the price/context map bundled with the pinned LiteLLM image. Set false
+  # only in connected environments that deliberately accept runtime pricing
+  # changes from LiteLLM's remote main-branch map.
+  localModelCostMap: true
   # Keep request-log errors concise. Full tracebacks remain available in the
   # LiteLLM container logs for operator diagnostics.
   maximumTracebackLinesToLog: 0
@@ -288,6 +404,11 @@ secrets:
   litellmUiUsername: admin
   litellmUiPassword: password
   litellmSaltKey: tali-local-litellm-salt-v1
+  hindsightDatabasePassword: tali-local-hindsight-db
+  hindsightApiKey: tali-local-hindsight-api-key
+  # Dedicated only to Hindsight <-> Project Router; never a LiteLLM master key.
+  hindsightRouterToken: tali-local-hindsight-router-token
+  metricsToken: tali-local-metrics-token
 
 auth:
   local:

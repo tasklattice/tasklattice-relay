@@ -6,6 +6,7 @@ import {
   verifyProjectRuntimeBridgeToken,
   verifyProjectRuntimeCoordinatorToken,
   type ProjectRuntimeBridgeIdentity,
+  type ProjectRuntimeCoordinatorIdentity,
 } from "./project-runtime-bridge-token";
 
 export async function requireProjectRuntimeBridge(
@@ -40,7 +41,7 @@ export async function requireProjectRuntimeCoordinator(
   bridge: ProjectRuntimeBridgeIdentity,
   coordinatorInstanceId: string,
   db: PrismaClient = prisma(),
-): Promise<void> {
+): Promise<ProjectRuntimeCoordinatorIdentity> {
   const token = request.headers.get("x-tali-coordinator-token") ?? "";
   const coordinator = verifyProjectRuntimeCoordinatorToken(
     token,
@@ -53,4 +54,5 @@ export async function requireProjectRuntimeCoordinator(
   ) {
     throw new Error("Project Runtime Coordinator access denied.");
   }
+  return coordinator;
 }

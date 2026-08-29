@@ -1,12 +1,14 @@
 import { useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import {
-  createVectorDatabaseDefinitionSchema,
+  hasValidatedEmbeddingModel,
   type CreateVectorDatabaseDefinitionInput,
+  vectorDatabaseFormLimits,
 } from "@tali/contracts";
 import { ArrowRight, Database, Plus } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
+import { EmbeddingModelSetupNotice } from "@/components/providers/embedding-model-setup-notice";
 import {
   getVectorStoreProvider,
   VectorStoreProviderIcon,
@@ -20,6 +22,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  type VectorDatabaseFormField,
+  validateVectorDatabaseDraft,
+} from "@/features/vector-database-form-validation";
 import { useCurrentProjectId } from "@/hooks/use-project";
 import { useProjectPermissions } from "@/hooks/use-project-permissions";
 import { useProjectQueryScope } from "@/hooks/use-project-query-scope";
@@ -50,9 +56,11 @@ function VectorDatabases() {
   const embeddingModels = (models.data ?? []).filter(
     (model) => model.status === "VALIDATED" && model.modelType === "text-embedding",
   );
+  const embeddingModelReady = hasValidatedEmbeddingModel(models.data ?? []);
   const [formOpen, setFormOpen] = useState(false);
   const [draft, setDraft] = useState<CreateVectorDatabaseDefinitionInput>(emptyDraft);
   const [formError, setFormError] = useState("");
+  const [formAttempted, setFormAttempted] = useState(false);
 
   const create = useMutation({
     mutationFn: api.createVectorDatabase,
@@ -60,6 +68,7 @@ function VectorDatabases() {
       await queryClient.invalidateQueries({ queryKey: scope.key("resource-catalog") });
       setFormOpen(false);
       setDraft(emptyDraft);
+      setFormAttempted(false);
       await navigate({
         to: "/$projectId/vector-databases/$databaseId",
         params: { projectId, databaseId: database.id },
@@ -68,19 +77,18 @@ function VectorDatabases() {
   });
 
   const submit = () => {
-    const parsed = createVectorDatabaseDefinitionSchema.safeParse({
-      ...draft,
-      apiBase: draft.apiBase || undefined,
-      embeddingModel: draft.embeddingModel || undefined,
-      semanticField: draft.semanticField || undefined,
-      contentField: draft.contentField || undefined,
-    });
-    if (!parsed.success) {
-      setFormError(parsed.error.issues[0]?.message ?? "Review the Vector Database configuration.");
+    setFormAttempted(true);
+    if (!embeddingModelReady) {
+      setFormError("Configure a validated embedding model before creating a Vector Database.");
+      return;
+    }
+    const validation = validateVectorDatabaseDraft(draft);
+    if (!validation.result.success) {
+      setFormError(validation.formError);
       return;
     }
     setFormError("");
-    create.mutate(parsed.data);
+    create.mutate(validation.result.data);
   };
 
   return (
@@ -88,17 +96,39 @@ function VectorDatabases() {
       <PageHeader
         title="Vector Databases"
         description="Create a built-in PostgreSQL Vector Database or connect an advanced provider for Project-scoped Agent recall."
-        actions={(
+        actions={!permissions.canCreateVectorDatabases && !permissions.canManageProject ? undefined : models.isPending ? (
+          <Button className="h-11" disabled>Checking embedding…</Button>
+        ) : models.error ? (
+          <Button className="h-11" disabled>Embedding unavailable</Button>
+        ) : !embeddingModelReady && permissions.canManageProject ? (
+          <Button asChild className="h-11">
+            <Link
+              to="/$projectId/setting"
+              params={{ projectId }}
+              search={{ section: "models" }}
+            >
+              Configure embedding <ArrowRight />
+            </Link>
+          </Button>
+        ) : embeddingModelReady ? (
           <Button
             className="h-11"
-            disabled={!permissions.canManageResources}
-            onClick={() => { setDraft(emptyDraft); setFormError(""); create.reset(); setFormOpen(true); }}
+            disabled={!permissions.canCreateVectorDatabases}
+            onClick={() => { setDraft(emptyDraft); setFormError(""); setFormAttempted(false); create.reset(); setFormOpen(true); }}
           >
             <Plus /> Create Vector Database
           </Button>
-        )}
+        ) : undefined}
       />
 
+      {models.error ? <Notice tone="error">Embedding model availability could not be loaded: {models.error.message}</Notice> : null}
+      {!models.isPending && !models.error && !embeddingModelReady ? (
+        <EmbeddingModelSetupNotice
+          canManageProject={permissions.canManageProject}
+          projectId={projectId}
+          showAction={false}
+        />
+      ) : null}
       {catalog.error ? <Notice tone="error">{catalog.error.message}</Notice> : null}
       {catalog.isPending ? (
         <div className="space-y-3"><Skeleton className="h-28 w-full" /><Skeleton className="h-28 w-full" /></div>
@@ -152,14 +182,16 @@ function VectorDatabases() {
         footer={(
           <>
             <Button variant="outline" disabled={create.isPending} onClick={() => setFormOpen(false)}>Cancel</Button>
-            <Button disabled={create.isPending} onClick={submit}>{create.isPending ? "Creating…" : "Create"}</Button>
+            <Button disabled={!embeddingModelReady || create.isPending} onClick={submit}>{create.isPending ? "Creating…" : "Create"}</Button>
           </>
         )}
       >
         <VectorDatabaseForm
+          key={formOpen ? "open" : "closed"}
           draft={draft}
           embeddingModels={embeddingModels}
-          onChange={setDraft}
+          validationAttempted={formAttempted}
+          onChange={(next) => { setDraft(next); setFormError(""); }}
         />
         {formError || create.error ? <div className="mt-4"><Notice tone="error">{formError || create.error?.message}</Notice></div> : null}
       </EntitySheet>
@@ -167,20 +199,137 @@ function VectorDatabases() {
   );
 }
 
-function VectorDatabaseForm({ draft, embeddingModels, onChange }: {
+function VectorDatabaseForm({ draft, embeddingModels, onChange, validationAttempted }: {
   draft: CreateVectorDatabaseDefinitionInput;
   embeddingModels: Array<{ id: string; displayName: string; litellmModelName: string }>;
   onChange: (next: CreateVectorDatabaseDefinitionInput) => void;
+  validationAttempted: boolean;
 }) {
+  const [touchedFields, setTouchedFields] = useState<Set<VectorDatabaseFormField>>(
+    () => new Set(),
+  );
   const set = <K extends keyof CreateVectorDatabaseDefinitionInput>(key: K, value: CreateVectorDatabaseDefinitionInput[K]) => onChange({ ...draft, [key]: value });
+  const validation = validateVectorDatabaseDraft(draft);
+  const touch = (field: VectorDatabaseFormField) => {
+    setTouchedFields((current) => {
+      if (current.has(field)) return current;
+      const next = new Set(current);
+      next.add(field);
+      return next;
+    });
+  };
+  const errorFor = (field: VectorDatabaseFormField) => (
+    touchedFields.has(field) || validationAttempted ? validation.fieldErrors[field] ?? "" : ""
+  );
+  const nameError = errorFor("name");
+  const descriptionError = errorFor("description");
+  const vectorStoreIdError = errorFor("vectorStoreId");
+  const topKError = errorFor("topK");
+  const embeddingModelError = errorFor("embeddingModelDeploymentId");
+  const apiBaseError = errorFor("apiBase");
+  const credentialReferenceError = errorFor("credentialReference");
+  const semanticFieldError = errorFor("semanticField");
+  const contentFieldError = errorFor("contentField");
+  const providerConnectionRequired = draft.provider === "pg_vector" || draft.provider === "elasticsearch";
   return (
     <div className="space-y-4">
-      <div className="space-y-2"><Label htmlFor="vector-name">Name</Label><Input id="vector-name" className="h-11" value={draft.name} onChange={(event) => set("name", event.target.value)} placeholder="Engineering Research" /></div>
-      <div className="space-y-2"><Label htmlFor="vector-description">Description</Label><Input id="vector-description" className="h-11" value={draft.description} onChange={(event) => set("description", event.target.value)} placeholder="Research documents used by Project Agents." /></div>
+      <div className="space-y-2">
+        <Label htmlFor="vector-name">Name</Label>
+        <Input
+          id="vector-name"
+          className="h-11"
+          value={draft.name}
+          minLength={vectorDatabaseFormLimits.name.min}
+          maxLength={vectorDatabaseFormLimits.name.max}
+          required
+          aria-invalid={Boolean(nameError)}
+          aria-describedby="vector-name-help"
+          aria-errormessage={nameError ? "vector-name-help" : undefined}
+          onBlur={() => touch("name")}
+          onChange={(event) => { touch("name"); set("name", event.target.value); }}
+          placeholder="Engineering Research"
+        />
+        <FieldFeedback
+          id="vector-name-help"
+          error={nameError}
+          hint={`Enter ${vectorDatabaseFormLimits.name.min}–${vectorDatabaseFormLimits.name.max} characters.`}
+          count={`${draft.name.trim().length}/${vectorDatabaseFormLimits.name.max}`}
+        />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="vector-description">Description</Label>
+        <Input
+          id="vector-description"
+          className="h-11"
+          value={draft.description}
+          minLength={vectorDatabaseFormLimits.description.min}
+          maxLength={vectorDatabaseFormLimits.description.max}
+          required
+          aria-invalid={Boolean(descriptionError)}
+          aria-describedby="vector-description-help"
+          aria-errormessage={descriptionError ? "vector-description-help" : undefined}
+          onBlur={() => touch("description")}
+          onChange={(event) => { touch("description"); set("description", event.target.value); }}
+          placeholder="Research documents used by Project Agents."
+        />
+        <FieldFeedback
+          id="vector-description-help"
+          error={descriptionError}
+          hint={`Enter ${vectorDatabaseFormLimits.description.min}–${vectorDatabaseFormLimits.description.max} characters.`}
+          count={`${draft.description.trim().length}/${vectorDatabaseFormLimits.description.max}`}
+        />
+      </div>
       <div className="space-y-2"><Label htmlFor="vector-provider">Provider</Label><VectorStoreProviderSelect id="vector-provider" value={draft.provider} onValueChange={(provider) => onChange({ ...draft, provider, embeddingModelDeploymentId: undefined, embeddingModel: undefined, embeddingDimensions: undefined })} /></div>
       <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-2"><Label htmlFor="vector-id">Vector Database ID</Label><Input id="vector-id" className="h-11 font-mono" value={draft.vectorStoreId} onChange={(event) => set("vectorStoreId", event.target.value)} placeholder={draft.provider === "postgresql" ? "engineering-research" : "vs_..."} /></div>
-        <div className="space-y-2"><Label htmlFor="vector-top-k">Default Top K</Label><Input id="vector-top-k" className="h-11" type="number" min={1} max={50} value={draft.topK} onChange={(event) => set("topK", Number(event.target.value))} /></div>
+        <div className="space-y-2">
+          <Label htmlFor="vector-id">Vector Database ID</Label>
+          <Input
+            id="vector-id"
+            className="h-11 font-mono"
+            value={draft.vectorStoreId}
+            minLength={vectorDatabaseFormLimits.vectorStoreId.min}
+            maxLength={vectorDatabaseFormLimits.vectorStoreId.max}
+            required
+            aria-invalid={Boolean(vectorStoreIdError)}
+            aria-describedby="vector-id-help"
+            aria-errormessage={vectorStoreIdError ? "vector-id-help" : undefined}
+            onBlur={() => touch("vectorStoreId")}
+            onChange={(event) => { touch("vectorStoreId"); set("vectorStoreId", event.target.value); }}
+            placeholder={draft.provider === "postgresql" ? "engineering-research" : "vs_..."}
+          />
+          <FieldFeedback
+            id="vector-id-help"
+            error={vectorStoreIdError}
+            hint={`Required, up to ${vectorDatabaseFormLimits.vectorStoreId.max} characters.`}
+            count={`${draft.vectorStoreId.trim().length}/${vectorDatabaseFormLimits.vectorStoreId.max}`}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="vector-top-k">Default Top K</Label>
+          <Input
+            id="vector-top-k"
+            className="h-11"
+            type="number"
+            min={vectorDatabaseFormLimits.topK.min}
+            max={vectorDatabaseFormLimits.topK.max}
+            step={1}
+            value={Number.isNaN(draft.topK) ? "" : draft.topK}
+            required
+            aria-invalid={Boolean(topKError)}
+            aria-describedby="vector-top-k-help"
+            aria-errormessage={topKError ? "vector-top-k-help" : undefined}
+            onBlur={() => touch("topK")}
+            onChange={(event) => {
+              touch("topK");
+              set("topK", event.target.value === "" ? Number.NaN : Number(event.target.value));
+            }}
+          />
+          <FieldFeedback
+            id="vector-top-k-help"
+            error={topKError}
+            hint={`Enter a whole number from ${vectorDatabaseFormLimits.topK.min} to ${vectorDatabaseFormLimits.topK.max}.`}
+          />
+        </div>
       </div>
 
       {draft.provider === "postgresql" ? (
@@ -188,29 +337,147 @@ function VectorDatabaseForm({ draft, embeddingModels, onChange }: {
           <div><strong className="text-sm">Built-in foundation</strong><p className="mt-1 text-xs leading-5 text-muted-foreground">Documents are parsed by Docling, embedded through the selected Project model, and stored in Project-isolated PGVector.</p></div>
           <div className="space-y-2">
             <Label htmlFor="vector-embedding">Embedding model</Label>
-            <Select value={draft.embeddingModelDeploymentId ?? ""} onValueChange={(id) => {
+            <Select required value={draft.embeddingModelDeploymentId ?? ""} onValueChange={(id) => {
               const model = embeddingModels.find((item) => item.id === id);
+              touch("embeddingModelDeploymentId");
               onChange({ ...draft, embeddingModelDeploymentId: id, embeddingModel: model?.litellmModelName, embeddingDimensions: undefined });
             }}>
-              <SelectTrigger id="vector-embedding" size="lg" className="w-full"><SelectValue placeholder="Select a validated embedding model" /></SelectTrigger>
+              <SelectTrigger
+                id="vector-embedding"
+                size="lg"
+                className="w-full"
+                aria-invalid={Boolean(embeddingModelError)}
+                aria-describedby="vector-embedding-help"
+                aria-errormessage={embeddingModelError ? "vector-embedding-help" : undefined}
+                onBlur={() => touch("embeddingModelDeploymentId")}
+              >
+                <SelectValue placeholder="Select a validated embedding model" />
+              </SelectTrigger>
               <SelectContent>{embeddingModels.map((model) => <SelectItem key={model.id} value={model.id}>{model.displayName}<span className="ml-2 font-mono text-xs text-muted-foreground">{model.litellmModelName}</span></SelectItem>)}</SelectContent>
             </Select>
-            {!embeddingModels.length ? <p className="text-xs text-amber-700 dark:text-amber-300">Create and validate a text-embedding model before using built-in storage.</p> : null}
+            <FieldFeedback
+              id="vector-embedding-help"
+              error={embeddingModelError}
+              hint={embeddingModels.length
+                ? "Select a validated Project embedding model."
+                : "Create and validate a text-embedding model before using built-in storage."}
+            />
           </div>
         </div>
       ) : (
         <>
-          <div className="space-y-2"><Label htmlFor="vector-api-base">Provider API base</Label><Input id="vector-api-base" className="h-11 font-mono" value={draft.apiBase ?? ""} onChange={(event) => set("apiBase", event.target.value)} placeholder="https://vector.example.com" /></div>
-          <div className="space-y-2"><Label htmlFor="vector-credential">Credential reference</Label><Input id="vector-credential" className="h-11 font-mono" value={draft.credentialReference} onChange={(event) => set("credentialReference", event.target.value)} placeholder="secret://project/vector-provider" /></div>
+          <div className="space-y-2">
+            <Label htmlFor="vector-api-base">Provider API base</Label>
+            <Input
+              id="vector-api-base"
+              className="h-11 font-mono"
+              type="url"
+              value={draft.apiBase ?? ""}
+              required={providerConnectionRequired}
+              aria-invalid={Boolean(apiBaseError)}
+              aria-describedby="vector-api-base-help"
+              aria-errormessage={apiBaseError ? "vector-api-base-help" : undefined}
+              onBlur={() => touch("apiBase")}
+              onChange={(event) => { touch("apiBase"); set("apiBase", event.target.value); }}
+              placeholder="https://vector.example.com"
+            />
+            <FieldFeedback
+              id="vector-api-base-help"
+              error={apiBaseError}
+              hint={providerConnectionRequired ? "Required. Enter a valid provider API URL." : "Optional. Enter a valid URL when provided."}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="vector-credential">Credential reference</Label>
+            <Input
+              id="vector-credential"
+              className="h-11 font-mono"
+              value={draft.credentialReference}
+              maxLength={vectorDatabaseFormLimits.credentialReference.max}
+              required={providerConnectionRequired}
+              aria-invalid={Boolean(credentialReferenceError)}
+              aria-describedby="vector-credential-help"
+              aria-errormessage={credentialReferenceError ? "vector-credential-help" : undefined}
+              onBlur={() => touch("credentialReference")}
+              onChange={(event) => { touch("credentialReference"); set("credentialReference", event.target.value); }}
+              placeholder="k8s://project/vector-provider"
+            />
+            <FieldFeedback
+              id="vector-credential-help"
+              error={credentialReferenceError}
+              hint={`${providerConnectionRequired ? "Required. " : "Optional. "}Use a k8s:// or memory:// Secret reference.`}
+              count={`${draft.credentialReference.trim().length}/${vectorDatabaseFormLimits.credentialReference.max}`}
+            />
+          </div>
         </>
       )}
       {draft.provider === "elasticsearch" ? (
         <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2"><Label htmlFor="vector-semantic-field">semantic_text field</Label><Input id="vector-semantic-field" className="h-11 font-mono" value={draft.semanticField ?? ""} onChange={(event) => set("semanticField", event.target.value)} placeholder="content_semantic" /></div>
-          <div className="space-y-2"><Label htmlFor="vector-content-field">Content field</Label><Input id="vector-content-field" className="h-11 font-mono" value={draft.contentField ?? ""} onChange={(event) => set("contentField", event.target.value)} placeholder="content" /></div>
+          <div className="space-y-2">
+            <Label htmlFor="vector-semantic-field">semantic_text field</Label>
+            <Input
+              id="vector-semantic-field"
+              className="h-11 font-mono"
+              value={draft.semanticField ?? ""}
+              maxLength={vectorDatabaseFormLimits.providerField.max}
+              required
+              aria-invalid={Boolean(semanticFieldError)}
+              aria-describedby="vector-semantic-field-help"
+              aria-errormessage={semanticFieldError ? "vector-semantic-field-help" : undefined}
+              onBlur={() => touch("semanticField")}
+              onChange={(event) => { touch("semanticField"); set("semanticField", event.target.value); }}
+              placeholder="content_semantic"
+            />
+            <FieldFeedback
+              id="vector-semantic-field-help"
+              error={semanticFieldError}
+              hint={`Required, up to ${vectorDatabaseFormLimits.providerField.max} characters.`}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="vector-content-field">Content field</Label>
+            <Input
+              id="vector-content-field"
+              className="h-11 font-mono"
+              value={draft.contentField ?? ""}
+              maxLength={vectorDatabaseFormLimits.providerField.max}
+              required
+              aria-invalid={Boolean(contentFieldError)}
+              aria-describedby="vector-content-field-help"
+              aria-errormessage={contentFieldError ? "vector-content-field-help" : undefined}
+              onBlur={() => touch("contentField")}
+              onChange={(event) => { touch("contentField"); set("contentField", event.target.value); }}
+              placeholder="content"
+            />
+            <FieldFeedback
+              id="vector-content-field-help"
+              error={contentFieldError}
+              hint={`Required, up to ${vectorDatabaseFormLimits.providerField.max} characters.`}
+            />
+          </div>
         </div>
       ) : null}
     </div>
+  );
+}
+
+function FieldFeedback({ id, error, hint, count }: {
+  id: string;
+  error: string;
+  hint: string;
+  count?: string;
+}) {
+  return (
+    <p
+      id={id}
+      role={error ? "alert" : undefined}
+      aria-live="polite"
+      aria-atomic="true"
+      className={`flex items-start justify-between gap-3 text-xs leading-5 ${error ? "text-destructive" : "text-muted-foreground"}`}
+    >
+      <span>{error || hint}</span>
+      {count ? <span className="shrink-0 tabular-nums">{count}</span> : null}
+    </p>
   );
 }
 

@@ -1,5 +1,5 @@
 {
-  "revision": 2,
+  "revision": 3,
   "roles": [
     {
       "id": "ROLE_PLATFORM_ADMIN",
@@ -1383,14 +1383,16 @@
           "capability": "CAP_AGENT_MEMORY_CONFIG_VIEW",
           "relations": [
             "OWNER",
-            "MAINTAINER"
+            "MAINTAINER",
+            "PROJECT_ANY"
           ]
         },
         {
           "capability": "CAP_AGENT_MEMORY_CONFIG_UPDATE",
           "relations": [
             "OWNER",
-            "MAINTAINER"
+            "MAINTAINER",
+            "PROJECT_ANY"
           ]
         },
         {
@@ -1404,35 +1406,70 @@
           "capability": "CAP_AGENT_MEMORY_ITEM_VIEW",
           "relations": [
             "OWNER",
-            "MAINTAINER"
+            "MAINTAINER",
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_MEMORY_CONTENT_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_MEMORY_CONTENT_WRITE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_MEMORY_CONTENT_DELETE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_MEMORY_CONTENT_PURGE",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_MEMORY_EXPORT",
+          "relations": [
+            "PROJECT_ANY"
           ]
         },
         {
           "capability": "CAP_AGENT_MEMORY_SESSION_INDEX_MANAGE",
           "relations": [
             "OWNER",
-            "MAINTAINER"
+            "MAINTAINER",
+            "PROJECT_ANY"
           ]
         },
         {
           "capability": "CAP_AGENT_MEMORY_INDEX_STATUS_VIEW",
           "relations": [
             "OWNER",
-            "MAINTAINER"
+            "MAINTAINER",
+            "PROJECT_ANY"
           ]
         },
         {
           "capability": "CAP_AGENT_MEMORY_INDEX_VALIDATE",
           "relations": [
             "OWNER",
-            "MAINTAINER"
+            "MAINTAINER",
+            "PROJECT_ANY"
           ]
         },
         {
           "capability": "CAP_AGENT_MEMORY_INDEX_REBUILD",
           "relations": [
             "OWNER",
-            "MAINTAINER"
+            "MAINTAINER",
+            "PROJECT_ANY"
           ]
         },
         {
@@ -1657,6 +1694,18 @@
           ]
         },
         {
+          "capability": "CAP_AGENT_MEMORY_ITEM_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_MEMORY_CONTENT_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
           "capability": "CAP_AGENT_MEMORY_RECALL_USE",
           "relations": [
             "ASSIGNED"
@@ -1735,6 +1784,12 @@
         },
         {
           "capability": "CAP_AGENT_MEMORY_ITEM_VIEW",
+          "relations": [
+            "PROJECT_ANY"
+          ]
+        },
+        {
+          "capability": "CAP_AGENT_MEMORY_CONTENT_VIEW",
           "relations": [
             "PROJECT_ANY"
           ]

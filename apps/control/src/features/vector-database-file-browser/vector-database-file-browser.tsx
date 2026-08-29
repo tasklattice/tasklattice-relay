@@ -1,10 +1,9 @@
-import { useMemo, useState, type KeyboardEvent, type MouseEvent } from "react";
+import { useMemo, type KeyboardEvent, type MouseEvent } from "react";
 import type { VectorDocument, VectorFolder } from "@tali/contracts";
 import {
   ChevronRight,
   FileText,
   FileUp,
-  FlaskConical,
   Folder,
   FolderPlus,
   MoreHorizontal,
@@ -14,7 +13,7 @@ import {
   Tags,
   Trash2,
 } from "lucide-react";
-import { StatusDot } from "@/components/shared/status-dot";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -23,14 +22,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { formatPlatformDateTime } from "@/lib/platform-preferences";
 import { cn } from "@/lib/utils";
 import {
   childDocuments,
@@ -45,7 +36,6 @@ type ObjectAction = "rename" | "move" | "edit-metadata" | "delete";
 export function VectorDatabaseFileBrowser({
   builtIn,
   canManage,
-  canTestRetrieval,
   currentFolderId,
   documents,
   folders,
@@ -56,12 +46,10 @@ export function VectorDatabaseFileBrowser({
   onNewFolder,
   onRefresh,
   onSelectionChange,
-  onTestRetrieval,
   onUpload,
 }: {
   builtIn: boolean;
   canManage: boolean;
-  canTestRetrieval: boolean;
   currentFolderId: string | null;
   documents: VectorDocument[];
   folders: VectorFolder[];
@@ -72,31 +60,26 @@ export function VectorDatabaseFileBrowser({
   onNewFolder: () => void;
   onRefresh: () => void;
   onSelectionChange: (selection: FileBrowserSelection | null) => void;
-  onTestRetrieval: () => void;
   onUpload: () => void;
 }) {
-  const [sort, setSort] = useState<"name" | "updated">("name");
   const breadcrumbs = folderBreadcrumbs(folders, currentFolderId);
   const rows = useMemo(() => {
     const folderRows = childFolders(folders, currentFolderId).map((folder) => ({
       kind: "folder" as const,
       folder,
       name: folder.name,
-      updatedAt: folder.updatedAt,
     }));
     const fileRows = childDocuments(documents, currentFolderId).map((document) => ({
       kind: "file" as const,
       document,
       name: document.filename,
-      updatedAt: document.updatedAt,
     }));
-    const sorter = sort === "updated"
-      ? (left: (typeof folderRows)[number] | (typeof fileRows)[number], right: (typeof folderRows)[number] | (typeof fileRows)[number]) =>
-        right.updatedAt.localeCompare(left.updatedAt)
-      : (left: (typeof folderRows)[number] | (typeof fileRows)[number], right: (typeof folderRows)[number] | (typeof fileRows)[number]) =>
-        left.name.localeCompare(right.name);
+    const sorter = (
+      left: (typeof folderRows)[number] | (typeof fileRows)[number],
+      right: (typeof folderRows)[number] | (typeof fileRows)[number],
+    ) => left.name.localeCompare(right.name);
     return [...folderRows.toSorted(sorter), ...fileRows.toSorted(sorter)];
-  }, [currentFolderId, documents, folders, sort]);
+  }, [currentFolderId, documents, folders]);
 
   const open = (next: FileBrowserSelection) => {
     if (next.kind === "folder") onCurrentFolderChange(next.id);
@@ -115,7 +98,7 @@ export function VectorDatabaseFileBrowser({
   };
 
   return (
-    <section className="flex min-h-[36rem] min-w-0 flex-col bg-background" aria-label="Vector Database files">
+    <section className="flex min-h-[36rem] min-w-0 flex-col bg-card" aria-label="Vector Database files">
       <header className="flex flex-col gap-3 border-b px-4 py-3 sm:px-5 xl:flex-row xl:items-center xl:justify-between">
         <nav aria-label="Current folder" className="flex min-w-0 flex-wrap items-center gap-1 text-sm">
           <button
@@ -139,27 +122,18 @@ export function VectorDatabaseFileBrowser({
           ))}
         </nav>
         <div className="flex flex-wrap items-center gap-2">
-          <Select value={sort} onValueChange={(value) => setSort(value as "name" | "updated")}>
-            <SelectTrigger aria-label="Sort files" className="h-11 w-32"><SelectValue /></SelectTrigger>
-            <SelectContent align="end">
-              <SelectItem value="name">Name</SelectItem>
-              <SelectItem value="updated">Updated</SelectItem>
-            </SelectContent>
-          </Select>
-          <Button variant="outline" size="icon" className="size-11" aria-label="Refresh files" onClick={onRefresh}>
+          {builtIn ? <Button variant="outline" className="h-11" disabled={!canManage} onClick={onNewFolder}><FolderPlus /> New folder</Button> : null}
+          <Button variant="ghost" size="icon" className="size-11" aria-label="Refresh files" onClick={onRefresh}>
             <RefreshCw className={cn(refreshing && "animate-spin motion-reduce:animate-none")} />
           </Button>
-          {builtIn ? <Button variant="outline" className="h-11" disabled={!canManage} onClick={onNewFolder}><FolderPlus /> New folder</Button> : null}
-          <Button variant="outline" className="h-11" disabled={!canTestRetrieval} onClick={onTestRetrieval}><FlaskConical /> Test retrieval</Button>
-          {builtIn ? <Button className="h-11" disabled={!canManage} onClick={onUpload}><FileUp /> Upload files</Button> : null}
         </div>
       </header>
 
-      <div className="grid min-h-11 grid-cols-[minmax(0,1fr)_7rem_3rem] items-center gap-3 border-b bg-muted/15 px-4 text-xs font-medium text-muted-foreground sm:px-5 md:grid-cols-[minmax(0,1fr)_8rem_6rem_9rem_3rem]">
+      <div className="grid min-h-11 grid-cols-[minmax(0,1fr)_6.5rem_3rem] items-center gap-3 border-b bg-muted/30 px-4 text-xs font-medium text-muted-foreground sm:px-5 md:grid-cols-[minmax(0,1fr)_7rem_5rem_6rem_3rem]">
         <span>Name</span>
         <span>Status</span>
         <span className="hidden md:block">Chunks</span>
-        <span className="hidden md:block">Updated</span>
+        <span className="hidden md:block">Size</span>
         <span />
       </div>
 
@@ -181,38 +155,31 @@ export function VectorDatabaseFileBrowser({
               tabIndex={0}
               aria-pressed={selected}
               className={cn(
-                "group grid min-h-16 cursor-pointer grid-cols-[minmax(0,1fr)_7rem_3rem] items-center gap-3 border-b px-4 text-left outline-none hover:bg-muted/25 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:px-5 md:grid-cols-[minmax(0,1fr)_8rem_6rem_9rem_3rem]",
-                selected && "bg-primary/8 hover:bg-primary/8",
+                "group grid min-h-16 cursor-pointer grid-cols-[minmax(0,1fr)_6.5rem_3rem] items-center gap-3 border-b px-4 text-left outline-none transition-colors hover:bg-muted/45 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:px-5 md:grid-cols-[minmax(0,1fr)_7rem_5rem_6rem_3rem]",
+                selected && "bg-primary/[0.07] hover:bg-primary/[0.07]",
               )}
               onClick={() => open(next)}
               onKeyDown={(event) => activate(event, next)}
             >
               <span className="flex min-w-0 items-center gap-3">
                 <span className={cn(
-                  "grid size-9 shrink-0 place-items-center rounded-sm text-muted-foreground",
-                  row.kind === "folder" ? "bg-amber-500/10 text-amber-700 dark:text-amber-300" : "bg-muted",
+                  "grid size-8 shrink-0 place-items-center rounded-sm text-muted-foreground",
+                  "bg-muted",
                 )}>
                   {row.kind === "folder" ? <Folder className="size-4" /> : <FileText className="size-4" />}
                 </span>
-                <span className="min-w-0">
-                  <strong className={cn("block truncate text-sm", selected && "text-primary")}>{row.name}</strong>
-                  <span className="mt-1 block truncate text-xs text-muted-foreground">
-                    {row.kind === "folder"
-                      ? `${row.folder.totalFileCount} files · ${row.folder.totalVectorCount} vectors`
-                      : `${formatBytes(row.document.byteSize)} · ${row.document.mediaType}`}
-                  </span>
-                </span>
+                <strong className="min-w-0 break-words text-sm font-medium leading-5">{row.name}</strong>
               </span>
               <span className="text-xs">
                 {row.kind === "folder"
                   ? <span className="text-muted-foreground">—</span>
-                  : <StatusDot label={statusLabel(row.document.status)} tone={statusTone(row.document.status)} />}
+                  : <Badge variant="outline" className={statusClassName(row.document.status)}>{statusLabel(row.document.status)}</Badge>}
               </span>
-              <span className="hidden font-mono text-xs md:block">
+              <span className="hidden font-mono text-xs text-muted-foreground md:block">
                 {row.kind === "folder" ? row.folder.totalVectorCount : row.document.chunkCount}
               </span>
-              <span className="hidden truncate text-xs text-muted-foreground md:block">
-                {formatPlatformDateTime(row.updatedAt)}
+              <span className="hidden text-xs md:block">
+                {row.kind === "folder" ? "—" : formatBytes(row.document.byteSize)}
               </span>
               <ObjectMenu
                 canManage={canManage}
@@ -238,9 +205,6 @@ export function VectorDatabaseFileBrowser({
           </div>
         ) : null}
       </div>
-      <footer className="border-t px-4 py-3 text-xs text-muted-foreground sm:px-5">
-        {rows.length} items · select a folder to open it or a file to view details
-      </footer>
     </section>
   );
 }
@@ -278,9 +242,8 @@ function statusLabel(status: VectorDocument["status"]): string {
   return "Processing";
 }
 
-function statusTone(status: VectorDocument["status"]): "success" | "danger" | "warning" | "neutral" {
-  if (status === "READY") return "success";
-  if (status === "FAILED") return "danger";
-  if (status === "QUEUED") return "neutral";
-  return "warning";
+function statusClassName(status: VectorDocument["status"]): string {
+  if (status === "READY") return "border-transparent bg-primary/10 text-primary";
+  if (status === "FAILED") return "border-transparent bg-destructive/10 text-destructive";
+  return "border-transparent bg-amber-500/10 text-amber-700 dark:text-amber-300";
 }

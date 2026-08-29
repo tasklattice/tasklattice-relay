@@ -1,0 +1,13 @@
+{
+  "id": "tali-durable-memory",
+  "name": "TaskLattice Durable Memory",
+  "description": "Recalls and asynchronously retains the Relay Memory fixed to this Instance credential.",
+  "activation": {
+    "onStartup": true
+  },
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  }
+}

@@ -121,18 +121,19 @@ describe("builtin Project roles", () => {
     ]));
   });
 
-  it("makes Auditor metadata-oriented and mutation-free", async () => {
+  it("makes Auditor read-only for governed Memory content", async () => {
     const capabilities = (await builtinRole("ROLE_AUDITOR", database)).capabilities;
     expect(capabilities).toEqual(expect.arrayContaining([
       "CAP_AUDIT_VIEW",
       "CAP_AUDIT_DETAIL_VIEW",
       "CAP_TRACE_VIEW",
       "CAP_AGENT_MEMORY_INDEX_STATUS_VIEW",
+      "CAP_AGENT_MEMORY_CONTENT_VIEW",
     ]));
     expect(capabilities).not.toEqual(expect.arrayContaining([
       "CAP_AUDIT_EXPORT",
       "CAP_TRACE_CONTENT_VIEW",
-      "CAP_AGENT_MEMORY_CONTENT_VIEW",
+      "CAP_AGENT_MEMORY_CONTENT_WRITE",
       "CAP_AGENT_INSTANCE_INTERACT",
     ]));
     const mutations = /_(?:CREATE|UPDATE|DELETE|ASSIGN|GRANT|REVOKE|EXEC|DECIDE|APPLY|WRITE|PURGE|IMPORT|EXPORT)$/;
@@ -153,6 +154,11 @@ describe("builtin Project roles", () => {
       "CAP_AGENT_INSTANCE_DELETE",
       "CAP_AGENT_MEMORY_CONFIG_UPDATE",
       "CAP_AGENT_MEMORY_RECALL_USE",
+      "CAP_AGENT_MEMORY_CONTENT_VIEW",
+      "CAP_AGENT_MEMORY_CONTENT_WRITE",
+      "CAP_AGENT_MEMORY_CONTENT_DELETE",
+      "CAP_AGENT_MEMORY_CONTENT_PURGE",
+      "CAP_AGENT_MEMORY_EXPORT",
       "CAP_APPROVAL_REQUEST_SUBMIT",
     ]));
     expect(role.capabilities).not.toEqual(expect.arrayContaining([
@@ -177,17 +183,20 @@ describe("builtin Project roles", () => {
     ]);
   });
 
-  it("separates User memory recall from raw memory access", async () => {
+  it("lets Users read Project Memory without granting curation or settings", async () => {
     const capabilities = (await builtinRole("ROLE_USER", database)).capabilities;
     expect(capabilities).toEqual(expect.arrayContaining([
       "CAP_AGENT_INSTANCE_INTERACT",
       "CAP_AGENT_SESSION_CREATE",
       "CAP_AGENT_SESSION_MESSAGE_SEND",
       "CAP_AGENT_MEMORY_RECALL_USE",
+      "CAP_AGENT_MEMORY_ITEM_VIEW",
+      "CAP_AGENT_MEMORY_CONTENT_VIEW",
     ]));
     expect(capabilities).not.toEqual(expect.arrayContaining([
       "CAP_AGENT_INSTANCE_CONFIG_VIEW",
-      "CAP_AGENT_MEMORY_CONTENT_VIEW",
+      "CAP_AGENT_MEMORY_CONTENT_WRITE",
+      "CAP_AGENT_MEMORY_CONFIG_VIEW",
       "CAP_AUDIT_VIEW",
     ]));
   });

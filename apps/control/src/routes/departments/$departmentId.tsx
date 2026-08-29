@@ -21,6 +21,7 @@ import {
   Route as RouteIcon,
   Save,
   Search,
+  ServerCog,
   ShieldAlert,
   ShieldCheck,
   TriangleAlert,
@@ -86,6 +87,7 @@ const sectionGroups = [
   {
     label: "Inference",
     items: [
+      { id: "providers", label: "Providers", icon: ServerCog },
       { id: "models", label: "Models", icon: Database },
       { id: "routing", label: "Routing", icon: RouteIcon },
     ],
@@ -155,7 +157,7 @@ function DepartmentSettingsPage() {
         <span className="mx-auto grid size-12 place-items-center rounded-full border bg-muted/35 text-muted-foreground">
           <ShieldAlert className="size-5" />
         </span>
-        <h1 className="mt-5 font-display text-2xl font-medium">
+        <h1 className="mt-5 font-display text-2xl font-light tracking-[0.005em]">
           Department access required
         </h1>
         <p className="mt-2 text-sm leading-6 text-muted-foreground">
@@ -189,7 +191,7 @@ function DepartmentSettingsPage() {
         {section === "people" ? (
           <PeopleSection department={department.data} />
         ) : null}
-        {section === "models" || section === "routing" ? (
+        {section === "providers" || section === "models" || section === "routing" ? (
           <DepartmentModelRoutingsSettings
             departmentId={departmentId}
             view={section}

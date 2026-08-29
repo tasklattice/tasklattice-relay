@@ -1,0 +1,165 @@
+{{- if .Values.monitoring.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "tali.componentName" (dict "root" . "component" "memory") }}
+  labels:
+    {{- include "tali.componentLabels" (dict "root" . "component" "memory") | nindent 4 }}
+    {{- with .Values.monitoring.serviceMonitor.additionalLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "tali.selectorLabels" (dict "root" . "component" "control") | nindent 6 }}
+  endpoints:
+    - port: http
+      path: /api/metrics
+      interval: {{ .Values.monitoring.serviceMonitor.interval }}
+      scrapeTimeout: {{ .Values.monitoring.serviceMonitor.scrapeTimeout }}
+      authorization:
+        type: Bearer
+        credentials:
+          name: {{ include "tali.secretName" . }}
+          key: metrics-token
+{{- if .Values.control.worker.enabled }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "tali.componentName" (dict "root" . "component" "control-worker") }}
+  labels:
+    {{- include "tali.componentLabels" (dict "root" . "component" "control-worker") | nindent 4 }}
+    {{- with .Values.monitoring.serviceMonitor.additionalLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "tali.selectorLabels" (dict "root" . "component" "control-worker") | nindent 6 }}
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: {{ .Values.monitoring.serviceMonitor.interval }}
+      scrapeTimeout: {{ .Values.monitoring.serviceMonitor.scrapeTimeout }}
+      authorization:
+        type: Bearer
+        credentials:
+          name: {{ include "tali.secretName" . }}
+          key: metrics-token
+{{- end }}
+{{- if .Values.hindsight.enabled }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "tali.componentName" (dict "root" . "component" "hindsight") }}
+  labels:
+    {{- include "tali.componentLabels" (dict "root" . "component" "hindsight") | nindent 4 }}
+    {{- with .Values.monitoring.serviceMonitor.additionalLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "tali.selectorLabels" (dict "root" . "component" "hindsight-api") | nindent 6 }}
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: {{ .Values.monitoring.serviceMonitor.interval }}
+      scrapeTimeout: {{ .Values.monitoring.serviceMonitor.scrapeTimeout }}
+{{- if .Values.hindsight.worker.enabled }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "tali.componentName" (dict "root" . "component" "hindsight-worker") }}
+  labels:
+    {{- include "tali.componentLabels" (dict "root" . "component" "hindsight-worker") | nindent 4 }}
+    {{- with .Values.monitoring.serviceMonitor.additionalLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "tali.selectorLabels" (dict "root" . "component" "hindsight-worker") | nindent 6 }}
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: {{ .Values.monitoring.serviceMonitor.interval }}
+      scrapeTimeout: {{ .Values.monitoring.serviceMonitor.scrapeTimeout }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- if .Values.monitoring.prometheusRule.enabled }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "tali.componentName" (dict "root" . "component" "memory") }}
+  labels:
+    {{- include "tali.componentLabels" (dict "root" . "component" "memory") | nindent 4 }}
+    {{- with .Values.monitoring.prometheusRule.additionalLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  groups:
+    - name: tali-memory
+      rules:
+        - alert: TaliMemoryOutboxBacklog
+          expr: max(tali_memory_outbox_backlog) > {{ .Values.monitoring.alerts.outboxBacklog }}
+          for: 10m
+          labels: { severity: warning }
+          annotations:
+            summary: Memory retain outbox is accumulating
+            description: Check Hindsight health and Control Worker delivery before replaying failed events.
+        - alert: TaliMemoryOutboxOldestEvent
+          expr: max(tali_memory_outbox_oldest_event_age_seconds) > {{ .Values.monitoring.alerts.outboxOldestAgeSeconds }}
+          for: 10m
+          labels: { severity: warning }
+          annotations:
+            summary: Memory retain delivery is delayed
+            description: Inspect retry/dead-letter counts and restore provider connectivity.
+        - alert: TaliMemoryProviderUnavailable
+          expr: max(tali_memory_provider_health{status="unavailable"}) == 1
+          for: 5m
+          labels: { severity: critical }
+          annotations:
+            summary: Durable Memory provider is unavailable
+            description: Check the internal Hindsight Service, database readiness, and LiteLLM aliases.
+        - alert: TaliMemoryRecallFailureRate
+          expr: (sum(rate(tali_memory_recall_total{outcome=~"timeout|failure"}[5m])) / clamp_min(sum(rate(tali_memory_recall_total[5m])), 0.001)) > {{ .Values.monitoring.alerts.failureRate }}
+          for: 10m
+          labels: { severity: warning }
+          annotations:
+            summary: Memory recall failure rate is elevated
+            description: Compare Relay timeout/failure outcomes with Hindsight recall latency and errors.
+        - alert: TaliMemoryRetainFailureRate
+          expr: (sum(rate(tali_memory_retain_total{outcome="failure"}[5m])) / clamp_min(sum(rate(tali_memory_retain_total[5m])), 0.001)) > {{ .Values.monitoring.alerts.failureRate }}
+          for: 10m
+          labels: { severity: warning }
+          annotations:
+            summary: Memory retain failure rate is elevated
+            description: Check Hindsight retain operations and the Relay outbox before manual replay.
+        - alert: TaliMemoryDeletionFailure
+          expr: increase(tali_memory_lifecycle_failures_total{operation="deletion"}[15m]) > 0
+          for: 1m
+          labels: { severity: critical }
+          annotations:
+            summary: Verified Memory Bank deletion failed
+            description: Keep the tombstone, restore provider access, and retry deletion from the console.
+        - alert: HindsightAsyncOperationFailure
+          expr: sum(hindsight_async_operations{status="failed"}) > 0
+          for: 10m
+          labels: { severity: warning }
+          annotations:
+            summary: Hindsight extraction or observation work has failed
+            description: Inspect Hindsight worker errors and consolidation backlog before reprocessing retained conversations.
+        - alert: HindsightRetainProducedNoFacts
+          expr: (sum(rate(hindsight_retain_documents_total{outcome="no_facts"}[15m])) / clamp_min(sum(rate(hindsight_retain_documents_total[15m])), 0.001)) > 0.5
+          for: 15m
+          labels: { severity: warning }
+          annotations:
+            summary: Hindsight extraction is frequently producing no facts
+            description: Review the retain mission and model health; affected documents remain invisible to recall until reprocessed.
+{{- end }}

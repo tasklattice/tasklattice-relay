@@ -23,6 +23,9 @@ export interface Project {
   assignedRoles: readonly ProjectRole[];
   activeRole: ProjectRole;
   effectiveCapabilities: readonly ProjectCapability[];
+  features?: {
+    durableMemory: boolean;
+  };
 }
 
 export interface ProjectDeletionActiveResource {
@@ -34,7 +37,8 @@ export interface ProjectDeletionActiveResource {
     | "gateway"
     | "routing"
     | "mcp-server"
-    | "vector-database";
+    | "vector-database"
+    | "memory";
   kindLabel: string;
   name: string;
   status: string;
@@ -91,6 +95,17 @@ export interface ProjectPermissions {
   canUpdateVectorDatabases: boolean;
   canDeleteVectorDatabases: boolean;
   canManageProject: boolean;
+  canViewMemories: boolean;
+  canViewMemoryContent: boolean;
+  canManageMemories: boolean;
+  canViewMemorySettings: boolean;
+  canCurateMemory: boolean;
+  canDeleteMemoryContent: boolean;
+  canPurgeMemories: boolean;
+  canExportMemories: boolean;
+  canReextractMemory: boolean;
+  canViewMemoryOutbox: boolean;
+  canReplayMemoryOutbox: boolean;
   canViewAuditLogs: boolean;
   canViewResources: boolean;
 }

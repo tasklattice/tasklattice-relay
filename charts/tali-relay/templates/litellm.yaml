@@ -74,6 +74,8 @@ spec:
               value: /tmp/litellm-migrations
             - name: STORE_MODEL_IN_DB
               value: "True"
+            - name: LITELLM_LOCAL_MODEL_COST_MAP
+              value: {{ ternary "True" "False" .Values.litellm.localModelCostMap | quote }}
             - name: MAXIMUM_TRACEBACK_LINES_TO_LOG
               value: {{ .Values.litellm.maximumTracebackLinesToLog | quote }}
             - name: LITELLM_MASTER_KEY

@@ -9,7 +9,7 @@ import {
 } from "./capability-selection";
 
 describe("capability selection sources", () => {
-  it("keeps only Role defaults that are available in the current Project", () => {
+  it("keeps only Toolbox preset items that are available in the current Project", () => {
     expect(availableCapabilityIds(
       ["workday", "missing-server", "workday"],
       ["workday", "github"],
@@ -35,7 +35,7 @@ describe("capability selection sources", () => {
     ]);
   });
 
-  it("replaces specialization defaults while preserving manual additions", () => {
+  it("replaces preset items while preserving manual additions", () => {
     expect(changeSpecializationSelection([
       { id: "policy-search", source: "specialization" },
       { id: "data-extraction", source: "manual" },
@@ -46,7 +46,7 @@ describe("capability selection sources", () => {
     ]);
   });
 
-  it("describes remove, add, and keep effects before a specialization change", () => {
+  it("describes remove, add, and keep effects before a preset change", () => {
     expect(previewSpecializationChange([
       { id: "policy-search", source: "specialization" },
       { id: "onboarding", source: "specialization" },

@@ -80,7 +80,7 @@ function insightRows(response: ModelCostInsightsResponse, params: CostQueryParam
     : params.groupBy === "model_endpoint"
       ? ["Active model endpoints", response.activeModelEndpoints]
       : params.groupBy === "provider_account"
-        ? ["Active provider accounts", response.activeProviderAccounts]
+        ? ["Active Providers", response.activeProviderAccounts]
         : ["Active virtual keys", response.activeVirtualKeys];
   return [
     {

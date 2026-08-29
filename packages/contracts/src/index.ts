@@ -28,6 +28,8 @@ export * from "./agent-platforms.js";
 export * from "./project-overview.js";
 export * from "./organization.js";
 export * from "./department-settings.js";
+export * from "./memory.js";
+export * from "./model-readiness.js";
 
 export const instanceStatuses = [
   "PROVISIONING",
@@ -1035,10 +1037,11 @@ export const providerPresets = [
   defaultModels: readonly ProviderPresetModel[];
 }>;
 
-const connectionNameSchema = z.string().trim().min(3, "Connection name must contain at least 3 characters.").max(48);
+const connectionNameSchema = z.string().trim().min(3, "Provider name must contain at least 3 characters.").max(48);
 const apiKeySchema = z.string().trim().min(1, "API key is required.").max(8_192);
 const endpointSchema = z.string().trim().url("Enter a valid API endpoint URL.");
 const optionalText = z.string().trim().max(512).optional();
+const skipTlsVerifySchema = z.boolean().optional();
 
 const keyedDraft = <T extends (typeof providerKinds)[number]>(
   provider: T,
@@ -1046,6 +1049,7 @@ const keyedDraft = <T extends (typeof providerKinds)[number]>(
 ) => z.object({
   provider: z.literal(provider),
   name: connectionNameSchema,
+  skipTlsVerify: skipTlsVerifySchema,
   config: z.object({ endpoint: endpointSchema.default(endpoint) }),
   credentials: z.object({ apiKey: apiKeySchema }),
 });
@@ -1057,22 +1061,22 @@ export const providerConnectionDraftSchema = z.discriminatedUnion("provider", [
   keyedDraft("anthropic", "https://api.anthropic.com"),
   keyedDraft("gemini", "https://generativelanguage.googleapis.com"),
   keyedDraft("deepseek", "https://api.deepseek.com/v1"),
-  z.object({ provider: z.literal("qwen"), name: connectionNameSchema, config: z.object({ region: z.enum(["cn", "international"]), endpoint: endpointSchema }), credentials: z.object({ apiKey: apiKeySchema }) }),
-  z.object({ provider: z.literal("moonshot"), name: connectionNameSchema, config: z.object({ region: z.enum(["cn", "global"]), endpoint: endpointSchema }), credentials: z.object({ apiKey: apiKeySchema }) }),
+  z.object({ provider: z.literal("qwen"), name: connectionNameSchema, skipTlsVerify: skipTlsVerifySchema, config: z.object({ region: z.enum(["cn", "international"]), endpoint: endpointSchema }), credentials: z.object({ apiKey: apiKeySchema }) }),
+  z.object({ provider: z.literal("moonshot"), name: connectionNameSchema, skipTlsVerify: skipTlsVerifySchema, config: z.object({ region: z.enum(["cn", "global"]), endpoint: endpointSchema }), credentials: z.object({ apiKey: apiKeySchema }) }),
   keyedDraft("zai", "https://api.z.ai/api/paas/v4"),
   keyedDraft("minimax", "https://api.minimax.io/v1"),
-  z.object({ provider: z.literal("baidu-qianfan"), name: connectionNameSchema, config: z.object({ endpoint: endpointSchema.default("https://qianfan.baidubce.com/v2"), appId: optionalText }), credentials: z.object({ apiKey: apiKeySchema }) }),
-  z.object({ provider: z.literal("volcengine"), name: connectionNameSchema, config: z.object({ endpoint: endpointSchema.default("https://ark.cn-beijing.volces.com/api/v3"), endpointId: z.string().trim().min(1, "Endpoint ID is required.").max(256) }), credentials: z.object({ apiKey: apiKeySchema }) }),
+  z.object({ provider: z.literal("baidu-qianfan"), name: connectionNameSchema, skipTlsVerify: skipTlsVerifySchema, config: z.object({ endpoint: endpointSchema.default("https://qianfan.baidubce.com/v2"), appId: optionalText }), credentials: z.object({ apiKey: apiKeySchema }) }),
+  z.object({ provider: z.literal("volcengine"), name: connectionNameSchema, skipTlsVerify: skipTlsVerifySchema, config: z.object({ endpoint: endpointSchema.default("https://ark.cn-beijing.volces.com/api/v3"), endpointId: z.string().trim().min(1, "Endpoint ID is required.").max(256) }), credentials: z.object({ apiKey: apiKeySchema }) }),
   keyedDraft("nvidia-nim", "https://integrate.api.nvidia.com/v1"),
-  z.object({ provider: z.literal("azure-openai"), name: connectionNameSchema, config: z.object({ endpoint: endpointSchema, apiVersion: z.string().trim().min(1, "API version is required.").max(64), deployment: z.string().trim().min(1, "Deployment name is required.").max(256) }), credentials: z.object({ apiKey: apiKeySchema }) }),
-  z.object({ provider: z.literal("aws-bedrock"), name: connectionNameSchema, config: z.object({ region: z.string().trim().min(2, "AWS region is required.").max(64), roleArn: optionalText }), credentials: z.object({ accessKeyId: apiKeySchema, secretAccessKey: apiKeySchema, sessionToken: z.string().trim().max(8_192).optional() }) }),
-  z.object({ provider: z.literal("vertex-ai"), name: connectionNameSchema, config: z.object({ project: z.string().trim().min(1, "Google Cloud project is required.").max(256), location: z.string().trim().min(1, "Google Cloud location is required.").max(128) }), credentials: z.object({ serviceAccountJson: z.string().trim().min(2, "Service-account JSON is required.").max(64_000) }) }),
-  z.object({ provider: z.literal("openrouter"), name: connectionNameSchema, config: z.object({ endpoint: endpointSchema.default("https://openrouter.ai/api/v1"), siteUrl: z.string().trim().url().optional(), appName: optionalText }), credentials: z.object({ apiKey: apiKeySchema }) }),
-  z.object({ provider: z.literal("ollama"), name: connectionNameSchema, config: z.object({ endpoint: endpointSchema }), credentials: z.object({}) }),
-  z.object({ provider: z.literal("vllm"), name: connectionNameSchema, config: z.object({ endpoint: endpointSchema }), credentials: z.object({ apiKey: z.string().trim().max(8_192).optional() }) }),
-  z.object({ provider: z.literal("huggingface"), name: connectionNameSchema, config: z.object({ mode: z.enum(["serverless", "dedicated"]), endpoint: endpointSchema.optional(), inferenceProvider: optionalText }), credentials: z.object({ apiKey: apiKeySchema }) }),
-  z.object({ provider: z.literal("custom-openai-compatible"), name: connectionNameSchema, config: z.object({ endpoint: endpointSchema }), credentials: z.object({ apiKey: z.string().trim().max(8_192).optional() }) }),
-  z.object({ provider: z.literal("custom-anthropic-compatible"), name: connectionNameSchema, config: z.object({ endpoint: endpointSchema }), credentials: z.object({ apiKey: apiKeySchema }) }),
+  z.object({ provider: z.literal("azure-openai"), name: connectionNameSchema, skipTlsVerify: skipTlsVerifySchema, config: z.object({ endpoint: endpointSchema, apiVersion: z.string().trim().min(1, "API version is required.").max(64), deployment: z.string().trim().min(1, "Deployment name is required.").max(256) }), credentials: z.object({ apiKey: apiKeySchema }) }),
+  z.object({ provider: z.literal("aws-bedrock"), name: connectionNameSchema, skipTlsVerify: skipTlsVerifySchema, config: z.object({ region: z.string().trim().min(2, "AWS region is required.").max(64), roleArn: optionalText }), credentials: z.object({ accessKeyId: apiKeySchema, secretAccessKey: apiKeySchema, sessionToken: z.string().trim().max(8_192).optional() }) }),
+  z.object({ provider: z.literal("vertex-ai"), name: connectionNameSchema, skipTlsVerify: skipTlsVerifySchema, config: z.object({ project: z.string().trim().min(1, "Google Cloud project is required.").max(256), location: z.string().trim().min(1, "Google Cloud location is required.").max(128) }), credentials: z.object({ serviceAccountJson: z.string().trim().min(2, "Service-account JSON is required.").max(64_000) }) }),
+  z.object({ provider: z.literal("openrouter"), name: connectionNameSchema, skipTlsVerify: skipTlsVerifySchema, config: z.object({ endpoint: endpointSchema.default("https://openrouter.ai/api/v1"), siteUrl: z.string().trim().url().optional(), appName: optionalText }), credentials: z.object({ apiKey: apiKeySchema }) }),
+  z.object({ provider: z.literal("ollama"), name: connectionNameSchema, skipTlsVerify: skipTlsVerifySchema, config: z.object({ endpoint: endpointSchema }), credentials: z.object({}) }),
+  z.object({ provider: z.literal("vllm"), name: connectionNameSchema, skipTlsVerify: skipTlsVerifySchema, config: z.object({ endpoint: endpointSchema }), credentials: z.object({ apiKey: z.string().trim().max(8_192).optional() }) }),
+  z.object({ provider: z.literal("huggingface"), name: connectionNameSchema, skipTlsVerify: skipTlsVerifySchema, config: z.object({ mode: z.enum(["serverless", "dedicated"]), endpoint: endpointSchema.optional(), inferenceProvider: optionalText }), credentials: z.object({ apiKey: apiKeySchema }) }),
+  z.object({ provider: z.literal("custom-openai-compatible"), name: connectionNameSchema, skipTlsVerify: skipTlsVerifySchema, config: z.object({ endpoint: endpointSchema }), credentials: z.object({ apiKey: z.string().trim().max(8_192).optional() }) }),
+  z.object({ provider: z.literal("custom-anthropic-compatible"), name: connectionNameSchema, skipTlsVerify: skipTlsVerifySchema, config: z.object({ endpoint: endpointSchema }), credentials: z.object({ apiKey: apiKeySchema }) }),
 ]);
 
 export const providerModelSelectionSchema = z.object({
@@ -1221,10 +1225,12 @@ export const mcpSecretReferenceSchema = z.string().trim().min(1).max(500).refine
   "Credentials must use a supported Secret reference.",
 );
 
-const optionalMcpSecretReferenceSchema = z.string().trim().max(500).refine(
-  (value) => !value || /^(?:k8s|memory):\/\//.test(value),
-  "Credentials must use a supported Secret reference.",
-);
+const optionalMcpSecretReferenceSchema = z.string().trim()
+  .max(500, "Use no more than 500 characters.")
+  .refine(
+    (value) => !value || /^(?:k8s|memory):\/\//.test(value),
+    "Credentials must use a supported Secret reference.",
+  );
 
 export const mcpStaticHeaderSchema = z.object({
   name: z.string().trim().min(1).max(120),
@@ -1345,22 +1351,80 @@ export const mcpServerTemplateSchema = z.object({
   defaultAuthType: mcpAuthTypeSchema,
 }).strict();
 
+export const vectorDatabaseFormLimits = {
+  name: { min: 3, max: 120 },
+  description: { min: 10, max: 500 },
+  vectorStoreId: { min: 1, max: 240 },
+  topK: { min: 1, max: 50 },
+  providerField: { min: 1, max: 240 },
+  credentialReference: { max: 500 },
+} as const;
+
+export const vectorDatabaseDescriptionLimits = vectorDatabaseFormLimits.description;
+
+export const vectorDatabaseDescriptionSchema = z.string().trim()
+  .min(
+    vectorDatabaseDescriptionLimits.min,
+    `Enter at least ${vectorDatabaseDescriptionLimits.min} characters.`,
+  )
+  .max(
+    vectorDatabaseDescriptionLimits.max,
+    `Use no more than ${vectorDatabaseDescriptionLimits.max} characters.`,
+  );
+
 const knowledgeSourceDefinitionBaseSchema = z.object({
   id: z.string().trim().min(1).max(160),
-  name: z.string().trim().min(3).max(120),
-  description: z.string().trim().min(10).max(500),
-  vectorStoreId: z.string().trim().min(1).max(240),
+  name: z.string().trim()
+    .min(
+      vectorDatabaseFormLimits.name.min,
+      `Enter at least ${vectorDatabaseFormLimits.name.min} characters.`,
+    )
+    .max(
+      vectorDatabaseFormLimits.name.max,
+      `Use no more than ${vectorDatabaseFormLimits.name.max} characters.`,
+    ),
+  description: vectorDatabaseDescriptionSchema,
+  vectorStoreId: z.string().trim()
+    .min(vectorDatabaseFormLimits.vectorStoreId.min, "Vector Database ID is required.")
+    .max(
+      vectorDatabaseFormLimits.vectorStoreId.max,
+      `Use no more than ${vectorDatabaseFormLimits.vectorStoreId.max} characters.`,
+    ),
   provider: z.enum(["openai", "azure", "bedrock", "vertex_ai", "pg_vector", "postgresql", "elasticsearch"]),
-  apiBase: z.string().trim().url().optional(),
-  embeddingModelDeploymentId: z.string().uuid().optional(),
-  embeddingModel: z.string().trim().min(1).max(240).optional(),
+  apiBase: z.string().trim().url("Enter a valid provider API URL.").optional(),
+  embeddingModelDeploymentId: z.string().uuid("Select a valid embedding model.").optional(),
+  embeddingModel: z.string().trim()
+    .min(vectorDatabaseFormLimits.providerField.min)
+    .max(vectorDatabaseFormLimits.providerField.max)
+    .optional(),
   embeddingDimensions: z.number().int().min(1).max(16_000).optional(),
-  semanticField: z.string().trim().min(1).max(240).optional(),
-  contentField: z.string().trim().min(1).max(240).optional(),
+  semanticField: z.string().trim()
+    .min(vectorDatabaseFormLimits.providerField.min, "Elasticsearch semantic_text field is required.")
+    .max(
+      vectorDatabaseFormLimits.providerField.max,
+      `Use no more than ${vectorDatabaseFormLimits.providerField.max} characters.`,
+    )
+    .optional(),
+  contentField: z.string().trim()
+    .min(vectorDatabaseFormLimits.providerField.min, "Elasticsearch content field is required.")
+    .max(
+      vectorDatabaseFormLimits.providerField.max,
+      `Use no more than ${vectorDatabaseFormLimits.providerField.max} characters.`,
+    )
+    .optional(),
   credentialReference: optionalMcpSecretReferenceSchema.default(""),
   status: z.enum(["REGISTERED", "UNAVAILABLE"]),
   lastReconciliationError: z.string().max(4_000).nullable(),
-  topK: z.number().int().min(1).max(50),
+  topK: z.number({ error: "Enter a whole number from 1 to 50." })
+    .int("Enter a whole number.")
+    .min(
+      vectorDatabaseFormLimits.topK.min,
+      `Enter a value of at least ${vectorDatabaseFormLimits.topK.min}.`,
+    )
+    .max(
+      vectorDatabaseFormLimits.topK.max,
+      `Enter a value no greater than ${vectorDatabaseFormLimits.topK.max}.`,
+    ),
 }).strict();
 
 function validateKnowledgeSourceProvider(
@@ -1582,8 +1646,15 @@ export const vectorDocumentChunkSchema = z.object({
 }).strict().meta({ id: "VectorDocumentChunk" });
 
 export const vectorDocumentDetailSchema = vectorDocumentSchema.extend({
-  chunks: z.array(vectorDocumentChunkSchema),
+  previewText: z.string(),
+  previewTruncated: z.boolean(),
 }).strict().meta({ id: "VectorDocumentDetail" });
+
+export const vectorDocumentChunksSchema = z.object({
+  chunks: z.array(vectorDocumentChunkSchema),
+  total: z.number().int().min(0),
+  truncated: z.boolean(),
+}).strict().meta({ id: "VectorDocumentChunks" });
 
 export const vectorIngestionJobSchema = z.object({
   id: z.string().uuid(),
@@ -1942,7 +2013,15 @@ export const createInstanceSchema = z.object({
   mcpServerIds: z.array(z.string().trim().min(1).max(160)).max(64).optional(),
   knowledgeSourceIds: z.array(z.string().trim().min(1).max(160)).max(64).optional(),
   memory: agentMemoryConfigurationSchema.optional(),
+  durableMemoryId: z.string().uuid().optional(),
 }).strict().superRefine((value, context) => {
+  if (value.memory && value.durableMemoryId) {
+    context.addIssue({
+      code: "custom",
+      path: ["memory"],
+      message: "Choose either Project Durable Memory or an Instance-native Memory mode.",
+    });
+  }
   if (
     value.memory
     && getAgentPlatformDefinition(value.agentPlatform).capabilities.memory
@@ -1951,7 +2030,18 @@ export const createInstanceSchema = z.object({
     context.addIssue({
       code: "custom",
       path: ["memory"],
-      message: "Memory is currently available only for OpenClaw Instances.",
+      message: "This Agent does not support Instance-native Memory.",
+    });
+  }
+  if (
+    value.memory?.mode === "hybrid"
+    && getAgentPlatformDefinition(value.agentPlatform).capabilities.memory
+      !== "native-hybrid"
+  ) {
+    context.addIssue({
+      code: "custom",
+      path: ["memory"],
+      message: "Hybrid Memory is currently available only for OpenClaw Instances.",
     });
   }
 }).meta({ id: "CreateInstanceInput" });
@@ -2230,6 +2320,7 @@ export type UpdateVectorDocumentInput = z.infer<typeof updateVectorDocumentSchem
 export type VectorDeletionImpact = z.infer<typeof vectorDeletionImpactSchema>;
 export type VectorDocumentChunk = z.infer<typeof vectorDocumentChunkSchema>;
 export type VectorDocumentDetail = z.infer<typeof vectorDocumentDetailSchema>;
+export type VectorDocumentChunks = z.infer<typeof vectorDocumentChunksSchema>;
 export type VectorIngestionJob = z.infer<typeof vectorIngestionJobSchema>;
 export type VectorDatabaseStats = z.infer<typeof vectorDatabaseStatsSchema>;
 export type VectorDatabaseOverview = z.infer<typeof vectorDatabaseOverviewSchema>;
@@ -2420,6 +2511,7 @@ export interface ProviderAccount {
   providerKind: ProviderKind;
   presetId: ProviderKind;
   endpoint: string;
+  skipTlsVerify?: boolean;
   config: Record<string, unknown>;
   complianceDomain: ComplianceDomain;
   endpointRegion: string;
@@ -2476,6 +2568,28 @@ export interface ModelDeployment extends CreateModelDeploymentInput {
   createdAt: string;
   updatedAt: string;
   origin?: InferenceResourceOrigin;
+}
+
+export type ModelRemovalDependencyKind =
+  | "DURABLE_MEMORY"
+  | "INSTANCE"
+  | "MODEL_ROUTING"
+  | "PROJECT"
+  | "VECTOR_DATABASE";
+
+export interface ModelRemovalDependency {
+  direct: boolean;
+  id: string;
+  kind: ModelRemovalDependencyKind;
+  name: string;
+}
+
+export interface ModelRemovalImpact {
+  blocking: boolean;
+  dependencies: ModelRemovalDependency[];
+  modelId: string;
+  modelName: string;
+  remainingValidatedEmbeddingModels: number;
 }
 
 export interface DepartmentInferenceAvailability {
@@ -2996,6 +3110,48 @@ export interface InstanceRuntimeLogView {
   instanceId: string;
   logs: string[];
   error?: string;
+}
+
+export type InstanceLifecycleAction = "provision" | "delete";
+export type InstanceLifecycleStatus =
+  | "queued"
+  | "running"
+  | "succeeded"
+  | "failed";
+export type InstanceLifecycleEventLevel = "debug" | "info" | "warning" | "error";
+
+export interface InstanceLifecycleEvent {
+  operationId: string;
+  sequence: number;
+  type: string;
+  level: InstanceLifecycleEventLevel;
+  stage?: ProvisioningStage;
+  message: string;
+  payload?: Record<string, unknown>;
+  occurredAt: string;
+}
+
+export interface InstanceLifecycleOperation {
+  id: string;
+  instanceId: string;
+  action: InstanceLifecycleAction;
+  status: InstanceLifecycleStatus;
+  stage?: ProvisioningStage;
+  progress: number;
+  currentMessage: string;
+  errorCode?: string;
+  errorSummary?: string;
+  revision: number;
+  createdAt: string;
+  startedAt?: string;
+  finishedAt?: string;
+  updatedAt: string;
+  events: InstanceLifecycleEvent[];
+}
+
+export interface InstanceCreationAccepted {
+  instanceId: string;
+  operation: InstanceLifecycleOperation;
 }
 
 export interface ProjectQuotaUsage {

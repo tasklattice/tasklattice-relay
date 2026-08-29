@@ -10,6 +10,7 @@ import {
 import { cn } from "@/lib/utils";
 
 const widthClasses = {
+  memory: "!w-full sm:!w-[min(96vw,35rem)] sm:!max-w-[35rem]",
   md: "!w-full sm:!w-[min(96vw,40rem)] sm:!max-w-[40rem]",
   lg: "!w-full sm:!w-[min(96vw,48rem)] sm:!max-w-[48rem]",
   xl: "!w-full sm:!w-[min(96vw,56rem)] sm:!max-w-[56rem]",
@@ -70,11 +71,11 @@ export function EntitySheet({
       >
         <SheetHeader className="shrink-0 gap-1.5 border-b px-5 py-5 pr-14 sm:px-6">
           {eyebrow ? (
-            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+            <p className="text-[11px] font-medium tracking-[0.02em] text-muted-foreground">
               {eyebrow}
             </p>
           ) : null}
-          <SheetTitle className="text-2xl">{title}</SheetTitle>
+          <SheetTitle className="text-xl tracking-[-0.01em]">{title}</SheetTitle>
           <SheetDescription className="max-w-2xl leading-5">
             {description}
           </SheetDescription>

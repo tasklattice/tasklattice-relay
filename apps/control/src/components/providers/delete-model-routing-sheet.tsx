@@ -29,7 +29,7 @@ export function DeleteModelRoutingSheet({
       title={blocked ? "Routing cannot be deleted" : "Delete routing"}
       description={blocked
         ? `${consumers} active ${consumers === 1 ? "Instance is" : "Instances are"} still using this routing.`
-        : <>Delete <strong>{routingName}</strong> while keeping Provider connections and registered models.</>}
+        : <>Delete <strong>{routingName}</strong> while keeping registered models.</>}
       entityName={routingName}
       confirmLabel="Delete routing"
       deleting={deleting}
@@ -38,7 +38,7 @@ export function DeleteModelRoutingSheet({
       blockedAction={onViewConsumers}
       blockedActionLabel="View consumers"
       {...(error ? { error } : {})}
-      impactDescription="Its LiteLLM route and dedicated team are permanently removed. Provider connections and registered models are not changed."
+      impactDescription="Its LiteLLM route and dedicated team are permanently removed. Registered models are not changed."
     >
       {blocked ? (
         <div role="alert" className="flex gap-3 border-l-2 border-amber-500 bg-amber-500/5 px-4 py-3 text-sm">
@@ -54,7 +54,7 @@ export function DeleteModelRoutingSheet({
         <div className="flex gap-3 border-l-2 border-amber-500 bg-amber-500/5 px-4 py-3">
           <Network className="mt-0.5 size-4 shrink-0 text-amber-700 dark:text-amber-400" />
           <p className="text-xs leading-5 text-muted-foreground">
-            New requests stop using this route immediately. Existing Provider connections and model registrations are not changed.
+            New requests stop using this route immediately. Existing model registrations are not changed.
           </p>
         </div>
       )}

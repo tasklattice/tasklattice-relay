@@ -1,0 +1,6 @@
+name: tali_relay
+version: 0.1.0
+description: "TaskLattice Project-scoped Durable Memory through the Relay Memory Gateway."
+hooks:
+  - prefetch
+  - sync_turn

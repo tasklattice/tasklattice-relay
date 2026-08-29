@@ -99,6 +99,7 @@ describe("PgBossControlJobQueue", () => {
     const payload = {
       projectId: "project-a",
       instanceId: "00000000-0000-4000-8000-000000000401",
+      operationId: "00000000-0000-4000-8000-000000000402",
       action: "delete" as const,
     };
 

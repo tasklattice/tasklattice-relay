@@ -36,7 +36,8 @@ export interface AgentPlatformRuntime {
     memory?: RuntimeMemoryConfiguration,
     projectRuntimeBridgeUrl?: string,
     coordinatorInstanceId?: string,
-    projectRuntimeBridgeToken?: string,
+    runtimeBridgeEnabled?: boolean,
+    durableMemoryEnabled?: boolean,
   ) => string;
   healthProbe: (dashboardPort: string) => string;
   startupLogs: readonly string[];
@@ -48,9 +49,24 @@ const openClawBootstrapScript = (
   inferenceEndpoint: string,
   model: string,
   memory?: RuntimeMemoryConfiguration,
+  projectRuntimeBridgeUrl?: string,
+  coordinatorInstanceId?: string,
+  runtimeBridgeEnabled = false,
+  durableMemoryEnabled = false,
 ) => {
   const memoryPayload = Buffer.from(
     JSON.stringify(memory ?? null),
+    "utf8",
+  ).toString("base64");
+  const durableMemoryEndpoint =
+    durableMemoryEnabled
+      && runtimeBridgeEnabled
+      && projectRuntimeBridgeUrl
+      && coordinatorInstanceId
+      ? `${projectRuntimeBridgeUrl.replace(/\/$/, "")}/v1/memory/coordinators/${encodeURIComponent(coordinatorInstanceId)}`
+      : "";
+  const durableMemoryEndpointPayload = Buffer.from(
+    durableMemoryEndpoint,
     "utf8",
   ).toString("base64");
   return `#!/usr/bin/env bash
@@ -60,9 +76,13 @@ readonly telemetry_env_file=/tmp/tali-run-telemetry.env
 source "$telemetry_env_file"
 rm -f "$telemetry_env_file"
 export TALI_RUN_TELEMETRY_ENDPOINT="$(printf '%s' "$TALI_RUN_TELEMETRY_ENDPOINT_B64" | base64 -d)"
-export TALI_RUN_TELEMETRY_TOKEN="$(printf '%s' "$TALI_RUN_TELEMETRY_TOKEN_B64" | base64 -d)"
-unset TALI_RUN_TELEMETRY_ENDPOINT_B64 TALI_RUN_TELEMETRY_TOKEN_B64
-
+unset TALI_RUN_TELEMETRY_ENDPOINT_B64
+export TALI_DURABLE_MEMORY_ENDPOINT="$(printf '%s' '${durableMemoryEndpointPayload}' | base64 -d)"
+if [ -n "$TALI_DURABLE_MEMORY_ENDPOINT" ] && [ -n "\${TALI_PROJECT_RUNTIME_BRIDGE_TOKEN:-}" ]; then
+  export TALI_DURABLE_MEMORY_TOKEN="$TALI_PROJECT_RUNTIME_BRIDGE_TOKEN"
+else
+  unset TALI_DURABLE_MEMORY_TOKEN
+fi
 readonly config_file=/sandbox/.openclaw/openclaw.json
 readonly hash_file=/sandbox/.openclaw/.config-hash
 
@@ -88,12 +108,28 @@ config.agents.defaults.model.primary = "inference/" + modelId;
 const plugins = (config.plugins ??= {});
 const pluginLoad = (plugins.load ??= {});
 const pluginPaths = Array.isArray(pluginLoad.paths) ? pluginLoad.paths : [];
-pluginLoad.paths = [...new Set([...pluginPaths, "/usr/local/lib/tali/openclaw-run-telemetry"])];
+pluginLoad.paths = [...new Set([
+  ...pluginPaths,
+  "/usr/local/lib/tali/openclaw-run-telemetry",
+  ...(process.env.TALI_DURABLE_MEMORY_ENDPOINT && process.env.TALI_DURABLE_MEMORY_TOKEN
+    ? ["/usr/local/lib/tali/openclaw-durable-memory"]
+    : []),
+])];
 const pluginEntries = (plugins.entries ??= {});
 pluginEntries["tali-run-telemetry"] = {
   enabled: true,
   hooks: { allowConversationAccess: true },
 };
+if (process.env.TALI_DURABLE_MEMORY_ENDPOINT && process.env.TALI_DURABLE_MEMORY_TOKEN) {
+  pluginEntries["tali-durable-memory"] = {
+    enabled: true,
+    hooks: {
+      allowConversationAccess: true,
+      allowPromptInjection: true,
+      timeouts: { before_prompt_build: 2200 },
+    },
+  };
+}
 if (memory) {
   const workspaceDirectory = "/sandbox/.openclaw/workspace";
   const dailyMemoryDirectory = workspaceDirectory + "/memory";
@@ -168,10 +204,14 @@ const hermesBootstrapScript = (
   _memory?: RuntimeMemoryConfiguration,
   projectRuntimeBridgeUrl?: string,
   coordinatorInstanceId?: string,
-  projectRuntimeBridgeToken?: string,
+  runtimeBridgeEnabled = false,
+  durableMemoryRequested = false,
 ) => {
   const upstreamDashboardPort = dashboardPort === "18790" ? "18791" : "18790";
   const secureCookie = new URL(dashboardOrigin).protocol === "https:";
+  const projectRuntimeBridgeToken = runtimeBridgeEnabled
+    ? "$TALI_PROJECT_RUNTIME_BRIDGE_TOKEN"
+    : undefined;
   const a2aRegistryArgument =
     projectRuntimeBridgeUrl && coordinatorInstanceId && projectRuntimeBridgeToken
       ? ` \\\n  --a2a-registry-url "${projectRuntimeBridgeUrl.replace(/\/$/, "")}/v1/hermes/a2a-agents?coordinatorInstanceId=${encodeURIComponent(coordinatorInstanceId)}"`
@@ -183,8 +223,27 @@ const hermesBootstrapScript = (
     projectRuntimeBridgeUrl && coordinatorInstanceId && projectRuntimeBridgeToken
       ? ` \\\n  --vector-database-registry-url "${projectRuntimeBridgeUrl.replace(/\/$/, "")}/v1/hermes/vector-databases?coordinatorInstanceId=${encodeURIComponent(coordinatorInstanceId)}" \\\n  --vector-database-registry-token "${projectRuntimeBridgeToken}"`
       : "";
+  const durableMemoryEnabled = durableMemoryRequested && Boolean(
+    projectRuntimeBridgeUrl && coordinatorInstanceId && projectRuntimeBridgeToken,
+  );
+  const durableMemoryEndpoint = durableMemoryEnabled
+    ? `${projectRuntimeBridgeUrl!.replace(/\/$/, "")}/v1/memory/coordinators/${encodeURIComponent(coordinatorInstanceId!)}`
+    : "";
+  const durableMemoryEndpointPayload = Buffer.from(
+    durableMemoryEndpoint,
+    "utf8",
+  ).toString("base64");
+  const durableMemoryProviderArgument = durableMemoryEnabled
+    ? " \\\n  --durable-memory-provider tali_relay"
+    : "";
   return `#!/usr/bin/env bash
 set -euo pipefail
+
+readonly telemetry_env_file=/tmp/tali-run-telemetry.env
+source "$telemetry_env_file"
+rm -f "$telemetry_env_file"
+export TALI_RUN_TELEMETRY_ENDPOINT="$(printf '%s' "$TALI_RUN_TELEMETRY_ENDPOINT_B64" | base64 -d)"
+unset TALI_RUN_TELEMETRY_ENDPOINT_B64
 
 readonly hermes_dir=/sandbox/.hermes
 readonly config_file="$hermes_dir/config.yaml"
@@ -195,6 +254,12 @@ readonly webui_secret_file=/tmp/tali-hermes-webui-secret
 readonly webui_public_port=${dashboardPort}
 readonly webui_upstream_port=${upstreamDashboardPort}
 readonly webui_secure_cookie=${secureCookie ? "1" : "0"}
+export TALI_DURABLE_MEMORY_ENDPOINT="$(printf '%s' '${durableMemoryEndpointPayload}' | base64 -d)"
+if [ -n "$TALI_DURABLE_MEMORY_ENDPOINT" ] && [ -n "\${TALI_PROJECT_RUNTIME_BRIDGE_TOKEN:-}" ]; then
+  export TALI_DURABLE_MEMORY_TOKEN="$TALI_PROJECT_RUNTIME_BRIDGE_TOKEN"
+else
+  unset TALI_DURABLE_MEMORY_TOKEN
+fi
 
 # OpenShell provisions the persistent workspace root with a setgid, writable
 # mode so uploaded files can be staged before the workload starts. Hermes
@@ -230,7 +295,7 @@ printf '[bootstrap] Hermes identity current=%s account=%s workspace=%s state=%s\
   --endpoint "${inferenceEndpoint}" \
   --model "${model}" \
   --template-endpoint https://inference.local/v1 \
-  --template-model deepseek-chat${a2aRegistryArgument}${a2aRegistryTokenArgument}${vectorDatabaseRegistryArgument}
+  --template-model deepseek-chat${a2aRegistryArgument}${a2aRegistryTokenArgument}${vectorDatabaseRegistryArgument}${durableMemoryProviderArgument}
 
 if [ ! -x "$webui_auth_proxy" ]; then
   echo "Hermes Web UI authentication proxy is unavailable" >&2

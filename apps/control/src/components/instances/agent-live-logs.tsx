@@ -144,15 +144,17 @@ export function AgentLiveLogs({
           <span className="hidden items-center gap-1.5 text-[11px] text-white/55 sm:flex">
             <ShieldCheck className="size-3.5" /> Read-only · secrets redacted
           </span>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="border-white/15 bg-white/5 text-white hover:bg-white/10 hover:text-white"
-            onClick={() => setAttempt((value) => value + 1)}
-          >
-            <RefreshCw /> Reconnect
-          </Button>
+          {state === "closed" || state === "error" ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="border-white/15 bg-white/5 text-white hover:bg-white/10 hover:text-white"
+              onClick={() => setAttempt((value) => value + 1)}
+            >
+              <RefreshCw /> Reconnect
+            </Button>
+          ) : null}
         </div>
       </div>
       <div ref={host} className="h-[34rem] overflow-hidden p-3" />

@@ -4,11 +4,8 @@ import {
   type CreateInstanceInput,
   type RunnerSandbox,
 } from "@tali/contracts";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { LiteLLMAdminClient } from "../providers/litellm-client";
-import type { ControlJobPublisher } from "../jobs/control-job-queue";
-import type { RunnerClient } from "../runtime/nemoclaw-runner-client";
 import { RuntimePolicyService } from "../runtime-policies/runtime-policy-service";
 import { ProjectAgentRuntimeService } from "../runtime-bridge/project-agent-runtime-service";
 import { AgentGardenStore } from "../agent-garden/agent-garden-store";
@@ -17,6 +14,10 @@ import { demoAgentEndpoint } from "../agent-garden/demo-agent-runtime";
 import { databaseAgentCatalog } from "../agent-garden/database-agent-catalog";
 import { createTestStore } from "../test/store";
 import {
+  configuredService,
+  createConfiguredInstance,
+} from "../test/configured-agent-service";
+import {
   InstanceService,
   agentSandboxName,
   applyObservedState,
@@ -24,6 +25,10 @@ import {
 } from "./instance-service";
 
 const accessPolicyId = "11111111-1111-4111-8111-111111111111";
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 
 describe("Agent sandbox naming", () => {
   it("derives the runtime identifier only from the Instance UUID", () => {
@@ -222,7 +227,7 @@ describe("Agent selection", () => {
     ).toBe("routing-selected");
   });
 
-  it("accepts Memory only for OpenClaw Instances", () => {
+  it("accepts Native Memory for OpenClaw and Hermes but keeps Hybrid OpenClaw-only", () => {
     expect(
       createInstanceSchema.parse({
         ...input,
@@ -230,13 +235,21 @@ describe("Agent selection", () => {
         memory: { mode: "native" },
       }).memory,
     ).toEqual({ mode: "native", citations: "auto" });
-    expect(() =>
+    expect(
       createInstanceSchema.parse({
         ...input,
         agentPlatform: "hermes",
         memory: { mode: "native" },
-      }),
-    ).toThrow("Memory is currently available only for OpenClaw Instances");
+      }).memory,
+    ).toEqual({ mode: "native", citations: "auto" });
+    expect(() => createInstanceSchema.parse({
+      ...input,
+        agentPlatform: "hermes",
+        memory: {
+          mode: "hybrid",
+          embeddingModelDeploymentId: "22222222-2222-4222-8222-222222222222",
+        },
+    })).toThrow("Hybrid Memory is currently available only for OpenClaw Instances");
   });
 
   it("resolves Role and capability references from the PostgreSQL catalog", async () => {
@@ -258,226 +271,6 @@ describe("Agent selection", () => {
     ).rejects.toThrow("Skill configuration is unavailable");
   });
 });
-
-function runnerAdapter(): RunnerClient {
-  return {
-    createSandbox: vi.fn(async (input) => ({
-      name: input.name,
-      agentPlatform: input.agentPlatform,
-      phase: "READY" as const,
-      logs: [],
-    })),
-    getSandbox: vi.fn(async (name, agentPlatform) => ({
-      name,
-      agentPlatform,
-      phase: "NOT_FOUND" as const,
-      logs: [],
-    })),
-    getSandboxInteraction: vi.fn(),
-    getSandboxAudit: vi.fn(),
-    destroySandbox: vi.fn(async (name, agentPlatform) => ({
-      name,
-      agentPlatform,
-      phase: "NOT_FOUND" as const,
-      logs: [],
-    })),
-    getHealth: vi.fn(async () => ({ ok: true, mode: "fixture" })),
-    terminalWebSocketUrl: vi.fn(async () => "ws://runner/terminal"),
-    authorizationHeaders: vi.fn(async () => ({ authorization: "Bearer token" })),
-  };
-}
-
-function liteLLMAdapter(): LiteLLMAdminClient {
-  return {
-    baseUrl: "http://litellm:4000",
-    registerModel: vi.fn(),
-    deleteModel: vi.fn(),
-    probeModel: vi.fn(),
-    createInstanceKey: vi.fn(async () => ({
-      secret: "sk-instance",
-      tokenId: "hashed-token",
-    })),
-    ensureProjectTeam: vi.fn(async () => "team-a"),
-    addProjectTeamMember: vi.fn(async () => undefined),
-    createInstanceServiceAccountKey: vi.fn(async () => ({
-      secret: "sk-instance-service-account",
-      tokenId: "instance-hashed-token",
-    })),
-    updateInstanceObjectPermissions: vi.fn(async () => undefined),
-    blockKey: vi.fn(async () => undefined),
-    revokeKey: vi.fn(async () => undefined),
-    listSpendLogs: vi.fn(async () => []),
-  };
-}
-
-async function configuredService() {
-  const store = createTestStore();
-  const now = new Date().toISOString();
-  await store.saveInferenceGateway({
-    id: "litellm-default",
-    name: "LiteLLM",
-    baseUrl: "http://litellm:4000",
-    adminUiUrl: "http://litellm:4000",
-    credentialSource: "ENVIRONMENT",
-    status: "READY",
-    validationMessage: "Ready",
-    validatedAt: now,
-    createdAt: now,
-    updatedAt: now,
-  });
-  await store.saveProviderAccount(
-    {
-      id: "provider-a",
-      name: "DeepSeek",
-      providerKind: "deepseek",
-      presetId: "deepseek",
-      endpoint: "https://api.deepseek.com/v1",
-      config: {},
-      complianceDomain: "GLOBAL",
-      endpointRegion: "global",
-      crossBorderTransfer: false,
-      discoveredModels: [],
-      status: "VALIDATED",
-      checks: [],
-      credentialState: "STORED",
-      validationMessage: "Ready",
-      validatedAt: now,
-      createdAt: now,
-      updatedAt: now,
-    },
-    "test-credential",
-  );
-  await store.saveModelDeployment({
-    id: "model-a",
-    providerAccountId: "provider-a",
-    modelId: "deepseek-chat",
-    displayName: "DeepSeek Chat",
-    modelType: "llm",
-    capabilities: ["tool-calling"],
-    inputModalities: ["text"],
-    outputModalities: ["text"],
-    providerPresetId: "deepseek",
-    providerName: "DeepSeek",
-    endpoint: "https://api.deepseek.com/v1",
-    complianceDomain: "GLOBAL",
-    endpointRegion: "global",
-    crossBorderTransfer: false,
-    litellmModelName: "tali/provider-a/deepseek-chat",
-    status: "VALIDATED",
-    checks: [],
-    validationMessage: "Ready",
-    validatedAt: now,
-    createdAt: now,
-    updatedAt: now,
-  });
-  await store.saveModelRouting({
-    id: "routing-a",
-    name: "Production inference",
-    description: "Managed inference for production Instances.",
-    gatewayId: "litellm-default",
-    managementMode: "LITELLM_MANAGED",
-    publicModelAlias: "tali-routing-routing-a",
-    routingPolicy: {
-      version: 1,
-      mode: "SINGLE",
-      modelDeploymentId: "model-a",
-      fallbackModelDeploymentIds: [],
-      retries: 2,
-    },
-    complianceDomain: "GLOBAL",
-    status: "READY",
-    isDefault: true,
-    keyPolicy: { perInstance: true, rotationDays: 90 },
-    auditPolicy: {
-      controlPlane: true,
-      requestLogs: true,
-      capturePrompts: false,
-    },
-    capabilities: {
-      automaticRouting: "ENABLED",
-      routerType: "COMPLEXITY_ROUTER",
-      complexityTierCount: 4,
-      sessionAffinity: "ENABLED",
-      adaptiveRouting: "DISABLED",
-      failover: "ENABLED",
-      generalFallback: "ENABLED",
-      contextWindowFallback: "DISABLED",
-      contentPolicyFallback: "DISABLED",
-      retries: "ENABLED",
-      requestAudit: "ENABLED",
-    },
-    conditions: [
-      {
-        type: "COMPLIANCE",
-        status: "PASS",
-        reason: "All backing deployments are GLOBAL.",
-      },
-    ],
-    configurationHash: "sha256:test",
-    observedGeneration: 1,
-    validationMessage: "LiteLLM binding is ready.",
-    consumers: 0,
-    createdAt: now,
-    updatedAt: now,
-  });
-  await store.saveKnowledgeSourceDefinition({
-    id: "engineering-handbook",
-    name: "Engineering Handbook",
-    description: "Approved engineering standards and operational runbooks.",
-    vectorStoreId: "vs_engineering_handbook",
-    provider: "openai",
-    credentialReference: "",
-    status: "REGISTERED",
-    lastReconciliationError: null,
-    topK: 8,
-  });
-  const runner = runnerAdapter();
-  const litellm = liteLLMAdapter();
-  const jobs = {
-    enqueueInstanceLifecycle: vi.fn(async () =>
-      "00000000-0000-4000-8000-000000000401"
-    ),
-  } as unknown as ControlJobPublisher;
-  const service = new InstanceService(
-    store,
-    runner,
-    litellm,
-    undefined,
-    undefined,
-    undefined,
-    undefined,
-    undefined,
-    jobs,
-  );
-  const policy = await service.accessPolicies.create(
-    { name: "Default Instance access", status: "ACTIVE", serverRules: [] },
-    "test",
-  );
-  return { store, runner, litellm, service, policy, jobs };
-}
-
-async function createConfiguredInstance(
-  setup: Awaited<ReturnType<typeof configuredService>>,
-  overrides: Partial<CreateInstanceInput> = {},
-) {
-  const queued = await setup.service.create(
-    {
-      name: "Research Assistant",
-      description: "",
-      runtime: "openshell",
-      accessPolicyIds: [setup.policy.id],
-      modelRoutingId: "routing-a",
-      agentPlatform: "openclaw",
-      policyId: "restricted",
-      systemPrompt: "Research the request and report the resulting evidence.",
-      knowledgeSourceIds: ["engineering-handbook"],
-      ...overrides,
-    },
-    "local-admin",
-  );
-  await setup.service.provision(queued.id);
-  return (await setup.store.get(queued.id))!;
-}
 
 async function instantiateAsExternalRegistryFixture(
   garden: AgentGardenService,
@@ -504,6 +297,118 @@ async function instantiateAsExternalRegistryFixture(
 }
 
 describe("Instance Access Policy lifecycle", () => {
+  it("keeps the existing Agent create path when Durable Memory is disabled", async () => {
+    vi.stubEnv("TALI_DURABLE_MEMORY_ENABLED", "false");
+    vi.stubEnv("TALI_DURABLE_MEMORY_PROJECTS", "");
+    const setup = await configuredService();
+    const queued = await setup.service.create({
+      name: "Feature-disabled Agent",
+      description: "",
+      runtime: "openshell",
+      accessPolicyIds: [setup.policy.id],
+      modelRoutingId: "routing-a",
+      agentPlatform: "openclaw",
+      policyId: "restricted",
+      systemPrompt: "Research the request and report the resulting evidence.",
+      knowledgeSourceIds: ["engineering-handbook"],
+    }, "local-admin");
+
+    expect(queued.durableMemoryId).toBeUndefined();
+    expect(queued.memory).toEqual({ mode: "native", citations: "auto" });
+    expect(setup.memoryProvider.bankCount()).toBe(0);
+    await expect(setup.store.database().memoryRecord.count()).resolves.toBe(0);
+    await expect(setup.service.create({
+      name: "Invalid explicit Memory",
+      description: "",
+      runtime: "openshell",
+      accessPolicyIds: [setup.policy.id],
+      modelRoutingId: "routing-a",
+      agentPlatform: "openclaw",
+      durableMemoryId: "memory-a",
+      policyId: "restricted",
+      systemPrompt: "Research the request and report the resulting evidence.",
+      knowledgeSourceIds: ["engineering-handbook"],
+    }, "local-admin")).rejects.toThrow("not enabled for this Project");
+  });
+
+  it.each(["openclaw", "hermes"] as const)(
+    "falls back to Native text Memory for %s when the Project has no embedding model",
+    async (agentPlatform) => {
+      const setup = await configuredService({
+        includeValidatedEmbeddingModel: false,
+      });
+      const agent = await createConfiguredInstance(setup, {
+        agentPlatform,
+        knowledgeSourceIds: [],
+      });
+
+      expect(agent.memory).toEqual({ mode: "native", citations: "auto" });
+      expect(agent.durableMemoryId).toBeUndefined();
+      expect(setup.memoryProvider.bankCount()).toBe(0);
+      await expect(setup.store.database().memoryRecord.count()).resolves.toBe(0);
+      expect(setup.runner.createSandbox).toHaveBeenCalledWith(
+        expect.objectContaining({
+          durableMemoryEnabled: false,
+          memory: { mode: "native", citations: "auto" },
+        }),
+      );
+    },
+  );
+
+  it("rejects assigning a Vector Database when the Project has no embedding model", async () => {
+    const setup = await configuredService({
+      includeValidatedEmbeddingModel: false,
+    });
+
+    await expect(setup.service.create({
+      name: "Vector-backed Agent",
+      description: "",
+      runtime: "openshell",
+      accessPolicyIds: [setup.policy.id],
+      modelRoutingId: "routing-a",
+      agentPlatform: "hermes",
+      policyId: "restricted",
+      systemPrompt: "Research the request and report the resulting evidence.",
+      knowledgeSourceIds: ["engineering-handbook"],
+    }, "local-admin")).rejects.toThrow(
+      "require a validated text embedding model",
+    );
+  });
+
+  it("replays an Agent create key without creating another Agent or Memory Bank", async () => {
+    const setup = await configuredService();
+    const input: CreateInstanceInput = {
+      name: "Idempotent Research Assistant",
+      description: "",
+      runtime: "openshell",
+      accessPolicyIds: [setup.policy.id],
+      modelRoutingId: "routing-a",
+      agentPlatform: "openclaw",
+      policyId: "restricted",
+      systemPrompt: "Research the request and report the resulting evidence.",
+      knowledgeSourceIds: ["engineering-handbook"],
+    };
+
+    const first = await setup.service.create(
+      input,
+      "local-admin",
+      "agent-create-request-a",
+    );
+    const replay = await setup.service.create(
+      input,
+      "local-admin",
+      "agent-create-request-a",
+    );
+
+    expect(replay.id).toBe(first.id);
+    expect(replay.durableMemoryId).toBe(first.durableMemoryId);
+    expect(setup.memoryProvider.bankCount()).toBe(1);
+    await expect(setup.store.database().agentRecord.count()).resolves.toBe(1);
+    await expect(setup.store.database().memoryRecord.count()).resolves.toBe(1);
+    await expect(setup.store.database().memoryBinding.count()).resolves.toBe(1);
+    expect(setup.jobs.enqueueInstanceLifecycle).toHaveBeenCalledOnce();
+  });
+
   it("returns a queued Instance before LiteLLM and OpenShell provisioning starts", async () => {
     const setup = await configuredService();
     const queued = await setup.service.create(
@@ -524,11 +429,12 @@ describe("Instance Access Policy lifecycle", () => {
     expect(queued).toMatchObject({
       status: "PROVISIONING",
       provisioningStage: "QUEUED",
-      operationId: "00000000-0000-4000-8000-000000000401",
+      operationId: expect.any(String),
     });
     expect(setup.jobs.enqueueInstanceLifecycle).toHaveBeenCalledWith({
       projectId: setup.store.projectId,
       instanceId: queued.id,
+      operationId: queued.operationId,
       action: "provision",
     });
     expect(setup.litellm.createInstanceServiceAccountKey).not.toHaveBeenCalled();
@@ -863,6 +769,11 @@ describe("Instance Access Policy lifecycle", () => {
   it("creates and revokes an Instance Service Account Key under the Project Team", async () => {
     const setup = await configuredService();
     const agent = await createConfiguredInstance(setup);
+    const memory = await setup.memories.repository.getMemory(
+      agent.durableMemoryId!,
+    );
+    expect(memory).toMatchObject({ status: "ready" });
+    expect(setup.memoryProvider.hasBank(memory!.providerRef!)).toBe(true);
 
     expect(setup.litellm.createInstanceServiceAccountKey).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -912,6 +823,7 @@ describe("Instance Access Policy lifecycle", () => {
         where: { projectId: setup.store.projectId, instanceId: agent.id },
       });
     expect(attribution?.instanceId).toBe(agent.id);
+    expect(attribution?.liteLLMVirtualKeyId).toMatch(/^sha256:/);
 
     await setup.service.destroy(agent.id);
     expect(setup.litellm.blockKey).not.toHaveBeenCalled();
@@ -920,6 +832,12 @@ describe("Instance Access Policy lifecycle", () => {
       "instance-hashed-token",
     );
     expect(setup.litellm.revokeKey).not.toHaveBeenCalled();
+    await expect(setup.memories.repository.getMemory(agent.durableMemoryId!))
+      .resolves.toMatchObject({ status: "unbound" });
+    expect(setup.memoryProvider.hasBank(memory!.providerRef!)).toBe(true);
+    await expect(
+      setup.memories.repository.countBindings(agent.durableMemoryId!, "detached"),
+    ).resolves.toBe(1);
     expect(await setup.store.getIncludingDeleted(agent.id)).toMatchObject({
       liteLLMKeyBlockedAt: expect.any(String),
       modelRoutingBindingRevokedAt: expect.any(String),
@@ -932,7 +850,7 @@ describe("Instance Access Policy lifecycle", () => {
     await expect(setup.store.database().costAttributionMappingRecord.findFirst({
       where: { projectId: setup.store.projectId, instanceId: agent.id },
     })).resolves.toMatchObject({
-      liteLLMVirtualKeyId: "instance-hashed-token",
+      liteLLMVirtualKeyId: expect.stringMatching(/^sha256:/),
       validTo: expect.any(Date),
     });
     await setup.service.deleteRuntime(agent.id);
@@ -982,6 +900,36 @@ describe("Instance Access Policy lifecycle", () => {
         projectId_id: { projectId: setup.store.projectId, id: agent.id },
       },
     })).resolves.toMatchObject({ deletedAt: expect.any(Date) });
+  });
+
+  it("rebinds a retained Memory to a replacement Hermes Instance", async () => {
+    const setup = await configuredService();
+    const original = await createConfiguredInstance(setup);
+    const originalMemory = await setup.memories.repository.getMemory(
+      original.durableMemoryId!,
+    );
+
+    await setup.service.destroy(original.id);
+    await setup.service.deleteRuntime(original.id);
+    const replacement = await createConfiguredInstance(setup, {
+      agentPlatform: "hermes",
+      durableMemoryId: original.durableMemoryId,
+      name: "Hermes Replacement",
+    });
+    const reboundMemory = await setup.memories.repository.getMemory(
+      replacement.durableMemoryId!,
+    );
+
+    expect(replacement.durableMemoryId).toBe(original.durableMemoryId);
+    expect(reboundMemory).toMatchObject({
+      id: originalMemory!.id,
+      providerRef: originalMemory!.providerRef,
+      status: "ready",
+    });
+    expect(setup.memoryProvider.bankCount()).toBe(1);
+    await expect(
+      setup.memories.repository.getActiveBindingForInstance(replacement.id),
+    ).resolves.toMatchObject({ runtimeType: "hermes", status: "active" });
   });
 
   it("updates permissions without recreating the Sandbox", async () => {

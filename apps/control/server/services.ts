@@ -32,6 +32,8 @@ import {
   isProjectAdmissionComplete,
 } from "./authorization/authorization-context";
 import { requireDepartmentAdministrator } from "./departments/department-access";
+import { MemoryRepository } from "./memories/memory-repository";
+import { MemoryService } from "./memories/memory-service";
 
 interface ProjectServices {
   store: ProjectStore;
@@ -47,6 +49,7 @@ interface ProjectServices {
   quotas: ProjectQuotaService;
   auditLogs: AuditLogService;
   overview: ProjectOverviewService;
+  memories: MemoryService;
 }
 
 const litellm = new LiteLLMClient();
@@ -68,6 +71,9 @@ function createServices(projectId: string): ProjectServices {
     store,
     litellm,
   );
+  const memories = new MemoryService(
+    new MemoryRepository(projectId, store.database()),
+  );
   const instances = new InstanceService(
     store,
     undefined,
@@ -77,6 +83,8 @@ function createServices(projectId: string): ProjectServices {
     modelRoutings,
     quotas,
     accessPolicies,
+    undefined,
+    memories,
   );
   return {
     store,
@@ -87,6 +95,7 @@ function createServices(projectId: string): ProjectServices {
       new AgentGardenStore(projectId, store.database()),
     ),
     overview: new ProjectOverviewService(store, instances),
+    memories,
     agentGarden: new AgentGardenService(
       new AgentGardenStore(projectId, store.database()),
       store,
@@ -245,6 +254,10 @@ export async function getAccessPolicyService(request?: Request): Promise<AccessP
 
 export async function getAuditLogService(request?: Request): Promise<AuditLogService> {
   return (await forRequest(request)).auditLogs;
+}
+
+export async function getMemoryService(request?: Request): Promise<MemoryService> {
+  return (await forRequest(request)).memories;
 }
 
 export async function getProjectOverviewService(request?: Request): Promise<ProjectOverviewService> {

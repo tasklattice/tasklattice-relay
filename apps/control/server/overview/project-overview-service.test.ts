@@ -1,5 +1,5 @@
-import type { Instance as Agent } from "@tali/contracts";
-import { describe, expect, it } from "vitest";
+import type { Instance as Agent, ModelDeployment, ModelRouting } from "@tali/contracts";
+import { describe, expect, it, vi } from "vitest";
 import type { ModelUsageFact } from "../providers/cost-analytics-store";
 import { ProjectStore } from "../projects/project-store";
 import { createTestPrisma } from "../test/prisma";
@@ -9,12 +9,21 @@ import { ProjectOverviewService } from "./project-overview-service";
 const now = new Date("2026-08-13T12:00:00.000Z");
 const instanceId = "11111111-1111-4111-8111-111111111111";
 
-function instance(status: Agent["status"], platform: Agent["agentPlatform"], id = instanceId): Agent {
+function instance(
+  status: Agent["status"],
+  platform: Agent["agentPlatform"],
+  id = instanceId,
+  overrides: Partial<Agent> = {},
+): Agent {
   return {
     id,
+    name: `Agent ${id.slice(0, 4)}`,
     status,
     agentPlatform: platform,
+    modelRoutingId: "missing-routing",
+    createdAt: now.toISOString(),
     updatedAt: now.toISOString(),
+    ...overrides,
   } as Agent;
 }
 
@@ -23,6 +32,8 @@ function usageFact(input: {
   at: string;
   spend: number;
   tokens: number;
+  instanceId?: string;
+  endUserId?: string;
 }): ModelUsageFact {
   return {
     eventId: `litellm:${input.requestId}`,
@@ -31,13 +42,14 @@ function usageFact(input: {
     usageDate: input.at.slice(0, 10),
     usageHour: new Date(input.at).getUTCHours(),
     projectId: "individual",
-    instanceId,
+    instanceId: input.instanceId ?? instanceId,
     instanceName: "Research",
     requestedModel: "tali/research",
     resolvedModel: "tali/research",
     modelGroup: "research",
     provider: "LiteLLM",
     callType: "chat",
+    ...(input.endUserId ? { endUserId: input.endUserId } : {}),
     promptTokens: input.tokens,
     completionTokens: 0,
     totalTokens: input.tokens,
@@ -69,12 +81,13 @@ async function recordRun(
     at: string;
     status: "SUCCEEDED" | "FAILED" | "TIMED_OUT";
     platform?: "openclaw" | "hermes";
+    instanceId?: string;
   },
 ) {
   const platform = input.platform ?? "openclaw";
   const runs = new RunStore(store.projectId, store.database());
   await runs.ingest({
-    instanceId,
+    instanceId: input.instanceId ?? instanceId,
     source: platform,
     event: {
       event: "started",
@@ -84,7 +97,7 @@ async function recordRun(
     },
   });
   await runs.ingest({
-    instanceId,
+    instanceId: input.instanceId ?? instanceId,
     source: platform,
     event: {
       event: "finished",
@@ -203,11 +216,15 @@ describe("ProjectOverviewService", () => {
       { runtimeType: "hermes", runs: 2, percentage: 2 / 6 },
       { runtimeType: "openclaw", runs: 4, percentage: 4 / 6 },
     ]);
-    expect(overview.attention.map((item) => item.code)).toEqual([
+    expect(overview.attention.map((item) => item.code)).toEqual(expect.arrayContaining([
       "BUDGET_THRESHOLD",
-      "INSTANCE_FAILED",
+      "INSTANCE_FAILED:22222222-2222-4222-8222-222222222222",
       "RUN_SUCCESS_RATE",
-    ]);
+    ]));
+    expect(overview.attention.every((item) =>
+      item.owner && item.openedAt && item.reason && item.impact.label
+      && item.nextStep.label && item.nextStep.href,
+    )).toBe(true);
     expect(overview.freshness).toMatchObject({
       costLastSyncedAt: "2026-08-13T11:59:00.000Z",
       costSyncLagSeconds: 60,
@@ -238,6 +255,119 @@ describe("ProjectOverviewService", () => {
     });
     expect(overview.usage).toHaveLength(24);
     expect(overview.workload).toEqual([]);
+    expect(overview.modelAssignment).toEqual({ totalAgents: 0, segments: [] });
+    expect(overview.agentActivity).toEqual([]);
     expect(overview.attention).toEqual([]);
+  });
+
+  it("counts each active Agent once in model assignment and ranks actual activity", async () => {
+    const db = createTestPrisma();
+    const store = new ProjectStore("individual", db);
+    const modelId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const secondModelId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+    const researchId = "33333333-3333-4333-8333-333333333333";
+    const routedId = "44444444-4444-4444-8444-444444444444";
+    const idleId = "55555555-5555-4555-8555-555555555555";
+    const destroyingId = "66666666-6666-4666-8666-666666666666";
+    vi.spyOn(store, "listModelRoutings").mockResolvedValue([
+      {
+        id: "single-routing",
+        name: "Research default",
+        routingPolicy: {
+          version: 1,
+          mode: "SINGLE",
+          modelDeploymentId: modelId,
+          fallbackModelDeploymentIds: [],
+          retries: 2,
+        },
+      } as unknown as ModelRouting,
+      {
+        id: "auto-routing",
+        name: "Adaptive route",
+        routingPolicy: {
+          version: 1,
+          mode: "COMPLEXITY",
+          simpleModelDeploymentId: modelId,
+          complexModelDeploymentId: secondModelId,
+          fallbackModelDeploymentIds: [],
+          retries: 2,
+        },
+      } as unknown as ModelRouting,
+    ]);
+    vi.spyOn(store, "listModelDeployments").mockResolvedValue([
+      { id: modelId, displayName: "Model A" } as ModelDeployment,
+      { id: secondModelId, displayName: "Model B" } as ModelDeployment,
+    ]);
+
+    await recordRun(store, {
+      runId: "research-success",
+      at: "2026-08-12T08:00:00.000Z",
+      status: "SUCCEEDED",
+      instanceId: researchId,
+    });
+    await recordRun(store, {
+      runId: "research-failed",
+      at: "2026-08-12T09:00:00.000Z",
+      status: "FAILED",
+      instanceId: researchId,
+    });
+    await recordRun(store, {
+      runId: "routed-success",
+      at: "2026-08-12T10:00:00.000Z",
+      status: "SUCCEEDED",
+      instanceId: routedId,
+    });
+    await store.costAnalytics().insertFact(usageFact({
+      requestId: "research-user-1",
+      at: "2026-08-12T08:00:00.000Z",
+      spend: 1,
+      tokens: 100,
+      instanceId: researchId,
+      endUserId: "user-1",
+    }));
+    await store.costAnalytics().insertFact(usageFact({
+      requestId: "research-user-2",
+      at: "2026-08-12T09:00:00.000Z",
+      spend: 2,
+      tokens: 200,
+      instanceId: researchId,
+      endUserId: "user-2",
+    }));
+    await store.costAnalytics().insertFact(usageFact({
+      requestId: "routed-user-1",
+      at: "2026-08-12T10:00:00.000Z",
+      spend: 4,
+      tokens: 300,
+      instanceId: routedId,
+      endUserId: "user-1",
+    }));
+    const service = new ProjectOverviewService(
+      store,
+      {
+        list: async () => [
+          instance("READY", "openclaw", researchId, { name: "Research", modelRoutingId: "single-routing" }),
+          instance("READY", "hermes", routedId, { name: "Router", modelRoutingId: "auto-routing" }),
+          instance("READY", "openclaw", idleId, { name: "Idle", modelRoutingId: "single-routing" }),
+          instance("DESTROYING", "hermes", destroyingId, { name: "Deleting", modelRoutingId: "single-routing" }),
+        ],
+      },
+      () => now,
+    );
+
+    const overview = await service.overview("7d", "UTC");
+
+    expect(overview.modelAssignment).toEqual({
+      totalAgents: 3,
+      segments: [
+        { key: `model:${modelId}`, label: "Model A", kind: "model", agents: 2, percentage: 2 / 3 },
+        { key: "auto-route", label: "Auto route", kind: "auto", agents: 1, percentage: 1 / 3 },
+      ],
+    });
+    expect(overview.modelAssignment.segments.reduce((sum, item) => sum + item.agents, 0)).toBe(3);
+    expect(overview.agentActivity).toEqual([
+      { agentId: researchId, agentName: "Research", runs: 2, activeUsers: 2, successRate: 0.5, costUsd: 3 },
+      { agentId: routedId, agentName: "Router", runs: 1, activeUsers: 1, successRate: 1, costUsd: 4 },
+      { agentId: idleId, agentName: "Idle", runs: 0, activeUsers: 0, successRate: null, costUsd: 0 },
+    ]);
   });
 });

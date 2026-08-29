@@ -34,7 +34,22 @@ describe("Project Runtime Bridge token", () => {
 });
 
 describe("Project Runtime Coordinator token", () => {
-  it("round-trips a Project, Namespace, and Coordinator scoped identity", () => {
+  it("round-trips a Project, Namespace, Coordinator, and fixed Memory identity", () => {
+    const identity = {
+      projectId: "project-a",
+      namespace: "tp-abcdefghijklmnop",
+      coordinatorInstanceId: "11111111-1111-4111-8111-111111111111",
+      memoryId: "22222222-2222-4222-8222-222222222222",
+    };
+    const token = signProjectRuntimeCoordinatorToken(identity, "runner-secret");
+
+    expect(verifyProjectRuntimeCoordinatorToken(token, "runner-secret"))
+      .toEqual(identity);
+    expect(() => verifyProjectRuntimeCoordinatorToken(token, "another-secret"))
+      .toThrow("Invalid Project Runtime Coordinator token");
+  });
+
+  it("keeps legacy coordinator credentials valid without granting Memory access", () => {
     const identity = {
       projectId: "project-a",
       namespace: "tp-abcdefghijklmnop",
@@ -44,8 +59,6 @@ describe("Project Runtime Coordinator token", () => {
 
     expect(verifyProjectRuntimeCoordinatorToken(token, "runner-secret"))
       .toEqual(identity);
-    expect(() => verifyProjectRuntimeCoordinatorToken(token, "another-secret"))
-      .toThrow("Invalid Project Runtime Coordinator token");
   });
 
   it("rejects payload tampering", () => {

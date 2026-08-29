@@ -93,7 +93,7 @@ export function McpTemplateCatalog({
                     onClick={() => onSelect(template)}
                     className={cn(
                       "group relative flex min-h-36 items-start gap-4 overflow-hidden rounded-lg border bg-card p-4 text-left shadow-xs transition-[border-color,background-color,box-shadow,transform] duration-200",
-                      "hover:-translate-y-0.5 hover:border-primary/30 hover:bg-accent/30 hover:shadow-sm",
+                      "hover:border-primary/30 hover:bg-accent/30",
                       "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
                     )}
                   >

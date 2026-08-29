@@ -4,6 +4,7 @@ export const departmentSettingsSections = [
   "general",
   "projects",
   "people",
+  "providers",
   "models",
   "routing",
   "quota",

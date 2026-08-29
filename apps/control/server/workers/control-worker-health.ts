@@ -1,5 +1,11 @@
 import { createServer, type Server } from "node:http";
-import { databaseHealth } from "../db/prisma";
+import { databaseHealth, prisma } from "../db/prisma";
+import { createMemoryProvider } from "../memories/memory-provider-factory";
+import {
+  memoryMetrics,
+  metricsBearerAuthorized,
+  renderMemoryMetrics,
+} from "../memories/memory-metrics";
 
 export interface ControlWorkerHealthState {
   queueReady: boolean;
@@ -22,6 +28,39 @@ export async function startControlWorkerHealthServer(
   port = Number(process.env.CONTROL_WORKER_HEALTH_PORT ?? 9090),
 ): Promise<Server> {
   const server = createServer(async (request, response) => {
+    if (request.url === "/metrics") {
+      const authorization = request.headers.authorization;
+      if (!metricsBearerAuthorized(
+        typeof authorization === "string" ? authorization : undefined,
+      )) {
+        response.writeHead(401, {
+          "cache-control": "no-store",
+          "content-type": "text/plain; charset=utf-8",
+        });
+        response.end("Unauthorized.\n");
+        return;
+      }
+      try {
+        try {
+          const health = await createMemoryProvider().healthCheck({});
+          memoryMetrics.recordProviderHealth(health.status);
+        } catch {
+          memoryMetrics.recordProviderHealth("unavailable");
+        }
+        response.writeHead(200, {
+          "cache-control": "no-store",
+          "content-type": "text/plain; version=0.0.4; charset=utf-8",
+        });
+        response.end(await renderMemoryMetrics(prisma()));
+      } catch {
+        response.writeHead(503, {
+          "cache-control": "no-store",
+          "content-type": "text/plain; charset=utf-8",
+        });
+        response.end("Metrics unavailable.\n");
+      }
+      return;
+    }
     if (request.url === "/livez") {
       sendJson(response, state.stopping ? 503 : 200, {
         ok: !state.stopping,

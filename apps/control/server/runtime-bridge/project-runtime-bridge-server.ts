@@ -32,6 +32,13 @@ function vectorDatabaseControlPath(
     : base;
 }
 
+function memoryControlPath(
+  coordinatorInstanceId: string,
+  operation: "recall" | "retain",
+): string {
+  return `/api/v1/runtime-bridge/coordinators/${encodeURIComponent(coordinatorInstanceId)}/memory/${operation}`;
+}
+
 async function controlRequest(
   path: string,
   coordinatorToken: string,
@@ -91,8 +98,35 @@ function bridgeVectorDatabaseSearchUrl(
 app.get("/healthz", (_request, response) => response.json({
   ok: true,
   projectId: configuration.projectId,
-  capabilityKinds: ["A2A_AGENT", "VECTOR_DATABASE"],
+  capabilityKinds: ["A2A_AGENT", "VECTOR_DATABASE", "DURABLE_MEMORY"],
 }));
+
+for (const operation of ["recall", "retain"] as const) {
+  app.post(
+    `/v1/memory/coordinators/:coordinatorInstanceId/${operation}`,
+    async (request, response, next) => {
+      try {
+        const coordinatorInstanceId = z.string().min(1).max(160).parse(
+          request.params.coordinatorInstanceId,
+        );
+        await relay(
+          await controlRequest(
+            memoryControlPath(coordinatorInstanceId, operation),
+            coordinatorToken(request),
+            {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify(request.body),
+            },
+          ),
+          response,
+        );
+      } catch (error) {
+        next(error);
+      }
+    },
+  );
+}
 
 app.get("/v1/agents", async (request, response, next) => {
   try {

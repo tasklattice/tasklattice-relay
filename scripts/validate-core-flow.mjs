@@ -1,8 +1,13 @@
-import WebSocket from "ws";
+import {
+  probeRelayTerminal,
+  runRelayTerminalInference,
+  waitForInstanceModelAttribution,
+} from "./testing/live-hermes-e2e-lib.mjs";
 
 const baseUrl = process.env.TALI_BASE_URL ?? "http://127.0.0.1:18080";
 const expectNemoClawRuntime = process.env.TALI_EXPECT_NEMOCLAW_RUNTIME === "1";
 const keepValidationAgent = process.env.TALI_VALIDATION_KEEP_AGENT === "1";
+const validateInference = process.env.TALI_VALIDATION_INFERENCE === "1";
 const validationUsername =
   process.env.TALI_VALIDATION_USERNAME ?? "admin";
 const validationPassword =
@@ -74,16 +79,48 @@ if (!project)
       ? `Validation Project ${validationProjectId} is unavailable.`
       : "No Project is available for core-flow validation.",
   );
+await request("/api/v1/access-context", {
+  method: "PUT",
+  body: JSON.stringify({
+    level: "project",
+    resourceId: project.id,
+    roleId: "ROLE_PROJECT_ADMIN",
+  }),
+});
 const projectBasePath = `/api/v1/projects/${encodeURIComponent(project.id)}`;
 const projectRequest = (path, init) => request(`${projectBasePath}${path}`, init);
+const unwrapAgent = (payload) => payload?.instance ?? payload;
+
+async function fetchAuthenticatedEndpoint(url) {
+  let response = await fetch(url, {
+    redirect: "manual",
+    signal: AbortSignal.timeout(10_000),
+  });
+  if (response.status < 300 || response.status >= 400) return response;
+  const location = response.headers.get("location");
+  const cookie = response.headers.get("set-cookie")?.split(";", 1)[0];
+  if (!location || !cookie) return response;
+  response = await fetch(new URL(location, url), {
+    headers: { cookie },
+    signal: AbortSignal.timeout(10_000),
+  });
+  return response;
+}
 
 const routings = await projectRequest("/model-routings");
 const validatedRouting = routings.data.find(
-  (routing) => routing.status === "READY",
+  (routing) => routing.status === "READY"
+    && (!validateInference || (
+      routing.routingPolicy?.mode === "SINGLE"
+      && !(routing.routingPolicy.fallbackModelDeploymentIds ?? []).length
+      && (routing.routingPolicy.retries ?? 0) <= 2
+    )),
 );
 if (!validatedRouting)
   throw new Error(
-    "No READY Model Routing is available for Instance creation.",
+    validateInference
+      ? "No cost-safe READY SINGLE Model Routing is available for live inference."
+      : "No READY Model Routing is available for Instance creation.",
   );
 const accessPolicies = await projectRequest("/access-policies");
 const activeAccessPolicy = accessPolicies.data.find(
@@ -92,7 +129,8 @@ const activeAccessPolicy = accessPolicies.data.find(
 if (!activeAccessPolicy)
   throw new Error("No ACTIVE Access Policy is available for Instance creation.");
 
-const created = validationAgentId
+const validationStartedAt = new Date().toISOString();
+const creation = validationAgentId
   ? await projectRequest(`/instances/${encodeURIComponent(validationAgentId)}`)
   : await projectRequest("/instances", {
       method: "POST",
@@ -107,14 +145,23 @@ const created = validationAgentId
       }),
     });
 
-let agent = created;
+const createdId = validationAgentId
+  ? unwrapAgent(creation)?.id
+  : creation.instanceId;
+if (!createdId)
+  throw new Error(`Instance creation did not return an Instance ID: ${JSON.stringify(creation)}`);
+let agent = validationAgentId
+  ? unwrapAgent(creation)
+  : unwrapAgent(await projectRequest(`/instances/${encodeURIComponent(createdId)}`));
 for (
   let attempt = 0;
   attempt < validationPollAttempts && agent.status === "PROVISIONING";
   attempt += 1
 ) {
   await new Promise((resolve) => setTimeout(resolve, 1_000));
-  agent = await projectRequest(`/instances/${created.id}`);
+  agent = unwrapAgent(
+    await projectRequest(`/instances/${encodeURIComponent(createdId)}`),
+  );
 }
 if (agent.status !== "READY") throw new Error(`Agent did not become READY: ${JSON.stringify(agent)}`);
 
@@ -127,9 +174,9 @@ if (expectsHttpEndpoint) {
   interactionEndpoint = interaction.httpEndpoint;
   if (interactionEndpoint?.status !== "READY" || !interactionEndpoint.url)
     throw new Error(`NemoClaw HTTP Endpoint unavailable: ${JSON.stringify(interactionEndpoint)}`);
-  const endpointResponse = await fetch(interactionEndpoint.url, {
-    signal: AbortSignal.timeout(10_000),
-  });
+  const endpointResponse = await fetchAuthenticatedEndpoint(
+    interactionEndpoint.url,
+  );
   if (!endpointResponse.ok)
     throw new Error(`NemoClaw HTTP Endpoint returned ${endpointResponse.status}.`);
   httpEndpointEvidence = `${interactionEndpoint.kind} returned HTTP ${endpointResponse.status}.`;
@@ -166,40 +213,49 @@ if (!runtime.terminal.available) {
     method: "POST",
     body: JSON.stringify({ targetId: "agent" }),
   });
-  const wsBase = new URL(baseUrl);
-  wsBase.protocol = wsBase.protocol === "https:" ? "wss:" : "ws:";
-  const socket = new WebSocket(new URL(session.websocketUrl, wsBase));
-  terminalEvidence = await new Promise((resolve, reject) => {
-    let output = "";
-    let runtimeConnected = false;
-    const timer = setTimeout(
-      () => reject(new Error(`NemoClaw TUI frame timeout: ${output}`)),
-      20_000,
-    );
-    socket.on("message", (raw) => {
-      const chunk = raw.toString();
-      output += chunk;
-      if (chunk.startsWith("Connected to NemoClaw runtime")) {
-        runtimeConnected = true;
-        return;
-      }
-      if (runtimeConnected && chunk.length > 0) {
-        clearTimeout(timer);
-        socket.close();
-        resolve(
-          `NemoClaw runtime connected and ${validationAgentPlatform} TUI produced its first PTY frame.`,
-        );
-      }
+  if (validateInference) {
+    const left = 3_179;
+    const right = 4_862;
+    const expected = `RESULT-${left + right}`;
+    const output = await runRelayTerminalInference({
+      agentPlatform: validationAgentPlatform,
+      baseUrl,
+      websocketPath: session.websocketUrl,
+      expectedText: expected,
+      prompt: `Add ${left} and ${right}. Reply with RESULT- followed immediately by the integer sum, with no comma and no other text.`,
+      timeoutMs: validationTimeoutMs,
     });
-    socket.on("error", reject);
-  });
+    terminalEvidence = `${validationAgentPlatform} completed one live TTY inference and returned ${expected}. Output tail: ${output.slice(-240)}`;
+  } else {
+    await probeRelayTerminal({
+      baseUrl,
+      websocketPath: session.websocketUrl,
+      timeoutMs: Math.min(validationTimeoutMs, 30_000),
+    });
+    terminalEvidence = `NemoClaw runtime connected and ${validationAgentPlatform} TUI produced its first PTY frame.`;
+  }
 }
+
+const modelAttribution = validateInference
+  ? await waitForInstanceModelAttribution({
+      instance: agent,
+      projectRequest,
+      routing: validatedRouting,
+      startedAt: validationStartedAt,
+      timeoutMs: validationTimeoutMs,
+    })
+  : undefined;
 
 let deleteEvidence = "Agent retained for post-validation isolation checks.";
 if (!keepValidationAgent) {
   const destroyed = await projectRequest(`/instances/${agent.id}`, {
     method: "DELETE",
   });
+  const retainedMemory = destroyed.retainedMemory?.id
+    ? await projectRequest(
+        `/memories/${encodeURIComponent(destroyed.retainedMemory.id)}`,
+      )
+    : undefined;
   let deletedResource;
   for (let attempt = 0; attempt < validationPollAttempts; attempt += 1) {
     deletedResource = await fetch(
@@ -216,6 +272,7 @@ if (!keepValidationAgent) {
     destroyed.status !== "DESTROYING"
     || destroyed.accepted !== true
     || deletedResource?.status !== 404
+    || (destroyed.retainedMemory && retainedMemory?.id !== destroyed.retainedMemory.id)
   ) {
     throw new Error(
       `Instance delete contract failed: ${JSON.stringify({
@@ -230,7 +287,10 @@ if (!keepValidationAgent) {
     && deletedEndpoint?.status !== 404
   )
     throw new Error(`Deleted HTTP Endpoint returned ${deletedEndpoint?.status ?? "no response"}.`);
-  deleteEvidence = `${destroyed.status} accepted / Instance GET ${deletedResource.status} / Endpoint GET ${deletedEndpoint?.status ?? "N/A"}`;
+  const memoryEvidence = retainedMemory?.id
+    ? `Memory ${retainedMemory.id} retained`
+    : "no durable Memory attached";
+  deleteEvidence = `${destroyed.status} accepted / Instance GET ${deletedResource.status} / Endpoint GET ${deletedEndpoint?.status ?? "N/A"} / ${memoryEvidence}`;
 }
 
 console.log(JSON.stringify({
@@ -243,5 +303,6 @@ console.log(JSON.stringify({
   provider: agent.providerName,
   httpEndpointEvidence,
   terminalEvidence: String(terminalEvidence).replace(/\u001b\[[0-9;?]*[A-Za-z]/g, "").trim(),
+  modelAttribution,
   deleteEvidence,
 }, null, 2));

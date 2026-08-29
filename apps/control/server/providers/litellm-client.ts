@@ -147,6 +147,7 @@ export interface LiteLLMObjectPermissions {
 
 export interface LiteLLMInstanceServiceAccountInput {
   alias: string;
+  duration?: string;
   teamId: string;
   models: string[];
   aliases?: Record<string, string>;
@@ -624,6 +625,7 @@ export class LiteLLMClient implements LiteLLMAdminClient {
       method: "POST",
       body: JSON.stringify({
         key_alias: input.alias,
+        ...(input.duration ? { duration: input.duration } : {}),
         team_id: input.teamId,
         models: input.models,
         aliases: input.aliases ?? {},

@@ -162,6 +162,7 @@ describe("ProjectService", () => {
         ]),
         id: "individual",
         name: "admin",
+        features: { durableMemory: true },
         activeRole: "admin",
         assignedRoles: ["admin", "developer"],
       }),
@@ -171,6 +172,7 @@ describe("ProjectService", () => {
     const team = await service.create(local, "dep1", "AI Platform", []);
     expect(team).toMatchObject({
       name: "AI Platform",
+      features: { durableMemory: true },
       activeRole: "admin",
       assignedRoles: ["admin"],
     });
@@ -569,6 +571,15 @@ describe("ProjectService", () => {
         userAgent: "vitest",
       },
     });
+    const memory = await db.memoryRecord.create({
+      data: {
+        projectId: project.id,
+        displayName: "Retained Project Memory",
+        idempotencyKey: "retained-project-memory",
+        providerRef: "bank-retained-project",
+        status: "unbound",
+      },
+    });
 
     const impact = await service.deletionImpact(project.id, administratorId);
     expect(impact).toMatchObject({
@@ -582,8 +593,15 @@ describe("ProjectService", () => {
       expect.arrayContaining([
         expect.objectContaining({ kind: "skills", count: expect.any(Number) }),
         expect.objectContaining({ kind: "access-policies", count: 1 }),
+        expect.objectContaining({ kind: "memories", count: 1 }),
       ]),
     );
+    expect(impact.activeResources).toContainEqual(expect.objectContaining({
+      id: memory.id,
+      kind: "memory",
+      name: "Retained Project Memory",
+      status: "unbound",
+    }));
 
     const schedule = await service.delete(project.id, administratorId);
 

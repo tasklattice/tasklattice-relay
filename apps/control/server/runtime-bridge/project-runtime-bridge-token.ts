@@ -48,6 +48,11 @@ export function signProjectRuntimeBridgeToken(
 export interface ProjectRuntimeCoordinatorIdentity
   extends ProjectRuntimeBridgeIdentity {
   coordinatorInstanceId: string;
+  /**
+   * Internal Durable Memory identity fixed when the Runtime credential is
+   * issued. Runtime callers never select a provider Bank or Memory per call.
+   */
+  memoryId?: string;
 }
 
 export function signProjectRuntimeCoordinatorToken(
@@ -56,6 +61,7 @@ export function signProjectRuntimeCoordinatorToken(
 ): string {
   const encodedPayload = Buffer.from(JSON.stringify({
     coordinatorInstanceId: identity.coordinatorInstanceId,
+    ...(identity.memoryId ? { memoryId: identity.memoryId } : {}),
     namespace: identity.namespace,
     projectId: identity.projectId,
     version: 1,
@@ -98,6 +104,10 @@ export function verifyProjectRuntimeCoordinatorToken(
     || typeof (decoded as { projectId?: unknown }).projectId !== "string"
     || typeof (decoded as { namespace?: unknown }).namespace !== "string"
     || typeof (decoded as { coordinatorInstanceId?: unknown }).coordinatorInstanceId !== "string"
+    || (
+      (decoded as { memoryId?: unknown }).memoryId !== undefined
+      && typeof (decoded as { memoryId?: unknown }).memoryId !== "string"
+    )
   ) {
     throw new Error("Invalid Project Runtime Coordinator token.");
   }
@@ -107,6 +117,9 @@ export function verifyProjectRuntimeCoordinatorToken(
     coordinatorInstanceId: (
       decoded as { coordinatorInstanceId: string }
     ).coordinatorInstanceId,
+    ...((decoded as { memoryId?: string }).memoryId
+      ? { memoryId: (decoded as { memoryId: string }).memoryId }
+      : {}),
   };
 }
 

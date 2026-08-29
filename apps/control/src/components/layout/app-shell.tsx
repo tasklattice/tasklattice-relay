@@ -145,6 +145,14 @@ export function itemIsActive(item: NavItemDefinition, pathname: string, projectI
   return normalizedPathname.startsWith(`${normalizedTarget}/`);
 }
 
+export function navigationItemAvailable(
+  item: NavItemDefinition,
+  options: { canViewAuditLogs: boolean; durableMemoryEnabled: boolean },
+): boolean {
+  return (item.to !== "/$projectId/audit-logs" || options.canViewAuditLogs)
+    && (item.to !== "/$projectId/memory" || options.durableMemoryEnabled);
+}
+
 export function routeUsesFullBleedLayout(pathname: string): boolean {
   const normalizedPathname = pathname.replace(/\/$/, "");
   return normalizedPathname === "/platform/settings"
@@ -186,7 +194,7 @@ function NavigationItem({ item, pathname, projectId }: {
           aria-current={active ? "page" : undefined}
           aria-label={label}
         >
-          <item.icon className={cn(active && "text-primary")} />
+          <item.icon />
           <span>{label}</span>
         </Link>
       </SidebarMenuButton>
@@ -242,9 +250,11 @@ function ProjectSidebar({ createProjectOpen, logout, onCreateProjectOpenChange, 
                 <SidebarGroupContent>
                   <SidebarMenu>
                     {group.items
-                      .filter((item) =>
-                        item.to !== "/$projectId/audit-logs" || permissions.canViewAuditLogs,
-                      )
+                      .filter((item) => navigationItemAvailable(item, {
+                        canViewAuditLogs: permissions.canViewAuditLogs,
+                        durableMemoryEnabled:
+                          currentProject.features?.durableMemory !== false,
+                      }))
                       .map((item) => (
                         <NavigationItem
                           key={item.to}
@@ -384,7 +394,7 @@ export function AppShell() {
           <main
             id="main-content"
             className={cn(
-              "w-full",
+              "min-w-0 w-full",
               fullBleedRoute ? "flex-1" : "mx-auto p-5 sm:p-6 lg:py-6",
               !fullBleedRoute && (sidebarOpen ? "max-w-[1600px]" : "max-w-none"),
             )}
@@ -424,7 +434,7 @@ export function AppShell() {
             ) : (
               <div
                 key={globalRoute ? pathname : currentProject?.id}
-                className={cn(fullBleedRoute && "min-h-full")}
+                className={cn("min-w-0", fullBleedRoute && "min-h-full")}
               >
                 <Outlet />
               </div>

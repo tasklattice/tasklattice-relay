@@ -20,6 +20,9 @@ const money = z.number().nonnegative();
 export const projectParamsSchema = z.object({ projectId: id });
 export const departmentParamsSchema = z.object({ departmentId: id });
 export const instanceParamsSchema = projectParamsSchema.extend({ instanceId: uuid });
+export const instanceOperationParamsSchema = instanceParamsSchema.extend({
+  operationId: uuid,
+});
 export const providerParamsSchema = projectParamsSchema.extend({ providerId: uuid });
 export const modelParamsSchema = projectParamsSchema.extend({ modelId: uuid });
 export const routingParamsSchema = projectParamsSchema.extend({ routingId: uuid });
@@ -62,6 +65,12 @@ export const runtimeBridgeAgentParamsSchema = runtimeBridgeCoordinatorParamsSche
   .extend({ agentId: id });
 export const runtimeBridgeVectorDatabaseParamsSchema = runtimeBridgeCoordinatorParamsSchema
   .extend({ databaseId: id });
+export const memoryParamsSchema = projectParamsSchema.extend({ memoryId: uuid });
+export const memoryBindingParamsSchema = memoryParamsSchema.extend({ bindingId: uuid });
+export const memoryItemParamsSchema = memoryParamsSchema.extend({ itemId: id });
+export const memoryConversationParamsSchema = memoryParamsSchema.extend({ conversationId: id });
+export const memoryOutboxParamsSchema = memoryParamsSchema.extend({ outboxId: uuid });
+export const memoryExportParamsSchema = memoryParamsSchema.extend({ token: z.string().min(1) });
 export const demoAgentMessageInputSchema = z.object({
   jsonrpc: z.literal("2.0"),
   id: z.union([z.string(), z.number(), z.null()]),
@@ -257,7 +266,7 @@ export const projectDeletionImpactSchema = z.object({
   activeResources: z.array(z.object({
     id,
     kind: z.enum([
-      "instance", "provider", "model", "gateway", "routing", "mcp-server", "vector-database",
+      "instance", "provider", "model", "gateway", "routing", "mcp-server", "vector-database", "memory",
     ]),
     kindLabel: z.string(),
     name: z.string(),

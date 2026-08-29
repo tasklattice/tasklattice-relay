@@ -216,7 +216,7 @@ function PlatformSettingsPage() {
         <span className="mx-auto grid size-12 place-items-center rounded-full border bg-muted/35 text-muted-foreground">
           <ShieldAlert className="size-5" />
         </span>
-        <h1 className="mt-5 font-display text-2xl font-medium">Platform access required</h1>
+        <h1 className="mt-5 font-display text-2xl font-light tracking-[0.005em]">Platform access required</h1>
         <p className="mt-2 text-sm leading-6 text-muted-foreground">
           Platform Setting is available only to a Platform Administrator. Department
           and Project administrator roles do not inherit this platform scope.

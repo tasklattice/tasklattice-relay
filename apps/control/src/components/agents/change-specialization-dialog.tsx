@@ -11,9 +11,10 @@ function ChangeList({ empty, items, label }: { empty: string; items: readonly st
   );
 }
 
-export function ChangeSpecializationDialog({ add, fromName, keep, onCancel, onConfirm, open, remove, toName }: {
+export function ChangeToolboxPresetDialog({ add, fromName, instructionsCustomized, keep, onCancel, onConfirm, open, remove, toName }: {
   add: readonly string[];
   fromName: string;
+  instructionsCustomized: boolean;
   keep: readonly string[];
   onCancel: () => void;
   onConfirm: () => void;
@@ -25,17 +26,22 @@ export function ChangeSpecializationDialog({ add, fromName, keep, onCancel, onCo
     <Sheet open={open} onOpenChange={(next) => { if (!next) onCancel(); }}>
       <SheetContent side="right" className="w-[min(92vw,34rem)] sm:max-w-[34rem]">
         <SheetHeader className="border-b px-6 py-5 pr-14">
-          <SheetTitle className="text-xl">Change specialization?</SheetTitle>
-          <SheetDescription>Changing from {fromName} to {toName} will replace capabilities supplied by the current specialization. Manually added capabilities are kept.</SheetDescription>
+          <SheetTitle className="text-xl">Change Toolbox preset?</SheetTitle>
+          <SheetDescription>Changing from {fromName} to {toName} will replace tools and knowledge supplied by the current preset. Manually added items are kept.</SheetDescription>
         </SheetHeader>
         <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-6">
-          <ChangeList label="Remove" items={remove} empty="No current defaults need to be removed." />
-          <ChangeList label="Add" items={add} empty="The new specialization has no additional defaults." />
+          {instructionsCustomized ? (
+            <p className="border-l-2 border-primary bg-primary/5 px-3 py-2.5 text-xs leading-5">
+              Your customized Instructions will be kept. You can apply the new preset Instructions from the Toolbox after switching.
+            </p>
+          ) : null}
+          <ChangeList label="Remove preset items" items={remove} empty="No current preset items need to be removed." />
+          <ChangeList label="Add preset items" items={add} empty="The new preset has no additional items." />
           <ChangeList label="Keep manually added" items={keep} empty="No manually added capabilities." />
         </div>
         <SheetFooter className="flex-row justify-between border-t px-6 py-4">
           <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
-          <Button type="button" onClick={onConfirm}>Change specialization <ArrowRight /></Button>
+          <Button type="button" onClick={onConfirm}>Change preset <ArrowRight /></Button>
         </SheetFooter>
       </SheetContent>
     </Sheet>

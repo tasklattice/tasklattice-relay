@@ -8,6 +8,8 @@ import type {
   CreateInstanceLogSessionInput,
   InstanceInteractionAccess,
   InstanceRuntimeLogView,
+  InstanceCreationAccepted,
+  InstanceLifecycleOperation,
   AgentGardenEntry,
   AgentGardenSnapshot,
   A2aAgentInstance,
@@ -39,12 +41,14 @@ import type {
   VectorDatabaseOverview,
   VectorDatabaseSearchInput,
   VectorDatabaseSearchResult,
+  VectorDocumentChunks,
   VectorDocumentDetail,
   VectorDocument,
   VectorFolder,
   VectorDeletionImpact,
   VectorIngestionJob,
   InferenceGateway,
+  InstanceDeletionAcceptedView,
   ModelRouting,
   ModelRoutingAuditEvent,
   ModelRoutingConsumer,
@@ -52,6 +56,32 @@ import type {
   UpdateModelRoutingInput,
   McpServerDefinition,
   ModelDeployment,
+  ModelRemovalImpact,
+  MemoryActivityPage,
+  MemoryBindingPage,
+  MemoryBindingView,
+  MemoryConversation,
+  MemoryConversationDeleteResult,
+  MemoryConversationRedactResult,
+  MemoryCreateInput,
+  MemoryDeleteResult,
+  MemoryExperience,
+  MemoryExperienceUpdateInput,
+  MemoryExportGrantView,
+  MemoryFact,
+  MemoryFactUpdateInput,
+  MemoryInsight,
+  MemoryItem,
+  MemoryItemStatus,
+  MemoryOutboxPage,
+  MemoryOverviewView,
+  MemoryPage,
+  MemoryReextractResult,
+  MemoryResourceDetailView,
+  MemoryResourceView,
+  MemoryRuntimeType,
+  MemorySettingsView,
+  MemoryStatus,
   OnboardAgentInput,
   ProviderAccount,
   ProviderConnectionCreationResult,
@@ -110,13 +140,15 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       ...init?.headers,
     },
   });
-  const payload = (await response.json()) as T | { detail?: unknown };
+  const payload = response.status === 204
+    ? undefined
+    : (await response.json()) as T | { detail?: unknown };
   if (response.status === 401 && typeof window !== "undefined") {
     window.location.assign("/login");
   }
   if (!response.ok)
     throw new ApiError(
-      "detail" in (payload as object) && typeof (payload as { detail?: unknown }).detail === "string"
+      payload && "detail" in (payload as object) && typeof (payload as { detail?: unknown }).detail === "string"
         ? (payload as { detail: string }).detail
         : `Request failed (${response.status})`,
       response.status,
@@ -169,6 +201,23 @@ function auditLogSearch(params: PlatformAuditLogQuery): string {
   }
   const query = search.toString();
   return query ? `?${query}` : "";
+}
+
+function memorySearch(params: Record<string, string | number | readonly string[] | null | undefined>): string {
+  const search = new URLSearchParams();
+  for (const [name, value] of Object.entries(params)) {
+    if (Array.isArray(value)) {
+      for (const item of value) search.append(name, item);
+    } else if (value !== undefined && value !== null && value !== "") {
+      search.set(name, String(value));
+    }
+  }
+  const query = search.toString();
+  return query ? `?${query}` : "";
+}
+
+function browserIdempotencyKey(prefix: string): string {
+  return `${prefix}:${crypto.randomUUID()}`;
 }
 
 export const api = {
@@ -329,6 +378,10 @@ export const api = {
     request<VectorDocumentDetail>(
       `/api/v1/catalog/vector-databases/${encodeURIComponent(id)}/documents/${encodeURIComponent(documentId)}`,
     ),
+  getVectorDocumentChunks: (id: string, documentId: string) =>
+    request<VectorDocumentChunks>(
+      `/api/v1/catalog/vector-databases/${encodeURIComponent(id)}/documents/${encodeURIComponent(documentId)}/chunks`,
+    ),
   deleteVectorDocument: (id: string, documentId: string) =>
     request<{ message: string }>(
       `/api/v1/catalog/vector-databases/${encodeURIComponent(id)}/documents/${encodeURIComponent(documentId)}`,
@@ -408,6 +461,10 @@ export const api = {
     request<{ message: string }>(`/api/v1/models/${encodeURIComponent(id)}`, {
       method: "DELETE",
     }),
+  getModelRemovalImpact: (id: string) =>
+    request<ModelRemovalImpact>(
+      `/api/v1/models/${encodeURIComponent(id)}/removal-impact`,
+    ),
   listInheritableModels: () =>
     request<Pick<DepartmentInferenceAvailability, "departmentId" | "departmentName" | "models">>(
       "/api/v1/models/inheritable",
@@ -500,6 +557,156 @@ export const api = {
     request<{ message: string }>(`/api/v1/runtime-policies/${encodeURIComponent(id)}`, {
       method: "DELETE",
     }),
+  listMemories: (params: {
+    cursor?: string;
+    limit?: number;
+    query?: string;
+    statuses?: readonly MemoryStatus[];
+  } = {}) => request<MemoryPage<MemoryResourceView>>(
+    `/api/v1/memories${memorySearch({
+      cursor: params.cursor,
+      limit: params.limit,
+      query: params.query,
+      status: params.statuses,
+    })}`,
+  ),
+  createMemory: (input: MemoryCreateInput) =>
+    request<MemoryResourceDetailView>("/api/v1/memories", {
+      method: "POST",
+      headers: { "idempotency-key": browserIdempotencyKey("create-memory") },
+      body: JSON.stringify(input),
+    }),
+  getMemory: (memoryId: string) =>
+    request<MemoryResourceDetailView>(`/api/v1/memories/${encodeURIComponent(memoryId)}`),
+  renameMemory: (memoryId: string, displayName: string) =>
+    request<MemoryResourceDetailView>(`/api/v1/memories/${encodeURIComponent(memoryId)}`, {
+      method: "PATCH",
+      body: JSON.stringify({ displayName }),
+    }),
+  deleteMemory: (memoryId: string, confirmation: string) =>
+    request<MemoryDeleteResult>(`/api/v1/memories/${encodeURIComponent(memoryId)}`, {
+      method: "DELETE",
+      body: JSON.stringify({ confirmation }),
+    }),
+  getMemoryOverview: (memoryId: string) =>
+    request<MemoryOverviewView>(`/api/v1/memories/${encodeURIComponent(memoryId)}/overview`),
+  getMemorySettings: (memoryId: string) =>
+    request<MemorySettingsView>(`/api/v1/memories/${encodeURIComponent(memoryId)}/settings`),
+  listMemoryActivity: (memoryId: string) =>
+    request<MemoryActivityPage>(`/api/v1/memories/${encodeURIComponent(memoryId)}/activity`),
+  listMemoryBindings: (memoryId: string) =>
+    request<MemoryBindingPage>(`/api/v1/memories/${encodeURIComponent(memoryId)}/bindings`),
+  bindMemory: (memoryId: string, input: { instanceId: string; runtimeType: MemoryRuntimeType }) =>
+    request<MemoryBindingView>(`/api/v1/memories/${encodeURIComponent(memoryId)}/bindings`, {
+      method: "POST",
+      headers: { "idempotency-key": browserIdempotencyKey("bind-memory") },
+      body: JSON.stringify(input),
+    }),
+  unbindMemory: (memoryId: string, bindingId: string) =>
+    request<MemoryResourceDetailView>(`/api/v1/memories/${encodeURIComponent(memoryId)}/bindings/${encodeURIComponent(bindingId)}`, {
+      method: "DELETE",
+    }),
+  listMemoryConversations: (memoryId: string, params: {
+    cursor?: string;
+    from?: string;
+    limit?: number;
+    query?: string;
+    to?: string;
+  } = {}) => request<MemoryPage<MemoryConversation>>(
+    `/api/v1/memories/${encodeURIComponent(memoryId)}/conversations${memorySearch(params)}`,
+  ),
+  getMemoryConversation: (memoryId: string, conversationId: string) =>
+    request<MemoryConversation>(`/api/v1/memories/${encodeURIComponent(memoryId)}/conversations/${encodeURIComponent(conversationId)}`),
+  deleteMemoryConversation: (memoryId: string, conversationId: string) =>
+    request<MemoryConversationDeleteResult>(`/api/v1/memories/${encodeURIComponent(memoryId)}/conversations/${encodeURIComponent(conversationId)}`, {
+      method: "DELETE",
+      body: JSON.stringify({ idempotencyKey: browserIdempotencyKey("delete-conversation") }),
+    }),
+  reextractMemoryConversation: (memoryId: string, conversationId: string) =>
+    request<MemoryReextractResult>(`/api/v1/memories/${encodeURIComponent(memoryId)}/conversations/${encodeURIComponent(conversationId)}/reextract`, {
+      method: "POST",
+      body: JSON.stringify({ idempotencyKey: browserIdempotencyKey("reextract-conversation") }),
+    }),
+  redactMemoryConversation: (
+    memoryId: string,
+    conversationId: string,
+    messageIds: string[],
+    replacement = "[Redacted]",
+  ) => request<MemoryConversationRedactResult>(
+    `/api/v1/memories/${encodeURIComponent(memoryId)}/conversations/${encodeURIComponent(conversationId)}/redact`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        idempotencyKey: browserIdempotencyKey("redact-conversation"),
+        messageIds,
+        replacement,
+      }),
+    },
+  ),
+  listMemoryFacts: (memoryId: string, params: {
+    cursor?: string;
+    limit?: number;
+    query?: string;
+    status?: MemoryItemStatus;
+  } = {}) => request<MemoryPage<MemoryFact>>(
+    `/api/v1/memories/${encodeURIComponent(memoryId)}/facts${memorySearch(params)}`,
+  ),
+  updateMemoryFact: (memoryId: string, itemId: string, input: MemoryFactUpdateInput) =>
+    request<MemoryFact>(`/api/v1/memories/${encodeURIComponent(memoryId)}/facts/${encodeURIComponent(itemId)}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
+  listMemoryExperiences: (memoryId: string, params: {
+    cursor?: string;
+    limit?: number;
+    query?: string;
+    status?: MemoryItemStatus;
+  } = {}) => request<MemoryPage<MemoryExperience>>(
+    `/api/v1/memories/${encodeURIComponent(memoryId)}/experiences${memorySearch(params)}`,
+  ),
+  updateMemoryExperience: (memoryId: string, itemId: string, input: MemoryExperienceUpdateInput) =>
+    request<MemoryExperience>(`/api/v1/memories/${encodeURIComponent(memoryId)}/experiences/${encodeURIComponent(itemId)}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
+  listMemoryInsights: (memoryId: string, params: {
+    cursor?: string;
+    limit?: number;
+    query?: string;
+    status?: MemoryItemStatus;
+  } = {}) => request<MemoryPage<MemoryInsight>>(
+    `/api/v1/memories/${encodeURIComponent(memoryId)}/insights${memorySearch(params)}`,
+  ),
+  getMemoryItem: (memoryId: string, itemId: string) =>
+    request<MemoryItem>(`/api/v1/memories/${encodeURIComponent(memoryId)}/items/${encodeURIComponent(itemId)}`),
+  setMemoryItemStatus: (memoryId: string, itemId: string, action: "invalidate" | "restore") =>
+    request<MemoryItem>(`/api/v1/memories/${encodeURIComponent(memoryId)}/items/${encodeURIComponent(itemId)}/${action}`, {
+      method: "POST",
+      body: "{}",
+    }),
+  listMemoryOutbox: (memoryId: string, params: { cursor?: string; limit?: number; statuses?: readonly string[] } = {}) =>
+    request<MemoryOutboxPage>(`/api/v1/memories/${encodeURIComponent(memoryId)}/outbox${memorySearch({
+      cursor: params.cursor,
+      limit: params.limit,
+      status: params.statuses,
+    })}`),
+  replayMemoryOutbox: (memoryId: string, outboxId: string) =>
+    request<void>(`/api/v1/memories/${encodeURIComponent(memoryId)}/outbox/${encodeURIComponent(outboxId)}/replay`, {
+      method: "POST",
+      body: "{}",
+    }),
+  retryMemory: (memoryId: string) =>
+    request<MemoryResourceDetailView>(`/api/v1/memories/${encodeURIComponent(memoryId)}/retry`, {
+      method: "POST",
+      body: "{}",
+    }),
+  authorizeMemoryExport: (memoryId: string) =>
+    request<MemoryExportGrantView>(`/api/v1/memories/${encodeURIComponent(memoryId)}/exports`, {
+      method: "POST",
+      body: JSON.stringify({ format: "json" }),
+    }),
+  downloadMemoryExport: (downloadUrl: string, fallbackFileName: string) =>
+    requestBinary(downloadUrl, fallbackFileName),
   listInstances: async () =>
     (await request<{ data: Agent[] }>("/api/v1/instances")).data,
   getInstance: (id: string) =>
@@ -526,12 +733,16 @@ export const api = {
       )
     ).data,
   createInstance: (input: CreateInstanceInput) =>
-    request<Agent>("/api/v1/instances", {
+    request<InstanceCreationAccepted>("/api/v1/instances", {
       method: "POST",
       body: JSON.stringify(input),
     }),
+  getInstanceLifecycleOperation: (instanceId: string, operationId: string) =>
+    request<InstanceLifecycleOperation>(
+      `/api/v1/instances/${encodeURIComponent(instanceId)}/operations/${encodeURIComponent(operationId)}`,
+    ),
   deleteInstance: (id: string) =>
-    request<void>(`/api/v1/instances/${id}`, { method: "DELETE" }),
+    request<InstanceDeletionAcceptedView>(`/api/v1/instances/${id}`, { method: "DELETE" }),
   updateAgentAccessPolicies: (id: string, accessPolicyIds: string[]) =>
     request<Agent>(`/api/v1/instances/${encodeURIComponent(id)}/access-policies`, {
       method: "PUT",
@@ -591,6 +802,10 @@ export function departmentInferenceApi(departmentId: string) {
       request<ModelDeployment>(`${base}/models`, { method: "POST", body: JSON.stringify(input) }),
     deleteModelDeployment: (id: string) =>
       request<{ message: string }>(`${base}/models/${encodeURIComponent(id)}`, { method: "DELETE" }),
+    getModelRemovalImpact: (id: string) =>
+      request<ModelRemovalImpact>(
+        `${base}/models/${encodeURIComponent(id)}/removal-impact`,
+      ),
     listModelAssignments: (id: string) =>
       request<DepartmentInferenceResourceAssignmentView>(
         `${base}/models/${encodeURIComponent(id)}/assignments`,

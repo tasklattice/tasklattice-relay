@@ -12,6 +12,8 @@ import {
   NemoClawRunnerClient,
   type RunnerClient,
 } from "../runtime/nemoclaw-runner-client";
+import { MemoryRepository } from "../memories/memory-repository";
+import { MemoryService } from "../memories/memory-service";
 import { ProjectRuntimeTargetService } from "./project-runtime-target-service";
 
 export const PROJECT_DELETION_GRACE_PERIOD_MINUTES = 10;
@@ -28,6 +30,10 @@ export interface ProjectDeletionSchedule {
 
 interface CleanupOptions {
   externalCleanupEnabled?: boolean;
+  memoryServiceFactory?: (projectId: string) => Pick<
+    MemoryService,
+    "deleteForProjectCleanup"
+  >;
 }
 
 export interface ProjectRuntimeTargetCleanup {
@@ -93,6 +99,9 @@ async function deleteRemote(operation: (() => Promise<void>) | undefined): Promi
 
 export class ProjectDeletionService {
   private readonly externalCleanupEnabled: boolean;
+  private readonly memoryServiceFactory: NonNullable<
+    CleanupOptions["memoryServiceFactory"]
+  >;
   private readonly runtimeTargets: ProjectRuntimeTargetCleanup;
 
   constructor(
@@ -104,6 +113,8 @@ export class ProjectDeletionService {
   ) {
     this.externalCleanupEnabled =
       options.externalCleanupEnabled ?? true;
+    this.memoryServiceFactory = options.memoryServiceFactory
+      ?? ((projectId) => new MemoryService(new MemoryRepository(projectId, this.db)));
     this.runtimeTargets =
       runtimeTargets ?? new ProjectRuntimeTargetService(this.db);
   }
@@ -119,6 +130,11 @@ export class ProjectDeletionService {
         },
         mcpServers: { select: { litellmServerId: true } },
         knowledgeSources: { select: { payload: true } },
+        memories: {
+          where: { deletedAt: null },
+          select: { id: true },
+          orderBy: { createdAt: "asc" },
+        },
         modelDeployments: { select: { payload: true } },
         modelRoutings: { select: { id: true, payload: true } },
         quota: { select: { litellmTeamId: true } },
@@ -138,6 +154,14 @@ export class ProjectDeletionService {
         ),
       ),
     );
+
+    const memoryService = this.memoryServiceFactory(projectId);
+    for (const memory of project.memories) {
+      await memoryService.deleteForProjectCleanup(
+        memory.id,
+        `project-deletion:${projectId}`,
+      );
+    }
 
     if (this.externalCleanupEnabled) {
       await Promise.all(

@@ -24,6 +24,9 @@ trap 'rm -r -- "$temporary_directory"' EXIT
 # shellcheck source=lib/dev-control-api.sh
 source "$repository_root/scripts/lib/dev-control-api.sh"
 dev_control_login
+dev_control_api_request PUT /api/v1/access-context \
+  '{"level":"platform","resourceId":null,"roleId":"ROLE_PLATFORM_ADMIN"}' \
+  >/dev/null
 
 secret_name="$({
   kubectl \

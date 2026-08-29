@@ -5,14 +5,18 @@ on:
     paths:
       - "charts/tali-relay/**"
       - "scripts/helm-kind-smoke.sh"
+      - "scripts/preload-helm-kind-images.sh"
       - "scripts/prepare-helm-dependencies.sh"
+      - "scripts/reclaim-github-runner-space.sh"
   push:
     branches:
       - main
     paths:
       - "charts/tali-relay/**"
       - "scripts/helm-kind-smoke.sh"
+      - "scripts/preload-helm-kind-images.sh"
       - "scripts/prepare-helm-dependencies.sh"
+      - "scripts/reclaim-github-runner-space.sh"
   workflow_run:
     workflows:
       - "Release images and Helm chart"
@@ -28,6 +32,8 @@ permissions:
   contents: read
 
 env:
+  DOCKER_BUILD_RECORD_UPLOAD: "false"
+  DOCKER_BUILD_SUMMARY: "false"
   KIND_CLUSTER_NAME: tali-ci
   HELM_RELEASE_NAME: tali
   HELM_NAMESPACE: tali-smoke
@@ -42,6 +48,11 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Reclaim space for the complete Chart image set
+        env:
+          MINIMUM_FREE_GIB: "20"
+        run: bash scripts/reclaim-github-runner-space.sh
 
       - id: smoke-inputs
         name: Resolve chart and image inputs
@@ -67,7 +78,7 @@ jobs:
               --dir "${chart_directory}"
             test -f "${chart_path}"
             control_image_tag="${version}"
-            control_image_pull_policy="Always"
+            control_image_pull_policy="IfNotPresent"
             image_tag="${version}"
           else
             chart_path="${GITHUB_WORKSPACE}/charts/tali-relay"
@@ -75,8 +86,10 @@ jobs:
             control_image_pull_policy="Never"
             image_tag="latest"
           fi
+          control_image="${image_registry}/tali-control:${control_image_tag}"
           {
             echo "chart_path=${chart_path}"
+            echo "control_image=${control_image}"
             echo "control_image_tag=${control_image_tag}"
             echo "control_image_pull_policy=${control_image_pull_policy}"
             echo "image_registry=${image_registry}"
@@ -87,6 +100,10 @@ jobs:
         with:
           version: v3.18.4
 
+      - name: Prepare chart dependencies
+        if: github.event_name != 'workflow_run'
+        run: bash scripts/prepare-helm-dependencies.sh
+
       - name: Create Kind cluster
         uses: helm/kind-action@v1.14.0
         with:
@@ -96,34 +113,69 @@ jobs:
           node_image: kindest/node:v1.32.0@sha256:c48c62eac5da28cdadcf560d1d8616cfa6783b58f0d94cf63ad1bf49600cb027
           wait: 120s
 
-      - name: Build and load current Control Plane image
+      - name: Set up cached Control Plane builder
+        if: github.event_name != 'workflow_run'
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+
+      - name: Package chart for the current Control Plane image
+        if: github.event_name != 'workflow_run'
+        run: bash scripts/package-control-plane-chart.sh
+
+      - name: Build current Control Plane image
+        if: github.event_name != 'workflow_run'
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          file: infra/docker/Dockerfile
+          target: control
+          load: true
+          pull: true
+          push: false
+          tags: ${{ steps.smoke-inputs.outputs.control_image }}
+          cache-from: type=gha,scope=helm-kind-control
+          cache-to: type=gha,mode=max,scope=helm-kind-control
+
+      - name: Verify and load current Control Plane image
         if: github.event_name != 'workflow_run'
         shell: bash
         env:
-          CONTROL_IMAGE_TAG: ${{ steps.smoke-inputs.outputs.control_image_tag }}
-          IMAGE_REGISTRY: ${{ steps.smoke-inputs.outputs.image_registry }}
+          CONTROL_IMAGE: ${{ steps.smoke-inputs.outputs.control_image }}
         run: |
           set -euo pipefail
-          control_image="${IMAGE_REGISTRY}/tali-control:${CONTROL_IMAGE_TAG}"
-          bash scripts/package-control-plane-chart.sh
-          docker build \
-            --file infra/docker/Dockerfile \
-            --target control \
-            --tag "${control_image}" \
-            .
-          docker run --rm --entrypoint test "${control_image}" \
+
+          cleanup_host_build() {
+            docker image rm "${CONTROL_IMAGE}" || true
+            docker buildx prune --all --force || true
+          }
+          trap cleanup_host_build EXIT
+
+          docker run --rm --entrypoint test "${CONTROL_IMAGE}" \
             -f /app/apps/control/.output/workers/control-worker.mjs
-          docker run --rm --entrypoint test "${control_image}" \
+          docker run --rm --entrypoint test "${CONTROL_IMAGE}" \
             -f /app/apps/control/.output/tools/project-runtime-reconcile.mjs
           kind load docker-image \
             --name "${KIND_CLUSTER_NAME}" \
-            "${control_image}"
+            "${CONTROL_IMAGE}"
+
+      - name: Preload the complete rendered Chart image set into Kind
+        env:
+          CONTROL_IMAGE_PULL_POLICY: ${{ steps.smoke-inputs.outputs.control_image_pull_policy }}
+          CONTROL_IMAGE_TAG: ${{ steps.smoke-inputs.outputs.control_image_tag }}
+          FIRST_PARTY_IMAGE_PULL_POLICY: IfNotPresent
+          HELM_CHART_PATH: ${{ steps.smoke-inputs.outputs.chart_path }}
+          HELM_DEPENDENCIES_PREPARED: "true"
+          IMAGE_REGISTRY: ${{ steps.smoke-inputs.outputs.image_registry }}
+          IMAGE_TAG: ${{ steps.smoke-inputs.outputs.image_tag }}
+          SKIP_IMAGES: ${{ github.event_name != 'workflow_run' && steps.smoke-inputs.outputs.control_image || '' }}
+        run: bash scripts/preload-helm-kind-images.sh
 
       - name: Install chart and wait for healthy Pods
         env:
           CONTROL_IMAGE_PULL_POLICY: ${{ steps.smoke-inputs.outputs.control_image_pull_policy }}
           CONTROL_IMAGE_TAG: ${{ steps.smoke-inputs.outputs.control_image_tag }}
+          FIRST_PARTY_IMAGE_PULL_POLICY: IfNotPresent
           HELM_CHART_PATH: ${{ steps.smoke-inputs.outputs.chart_path }}
+          HELM_DEPENDENCIES_PREPARED: "true"
           IMAGE_REGISTRY: ${{ steps.smoke-inputs.outputs.image_registry }}
           IMAGE_TAG: ${{ steps.smoke-inputs.outputs.image_tag }}
         run: bash scripts/helm-kind-smoke.sh
@@ -131,6 +183,11 @@ jobs:
       - name: Collect failure diagnostics
         if: failure()
         run: |
+          df -h || true
+          docker system df || true
+          docker exec "${KIND_CLUSTER_NAME}-control-plane" df -h || true
+          docker exec "${KIND_CLUSTER_NAME}-control-plane" crictl images || true
+          docker exec "${KIND_CLUSTER_NAME}-control-plane" crictl ps -a || true
           kubectl get pods,services,pvc --all-namespaces -o wide || true
           kubectl get events --all-namespaces --sort-by=.metadata.creationTimestamp || true
           helm --namespace "${HELM_NAMESPACE}" status "${HELM_RELEASE_NAME}" || true

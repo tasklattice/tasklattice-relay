@@ -13,12 +13,12 @@ export default defineHandler(async (event) => {
     await requireProjectRole(event.req, ["admin"]);
     const providerId = event.context.params?.providerId;
     if (!providerId)
-      return problemResponse(400, "Provider connection id is required.");
+      return problemResponse(400, "Provider id is required.");
     const connection = await (
       await getProviderService(event.req)
     ).revalidateAccount(providerId);
     if (!connection)
-      return problemResponse(404, "Provider connection not found.");
+      return problemResponse(404, "Saved Provider not found.");
     return jsonResponse(connection);
   } catch (error) {
     return errorResponse(error);

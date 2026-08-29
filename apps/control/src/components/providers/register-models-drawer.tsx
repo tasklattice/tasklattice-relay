@@ -63,6 +63,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
+import { Switch } from "@/components/ui/switch";
 import {
   Tooltip,
   TooltipContent,
@@ -88,23 +89,31 @@ const capabilityLabels: Record<ModelCapability, string> = {
   multilingual: "Multilingual",
 };
 
+const providerLabel = (kind: ProviderKind) =>
+  providerPresets.find((provider) => provider.id === kind)?.name ?? kind;
+
 const validationStatusLabels = {
   PASS: "Passed",
   FAIL: "Failed",
   SKIP: "Not required",
 } as const;
 
+function hasHttpsEndpoint(draft: ProviderConnectionDraft): boolean {
+  const endpoint = (draft.config as Record<string, unknown>).endpoint;
+  return typeof endpoint === "string" && /^https:\/\//i.test(endpoint.trim());
+}
+
 type Step = "source" | "models" | "complete";
-type ConnectionMode = "existing" | "new";
+type CredentialMode = "existing" | "new";
 
 const registrationSteps: readonly CreationStep[] = [
-  { label: "Provider", description: "Choose connection and boundary" },
+  { label: "Provider", description: "Choose source and boundary" },
   { label: "Review models", description: "Select discovered deployments" },
   { label: "Complete", description: "Review registration results" },
 ];
 
 interface RegistrationSummary {
-  connectionName: string;
+  providerName: string;
   models: ModelDeployment[];
   failures: Array<{ model: ProviderModelSelection; message: string }>;
 }
@@ -113,28 +122,33 @@ export function RegisterModelsDrawer({
   accounts = [],
   initialAccount,
   initialMode,
+  intent = "register-models",
   onOpenChange,
   open,
 }: {
   accounts?: ProviderAccount[];
   initialAccount?: ProviderAccount | undefined;
-  initialMode?: ConnectionMode | undefined;
+  initialMode?: CredentialMode | undefined;
+  intent?: "add-provider" | "register-models";
   onOpenChange: (open: boolean) => void;
   open: boolean;
 }) {
   const { client, key, scopeLabel } = useInferenceManagement();
   const queryClient = useQueryClient();
   const providerTriggerRef = useRef<HTMLButtonElement>(null);
+  const addingProvider = intent === "add-provider";
   const availableAccounts = useMemo(
     () => initialAccount ? [initialAccount] : accounts,
     [accounts, initialAccount],
   );
-  const defaultConnectionMode = initialAccount
+  const defaultCredentialMode = addingProvider
+    ? "new"
+    : initialAccount
     ? "existing"
     : initialMode ?? (availableAccounts.length ? "existing" : "new");
   const [step, setStep] = useState<Step>("source");
-  const [connectionMode, setConnectionMode] = useState<ConnectionMode>(
-    defaultConnectionMode,
+  const [credentialMode, setCredentialMode] = useState<CredentialMode>(
+    defaultCredentialMode,
   );
   const [accountId, setAccountId] = useState(initialAccount?.id ?? accounts[0]?.id ?? "");
   const [draft, setDraft] = useState<ProviderConnectionDraft>(
@@ -155,7 +169,7 @@ export function RegisterModelsDrawer({
   );
   const discover = useMutation({
     mutationFn: () =>
-      connectionMode === "existing"
+      credentialMode === "existing"
         ? client.discoverProviderAccountModels(accountId)
         : client.discoverProviderModels(draft),
     onSuccess: (result) => {
@@ -166,9 +180,9 @@ export function RegisterModelsDrawer({
   });
   const register = useMutation({
     mutationFn: async (): Promise<RegistrationSummary> => {
-      if (connectionMode === "new") {
+      if (credentialMode === "new") {
         if (!complianceDomain) {
-          throw new Error("Choose a data boundary for this Provider connection.");
+          throw new Error("Choose a data boundary before configuring a Provider.");
         }
         const result = await client.registerProviderAccount({
           connection: draft,
@@ -176,12 +190,13 @@ export function RegisterModelsDrawer({
           complianceDomain,
         });
         return {
-          connectionName: result.account.name,
+          providerName: result.models[0]?.providerName
+            ?? providerLabel(result.account.providerKind),
           models: result.models,
           failures: result.failures,
         };
       }
-      if (!activeAccount) throw new Error("Choose a Provider connection.");
+      if (!activeAccount) throw new Error("Choose saved Provider credentials.");
       const results = await Promise.all(
         models.map(async (model) => {
           const created = await client.registerModelDeployment({
@@ -192,7 +207,8 @@ export function RegisterModelsDrawer({
         }),
       );
       return {
-        connectionName: activeAccount.name,
+        providerName: results[0]?.created.providerName
+          ?? providerLabel(activeAccount.providerKind),
         models: results
           .filter(({ created }) => created.status === "VALIDATED")
           .map(({ created }) => created),
@@ -222,7 +238,7 @@ export function RegisterModelsDrawer({
   useEffect(() => {
     if (!open) return;
     setStep("source");
-    setConnectionMode(defaultConnectionMode);
+    setCredentialMode(defaultCredentialMode);
     setAccountId(initialAccount?.id ?? availableAccounts[0]?.id ?? "");
     setDraft(createProviderDraft("openai"));
     setProviderSelected(false);
@@ -234,12 +250,12 @@ export function RegisterModelsDrawer({
     setSummary(undefined);
     discover.reset();
     register.reset();
-  }, [availableAccounts, defaultConnectionMode, initialAccount, open]);
+  }, [availableAccounts, defaultCredentialMode, initialAccount, open]);
 
   useEffect(() => {
     if (
       !open
-      || connectionMode !== "new"
+      || credentialMode !== "new"
       || !complianceDomain
       || providerSelected
     ) return;
@@ -248,7 +264,7 @@ export function RegisterModelsDrawer({
       100,
     );
     return () => window.clearTimeout(timer);
-  }, [complianceDomain, connectionMode, open, providerSelected]);
+  }, [complianceDomain, credentialMode, open, providerSelected]);
 
   const pending = discover.isPending || register.isPending;
   const selectProvider = (kind: ProviderKind) => {
@@ -265,7 +281,7 @@ export function RegisterModelsDrawer({
     discover.reset();
   };
   const validateAndDiscover = () => {
-    if (connectionMode === "existing") {
+    if (credentialMode === "existing") {
       if (activeAccount) discover.mutate();
       return;
     }
@@ -307,7 +323,6 @@ export function RegisterModelsDrawer({
       ).length
     : 0;
   const currentWizardStep = step === "source" ? 0 : step === "models" ? 1 : 2;
-
   const changeWizardStep = (next: number) => {
     if (next === 0) setStep("source");
     if (next === 1 && discovery) setStep("models");
@@ -324,11 +339,12 @@ export function RegisterModelsDrawer({
       <DrawerContent className="!w-full sm:!w-[min(100vw,44rem)]">
         <DrawerHeader className="relative border-b pr-16">
           <DrawerTitle className="text-xl sm:text-2xl">
-            Register models
+            {addingProvider ? "Add Provider" : "Register models"}
           </DrawerTitle>
           <DrawerDescription>
-            Set the compliance boundary first, connect an available Provider,
-            then discover and register its validated models.
+            {addingProvider
+              ? `Configure a Provider and register at least one validated model for this ${scopeLabel}.`
+              : `Choose a Provider, discover available models, and register the validated models this ${scopeLabel} can use.`}
           </DrawerDescription>
           <DrawerClose asChild>
             <Button
@@ -354,44 +370,38 @@ export function RegisterModelsDrawer({
           >
             {step === "source" ? (
             <div className="space-y-6">
-              {!initialAccount && availableAccounts.length ? (
+              {!addingProvider && !initialAccount && availableAccounts.length ? (
                 <div
                   role="radiogroup"
-                  aria-label="Provider connection source"
+                  aria-label="Provider credential source"
                   className="grid gap-2 sm:grid-cols-2"
                 >
                   <SourceChoice
-                    active={connectionMode === "existing"}
-                    title="Use existing connection"
-                    description={`Discover with credentials already stored for this ${scopeLabel}.`}
-                    onClick={() => setConnectionMode("existing")}
+                    active={credentialMode === "existing"}
+                    title="Use saved credentials"
+                    description={`Discover models with Provider credentials already saved for this ${scopeLabel}.`}
+                    onClick={() => setCredentialMode("existing")}
                   />
                   <SourceChoice
-                    active={connectionMode === "new"}
-                    title="Connect a new Provider"
-                    description="Store a new credential, then discover and register models."
-                    onClick={() => setConnectionMode("new")}
+                    active={credentialMode === "new"}
+                    title="Use new credentials"
+                    description="Enter Provider credentials, then discover and register models."
+                    onClick={() => setCredentialMode("new")}
                   />
                 </div>
               ) : null}
 
-              {connectionMode === "existing" ? (
+              {credentialMode === "existing" ? (
                 <div className="space-y-2">
-                  <Label htmlFor="provider-connection">Provider connection</Label>
+                  <Label htmlFor="provider-credentials">Saved credentials</Label>
                   <Select value={accountId} onValueChange={setAccountId}>
-                    <SelectTrigger id="provider-connection">
-                      <SelectValue placeholder="Choose a connection" />
+                    <SelectTrigger id="provider-credentials">
+                      <SelectValue placeholder="Choose credentials" />
                     </SelectTrigger>
                     <SelectContent>
                       {availableAccounts.map((account) => (
                         <SelectItem key={account.id} value={account.id}>
-                          {account.name} ·{" "}
-                          {
-                            providerPresets.find(
-                              (provider) => provider.id === account.providerKind,
-                            )?.name
-                          }{" "}
-                          ·{" "}
+                          {providerLabel(account.providerKind)} ·{" "}
                           {
                             complianceDomainCatalog.find(
                               (domain) => domain.id === account.complianceDomain,
@@ -402,9 +412,16 @@ export function RegisterModelsDrawer({
                     </SelectContent>
                   </Select>
                   <p className="text-xs leading-5 text-muted-foreground">
-                    Credentials stay encrypted on the server and are used only
-                    for discovery and LiteLLM registration.
+                    Credentials stay on the server and are used only for
+                    discovery and LiteLLM registration.
                   </p>
+                  {activeAccount?.skipTlsVerify ? (
+                    <p className="flex gap-2 border-l-2 border-amber-500 bg-amber-500/5 px-3 py-2 text-xs leading-5 text-amber-800 dark:text-amber-300">
+                      <TriangleAlert className="mt-0.5 size-3.5 shrink-0" />
+                      TLS certificate verification is disabled for discovery
+                      and inference through this Provider.
+                    </p>
+                  ) : null}
                 </div>
               ) : (
                 <div className="space-y-5">
@@ -529,36 +546,55 @@ export function RegisterModelsDrawer({
                             Credentials & endpoint
                           </h3>
                           <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                            Credentials are encrypted server-side. The endpoint
+                            Credentials are stored server-side. The endpoint
                             defaults to the selected compliance boundary.
                           </p>
                         </div>
                       </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="provider-connection-name">
-                          Connection name
-                        </Label>
-                        <Input
-                          id="provider-connection-name"
-                          value={draft.name}
-                          disabled={pending}
-                          aria-invalid={Boolean(errors.name)}
-                          onChange={(event) =>
-                            setDraft({ ...draft, name: event.target.value })
-                          }
-                        />
-                        {errors.name ? (
-                          <p className="text-xs text-destructive">
-                            {errors.name}
-                          </p>
-                        ) : null}
-                      </div>
                       <Configurator
                         value={draft}
-                        onChange={setDraft}
+                        onChange={(next) =>
+                          setDraft(hasHttpsEndpoint(next)
+                            ? next
+                            : { ...next, skipTlsVerify: false })
+                        }
                         errors={errors}
                         disabled={pending}
                       />
+                      {hasHttpsEndpoint(draft) ? (
+                        <div className="space-y-3 border border-amber-500/30 bg-amber-500/5 p-4">
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex min-w-0 items-start gap-2.5">
+                              <TriangleAlert className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                              <div>
+                                <Label htmlFor="provider-skip-tls-verify">
+                                  Skip TLS certificate verification
+                                </Label>
+                                <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                                  Use only for a trusted endpoint with a private
+                                  or self-signed certificate.
+                                </p>
+                              </div>
+                            </div>
+                            <Switch
+                              id="provider-skip-tls-verify"
+                              aria-label="Skip TLS certificate verification"
+                              checked={draft.skipTlsVerify === true}
+                              disabled={pending}
+                              onCheckedChange={(skipTlsVerify) =>
+                                setDraft({ ...draft, skipTlsVerify })
+                              }
+                            />
+                          </div>
+                          {draft.skipTlsVerify ? (
+                            <p className="border-l-2 border-amber-500 pl-3 text-xs leading-5 text-amber-800 dark:text-amber-300">
+                              Certificate-chain and hostname verification will
+                              be disabled for model discovery and all inference
+                              requests using this Provider.
+                            </p>
+                          ) : null}
+                        </div>
+                      ) : null}
                       {errors.form ? (
                         <p
                           role="alert"
@@ -592,7 +628,7 @@ export function RegisterModelsDrawer({
               supportedTypes={supportedTypes}
             />
           ) : step === "complete" && summary ? (
-            <SummaryStep summary={summary} />
+            <SummaryStep intent={intent} summary={summary} />
           ) : null}
             {register.error ? (
               <RegistrationError error={register.error} />
@@ -621,7 +657,7 @@ export function RegisterModelsDrawer({
                 onClick={validateAndDiscover}
                 disabled={
                   pending
-                  || (connectionMode === "existing"
+                  || (credentialMode === "existing"
                     ? !activeAccount
                     : !providerSelected || !complianceDomain)
                 }
@@ -1032,13 +1068,23 @@ function ModelClassificationEditor({
   );
 }
 
-function SummaryStep({ summary }: { summary: RegistrationSummary }) {
+function SummaryStep({
+  intent,
+  summary,
+}: {
+  intent: "add-provider" | "register-models";
+  summary: RegistrationSummary;
+}) {
   return (
     <div className="space-y-6">
       <div className="flex items-start gap-3 border bg-emerald-500/5 p-4">
         <CheckCircle2 className="mt-0.5 size-5 text-emerald-600" />
         <div>
-          <strong>Models registered through {summary.connectionName}</strong>
+          <strong>
+            {intent === "add-provider"
+              ? `${summary.providerName} added`
+              : `Models registered from ${summary.providerName}`}
+          </strong>
           <p className="mt-1 text-xs text-muted-foreground">
             {summary.models.length} model
             {summary.models.length === 1 ? "" : "s"} passed the LiteLLM

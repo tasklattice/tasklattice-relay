@@ -22,7 +22,7 @@ function State({ icon: Icon, title, description, retry }: { icon: typeof AlertTr
     <Card className="mx-auto mt-16 max-w-xl">
       <CardContent className="flex min-h-72 flex-col items-center justify-center text-center">
         <Icon className="size-8 text-muted-foreground" />
-        <h1 className="mt-4 font-sans text-2xl font-semibold">{title}</h1>
+        <h1 className="mt-4 font-display text-[1.625rem] font-light leading-tight tracking-[0.005em]">{title}</h1>
         <p className="mt-2 max-w-md text-sm leading-6 text-muted-foreground">{description}</p>
         <div className="mt-6 flex flex-wrap justify-center gap-2">
           {retry ? <Button type="button" onClick={retry}>Retry</Button> : null}

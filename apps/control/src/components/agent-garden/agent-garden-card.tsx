@@ -47,7 +47,7 @@ export function AgentGardenCard({
     <article
       className={cn(
         "group flex min-h-52 flex-col rounded-lg border bg-card p-4 shadow-xs transition-[border-color,background-color,box-shadow,transform] duration-200",
-        "hover:-translate-y-0.5 hover:border-primary/25 hover:bg-accent/15 hover:shadow-sm",
+        "hover:border-primary/25 hover:bg-accent/20",
         agent.status === "COMING_SOON" && "bg-muted/25",
       )}
     >
@@ -181,6 +181,11 @@ export function AgentGardenCard({
               type="button"
               className="h-11"
               disabled={!canManage}
+              title={
+                canManage
+                  ? undefined
+                  : "Project resource management permission is required."
+              }
               onClick={onCreateInstance}
             >
               {instanceCount ? "View Instance" : "Create Instance"} <ArrowRight />

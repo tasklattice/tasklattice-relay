@@ -61,6 +61,16 @@ function model(now: string, displayName = "Department Chat"): ModelDeployment {
   };
 }
 
+function embeddingModel(now: string): ModelDeployment {
+  return {
+    ...model(now, "Department Embedding"),
+    modelId: "department-embedding",
+    modelType: "text-embedding",
+    capabilities: [],
+    outputModalities: ["embedding"],
+  };
+}
+
 function routing(now: string, description = "Shared Department route"): ModelRouting {
   return {
     id: routingId,
@@ -320,6 +330,68 @@ describe("Department inference assignment", () => {
     expect((await project.getModelDeployment(modelId))?.origin?.accessSources).toEqual([
       "DEPARTMENT_ASSIGNMENT",
     ]);
+  });
+
+  it("blocks removing the last inherited or assigned embedding model while Durable Memory depends on it", async () => {
+    const db = createTestPrisma();
+    const department = new DepartmentInferenceStore("dep1", db);
+    const assignments = new DepartmentResourceAssignmentService("dep1", db);
+    const project = new ProjectStore("individual", db);
+    const now = new Date().toISOString();
+
+    await department.saveProviderAccount(provider(now), "department-secret");
+    await department.saveModelDeployment(embeddingModel(now));
+    await assignments.assign(
+      "MODEL",
+      modelId,
+      { projectIds: ["individual"], setAsProjectDefault: true },
+      "department-admin",
+    );
+    await db.memoryRecord.create({
+      data: {
+        projectId: "individual",
+        id: "66666666-6666-4666-8666-666666666666",
+        displayName: "Inherited embedding memory",
+        status: "ready",
+      },
+    });
+
+    await expect(assignments.unassign("MODEL", modelId, "individual"))
+      .rejects.toThrow("1 Durable Memory");
+
+    await project.inheritDepartmentModel(modelId, "project-admin");
+    await expect(assignments.unassign("MODEL", modelId, "individual"))
+      .resolves.toBeUndefined();
+    await expect(project.removeDepartmentModelInheritance(modelId))
+      .rejects.toThrow("1 Durable Memory");
+  });
+
+  it("blocks removing a Department Routing when it is the Project's only embedding source", async () => {
+    const db = createTestPrisma();
+    const department = new DepartmentInferenceStore("dep1", db);
+    const assignments = new DepartmentResourceAssignmentService("dep1", db);
+    const now = new Date().toISOString();
+
+    await department.saveProviderAccount(provider(now), "department-secret");
+    await department.saveModelDeployment(embeddingModel(now));
+    await department.saveModelRouting(routing(now, "Embedding route"));
+    await assignments.assign(
+      "ROUTING",
+      routingId,
+      { projectIds: ["individual"], setAsProjectDefault: false },
+      "department-admin",
+    );
+    await db.memoryRecord.create({
+      data: {
+        projectId: "individual",
+        id: "77777777-7777-4777-8777-777777777777",
+        displayName: "Routing embedding memory",
+        status: "ready",
+      },
+    });
+
+    await expect(assignments.unassign("ROUTING", routingId, "individual"))
+      .rejects.toThrow("1 Durable Memory");
   });
 
   it("does not let a Project override a Department-managed Routing default", async () => {

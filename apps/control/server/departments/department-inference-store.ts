@@ -185,7 +185,7 @@ export class DepartmentInferenceStore extends ProjectStore {
   async deleteProviderAccount(id: string): Promise<boolean> {
     const models = await this.listModelDeployments(id);
     if (await this.listAgentIdsUsingModelDeployments(models.map((model) => model.id)).then((items) => items.length)) {
-      throw new Error("Remove inherited Models from child Projects before deleting this Provider connection.");
+      throw new Error("Remove inherited Models from child Projects before deleting these Provider credentials.");
     }
     const deletedAt = new Date();
     return this.departmentDb.$transaction(async (transaction) => {

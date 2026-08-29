@@ -93,6 +93,12 @@ export const inferenceContracts = defineContracts([
     responses: { 200: response("Deleted model deployment", openObjectSchema) },
   }),
   projectRoute({
+    method: "get", path: "/models/{modelId}/removal-impact", operationId: "getModelRemovalImpact",
+    summary: "Preview model removal dependencies", tags: ["Models"],
+    request: { params: modelParamsSchema },
+    responses: { 200: response("Model removal impact", openObjectSchema) },
+  }),
+  projectRoute({
     method: "get", path: "/models/inheritable", operationId: "listInheritableDepartmentModels",
     summary: "List Department models available to inherit", tags: ["Models"],
     responses: { 200: response("Department model inheritance catalog", openObjectSchema) },
@@ -213,6 +219,12 @@ export const inferenceContracts = defineContracts([
     method: "delete", path: "/models/{modelId}", operationId: "deleteDepartmentModelDeployment",
     summary: "Delete a Department model deployment", tags: ["Models"], request: { params: departmentModelParamsSchema },
     responses: { 200: response("Deleted Department model deployment", openObjectSchema) },
+  }),
+  departmentRoute({
+    method: "get", path: "/models/{modelId}/removal-impact", operationId: "getDepartmentModelRemovalImpact",
+    summary: "Preview Department model removal dependencies", tags: ["Models"],
+    request: { params: departmentModelParamsSchema },
+    responses: { 200: response("Department model removal impact", openObjectSchema) },
   }),
   departmentRoute({
     method: "get", path: "/models/{modelId}/assignments", operationId: "listDepartmentModelAssignments",

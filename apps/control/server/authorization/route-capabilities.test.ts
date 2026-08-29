@@ -30,7 +30,10 @@ describe("Project route capability declarations", () => {
       const pathname = `/api/v1/projects/individual${route ? `/${route}` : ""}`;
       if (!projectRouteAdmissionPolicy(method, pathname)) uncovered.push(file);
     }
-    expect(files).toHaveLength(95);
+    // A stable sentinel proves the recursive scan is looking at the intended
+    // tree. The uncovered assertion below is the actual fail-closed contract;
+    // pinning the total made every correctly authorized new route fail CI.
+    expect(files).toContain("instances/[instanceId]/interaction.get.ts");
     expect(uncovered).toEqual([]);
   });
 
@@ -89,6 +92,28 @@ describe("Project route capability declarations", () => {
       "PATCH",
       "/api/v1/projects/individual/catalog/vector-databases/knowledge-1/documents/file-1",
     )?.requirements[0]?.capability).toBe("CAP_VECTOR_DATABASE_UPDATE");
+  });
+
+  it("separates Durable Memory read, curation, export, and dangerous operations", () => {
+    const cases = [
+      ["GET", "/api/v1/projects/individual/memories", "CAP_AGENT_MEMORY_ITEM_VIEW"],
+      ["GET", "/api/v1/projects/individual/memories/memory-1/facts", "CAP_AGENT_MEMORY_CONTENT_VIEW"],
+      ["PATCH", "/api/v1/projects/individual/memories/memory-1/facts/fact-1", "CAP_AGENT_MEMORY_CONTENT_WRITE"],
+      ["POST", "/api/v1/projects/individual/memories/memory-1/items/fact-1/invalidate", "CAP_AGENT_MEMORY_CONTENT_WRITE"],
+      ["DELETE", "/api/v1/projects/individual/memories/memory-1/conversations/conversation-1", "CAP_AGENT_MEMORY_CONTENT_DELETE"],
+      ["POST", "/api/v1/projects/individual/memories/memory-1/conversations/conversation-1/redact", "CAP_AGENT_MEMORY_CONTENT_WRITE"],
+      ["POST", "/api/v1/projects/individual/memories/memory-1/exports", "CAP_AGENT_MEMORY_EXPORT"],
+      ["DELETE", "/api/v1/projects/individual/memories/memory-1", "CAP_AGENT_MEMORY_CONTENT_PURGE"],
+      ["POST", "/api/v1/projects/individual/memories/memory-1/outbox/outbox-1/replay", "CAP_AGENT_MEMORY_INDEX_REBUILD"],
+    ] as const;
+    for (const [method, pathname, capability] of cases) {
+      const expected = {
+        relation: "PROJECT",
+        requirements: [{ capability, resourceType: "DurableMemory" }],
+        ...(pathname.includes("/memory-1") ? { resourceId: "memory-1" } : {}),
+      };
+      expect(projectRouteAdmissionPolicy(method, pathname)).toMatchObject(expected);
+    }
   });
 
   it("preserves conditional route semantics with a trailing slash", () => {
@@ -199,6 +224,15 @@ describe("Project route capability declarations", () => {
       "CAP_AGENT_INSTANCE_KNOWLEDGE_SOURCE_ASSIGN",
       "CAP_AGENT_MEMORY_CONFIG_UPDATE",
       "CAP_AGENT_MEMORY_EMBEDDING_ASSIGN",
+    ]);
+  });
+
+  it("does not require Memory configuration when the rollout is disabled", () => {
+    expect(conditionalInstanceCreateRequirements({
+      agentPlatform: "hermes",
+    }, false).map(({ capability }) => capability)).toEqual([
+      "CAP_AGENT_INSTANCE_ACCESS_POLICY_ASSIGN",
+      "CAP_AGENT_INSTANCE_MODEL_ROUTING_ASSIGN",
     ]);
   });
 

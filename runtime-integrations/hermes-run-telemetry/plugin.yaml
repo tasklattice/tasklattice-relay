@@ -1,0 +1,8 @@
+name: tali-run-telemetry
+version: 0.1.0
+description: "Reports sanitized top-level Hermes Run lifecycle events to TaskLattice Relay."
+author: TaskLattice
+kind: standalone
+hooks:
+  - pre_llm_call
+  - on_session_end

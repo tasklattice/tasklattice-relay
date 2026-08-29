@@ -1,7 +1,8 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import {
   defaultNativeAgentMemoryConfiguration,
   getAgentPlatformDefinition,
+  hasValidatedEmbeddingModel,
   type Instance as Agent,
   type AgentMemoryConfiguration,
   type CreateInstanceInput,
@@ -12,7 +13,10 @@ import {
 import { AccessPolicyService } from "../access-policies/access-policy-service";
 import { AccessPolicyStore } from "../access-policies/access-policy-store";
 import { ProjectStore } from "../projects/project-store";
-import { ResourceCatalogService } from "../catalog/resource-catalog-service";
+import {
+  ResourceCatalogService,
+  VectorDatabaseEmbeddingRequiredError,
+} from "../catalog/resource-catalog-service";
 import {
   NemoClawRunnerClient,
   type CreateSandboxInput,
@@ -37,6 +41,18 @@ import {
   controlJobQueue,
   type ControlJobPublisher,
 } from "../jobs/control-job-queue";
+import { MemoryRepository } from "../memories/memory-repository";
+import {
+  MemoryService,
+  type PreparedAgentMemory,
+  type ResolvedAgentMemory,
+} from "../memories/memory-service";
+import {
+  DurableMemoryEmbeddingRequiredError,
+  DurableMemoryFeatureDisabledError,
+  durableMemoryEnabledForProject,
+} from "../memories/durable-memory-feature";
+import { InstanceLifecycleOperationService } from "./instance-lifecycle-service";
 
 export function agentSandboxName(id: string): string {
   const compactId = BigInt(`0x${id.replaceAll("-", "")}`)
@@ -44,6 +60,12 @@ export function agentSandboxName(id: string): string {
     .padStart(25, "0")
     .slice(-17);
   return `i-${compactId}`;
+}
+
+function costKeyIdentifier(value: string): string {
+  return value.startsWith("sha256:")
+    ? value
+    : `sha256:${createHash("sha256").update(value).digest("hex")}`;
 }
 
 export function isRunnerRuntimeTargetRoutable(target: {
@@ -88,7 +110,6 @@ export function applyObservedState(
     logs: observed.logs.length > 0 ? observed.logs : agent.logs,
     ...(observed.httpEndpoint ? { httpEndpoint: observed.httpEndpoint } : {}),
     updatedAt: new Date().toISOString(),
-    ...(observed.operationId ? { operationId: observed.operationId } : {}),
     ...(observed.error
       ? { error: observed.error }
       : observed.phase === "NOT_FOUND" && !transientNotFound
@@ -115,6 +136,13 @@ export class InstanceService {
       litellm,
     ),
     readonly jobs: ControlJobPublisher = controlJobQueue(),
+    readonly memories = new MemoryService(
+      new MemoryRepository(store.projectId, store.database()),
+    ),
+    readonly lifecycle = new InstanceLifecycleOperationService(
+      store.projectId,
+      store.database(),
+    ),
   ) {}
 
   async list(ownerUserId?: string): Promise<Agent[]> {
@@ -162,9 +190,35 @@ export class InstanceService {
     return { namespace: target.namespace };
   }
 
-  async create(input: CreateInstanceInput, ownerUserId?: string): Promise<Agent> {
+  async create(
+    input: CreateInstanceInput,
+    ownerUserId?: string,
+    creationIdempotencyKey?: string,
+  ): Promise<Agent> {
+    const requestKey = creationIdempotencyKey?.trim();
+    if (
+      requestKey
+      && (!/^[A-Za-z0-9._:-]+$/.test(requestKey) || requestKey.length > 200)
+    ) {
+      throw new Error(
+        "The Instance idempotency key must use 1-200 letters, numbers, dots, colons, underscores, or hyphens.",
+      );
+    }
+    if (ownerUserId && requestKey) {
+      const replay = await this.store.getByCreationIdempotencyKey(
+        ownerUserId,
+        requestKey,
+      );
+      if (replay) return replay;
+    }
     await this.quotas.assertCanCreate("instances");
     const catalog = await this.catalog.catalog();
+    const embeddingModelAvailable = hasValidatedEmbeddingModel(
+      await this.store.listModelDeployments(),
+    );
+    if (input.knowledgeSourceIds?.length && !embeddingModelAvailable) {
+      throw new VectorDatabaseEmbeddingRequiredError();
+    }
     if (
       input.specializationId &&
       !catalog.specializations.some(
@@ -198,6 +252,7 @@ export class InstanceService {
     }
     const policy = await this.runtimePolicies.resolve(input.policyId);
     const id = randomUUID();
+    const effectiveRequestKey = requestKey ?? `instance:${id}`;
     const now = new Date().toISOString();
     const sandboxName = agentSandboxName(id);
     await this.accessPolicies.assertActivePolicyIds(input.accessPolicyIds);
@@ -207,16 +262,54 @@ export class InstanceService {
       throw new Error(
         "The selected Routing LiteLLM Gateway is unavailable.",
       );
-    const memoryConfiguration =
-      getAgentPlatformDefinition(input.agentPlatform).capabilities.memory
-        !== "none"
-        ? (input.memory ?? defaultNativeAgentMemoryConfiguration)
-        : input.memory;
+    const durableRuntime = input.agentPlatform === "openclaw"
+      ? "openclaw"
+      : input.agentPlatform === "hermes"
+        ? "hermes"
+        : undefined;
+    const durableMemoryEnabled = durableMemoryEnabledForProject(
+      this.store.projectId,
+    );
+    if (input.durableMemoryId && !durableMemoryEnabled) {
+      throw new DurableMemoryFeatureDisabledError();
+    }
+    if (input.durableMemoryId && !durableRuntime) {
+      throw new Error(
+        "Durable Memory is currently available only for OpenClaw and Hermes Instances.",
+      );
+    }
+    if (input.durableMemoryId && input.memory) {
+      throw new Error(
+        "Choose either Project Durable Memory or an Instance-native Memory mode.",
+      );
+    }
+    if (input.durableMemoryId && !embeddingModelAvailable) {
+      throw new DurableMemoryEmbeddingRequiredError();
+    }
+    const durableMemoryAvailable = durableMemoryEnabled
+      && embeddingModelAvailable;
+    const memoryConfiguration = input.memory
+      ?? (durableRuntime && !durableMemoryAvailable
+        ? defaultNativeAgentMemoryConfiguration
+        : undefined);
     await this.resolveMemory(
       input.agentPlatform,
       memoryConfiguration,
       routing,
     );
+    const actorId = ownerUserId ?? "memory-service";
+    let resolvedMemory: ResolvedAgentMemory | undefined;
+    if (durableRuntime && durableMemoryAvailable && !memoryConfiguration) {
+      resolvedMemory = await this.memories.resolveForAgent({
+        actorId,
+        displayName: input.name,
+        ...(input.durableMemoryId
+          ? { existingMemoryId: input.durableMemoryId }
+          : {}),
+        instanceId: id,
+        requestIdempotencyKey: effectiveRequestKey,
+      });
+    }
     const costKeyAlias = `tali-instance-${id}`;
     const serviceAccountId = `tali-instance-${id}`;
     const modelKeyRouting = await this.modelKeyRouting(routing);
@@ -224,6 +317,7 @@ export class InstanceService {
       schemaVersion: 2,
       id,
       ...input,
+      ...(resolvedMemory ? { durableMemoryId: resolvedMemory.memory.id } : {}),
       ...(memoryConfiguration ? { memory: memoryConfiguration } : {}),
       policyId: policy.id,
       modelDeploymentId: `model-routing:${routing.id}`,
@@ -247,36 +341,73 @@ export class InstanceService {
       updatedAt: now,
       logs: ["Agent request accepted. Waiting for the Control Worker."],
     };
+    let preparedMemory: PreparedAgentMemory | undefined;
     try {
-      await this.store.save(agent, ownerUserId);
+      try {
+        await this.store.save(agent, ownerUserId, requestKey);
+      } catch (error) {
+        if (ownerUserId && requestKey) {
+          const replay = await this.store.getByCreationIdempotencyKey(
+            ownerUserId,
+            requestKey,
+          );
+          if (replay) return replay;
+        }
+        throw error;
+      }
+      if (resolvedMemory && durableRuntime) {
+        const binding = await this.memories.bindToAgent({
+          actorId,
+          instanceId: id,
+          memoryId: resolvedMemory.memory.id,
+          requestIdempotencyKey: effectiveRequestKey,
+          runtimeType: durableRuntime,
+        });
+        preparedMemory = { ...resolvedMemory, binding };
+      }
       await this.store.replaceAgentAccessPolicies(id, input.accessPolicyIds);
       if (!this.jobs.enqueueInstanceLifecycle) {
         throw new Error(
           "The Control Worker queue does not support Instance lifecycle jobs.",
         );
       }
-      const operationId = await this.jobs.enqueueInstanceLifecycle({
+      const operation = await this.lifecycle.create(id, "provision");
+      const queueJobId = await this.jobs.enqueueInstanceLifecycle({
         projectId: this.store.projectId,
         instanceId: id,
+        operationId: operation.id,
         action: "provision",
       });
-      if (!operationId) {
+      if (!queueJobId) {
         throw new Error("Unable to enqueue Instance provisioning.");
       }
+      await this.lifecycle.attachQueueJob(operation.id, queueJobId);
       agent = await this.store.save({
         ...agent,
-        operationId,
+        operationId: operation.id,
         logs: [...agent.logs, "Instance provisioning queued in the Control Worker."],
         updatedAt: new Date().toISOString(),
       });
     } catch (error) {
+      if (preparedMemory) {
+        await this.memories.rollbackAgentPreparation(
+          preparedMemory,
+          actorId,
+        ).catch(() => undefined);
+      } else if (resolvedMemory) {
+        await this.memories.rollbackAgentResolution(
+          resolvedMemory,
+          actorId,
+        ).catch(() => undefined);
+      }
       await this.store.hardDelete(id).catch(() => undefined);
       throw error;
     }
     return agent;
   }
 
-  async provision(id: string): Promise<Agent | undefined> {
+  async provision(id: string, operationId?: string): Promise<Agent | undefined> {
+    if (operationId) await this.lifecycle.start(operationId);
     let agent = await this.store.get(id);
     if (!agent || agent.status === "DESTROYING") return agent;
     if (agent.status === "READY") return agent;
@@ -300,12 +431,30 @@ export class InstanceService {
 
     let observed = await this.getRunnerSandbox(agent);
     if (agent.liteLLMTokenId && observed.phase === "READY") {
+      if (operationId) {
+        await this.lifecycle.recordStage(
+          operationId,
+          "READY",
+          "Agent runtime is ready.",
+          observed.logs,
+        );
+      }
       return this.store.save(applyObservedState(agent, observed));
     }
     if (agent.liteLLMTokenId && observed.phase === "PROVISIONING") {
       observed = await this.waitForRunnerProvisioning(agent);
       agent = await this.store.save(applyObservedState(agent, observed));
-      if (observed.phase === "READY") return agent;
+      if (observed.phase === "READY") {
+        if (operationId) {
+          await this.lifecycle.recordStage(
+            operationId,
+            "READY",
+            "Agent runtime is ready.",
+            observed.logs,
+          );
+        }
+        return agent;
+      }
     }
     if (observed.phase !== "NOT_FOUND") {
       await this.destroyRunnerSandbox(agent);
@@ -373,8 +522,8 @@ export class InstanceService {
         projectId: this.store.projectId,
         instanceId: id,
         instanceName: agent.name,
-        liteLLMVirtualKeyId: instanceKey.tokenId,
-        hashedToken: instanceKey.tokenId,
+        liteLLMVirtualKeyId: costKeyIdentifier(instanceKey.tokenId),
+        hashedToken: costKeyIdentifier(instanceKey.tokenId),
         virtualKeyAlias: agent.costKeyAlias,
         liteLLMTeamId: created.teamId,
         providerAccountId: gateway.id,
@@ -420,11 +569,17 @@ export class InstanceService {
           }),
         },
         ...(memory.runtime ? { memory: memory.runtime } : {}),
-      });
+      }, agent.durableMemoryId);
       agent = await this.store.save(applyObservedState(agent, runnerState));
+      if (operationId) {
+        await this.recordObservedLifecycle(operationId, runnerState);
+      }
       if (runnerState.phase === "PROVISIONING") {
         runnerState = await this.waitForRunnerProvisioning(agent);
         agent = await this.store.save(applyObservedState(agent, runnerState));
+        if (operationId) {
+          await this.recordObservedLifecycle(operationId, runnerState);
+        }
       }
       if (runnerState.phase !== "READY") {
         throw new Error(
@@ -456,6 +611,7 @@ export class InstanceService {
     id: string,
     error: unknown,
     terminal: boolean,
+    operationId?: string,
   ): Promise<void> {
     const current = await this.store.get(id);
     if (!current || current.status === "DESTROYING") return;
@@ -475,6 +631,9 @@ export class InstanceService {
       ].slice(-100),
       updatedAt: new Date().toISOString(),
     });
+    if (operationId) {
+      await this.lifecycle.recordFailure(operationId, error, terminal);
+    }
   }
 
   async destroy(id: string): Promise<boolean> {
@@ -499,19 +658,22 @@ export class InstanceService {
           "The Control Worker queue does not support Instance lifecycle jobs.",
         );
       }
-      const operationId = await this.jobs.enqueueInstanceLifecycle({
+      const operation = await this.lifecycle.create(id, "delete");
+      const queueJobId = await this.jobs.enqueueInstanceLifecycle({
         projectId: this.store.projectId,
         instanceId: id,
+        operationId: operation.id,
         action: "delete",
       });
-      if (!operationId) {
+      if (!queueJobId) {
         throw new Error("Unable to enqueue Instance deletion.");
       }
+      await this.lifecycle.attachQueueJob(operation.id, queueJobId);
       const queued = await this.store.getIncludingDeleted(id);
       if (queued) {
         await this.store.save({
           ...queued,
-          operationId,
+          operationId: operation.id,
           updatedAt: new Date().toISOString(),
         });
       }
@@ -523,10 +685,20 @@ export class InstanceService {
     }
   }
 
-  async deleteRuntime(id: string): Promise<void> {
+  async deleteRuntime(id: string, operationId?: string): Promise<void> {
+    if (operationId) await this.lifecycle.start(operationId);
     const agent = await this.store.getIncludingDeleted(id);
     if (!agent) return;
-    if (agent.deletionCompletedAt && agent.modelRoutingBindingRevokedAt) return;
+    if (agent.deletionCompletedAt && agent.modelRoutingBindingRevokedAt) {
+      if (operationId) {
+        await this.lifecycle.recordStage(
+          operationId,
+          "READY",
+          "Instance deletion completed.",
+        );
+      }
+      return;
+    }
     if (!agent.deletionCompletedAt) await this.destroyRunnerSandbox(agent);
     const binding = await this.store.getModelRoutingBindingForAgent(id);
     const tokensToBlock = new Set<string>();
@@ -550,6 +722,7 @@ export class InstanceService {
         revokedAt: finalizedAt,
       });
     }
+    await this.memories.detachFromAgent(id, "control-worker");
     await this.closeInstanceAttributions(id);
     const completedAt = agent.deletionCompletedAt ?? finalizedAt;
     const { error: _previousError, ...completed } = agent;
@@ -569,9 +742,20 @@ export class InstanceService {
       ].slice(-100),
       updatedAt: finalizedAt,
     });
+    if (operationId) {
+      await this.lifecycle.recordStage(
+        operationId,
+        "READY",
+        "Instance deletion completed.",
+      );
+    }
   }
 
-  async recordDeletionFailure(id: string, error: unknown): Promise<void> {
+  async recordDeletionFailure(
+    id: string,
+    error: unknown,
+    operationId?: string,
+  ): Promise<void> {
     const current = await this.store.getIncludingDeleted(id);
     if (!current) return;
     const message = error instanceof Error ? error.message : String(error);
@@ -585,6 +769,9 @@ export class InstanceService {
       logs: [...logs, `Deletion retry pending: ${message}`].slice(-100),
       updatedAt: new Date().toISOString(),
     });
+    if (operationId) {
+      await this.lifecycle.recordFailure(operationId, error, false);
+    }
   }
 
   async updateAccessPolicies(
@@ -715,7 +902,7 @@ export class InstanceService {
     if (
       getAgentPlatformDefinition(agentPlatform).capabilities.memory === "none"
     ) {
-      throw new Error("Memory is currently available only for OpenClaw Instances.");
+      throw new Error("This Agent does not support Instance-native Memory.");
     }
     if (memory.mode === "native") {
       return {
@@ -724,6 +911,14 @@ export class InstanceService {
           citations: memory.citations,
         },
       };
+    }
+    if (
+      getAgentPlatformDefinition(agentPlatform).capabilities.memory
+        !== "native-hybrid"
+    ) {
+      throw new Error(
+        "Hybrid Memory is currently available only for OpenClaw Instances.",
+      );
     }
     const embedding = await this.store.getModelDeployment(
       memory.embeddingModelDeploymentId,
@@ -778,6 +973,25 @@ export class InstanceService {
     }
   }
 
+  private async recordObservedLifecycle(
+    operationId: string,
+    observed: RunnerSandbox,
+  ): Promise<void> {
+    const stage = observed.provisioningStage
+      ?? (observed.phase === "READY" ? "READY" : "RUNTIME");
+    const message = observed.phase === "READY"
+      ? "Agent runtime is ready."
+      : observed.phase === "FAILED"
+        ? "Agent runtime reported a provisioning failure."
+        : `Agent provisioning reached ${stage.toLowerCase()}.`;
+    await this.lifecycle.recordStage(
+      operationId,
+      stage,
+      message,
+      observed.logs,
+    );
+  }
+
   private async closeInstanceAttributions(instanceId: string): Promise<void> {
     const now = new Date();
     await this.store.database().costAttributionMappingRecord.updateMany({
@@ -792,24 +1006,31 @@ export class InstanceService {
 
   private async createRunnerSandbox(
     input: CreateSandboxInput,
+    durableMemoryId?: string,
   ): Promise<RunnerSandbox> {
     const target = await this.runnerRuntimeTarget();
     const projectRuntimeBridgeToken =
       target
-      && input.agentPlatform === "hermes"
+      && (
+        input.agentPlatform === "hermes"
+        || (input.agentPlatform === "openclaw" && Boolean(durableMemoryId))
+      )
       && process.env.PROJECT_RUNTIME_BRIDGES_ENABLED === "true"
         ? signProjectRuntimeCoordinatorToken(
             {
               coordinatorInstanceId: input.instanceId,
+              ...(durableMemoryId ? { memoryId: durableMemoryId } : {}),
               namespace: target.namespace,
               projectId: this.store.projectId,
             },
             getControlConfig().auth.secret,
           )
         : undefined;
-    const runtimeInput = projectRuntimeBridgeToken
-      ? { ...input, projectRuntimeBridgeToken }
-      : input;
+    const runtimeInput: CreateSandboxInput = {
+      ...input,
+      durableMemoryEnabled: Boolean(durableMemoryId),
+      ...(projectRuntimeBridgeToken ? { projectRuntimeBridgeToken } : {}),
+    };
     return target
       ? this.runner.createSandbox(runtimeInput, target)
       : this.runner.createSandbox(runtimeInput);

@@ -1,0 +1,87 @@
+name: Live Hermes cross-plane E2E
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: "Deployed Relay base URL"
+        required: true
+        type: string
+      project_id:
+        description: "Disposable validation Project ID (blank selects the first Project)"
+        required: false
+        type: string
+      routing_id:
+        description: "READY Model Routing ID (blank auto-selects)"
+        required: false
+        type: string
+      vector_database_id:
+        description: "Registered PostgreSQL Vector Database ID (blank auto-selects)"
+        required: false
+        type: string
+      keep_resources:
+        description: "Keep the Agent, uploaded document, and created A2A peer for diagnosis"
+        required: false
+        default: false
+        type: boolean
+      run_sso:
+        description: "Also verify the deployed Keycloak -> Control SSO and Role switch"
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: live-hermes-e2e-${{ inputs.project_id || inputs.base_url }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  golden-path:
+    name: Control + Data / Hermes golden path
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    environment: live-e2e
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup-node-workspace
+      - name: Verify Keycloak to Control SSO and Role binding
+        if: inputs.run_sso
+        env:
+          TALI_BASE_URL: ${{ inputs.base_url }}
+          TALI_LIVE_E2E: "1"
+          TALI_SSO_EXPECTED_GROUP: ${{ secrets.TALI_SSO_EXPECTED_GROUP }}
+          TALI_SSO_PASSWORD: ${{ secrets.TALI_SSO_PASSWORD }}
+          TALI_SSO_USERNAME: ${{ secrets.TALI_SSO_USERNAME }}
+        run: npm run test:e2e:sso
+      - name: Verify deployed OpenShell Project isolation
+        env:
+          TALI_BASE_URL: ${{ inputs.base_url }}
+          TALI_LIVE_E2E: "1"
+          TALI_LIVE_E2E_KEEP_RESOURCES: ${{ inputs.keep_resources && '1' || '0' }}
+          TALI_LIVE_E2E_PROJECT_ID: ${{ inputs.project_id }}
+          TALI_VALIDATION_PASSWORD: ${{ secrets.TALI_VALIDATION_PASSWORD }}
+          TALI_VALIDATION_USERNAME: ${{ secrets.TALI_VALIDATION_USERNAME }}
+        run: npm run test:e2e:openshell-isolation
+      - name: Verify OpenClaw and Deep Agents inference and model attribution
+        env:
+          TALI_BASE_URL: ${{ inputs.base_url }}
+          TALI_LIVE_E2E: "1"
+          TALI_LIVE_E2E_PROJECT_ID: ${{ inputs.project_id }}
+          TALI_LIVE_RUNTIME_PLATFORMS: "openclaw,deepagents"
+          TALI_VALIDATION_PASSWORD: ${{ secrets.TALI_VALIDATION_PASSWORD }}
+          TALI_VALIDATION_PROJECT_ID: ${{ inputs.project_id }}
+          TALI_VALIDATION_USERNAME: ${{ secrets.TALI_VALIDATION_USERNAME }}
+        run: npm run test:e2e:runtime-inference-matrix
+      - name: Run live Hermes golden path
+        env:
+          TALI_BASE_URL: ${{ inputs.base_url }}
+          TALI_LIVE_E2E: "1"
+          TALI_LIVE_E2E_KEEP_RESOURCES: ${{ inputs.keep_resources && '1' || '0' }}
+          TALI_LIVE_E2E_PROJECT_ID: ${{ inputs.project_id }}
+          TALI_LIVE_E2E_ROUTING_ID: ${{ inputs.routing_id }}
+          TALI_LIVE_E2E_VECTOR_DATABASE_ID: ${{ inputs.vector_database_id }}
+          TALI_VALIDATION_PASSWORD: ${{ secrets.TALI_VALIDATION_PASSWORD }}
+          TALI_VALIDATION_USERNAME: ${{ secrets.TALI_VALIDATION_USERNAME }}
+        run: npm run test:e2e:live

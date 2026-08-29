@@ -1,4 +1,7 @@
-import type { Instance as Agent } from "@tali/contracts";
+import type {
+  Instance as Agent,
+  InstanceLifecycleOperation,
+} from "@tali/contracts";
 import { Link } from "@tanstack/react-router";
 import confetti from "canvas-confetti";
 import { AlertTriangle, ArrowRight, Check, CheckCircle2, ChevronDown, Circle, ExternalLink, RotateCw, TerminalSquare } from "lucide-react";
@@ -20,36 +23,55 @@ const creationSteps = [
   { label: "Finalizing", threshold: 100 },
 ] as const;
 
-export function AgentCreationExperience({ agent }: { agent: Agent }) {
+export function AgentCreationExperience({
+  agent,
+  operation,
+}: {
+  agent: Agent;
+  operation?: InstanceLifecycleOperation;
+}) {
   const projectId = useCurrentProjectId();
-  const state = resolveProvisioningState({
+  const fallbackState = resolveProvisioningState({
     status: agent.status,
     ...(agent.provisioningStage ? { stage: agent.provisioningStage } : {}),
   });
+  const progress = operation?.progress ?? fallbackState.progress;
+  const lifecycleStatus = operation?.status;
+  const logs = operation?.events.map((event) => event.message) ?? agent.logs;
 
-  if (agent.status === "READY") return <ReadyState agent={agent} />;
-  if (agent.status === "FAILED") return <FailedState agent={agent} />;
+  if (lifecycleStatus === "succeeded" || agent.status === "READY") {
+    return <ReadyState agent={agent} logs={logs} />;
+  }
+  if (lifecycleStatus === "failed" || agent.status === "FAILED") {
+    return (
+      <FailedState
+        agent={agent}
+        {...(operation?.errorSummary ? { error: operation.errorSummary } : {})}
+        logs={logs}
+      />
+    );
+  }
 
   return (
     <main aria-live="polite" className="mx-auto flex min-h-[calc(100vh-12rem)] w-full max-w-5xl flex-col items-center justify-center px-4 py-12 text-center">
       <div className="relative grid size-20 place-items-center rounded-full bg-primary/5">
         <Spinner className="size-12 text-primary" />
-        <span className="absolute grid size-9 place-items-center rounded-full bg-background text-xs font-semibold tabular-nums shadow-sm">{state.progress}%</span>
+        <span className="absolute grid size-9 place-items-center rounded-full bg-background text-xs font-semibold tabular-nums shadow-sm">{progress}%</span>
       </div>
-      <h1 className="mt-6 font-display text-3xl font-medium tracking-tight">Creating your Agent…</h1>
-      <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">We received the request for <strong className="font-medium text-foreground">{agent.name}</strong>. This page updates automatically while its Agent and permissions are prepared.</p>
+      <h1 className="mt-6 font-display text-3xl font-light tracking-[0.005em]">Creating your Instance…</h1>
+      <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">We received the request for <strong className="font-medium text-foreground">{agent.name}</strong>. This page updates automatically while its Agent runtime and permissions are prepared.</p>
 
-      <div className="mt-10 w-full rounded-lg border bg-card px-5 py-6 text-left shadow-sm sm:px-8">
+      <div className="mt-10 w-full rounded-lg border bg-card px-5 py-6 text-left sm:px-8">
         <div className="flex items-center justify-between gap-4 text-sm">
-          <span className="font-medium">{state.definition.description}</span>
-          <span className="tabular-nums text-muted-foreground">{state.progress}%</span>
+          <span className="font-medium">{operation?.currentMessage ?? fallbackState.definition.description}</span>
+          <span className="tabular-nums text-muted-foreground">{progress}%</span>
         </div>
-        <Progress value={state.progress} aria-label="Agent creation progress" aria-valuetext={`${state.progress}% complete`} className="mt-3 h-2" />
+        <Progress value={progress} aria-label="Agent creation progress" aria-valuetext={`${progress}% complete`} className="mt-3 h-2" />
         <ol className="mt-7 grid gap-4 sm:grid-cols-4">
           {creationSteps.map((step, index) => {
-            const complete = state.progress >= step.threshold;
+            const complete = progress >= step.threshold;
             const previousThreshold = creationSteps[index - 1]?.threshold ?? 0;
-            const active = !complete && state.progress >= previousThreshold;
+            const active = !complete && progress >= previousThreshold;
             return (
               <li key={step.label} className="flex items-center gap-2.5 text-xs sm:block">
                 <span className={cn("grid size-6 shrink-0 place-items-center rounded-full border", complete && "border-primary bg-primary text-primary-foreground", active && "border-primary text-primary")}>
@@ -62,13 +84,13 @@ export function AgentCreationExperience({ agent }: { agent: Agent }) {
         </ol>
       </div>
 
-      <CreationDetails logs={agent.logs} state="live" />
+      <CreationDetails logs={logs} state="live" />
       <Button asChild variant="ghost" className="mt-3"><Link to="/$projectId/instances" params={{ projectId }}>Continue in background</Link></Button>
     </main>
   );
 }
 
-function ReadyState({ agent }: { agent: Agent }) {
+function ReadyState({ agent, logs }: { agent: Agent; logs: string[] }) {
   const projectId = useCurrentProjectId();
   const platform = getAgentPlatformPresentation(agent.agentPlatform);
   const endpointReady = agent.httpEndpoint?.status === "READY" && Boolean(agent.httpEndpoint.url);
@@ -99,33 +121,41 @@ function ReadyState({ agent }: { agent: Agent }) {
       <div className="relative grid size-28 place-items-center rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-300">
         <CheckCircle2 className="size-16" strokeWidth={1.6} />
       </div>
-      <h1 className="mt-7 font-display text-3xl font-medium tracking-tight">Your Agent is ready!</h1>
-      <p className="mt-2 text-sm text-muted-foreground"><strong className="font-medium text-foreground">{agent.name}</strong> is now up and running.</p>
+      <h1 className="mt-7 font-display text-3xl font-light tracking-[0.005em]">Your Instance is ready</h1>
+      <p className="mt-2 text-sm text-muted-foreground"><strong className="font-medium text-foreground">{agent.name}</strong> is deployed and ready to use.</p>
       <div className="mt-8 flex w-full max-w-xl flex-col justify-center gap-3 sm:flex-row">
-        <Button asChild size="lg" className="min-w-48"><Link to="/$projectId/instances/$instanceId" params={{ projectId, instanceId: agent.id }}>Go to Agent <ArrowRight /></Link></Button>
+        <Button asChild size="lg" className="min-w-48"><Link to="/$projectId/instances/$instanceId" params={{ projectId, instanceId: agent.id }}>Open Instance <ArrowRight /></Link></Button>
         {endpointReady && agent.httpEndpoint?.url ? (
           <Button asChild size="lg" variant="outline" className="min-w-48"><a href={agent.httpEndpoint.url} target="_blank" rel="noreferrer">Open Web <ExternalLink /></a></Button>
         ) : (
           <Button asChild size="lg" variant="outline" className="min-w-48"><Link to="/$projectId/instances/$instanceId" params={{ projectId, instanceId: agent.id }}><TerminalSquare /> Open {platform.name}</Link></Button>
         )}
       </div>
-      <CreationDetails logs={agent.logs} state="complete" />
+      <CreationDetails logs={logs} state="complete" />
     </main>
   );
 }
 
-function FailedState({ agent }: { agent: Agent }) {
+function FailedState({
+  agent,
+  error,
+  logs,
+}: {
+  agent: Agent;
+  error?: string;
+  logs: string[];
+}) {
   const projectId = useCurrentProjectId();
   return (
     <main aria-live="assertive" className="mx-auto flex min-h-[calc(100vh-12rem)] w-full max-w-3xl flex-col items-center justify-center px-4 py-12 text-center">
       <span className="grid size-24 place-items-center rounded-full bg-destructive/10 text-destructive"><AlertTriangle className="size-12" /></span>
-      <h1 className="mt-7 font-display text-3xl font-medium tracking-tight">We couldn’t create this Agent</h1>
-      <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">{agent.error ?? "Provisioning stopped before the runtime became available."}</p>
+      <h1 className="mt-7 font-display text-3xl font-light tracking-[0.005em]">We couldn’t create this Instance</h1>
+      <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">{error ?? agent.error ?? "Provisioning stopped before the runtime became available."}</p>
       <div className="mt-7 flex flex-wrap justify-center gap-3">
         <Button asChild><Link to="/$projectId/instances" params={{ projectId }} search={{ create: "instance" }}><RotateCw /> Try again</Link></Button>
-        <Button asChild variant="outline"><Link to="/$projectId/instances/$instanceId" params={{ projectId, instanceId: agent.id }}>Open Agent details</Link></Button>
+        <Button asChild variant="outline"><Link to="/$projectId/instances/$instanceId" params={{ projectId, instanceId: agent.id }}>Open Instance details</Link></Button>
       </div>
-      <CreationDetails logs={agent.logs} state="failed" defaultOpen />
+      <CreationDetails logs={logs} state="failed" defaultOpen />
     </main>
   );
 }

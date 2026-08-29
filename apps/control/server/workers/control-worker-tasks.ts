@@ -21,6 +21,12 @@ import { ProjectRuntimeTargetService } from "../projects/project-runtime-target-
 import { ResourceCatalogService } from "../catalog/resource-catalog-service";
 import { ProjectStore } from "../projects/project-store";
 import { InstanceService } from "../instances/instance-service";
+import { InstanceLifecycleOperationService } from "../instances/instance-lifecycle-service";
+import { MemoryRepository } from "../memories/memory-repository";
+import {
+  MemoryService,
+  type ProcessOutboxResult,
+} from "../memories/memory-service";
 
 const projectIdPayloadSchema = z.object({ projectId: z.string().trim().min(1) });
 const runtimeReconcilePayloadSchema = projectIdPayloadSchema.extend({
@@ -37,18 +43,24 @@ const vectorDocumentIngestionPayloadSchema = z.object({
 const instanceLifecyclePayloadSchema = z.object({
   projectId: z.string().trim().min(1),
   instanceId: z.string().uuid(),
+  operationId: z.string().uuid(),
   action: z.enum(["provision", "delete"]),
 });
 
 export interface InstanceLifecycleService {
-  provision(id: string): Promise<unknown>;
+  provision(id: string, operationId?: string): Promise<unknown>;
   recordProvisioningFailure(
     id: string,
     error: unknown,
     terminal: boolean,
+    operationId?: string,
   ): Promise<void>;
-  deleteRuntime(id: string): Promise<void>;
-  recordDeletionFailure(id: string, error: unknown): Promise<void>;
+  deleteRuntime(id: string, operationId?: string): Promise<void>;
+  recordDeletionFailure(
+    id: string,
+    error: unknown,
+    operationId?: string,
+  ): Promise<void>;
 }
 
 export interface ControlWorkerTaskDependencies {
@@ -58,6 +70,13 @@ export interface ControlWorkerTaskDependencies {
   logger?: StructuredLogger;
   runtimeTargets?: ProjectRuntimeTargetService;
   instances?: (projectId: string) => InstanceLifecycleService;
+  instanceLifecycleOperations?: (
+    projectId: string,
+  ) => Pick<
+    InstanceLifecycleOperationService,
+    "attachQueueJob" | "create" | "latestForInstance"
+  >;
+  memories?: (projectId: string) => Pick<MemoryService, "processDueOutbox">;
 }
 
 export class ControlWorkerTasks {
@@ -182,9 +201,9 @@ export class ControlWorkerTasks {
     this.logJob("info", "job.started", job, payload);
     try {
       if (payload.action === "provision") {
-        await service.provision(payload.instanceId);
+        await service.provision(payload.instanceId, payload.operationId);
       } else {
-        await service.deleteRuntime(payload.instanceId);
+        await service.deleteRuntime(payload.instanceId, payload.operationId);
       }
       this.logJob("info", "job.completed", job, {
         ...payload,
@@ -196,9 +215,14 @@ export class ControlWorkerTasks {
           payload.instanceId,
           error,
           job.retryCount >= job.retryLimit,
+          payload.operationId,
         );
       } else {
-        await service.recordDeletionFailure(payload.instanceId, error);
+        await service.recordDeletionFailure(
+          payload.instanceId,
+          error,
+          payload.operationId,
+        );
       }
       this.logJob("error", "job.retry", job, {
         ...payload,
@@ -216,6 +240,7 @@ export class ControlWorkerTasks {
     const startedAt = Date.now();
     const deletionJobsAttached = await this.attachHistoricalDeletionJobs();
     const instanceJobsAttached = await this.attachInstanceLifecycleJobs();
+    const memoryOutbox = await this.drainMemoryOutbox();
     const projectIds = await this.runtimeTargets.reconciliationCandidateIds();
     let runtimeJobsEnqueued = 0;
     for (const projectId of projectIds) {
@@ -245,6 +270,7 @@ export class ControlWorkerTasks {
       queueStatus,
       reason,
       runtimeJobsEnqueued,
+      memoryOutbox,
     });
   }
 
@@ -374,14 +400,66 @@ export class ControlWorkerTasks {
         && lifecycle.deletionCompletedAt
         && lifecycle.modelRoutingBindingRevokedAt
       ) continue;
+      const operationService = this.dependencies.instanceLifecycleOperations?.(
+        record.projectId,
+      ) ?? new InstanceLifecycleOperationService(record.projectId, this.db);
+      const existingOperation = await operationService.latestForInstance(
+        record.id,
+        action,
+      );
+      const operation = existingOperation?.status === "queued"
+        || existingOperation?.status === "running"
+        ? existingOperation
+        : await operationService.create(record.id, action);
       const id = await this.dependencies.jobs.enqueueInstanceLifecycle({
         projectId: record.projectId,
         instanceId: record.id,
+        operationId: operation.id,
         action,
       });
-      if (id) attached += 1;
+      if (id) {
+        await operationService.attachQueueJob(operation.id, id);
+        attached += 1;
+      }
     }
     return attached;
+  }
+
+  async drainMemoryOutbox(
+    referenceTime = new Date(),
+  ): Promise<ProcessOutboxResult> {
+    const total: ProcessOutboxResult = {
+      claimed: 0,
+      deadLettered: 0,
+      delivered: 0,
+      retried: 0,
+    };
+    const staleBefore = new Date(referenceTime.getTime() - 5 * 60_000);
+    const projects = await this.db.memoryOutboxRecord.findMany({
+      where: {
+        OR: [
+          {
+            status: { in: ["pending", "retry"] },
+            nextRetryAt: { lte: referenceTime },
+          },
+          { status: "processing", updatedAt: { lte: staleBefore } },
+        ],
+      },
+      distinct: ["projectId"],
+      orderBy: { projectId: "asc" },
+      select: { projectId: true },
+      take: 100,
+    });
+    for (const { projectId } of projects) {
+      const service = this.dependencies.memories?.(projectId)
+        ?? new MemoryService(new MemoryRepository(projectId, this.db));
+      const processed = await service.processDueOutbox(25, referenceTime);
+      total.claimed += processed.claimed;
+      total.deadLettered += processed.deadLettered;
+      total.delivered += processed.delivered;
+      total.retried += processed.retried;
+    }
+    return total;
   }
 
   register(): Promise<string[]> {

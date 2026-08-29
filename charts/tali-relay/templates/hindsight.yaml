@@ -1,0 +1,252 @@
+{{- if .Values.hindsight.enabled }}
+{{- $root := . -}}
+{{- $apiComponent := "hindsight-api" -}}
+{{- $apiName := include "tali.hindsightServiceName" . -}}
+{{- $workerComponent := "hindsight-worker" -}}
+{{- $workerName := include "tali.componentName" (dict "root" . "component" $workerComponent) -}}
+{{- $serviceAccountName := include "tali.componentName" (dict "root" . "component" "hindsight") -}}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $serviceAccountName }}
+  labels:
+    {{- include "tali.componentLabels" (dict "root" . "component" "hindsight") | nindent 4 }}
+  annotations:
+    {{- include "tali.resourceAnnotations" (dict "root" . "wave" "foundation") | nindent 4 }}
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $apiName }}
+  labels:
+    {{- include "tali.componentLabels" (dict "root" . "component" $apiComponent) | nindent 4 }}
+  annotations:
+    {{- include "tali.resourceAnnotations" (dict "root" . "wave" "foundation") | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "tali.selectorLabels" (dict "root" . "component" $apiComponent) | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.hindsight.service.port }}
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $apiName }}
+  labels:
+    {{- include "tali.componentLabels" (dict "root" . "component" $apiComponent) | nindent 4 }}
+  annotations:
+    {{- include "tali.resourceAnnotations" (dict "root" . "wave" "application") | nindent 4 }}
+spec:
+  replicas: {{ .Values.hindsight.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "tali.selectorLabels" (dict "root" . "component" $apiComponent) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "tali.selectorLabels" (dict "root" . "component" $apiComponent) | nindent 8 }}
+      annotations:
+        checksum/hindsight-secret: {{ include "tali.hindsightSecretChecksum" . }}
+    spec:
+      serviceAccountName: {{ $serviceAccountName }}
+      automountServiceAccountToken: false
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        {{- if not .Values.openshift.enabled }}
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        {{- end }}
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: api
+          image: {{ include "tali.image" (dict "root" . "image" .Values.images.hindsight) }}
+          imagePullPolicy: {{ .Values.images.hindsight.pullPolicy }}
+          env:
+            {{- include "tali.hindsightCommonEnv" . | nindent 12 }}
+            - name: HINDSIGHT_API_PORT
+              value: {{ .Values.hindsight.service.port | quote }}
+            - name: HINDSIGHT_API_WORKER_ENABLED
+              value: {{ not .Values.hindsight.worker.enabled | quote }}
+            - name: HINDSIGHT_API_WORKER_ID
+              value: {{ $apiName | quote }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.hindsight.service.port }}
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 12
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.hindsight.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+        {{- include "tali.hindsightRouterContainer" (dict "root" . "hindsightPort" .Values.hindsight.service.port) | nindent 8 }}
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 256Mi
+{{- if .Values.hindsight.podDisruptionBudget.enabled }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ $apiName }}
+  labels:
+    {{- include "tali.componentLabels" (dict "root" . "component" $apiComponent) | nindent 4 }}
+spec:
+  minAvailable: {{ .Values.hindsight.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "tali.selectorLabels" (dict "root" . "component" $apiComponent) | nindent 6 }}
+{{- end }}
+{{- if .Values.hindsight.worker.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $workerName }}
+  labels:
+    {{- include "tali.componentLabels" (dict "root" . "component" $workerComponent) | nindent 4 }}
+  annotations:
+    {{- include "tali.resourceAnnotations" (dict "root" . "wave" "foundation") | nindent 4 }}
+spec:
+  clusterIP: None
+  selector:
+    {{- include "tali.selectorLabels" (dict "root" . "component" $workerComponent) | nindent 4 }}
+  ports:
+    - name: metrics
+      port: {{ .Values.hindsight.worker.service.port }}
+      targetPort: metrics
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ $workerName }}
+  labels:
+    {{- include "tali.componentLabels" (dict "root" . "component" $workerComponent) | nindent 4 }}
+  annotations:
+    {{- include "tali.resourceAnnotations" (dict "root" . "wave" "application") | nindent 4 }}
+spec:
+  serviceName: {{ $workerName }}
+  replicas: {{ .Values.hindsight.worker.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "tali.selectorLabels" (dict "root" . "component" $workerComponent) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "tali.selectorLabels" (dict "root" . "component" $workerComponent) | nindent 8 }}
+      annotations:
+        checksum/hindsight-secret: {{ include "tali.hindsightSecretChecksum" . }}
+    spec:
+      serviceAccountName: {{ $serviceAccountName }}
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 120
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        {{- if not .Values.openshift.enabled }}
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        {{- end }}
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: worker
+          image: {{ include "tali.image" (dict "root" . "image" .Values.images.hindsight) }}
+          imagePullPolicy: {{ .Values.images.hindsight.pullPolicy }}
+          command: ["hindsight-worker"]
+          env:
+            {{- include "tali.hindsightCommonEnv" . | nindent 12 }}
+            - name: HINDSIGHT_API_WORKER_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: HINDSIGHT_API_WORKER_HTTP_PORT
+              value: {{ .Values.hindsight.worker.service.port | quote }}
+            - name: HINDSIGHT_API_DB_MAX_PARALLEL_WORKERS_PER_GATHER
+              value: "0"
+          ports:
+            - name: metrics
+              containerPort: {{ .Values.hindsight.worker.service.port }}
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: metrics
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 12
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: metrics
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.hindsight.worker.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+        {{- include "tali.hindsightRouterContainer" (dict "root" . "hindsightPort" .Values.hindsight.worker.service.port) | nindent 8 }}
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 256Mi
+{{- if .Values.hindsight.podDisruptionBudget.enabled }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ $workerName }}
+  labels:
+    {{- include "tali.componentLabels" (dict "root" . "component" $workerComponent) | nindent 4 }}
+spec:
+  minAvailable: {{ .Values.hindsight.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "tali.selectorLabels" (dict "root" . "component" $workerComponent) | nindent 6 }}
+{{- end }}
+{{- end }}
+{{- end }}

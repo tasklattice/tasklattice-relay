@@ -20,6 +20,7 @@ import {
   vectorDatabaseSearchInputSchema,
   vectorDatabaseSearchResultSchema,
   vectorChunkMutationResultSchema,
+  vectorDocumentChunksSchema,
   vectorDocumentDetailSchema,
   vectorDocumentSchema,
   vectorFolderSchema,
@@ -76,6 +77,27 @@ const queuedVectorDocumentSchema = z.object({
   document: vectorDocumentSchema,
   job: vectorIngestionJobSchema,
 }).strict().meta({ id: "QueuedVectorDocument" });
+const runtimeMemoryRecallInputSchema = z.object({
+  query: z.string().trim().min(1).max(16_000),
+  maxItems: z.number().int().min(1).max(12).default(6),
+}).strict().meta({ id: "RuntimeMemoryRecallInput" });
+const runtimeMemoryRecallResponseSchema = z.object({
+  context: z.string().nullable(),
+  degraded: z.boolean(),
+  itemCount: z.number().int().nonnegative(),
+}).strict().meta({ id: "RuntimeMemoryRecallResponse" });
+const runtimeMemoryRetainInputSchema = z.object({
+  conversationId: z.string().trim().min(1).max(240),
+  sessionId: z.string().trim().min(1).max(240).optional(),
+  user: z.string().max(64_000),
+  assistant: z.string().max(64_000),
+  occurredAt: z.iso.datetime().optional(),
+  toolSummaries: z.array(z.string().max(8_000)).max(64).default([]),
+}).strict().meta({ id: "RuntimeMemoryRetainInput" });
+const runtimeMemoryRetainResponseSchema = z.object({
+  accepted: z.literal(true),
+  conversationId: z.string(),
+}).strict().meta({ id: "RuntimeMemoryRetainResponse" });
 
 export const catalogContracts = defineContracts([
   projectRoute({
@@ -143,9 +165,15 @@ export const catalogContracts = defineContracts([
   }),
   projectRoute({
     method: "get", path: "/catalog/vector-databases/{id}/documents/{documentId}", operationId: "getVectorDocument",
-    summary: "Read a Vector Document and its active chunks", tags: ["Vector Databases"],
+    summary: "Read a Vector Document and a lightweight indexed-text preview", tags: ["Vector Databases"],
     request: { params: vectorDocumentParamsSchema },
     responses: { 200: response("Vector Document", vectorDocumentDetailSchema) },
+  }),
+  projectRoute({
+    method: "get", path: "/catalog/vector-databases/{id}/documents/{documentId}/chunks", operationId: "getVectorDocumentChunks",
+    summary: "Read the active chunks for a Vector Document", tags: ["Vector Databases"],
+    request: { params: vectorDocumentParamsSchema },
+    responses: { 200: response("Vector Document chunks", vectorDocumentChunksSchema) },
   }),
   projectRoute({
     method: "patch", path: "/catalog/vector-databases/{id}/documents/{documentId}", operationId: "updateVectorDocument",
@@ -285,5 +313,29 @@ export const catalogContracts = defineContracts([
       body: vectorDatabaseSearchInputSchema,
     },
     responses: { 200: response("Project Vector Database search results", domainObjectSchema) },
+  }),
+  route({
+    auth: "runtime-bridge", method: "post",
+    path: "/runtime-bridge/coordinators/{coordinatorInstanceId}/memory/recall",
+    operationId: "recallRuntimeMemory",
+    summary: "Recall the Coordinator's fixed Durable Memory",
+    tags: ["Runtime Bridge"],
+    request: {
+      params: runtimeBridgeCoordinatorParamsSchema,
+      body: runtimeMemoryRecallInputSchema,
+    },
+    responses: { 200: response("Fail-open Memory context", runtimeMemoryRecallResponseSchema) },
+  }),
+  route({
+    auth: "runtime-bridge", method: "post",
+    path: "/runtime-bridge/coordinators/{coordinatorInstanceId}/memory/retain",
+    operationId: "retainRuntimeMemory",
+    summary: "Queue a turn into the Coordinator's fixed Durable Memory",
+    tags: ["Runtime Bridge"],
+    request: {
+      params: runtimeBridgeCoordinatorParamsSchema,
+      body: runtimeMemoryRetainInputSchema,
+    },
+    responses: { 202: response("Memory retain accepted", runtimeMemoryRetainResponseSchema) },
   }),
 ]);

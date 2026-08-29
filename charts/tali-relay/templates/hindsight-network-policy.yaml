@@ -1,0 +1,138 @@
+{{- if and .Values.hindsight.enabled .Values.hindsight.networkPolicy.enabled }}
+{{- $apiComponent := "hindsight-api" -}}
+{{- $workerComponent := "hindsight-worker" -}}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "tali.componentName" (dict "root" . "component" "hindsight-api") }}
+  labels:
+    {{- include "tali.componentLabels" (dict "root" . "component" $apiComponent) | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "tali.selectorLabels" (dict "root" . "component" $apiComponent) | nindent 6 }}
+  policyTypes: ["Ingress", "Egress"]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/instance: {{ .Release.Name }}
+              app.kubernetes.io/component: control
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/instance: {{ .Release.Name }}
+              app.kubernetes.io/component: control-worker
+        {{- if .Values.monitoring.serviceMonitor.enabled }}
+        - namespaceSelector:
+            {{- toYaml .Values.monitoring.networkPolicy.namespaceSelector | nindent 12 }}
+          podSelector:
+            {{- toYaml .Values.monitoring.networkPolicy.podSelector | nindent 12 }}
+        {{- end }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.hindsight.service.port }}
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/instance: {{ .Release.Name }}
+              app.kubernetes.io/component: postgresql
+      ports:
+        - protocol: TCP
+          port: 5432
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/instance: {{ .Release.Name }}
+              app.kubernetes.io/component: control
+      ports:
+        - protocol: TCP
+          # NetworkPolicy is enforced after Service DNAT, at Control's Pod port.
+          port: 8080
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+{{- if .Values.hindsight.worker.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "tali.componentName" (dict "root" . "component" $workerComponent) }}
+  labels:
+    {{- include "tali.componentLabels" (dict "root" . "component" $workerComponent) | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "tali.selectorLabels" (dict "root" . "component" $workerComponent) | nindent 6 }}
+  policyTypes: ["Ingress", "Egress"]
+  ingress:
+    - from:
+        - podSelector: {}
+        {{- if .Values.monitoring.serviceMonitor.enabled }}
+        - namespaceSelector:
+            {{- toYaml .Values.monitoring.networkPolicy.namespaceSelector | nindent 12 }}
+          podSelector:
+            {{- toYaml .Values.monitoring.networkPolicy.podSelector | nindent 12 }}
+        {{- end }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.hindsight.worker.service.port }}
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/instance: {{ .Release.Name }}
+              app.kubernetes.io/component: postgresql
+      ports:
+        - protocol: TCP
+          port: 5432
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/instance: {{ .Release.Name }}
+              app.kubernetes.io/component: control
+      ports:
+        - protocol: TCP
+          # NetworkPolicy is enforced after Service DNAT, at Control's Pod port.
+          port: 8080
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+{{- end }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "tali.componentName" (dict "root" . "component" "hindsight-migration") }}
+  labels:
+    {{- include "tali.componentLabels" (dict "root" . "component" "hindsight-migration") | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "tali.selectorLabels" (dict "root" . "component" "hindsight-migration") | nindent 6 }}
+  policyTypes: ["Egress"]
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/instance: {{ .Release.Name }}
+              app.kubernetes.io/component: postgresql
+      ports:
+        - protocol: TCP
+          port: 5432
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+{{- end }}

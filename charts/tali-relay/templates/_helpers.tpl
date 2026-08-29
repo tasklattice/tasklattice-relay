@@ -90,6 +90,202 @@ app.kubernetes.io/component: {{ .component }}
 {{- end -}}
 {{- end }}
 
+{{- define "tali.hindsightServiceName" -}}
+{{- include "tali.componentName" (dict "root" . "component" "hindsight-api") -}}
+{{- end }}
+
+{{- define "tali.hindsightDatabaseName" -}}
+{{- $value := required "hindsight.database.name is required" .Values.hindsight.database.name -}}
+{{- if not (regexMatch "^[a-z_][a-z0-9_]{0,62}$" $value) -}}
+{{- fail "hindsight.database.name must be a lowercase PostgreSQL identifier" -}}
+{{- end -}}
+{{- $value -}}
+{{- end }}
+
+{{- define "tali.hindsightDatabaseUser" -}}
+{{- $value := required "hindsight.database.user is required" .Values.hindsight.database.user -}}
+{{- if not (regexMatch "^[a-z_][a-z0-9_]{0,62}$" $value) -}}
+{{- fail "hindsight.database.user must be a lowercase PostgreSQL identifier" -}}
+{{- end -}}
+{{- $value -}}
+{{- end }}
+
+{{- define "tali.hindsightDatabaseSchema" -}}
+{{- $value := required "hindsight.database.schema is required" .Values.hindsight.database.schema -}}
+{{- if not (regexMatch "^[a-z_][a-z0-9_]{0,62}$" $value) -}}
+{{- fail "hindsight.database.schema must be a lowercase PostgreSQL identifier" -}}
+{{- end -}}
+{{- $value -}}
+{{- end }}
+
+{{- define "tali.hindsightDatabaseUrl" -}}
+{{- printf "postgresql://%s:%s@%s:5432/%s" (include "tali.hindsightDatabaseUser" .) (urlquery .Values.secrets.hindsightDatabasePassword) (include "tali.componentName" (dict "root" . "component" "postgresql")) (include "tali.hindsightDatabaseName" .) -}}
+{{- end }}
+
+{{- define "tali.hindsightUrl" -}}
+{{- printf "http://%s.%s.svc.cluster.local:%v" (include "tali.hindsightServiceName" .) .Release.Namespace .Values.hindsight.service.port -}}
+{{- end }}
+
+{{- define "tali.hindsightSecretChecksum" -}}
+{{- if .Values.secrets.existingSecret -}}
+{{- printf "existing:%s" .Values.secrets.existingSecret | sha256sum -}}
+{{- else -}}
+{{- printf "%s:%s:%s:%s" .Values.secrets.hindsightDatabasePassword .Values.secrets.hindsightApiKey .Values.secrets.hindsightRouterToken (include "tali.hindsightDatabaseUrl" .) | sha256sum -}}
+{{- end -}}
+{{- end }}
+
+{{- define "tali.hindsightCommonEnv" -}}
+- name: HOME
+  value: /tmp
+- name: PYTHONDONTWRITEBYTECODE
+  value: "1"
+- name: LITELLM_LOCAL_MODEL_COST_MAP
+  value: "True"
+- name: HINDSIGHT_API_DATABASE_URL
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "tali.secretName" . }}
+      key: hindsight-database-url
+- name: HINDSIGHT_API_MIGRATION_DATABASE_URL
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "tali.secretName" . }}
+      key: hindsight-database-url
+- name: HINDSIGHT_API_DATABASE_SCHEMA
+  value: {{ include "tali.hindsightDatabaseSchema" . | quote }}
+- name: HINDSIGHT_API_RUN_MIGRATIONS_ON_STARTUP
+  value: "false"
+- name: HINDSIGHT_API_VECTOR_EXTENSION
+  value: pgvector
+- name: HINDSIGHT_API_TEXT_SEARCH_EXTENSION
+  value: native
+- name: HINDSIGHT_API_TENANT_EXTENSION
+  value: hindsight_api.extensions.builtin.tenant:ApiKeyTenantExtension
+- name: HINDSIGHT_API_TENANT_API_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "tali.secretName" . }}
+      key: hindsight-api-key
+- name: HINDSIGHT_API_MCP_ENABLED
+  value: "false"
+- name: HINDSIGHT_API_LLM_TRACE_ENABLED
+  value: "false"
+- name: HINDSIGHT_API_LLM_DEBUG_DUMP_4XX
+  value: "false"
+- name: HINDSIGHT_API_METRICS_INCLUDE_BANK_ID
+  value: "false"
+- name: HINDSIGHT_API_METRICS_BACKLOG_ENABLED
+  value: "true"
+- name: HINDSIGHT_API_LOG_FORMAT
+  value: json
+- name: HINDSIGHT_API_LOG_JSON_FIELDS
+  value: severity,message,timestamp,logger
+- name: HINDSIGHT_API_LLM_PROVIDER
+  value: {{ .Values.hindsight.models.llmProvider | quote }}
+- name: HINDSIGHT_API_LLM_BASE_URL
+  value: {{ printf "http://127.0.0.1:%v/v1" .Values.hindsight.router.port | quote }}
+- name: HINDSIGHT_API_LLM_MODEL
+  value: {{ .Values.hindsight.models.llm | quote }}
+- name: HINDSIGHT_API_LLM_API_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "tali.secretName" . }}
+      key: hindsight-router-token
+- name: HINDSIGHT_API_LLM_SEND_BANK_AS_USER
+  value: "true"
+- name: HINDSIGHT_API_EMBEDDINGS_PROVIDER
+  value: {{ .Values.hindsight.models.embeddingProvider | quote }}
+{{- if eq .Values.hindsight.models.embeddingProvider "openai" }}
+- name: HINDSIGHT_API_EMBEDDINGS_OPENAI_BASE_URL
+  value: {{ printf "http://127.0.0.1:%v/v1" .Values.hindsight.router.port | quote }}
+- name: HINDSIGHT_API_EMBEDDINGS_OPENAI_MODEL
+  value: {{ .Values.hindsight.models.embedding | quote }}
+- name: HINDSIGHT_API_EMBEDDINGS_OPENAI_API_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "tali.secretName" . }}
+      key: hindsight-router-token
+- name: HINDSIGHT_API_EMBEDDINGS_OPENAI_DIMENSIONS
+  value: {{ .Values.hindsight.models.embeddingDimensions | quote }}
+{{- else if eq .Values.hindsight.models.embeddingProvider "litellm" }}
+- name: HINDSIGHT_API_EMBEDDINGS_LITELLM_API_BASE
+  value: {{ printf "http://127.0.0.1:%v" .Values.hindsight.router.port | quote }}
+- name: HINDSIGHT_API_EMBEDDINGS_LITELLM_MODEL
+  value: {{ .Values.hindsight.models.embedding | quote }}
+- name: HINDSIGHT_API_EMBEDDINGS_LITELLM_API_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "tali.secretName" . }}
+      key: hindsight-router-token
+{{- end }}
+- name: HINDSIGHT_API_RERANKER_PROVIDER
+  value: {{ .Values.hindsight.models.rerankerProvider | quote }}
+{{- if eq .Values.hindsight.models.rerankerProvider "litellm" }}
+- name: HINDSIGHT_API_RERANKER_LITELLM_API_BASE
+  value: {{ printf "http://127.0.0.1:%v" .Values.hindsight.router.port | quote }}
+- name: HINDSIGHT_API_RERANKER_LITELLM_MODEL
+  value: {{ .Values.hindsight.models.reranker | quote }}
+- name: HINDSIGHT_API_RERANKER_LITELLM_API_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "tali.secretName" . }}
+      key: hindsight-router-token
+- name: HINDSIGHT_API_RERANKER_SEND_BANK_AS_HEADER
+  value: "true"
+{{- end }}
+{{- end }}
+
+{{- define "tali.hindsightRouterContainer" -}}
+- name: project-router
+  image: {{ include "tali.image" (dict "root" .root "image" .root.Values.images.control) }}
+  imagePullPolicy: {{ .root.Values.images.control.pullPolicy }}
+  command: ["node", "apps/control/.output/hindsight-router/hindsight-router.mjs"]
+  env:
+    - name: HOST
+      value: 0.0.0.0
+    - name: PORT
+      value: {{ .root.Values.hindsight.router.port | quote }}
+    - name: TALI_HINDSIGHT_CONTROL_URL
+      value: {{ printf "http://%s.%s.svc.cluster.local:%v" (include "tali.componentName" (dict "root" .root "component" "control")) .root.Release.Namespace .root.Values.control.service.port | quote }}
+    - name: TALI_HINDSIGHT_CONTROL_TOKEN
+      valueFrom:
+        secretKeyRef:
+          name: {{ include "tali.secretName" .root }}
+          key: hindsight-router-token
+    - name: TALI_HINDSIGHT_ROUTER_TOKEN
+      valueFrom:
+        secretKeyRef:
+          name: {{ include "tali.secretName" .root }}
+          key: hindsight-router-token
+    - name: TALI_HINDSIGHT_EMBEDDING_DIMENSIONS
+      value: {{ .root.Values.hindsight.models.embeddingDimensions | quote }}
+    - name: TALI_HINDSIGHT_LOCAL_HEALTH_URL
+      value: {{ printf "http://127.0.0.1:%v/health" .hindsightPort | quote }}
+  ports:
+    - name: project-router
+      containerPort: {{ .root.Values.hindsight.router.port }}
+      protocol: TCP
+  readinessProbe:
+    httpGet:
+      path: /health
+      port: project-router
+    initialDelaySeconds: 1
+    periodSeconds: 5
+  livenessProbe:
+    httpGet:
+      path: /health/live
+      port: project-router
+    initialDelaySeconds: 5
+    periodSeconds: 10
+  resources:
+    {{- toYaml .root.Values.hindsight.router.resources | nindent 4 }}
+  securityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop: ["ALL"]
+{{- end }}
+
 {{- define "tali.controlConfig" -}}
 {{- if not .Values.control.publicUrl -}}
 {{- fail "control.publicUrl is required for Better Auth" -}}

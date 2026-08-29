@@ -46,6 +46,8 @@ export const Route = createFileRoute("/$projectId/instances/")({
   validateSearch: z.object({
     create: z.literal("instance").optional(),
     created: z.string().optional(),
+    retainedMemory: z.string().uuid().optional(),
+    retainedMemoryName: z.string().optional(),
     platform: z.enum(agentPlatformIds).optional(),
     specialization: z.string().trim().min(1).max(64).optional(),
   }),
@@ -323,6 +325,7 @@ function Instances() {
   const [status, setStatus] = useState<(typeof statusFilters)[number]>("ALL");
   const [hiddenColumns, setHiddenColumns] = useState<InstanceListColumnId[]>([]);
   const [deletingInstance, setDeletingInstance] = useState<Agent>();
+  const [retainedMemory, setRetainedMemory] = useState<{ id: string; displayName: string } | null>(null);
   const agents = useQuery({ queryKey: scope.key("agents"), queryFn: api.listInstances, refetchInterval: 2_000 });
   const garden = useQuery({ queryKey: scope.key("agent-garden"), queryFn: api.getAgentGarden });
   const filtered = useMemo(() => (agents.data ?? []).filter((agent) => {
@@ -366,7 +369,8 @@ function Instances() {
   };
   const remove = useMutation({
     mutationFn: api.deleteInstance,
-    onSuccess: async () => {
+    onSuccess: async (result) => {
+      setRetainedMemory(result.retainedMemory);
       setDeletingInstance(undefined);
       await queryClient.invalidateQueries({ queryKey: scope.key("agents") });
     },
@@ -374,9 +378,15 @@ function Instances() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Instances" description="Monitor workbench Agents and callable A2A Instances available in this Project." actions={permissions.canCreateAgents ? <Button asChild className="h-11"><Link to="/$projectId/instances" params={{ projectId }} search={{ create: "instance" }}><Plus />Create Instance</Link></Button> : undefined} />
+      <PageHeader title="Instances" description="Monitor deployed Agent runtimes and callable A2A Instances in this Project." actions={permissions.canCreateAgents ? <Button asChild className="h-11"><Link to="/$projectId/instances" params={{ projectId }} search={{ create: "instance" }}><Plus />Create Instance</Link></Button> : undefined} />
 
       {search.created ? <CreationNotice onClose={() => void navigate({ to: "/$projectId/instances", params: { projectId }, search: {}, replace: true })} /> : null}
+      {search.retainedMemory || retainedMemory ? (
+        <p role="status" className="flex min-h-11 flex-wrap items-center justify-between gap-3 border-l-2 border-primary bg-primary/5 px-4 py-3 text-sm">
+          <span>The Agent is being deleted. Its Memory <strong>{search.retainedMemoryName ?? retainedMemory?.displayName ?? ""}</strong> is retained.</span>
+          <Button asChild variant="outline" className="h-11"><Link to="/$projectId/memory/$memoryId" params={{ projectId, memoryId: search.retainedMemory ?? retainedMemory!.id }}>Open retained Memory</Link></Button>
+        </p>
+      ) : null}
 
       {agents.error || garden.error ? (
         <p role="alert" className="border-l-2 border-destructive bg-destructive/5 px-4 py-3 text-sm text-destructive">
@@ -486,7 +496,7 @@ function Instances() {
       </Card>
       </TooltipProvider>
 
-      {permissions.canDeleteAgents && deletingInstance ? <DeleteInstanceSheet open instanceName={deletingInstance.name} deleting={remove.isPending} onOpenChange={(open) => { if (!open) setDeletingInstance(undefined); }} onConfirm={() => remove.mutate(deletingInstance.id)} {...(remove.error instanceof Error ? { error: remove.error.message } : {})} /> : null}
+      {permissions.canDeleteAgents && deletingInstance ? <DeleteInstanceSheet open instanceName={deletingInstance.name} retainsMemory={Boolean(deletingInstance.durableMemoryId)} deleting={remove.isPending} onOpenChange={(open) => { if (!open) setDeletingInstance(undefined); }} onConfirm={() => remove.mutate(deletingInstance.id)} {...(remove.error instanceof Error ? { error: remove.error.message } : {})} /> : null}
       {permissions.canCreateAgents && search.create === "instance" ? (
         <CreateInstanceSheet
           open

@@ -10,13 +10,17 @@ import {
   composeOpenShellInferencePolicy,
   deepSeekProviderCreateCommand,
   isOpenShellProviderAttachedError,
+  isOpenShellWorkspaceNotFoundError,
   openShellLiteLlmProfileApplyArguments,
   openShellLiteLlmProfileExportArguments,
+  openShellRuntimeBridgeProfileApplyArguments,
+  openShellRuntimeBridgeProfileExportArguments,
   openShellHermesWebUiProbeArguments,
   openShellHermesWebUiSecretArguments,
   openShellNemoClawProbeArguments,
   openShellAuditArguments,
   openShellSandboxCreateArguments,
+  openShellRuntimeBridgeProviderName,
   openShellTerminalArguments,
   openShellWebUiOrigin,
   openShellWebUiOriginEnsureArguments,
@@ -28,8 +32,11 @@ import {
   parseOpenShellServiceUrl,
   parseOpenShellAuditLog,
   runTelemetryEnvironmentFile,
+  runtimeBridgeProviderCreateCommand,
   taliLiteLlmProviderProfile,
   taliLiteLlmProviderProfileId,
+  taliRuntimeBridgeProviderProfile,
+  taliRuntimeBridgeProviderProfileId,
   tokenizedOpenClawUrl,
   tokenizedHermesDashboardUrl,
 } from "./openshell.js";
@@ -101,10 +108,14 @@ describe("OpenShell Kubernetes command contract", () => {
     expect(command.args).toContain(taliLiteLlmProviderProfileId);
     expect(command.args).toContain("OPENAI_API_KEY");
     expect(command.args).toContain("DEEPAGENTS_CODE_OPENAI_API_KEY");
+    expect(command.args).toContain("TALI_RUN_TELEMETRY_TOKEN");
     expect(command.args).toContain("OPENAI_BASE_URL=http://tali-litellm:4000/v1");
     expect(command.env.OPENAI_API_KEY).toBe("database-secret-value");
     expect(command.env.DEEPAGENTS_CODE_OPENAI_API_KEY).toBe(
       "database-secret-value",
+    );
+    expect(command.env.TALI_RUN_TELEMETRY_TOKEN).toBe(
+      "test-run-telemetry-token-with-safe-length",
     );
   });
 
@@ -127,6 +138,37 @@ describe("OpenShell Kubernetes command contract", () => {
     ).toContain("--global");
   });
 
+  it("defines a separate Runtime Bridge Provider without putting its token in argv", () => {
+    const runtimeBridgeUrl =
+      "http://tali-agent-runtime-bridge.tp-abcdefghijklmnop.svc.cluster.local:8080";
+    const bridgeInput = {
+      ...input,
+      projectRuntimeBridgeToken: "tali_prc_v1.test-payload.test-signature",
+    };
+    const command = runtimeBridgeProviderCreateCommand(
+      bridgeInput,
+      runtimeBridgeUrl,
+      { workspace: "tp-abcdefghijklmnop" },
+    );
+    const profile = taliRuntimeBridgeProviderProfile(runtimeBridgeUrl);
+
+    expect(command.args).toContain(taliRuntimeBridgeProviderProfileId);
+    expect(command.args).toContain("TALI_PROJECT_RUNTIME_BRIDGE_TOKEN");
+    expect(command.args).not.toContain("TALI_DURABLE_MEMORY_TOKEN");
+    expect(command.args.join(" ")).not.toContain(
+      "tali_prc_v1.test-payload.test-signature",
+    );
+    expect(command.env.TALI_PROJECT_RUNTIME_BRIDGE_TOKEN).toBe(
+      "tali_prc_v1.test-payload.test-signature",
+    );
+    expect(profile).toContain("id: tali-runtime-bridge");
+    expect(profile).toContain("inference_capable: false");
+    expect(profile).not.toContain("TALI_DURABLE_MEMORY_TOKEN");
+    expect(openShellRuntimeBridgeProfileExportArguments()).toContain("--global");
+    expect(openShellRuntimeBridgeProfileApplyArguments("/tmp/bridge.yaml"))
+      .toContain("--global");
+  });
+
   it("recognizes the transient Provider attachment conflict during deletion", () => {
     expect(
       isOpenShellProviderAttachedError(
@@ -138,6 +180,15 @@ describe("OpenShell Kubernetes command contract", () => {
     ).toBe(false);
   });
 
+  it("recognizes a missing routed workspace during the first Agent lookup", () => {
+    expect(
+      isOpenShellWorkspaceNotFoundError(
+        "code: 'Some requested entity was not found', message: \"workspace 'tp-abcdefghijklmnop' not found\"",
+      ),
+    ).toBe(true);
+    expect(isOpenShellWorkspaceNotFoundError("sandbox not found")).toBe(false);
+  });
+
   it("defines LiteLLM credential injection for every Agent runtime", () => {
     const profile = taliLiteLlmProviderProfile(
       "http://tali-litellm.tali-sandboxes.svc.cluster.local:4000/v1",
@@ -146,6 +197,7 @@ describe("OpenShell Kubernetes command contract", () => {
     expect(profile).toContain("id: tali-litellm");
     expect(profile).toContain("env_vars:\n      - OPENAI_API_KEY");
     expect(profile).toContain("- DEEPAGENTS_CODE_OPENAI_API_KEY");
+    expect(profile).toContain("- TALI_RUN_TELEMETRY_TOKEN");
     expect(profile).toContain("auth_style: bearer");
     expect(profile).toContain("header_name: authorization");
     expect(profile).toContain(
@@ -186,6 +238,9 @@ describe("OpenShell Kubernetes command contract", () => {
     expect(args.join(" ")).not.toContain("test-run-telemetry-token-with-safe-length");
     expect(runTelemetryEnvironmentFile(input)).not.toContain(
       "test-run-telemetry-token-with-safe-length",
+    );
+    expect(runTelemetryEnvironmentFile(input)).not.toContain(
+      "TALI_RUN_TELEMETRY_TOKEN",
     );
     expect(args).toContain("--policy");
     expect(args).toContain("/tmp/openshell-policy.yaml");
@@ -270,7 +325,7 @@ describe("OpenShell Kubernetes command contract", () => {
     expect(policy).not.toContain("tali-litellm");
   });
 
-  it("does not duplicate Provider routing in a minimal Hermes policy", () => {
+  it("allows the Hermes runtime to post lifecycle telemetry", () => {
     const policy = composeOpenShellInferencePolicy(
       "version: 1\n",
       "https://inference.example.com/v1",
@@ -278,10 +333,25 @@ describe("OpenShell Kubernetes command contract", () => {
       "http://tali-control.tali.svc.cluster.local:38080/api/internal/run-events",
     );
 
-    expect(policy).toBe("version: 1\n");
+    expect(policy).toContain("tali_run_telemetry:");
+    expect(policy).toContain("host: tali-control.tali.svc.cluster.local");
+    expect(policy).toContain("path: /opt/hermes/.venv/bin/python3");
+    expect(policy).not.toContain("/usr/bin/curl");
   });
 
-  it("allows Hermes binaries to reach only the Project Runtime Bridge service", () => {
+  it("allows Hermes to allocate nested PTYs through the devpts mount", () => {
+    const policy = composeOpenShellInferencePolicy(
+      "version: 1\nfilesystem_policy:\n  read_write:\n    - /sandbox\n    - /tmp\n    - /dev/null\n",
+      "https://inference.example.com/v1",
+      "hermes",
+    );
+
+    expect(policy).toContain("- /dev/pts");
+    expect(policy).not.toContain("/dev/ptmx");
+    expect(policy.match(/- \/dev\/pts/g)).toHaveLength(1);
+  });
+
+  it("leaves Runtime Bridge routing to its attached Provider profile", () => {
     const policy = composeOpenShellInferencePolicy(
       "version: 1\n",
       "https://inference.example.com/v1",
@@ -290,13 +360,9 @@ describe("OpenShell Kubernetes command contract", () => {
       "http://tali-agent-runtime-bridge.tp-abcdefghijklmnop.svc.cluster.local:8080",
     );
 
-    expect(policy).toContain("tali_project_runtime_bridge:");
-    expect(policy).toContain(
-      "host: tali-agent-runtime-bridge.tp-abcdefghijklmnop.svc.cluster.local",
-    );
-    expect(policy).toContain("port: 8080");
-    expect(policy).toContain("path: /opt/hermes/.venv/bin/python3");
-    expect(policy).not.toContain("path: /usr/bin/curl");
+    expect(policy).toContain("version: 1\n");
+    expect(policy).toContain("- /dev/pts");
+    expect(policy).not.toContain("network_policies:");
   });
 
   it("allows only the runtime binary to post lifecycle telemetry to Control", () => {
@@ -378,19 +444,26 @@ describe("OpenShell Kubernetes command contract", () => {
 
   it("uses the Hermes image, state path, health probe, and TUI adapter", () => {
     const hermesInput = { ...input, agentPlatform: "hermes" as const };
+    const bridgeInput = {
+      ...hermesInput,
+      projectRuntimeBridgeToken: "tali_prc_v1.test-payload.test-signature",
+    };
     const createArgs = openShellSandboxCreateArguments(
-      hermesInput,
+      bridgeInput,
       "/tmp/SOUL.md",
       "/tmp/tali-nemoclaw-start",
       "/tmp/openshell-policy.yaml",
       "/tmp/tali-run-telemetry.env",
+      { workspace: "tp-abcdefghijklmnop" },
     );
 
     expect(createArgs).toContain(
       "ghcr.io/tasklattice/tali-nemoclaw-hermes-sandbox:dev",
     );
     expect(createArgs).toContain("/tmp/SOUL.md:/sandbox/.hermes/SOUL.md");
-    expect(createArgs).not.toContain(
+    expect(createArgs).toContain(openShellRuntimeBridgeProviderName(hermesInput.name));
+    expect(createArgs.join(" ")).not.toContain("TALI_DURABLE_MEMORY_ENDPOINT");
+    expect(createArgs).toContain(
       "/tmp/tali-run-telemetry.env:/tmp/tali-run-telemetry.env",
     );
     expect(
@@ -420,20 +493,46 @@ describe("OpenShell Kubernetes command contract", () => {
       undefined,
       "http://tali-agent-runtime-bridge.tp-abcdefghijklmnop.svc.cluster.local:8080",
       hermesInput.instanceId,
-      "tali_prc_v1.test-payload.test-signature",
+      true,
+      true,
     );
     expect(bootstrap).toContain("--a2a-registry-url");
     expect(bootstrap).toContain(
-      '--a2a-registry-token "tali_prc_v1.test-payload.test-signature"',
+      '--a2a-registry-token "$TALI_PROJECT_RUNTIME_BRIDGE_TOKEN"',
     );
     expect(bootstrap).toContain(
       `coordinatorInstanceId=${hermesInput.instanceId}`,
     );
     expect(bootstrap).toContain("--vector-database-registry-url");
     expect(bootstrap).toContain(
-      '--vector-database-registry-token "tali_prc_v1.test-payload.test-signature"',
+      '--vector-database-registry-token "$TALI_PROJECT_RUNTIME_BRIDGE_TOKEN"',
+    );
+    expect(bootstrap).toContain("--durable-memory-provider tali_relay");
+    expect(bootstrap).toContain("TALI_DURABLE_MEMORY_ENDPOINT");
+    expect(bootstrap).not.toContain("tali_prc_v1.test-payload.test-signature");
+    expect(bootstrap).toContain(
+      'export TALI_DURABLE_MEMORY_TOKEN="$TALI_PROJECT_RUNTIME_BRIDGE_TOKEN"',
     );
     expect(bootstrap).not.toContain("\n+");
+
+    const nativeBootstrap = getAgentPlatformRuntime("hermes").bootstrapScript(
+      "https://hermes.example.test",
+      "18789",
+      "http://inference.example.test/v1",
+      "tali/provider/deepseek-chat",
+      { mode: "native", citations: "auto" },
+      "http://tali-agent-runtime-bridge.tp-abcdefghijklmnop.svc.cluster.local:8080",
+      hermesInput.instanceId,
+      true,
+      false,
+    );
+    expect(nativeBootstrap).toContain("--a2a-registry-url");
+    expect(nativeBootstrap).toContain("--vector-database-registry-url");
+    expect(nativeBootstrap).not.toContain("--durable-memory-provider tali_relay");
+    expect(agentMemoryInstructions(
+      { mode: "native", citations: "auto" },
+      "hermes",
+    )).toContain("Hermes Instance uses its built-in, Instance-scoped text memory");
   });
 
   it("uses the Deep Agents image, managed state path, TUI, and headless contract", () => {
@@ -505,8 +604,9 @@ describe("OpenShell Kubernetes command contract", () => {
     expect(bootstrap).toContain("[bootstrap] Hermes identity");
     expect(bootstrap).toContain("bootstrap-hermes-config.py");
     expect(bootstrap).toContain("hermes-webui-auth-proxy.py");
-    expect(bootstrap).not.toContain("TALI_RUN_TELEMETRY_TOKEN");
-    expect(bootstrap).not.toContain("hermes-run-telemetry");
+    expect(bootstrap).not.toContain("export TALI_RUN_TELEMETRY_TOKEN=");
+    expect(bootstrap).toContain("/tmp/tali-run-telemetry.env");
+    expect(bootstrap).not.toContain("TALI_RUN_TELEMETRY_TOKEN_B64");
     expect(bootstrap).toContain("--listen-port \"$webui_public_port\"");
     expect(bootstrap).toContain('--parent-pid "$$"');
     expect(bootstrap).toContain('NEMOCLAW_DASHBOARD_PORT=$webui_upstream_port');
@@ -533,8 +633,14 @@ describe("OpenShell Kubernetes command contract", () => {
 
     expect(dockerfile).toContain("patch-hermes-dashboard-health-auth.py");
     expect(dockerfile).toContain("patch-hermes-nonroot-cron-drain.py");
+    expect(dockerfile).toContain("hermes-run-telemetry/plugin.yaml");
+    expect(dockerfile).toContain("hermes-run-telemetry/__init__.py");
     expect(dockerfile).toContain(
       "patch-hermes-dashboard-credential-placeholder.py",
+    );
+    expect(dockerfile).toContain("patch-hermes-dashboard-custom-provider.py");
+    expect(dockerfile).toContain(
+      "patch-hermes-dashboard-relay-integrations.py",
     );
     expect(dockerfile).toContain("/opt/hermes/hermes_cli/web_server.py");
     expect(dockerfile).toContain(
@@ -558,6 +664,34 @@ describe("OpenShell Kubernetes command contract", () => {
     expect(bootstrap).toContain('backend: "builtin"');
     expect(agentMemoryInstructions({ mode: "native", citations: "auto" }))
       .toContain("Read MEMORY.md at the start of a new session");
+  });
+
+  it("enables the scoped Durable Memory plugin for OpenClaw without exposing a Bank id", () => {
+    const bridge = "http://tali-agent-runtime-bridge.tp-abcdefghijklmnop.svc.cluster.local:8080";
+    const bootstrap = getAgentPlatformRuntime("openclaw").bootstrapScript(
+      "http://openclaw.example.test",
+      "18789",
+      "http://inference.example.test/v1",
+      "deepseek-chat",
+      { mode: "native", citations: "auto" },
+      bridge,
+      input.instanceId,
+      true,
+      true,
+    );
+
+    expect(bootstrap).toContain("/usr/local/lib/tali/openclaw-durable-memory");
+    expect(bootstrap).toContain('pluginEntries["tali-durable-memory"]');
+    expect(bootstrap).toContain("allowPromptInjection: true");
+    expect(bootstrap).not.toContain("tali_prc_v1.test-payload.test-signature");
+    expect(bootstrap).toContain(
+      'export TALI_DURABLE_MEMORY_TOKEN="$TALI_PROJECT_RUNTIME_BRIDGE_TOKEN"',
+    );
+    expect(bootstrap).toContain(Buffer.from(
+      `${bridge}/v1/memory/coordinators/${input.instanceId}`,
+    ).toString("base64"));
+    expect(bootstrap).not.toContain("bankId");
+    expect(bootstrap).not.toContain("providerRef");
   });
 
   it("configures Hybrid Memory through the Instance LiteLLM endpoint", () => {

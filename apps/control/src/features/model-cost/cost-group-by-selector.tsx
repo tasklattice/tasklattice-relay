@@ -5,7 +5,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 const options: Array<{ value: CostGroupBy; label: string; icon: LucideIcon }> = [
   { value: "instance", label: "Instance", icon: Boxes },
   { value: "model_endpoint", label: "Model endpoint", icon: SlidersHorizontal },
-  { value: "provider_account", label: "Provider account", icon: Box },
+  { value: "provider_account", label: "Provider", icon: Box },
   { value: "virtual_key", label: "Virtual key", icon: KeyRound },
 ];
 

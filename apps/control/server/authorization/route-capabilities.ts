@@ -1,10 +1,10 @@
 import {
   defaultAgentPlatformId,
-  getAgentPlatformDefinition,
   isAgentPlatformId,
   type ProjectCapability,
   type ResourceRelation,
 } from "@tali/contracts";
+import { durableMemoryEnabledForProject } from "../memories/durable-memory-feature";
 
 export type RelationResolver =
   | "PROJECT"
@@ -167,6 +167,13 @@ export function projectRouteAdmissionPolicy(
     if (tail.length === 3 && tail[2] === "logs" && method === "GET") {
       return policy("INSTANCE", [requirement("CAP_AGENT_INSTANCE_LOG_VIEW", "AgentInstance")], instanceId);
     }
+    if (
+      method === "GET"
+      && tail[2] === "operations"
+      && (tail.length === 4 || (tail.length === 5 && tail[4] === "events"))
+    ) {
+      return policy("INSTANCE", [requirement("CAP_AGENT_INSTANCE_LOG_VIEW", "AgentInstance")], instanceId);
+    }
     if (tail.length === 3 && tail[2] === "log-sessions" && method === "POST") {
       return policy("INSTANCE", [requirement("CAP_AGENT_INSTANCE_LOG_VIEW", "AgentInstance")], instanceId);
     }
@@ -216,6 +223,117 @@ export function projectRouteAdmissionPolicy(
     }
     if (tail[1] === "instances" && tail.length === 3 && tail[2] && method === "DELETE") {
       return policy("INSTANCE", [requirement("CAP_AGENT_INSTANCE_DELETE", "AgentInstance")], tail[2]);
+    }
+  }
+
+  if (tail[0] === "memories") {
+    if (tail.length === 1) {
+      if (method === "GET") {
+        return policy("PROJECT", [requirement("CAP_AGENT_MEMORY_ITEM_VIEW", "DurableMemory")]);
+      }
+      if (method === "POST") {
+        return policy("PROJECT", [requirement("CAP_AGENT_MEMORY_CONFIG_UPDATE", "DurableMemory")]);
+      }
+    }
+    const memoryId = tail[1];
+    if (!memoryId) return undefined;
+    if (tail.length === 2) {
+      if (method === "GET") {
+        return policy("PROJECT", [requirement("CAP_AGENT_MEMORY_ITEM_VIEW", "DurableMemory")], memoryId);
+      }
+      if (method === "PATCH") {
+        return policy("PROJECT", [requirement("CAP_AGENT_MEMORY_CONFIG_UPDATE", "DurableMemory")], memoryId);
+      }
+      if (method === "DELETE") {
+        return policy("PROJECT", [requirement("CAP_AGENT_MEMORY_CONTENT_PURGE", "DurableMemory")], memoryId);
+      }
+    }
+    if (tail.length === 3 && tail[2] === "overview" && method === "GET") {
+      return policy("PROJECT", [
+        requirement("CAP_AGENT_MEMORY_ITEM_VIEW", "DurableMemory"),
+        requirement("CAP_AGENT_MEMORY_CONTENT_VIEW", "DurableMemory"),
+      ], memoryId);
+    }
+    if (tail.length === 3 && tail[2] === "activity" && method === "GET") {
+      return policy("PROJECT", [requirement("CAP_AGENT_MEMORY_ITEM_VIEW", "DurableMemory")], memoryId);
+    }
+    if (
+      tail.length === 3
+      && ["conversations", "facts", "experiences", "insights"].includes(tail[2]!)
+      && method === "GET"
+    ) {
+      return policy("PROJECT", [requirement("CAP_AGENT_MEMORY_CONTENT_VIEW", "DurableMemory")], memoryId);
+    }
+    if (tail.length === 3 && tail[2] === "settings" && method === "GET") {
+      return policy("PROJECT", [requirement("CAP_AGENT_MEMORY_CONFIG_VIEW", "DurableMemory")], memoryId);
+    }
+    if (tail.length === 3 && tail[2] === "retry" && method === "POST") {
+      return policy("PROJECT", [requirement("CAP_AGENT_MEMORY_CONFIG_UPDATE", "DurableMemory")], memoryId);
+    }
+    if (tail.length === 3 && tail[2] === "bindings" && method === "GET") {
+      return policy("PROJECT", [requirement("CAP_AGENT_MEMORY_CONFIG_VIEW", "DurableMemory")], memoryId);
+    }
+    if (tail.length === 3 && tail[2] === "bindings" && method === "POST") {
+      return policy("PROJECT", [requirement("CAP_AGENT_MEMORY_CONFIG_UPDATE", "DurableMemory")], memoryId);
+    }
+    if (tail.length === 4 && tail[2] === "bindings" && method === "DELETE") {
+      return policy("PROJECT", [requirement("CAP_AGENT_MEMORY_CONFIG_UPDATE", "DurableMemory")], memoryId);
+    }
+    if (tail.length === 3 && tail[2] === "outbox" && method === "GET") {
+      return policy("PROJECT", [requirement("CAP_AGENT_MEMORY_INDEX_STATUS_VIEW", "DurableMemory")], memoryId);
+    }
+    if (tail.length === 3 && tail[2] === "exports" && method === "POST") {
+      return policy("PROJECT", [requirement("CAP_AGENT_MEMORY_EXPORT", "DurableMemory")], memoryId);
+    }
+    if (tail.length === 4 && tail[2] === "exports" && method === "GET") {
+      return policy("PROJECT", [requirement("CAP_AGENT_MEMORY_EXPORT", "DurableMemory")], memoryId);
+    }
+    if (tail.length === 4 && tail[2] === "items" && method === "GET") {
+      return policy("PROJECT", [requirement("CAP_AGENT_MEMORY_CONTENT_VIEW", "DurableMemory")], memoryId);
+    }
+    if (tail.length === 4 && tail[2] === "facts" && method === "PATCH") {
+      return policy("PROJECT", [requirement("CAP_AGENT_MEMORY_CONTENT_WRITE", "DurableMemory")], memoryId);
+    }
+    if (tail.length === 4 && tail[2] === "experiences" && method === "PATCH") {
+      return policy("PROJECT", [requirement("CAP_AGENT_MEMORY_CONTENT_WRITE", "DurableMemory")], memoryId);
+    }
+    if (
+      tail.length === 5
+      && tail[2] === "items"
+      && ["invalidate", "restore"].includes(tail[4]!)
+      && method === "POST"
+    ) {
+      return policy("PROJECT", [requirement("CAP_AGENT_MEMORY_CONTENT_WRITE", "DurableMemory")], memoryId);
+    }
+    if (tail.length === 4 && tail[2] === "conversations" && method === "GET") {
+      return policy("PROJECT", [requirement("CAP_AGENT_MEMORY_CONTENT_VIEW", "DurableMemory")], memoryId);
+    }
+    if (tail.length === 4 && tail[2] === "conversations" && method === "DELETE") {
+      return policy("PROJECT", [requirement("CAP_AGENT_MEMORY_CONTENT_DELETE", "DurableMemory")], memoryId);
+    }
+    if (
+      tail.length === 5
+      && tail[2] === "conversations"
+      && tail[4] === "reextract"
+      && method === "POST"
+    ) {
+      return policy("PROJECT", [requirement("CAP_AGENT_MEMORY_SESSION_INDEX_MANAGE", "DurableMemory")], memoryId);
+    }
+    if (
+      tail.length === 5
+      && tail[2] === "conversations"
+      && tail[4] === "redact"
+      && method === "POST"
+    ) {
+      return policy("PROJECT", [requirement("CAP_AGENT_MEMORY_CONTENT_WRITE", "DurableMemory")], memoryId);
+    }
+    if (
+      tail.length === 5
+      && tail[2] === "outbox"
+      && tail[4] === "replay"
+      && method === "POST"
+    ) {
+      return policy("PROJECT", [requirement("CAP_AGENT_MEMORY_INDEX_REBUILD", "DurableMemory")], memoryId);
     }
   }
 
@@ -327,6 +445,19 @@ export function projectRouteAdmissionPolicy(
         tail[2],
       );
     }
+    if (
+      tail[1] === "vector-databases"
+      && tail.length === 6
+      && tail[3] === "documents"
+      && tail[5] === "chunks"
+      && method === "GET"
+    ) {
+      return policy(
+        "PROJECT",
+        [requirement("CAP_VECTOR_DATABASE_CONTENT_VIEW", "VectorDocument")],
+        tail[2],
+      );
+    }
     const action = method === "POST" && tail.length === 2
       ? "CREATE"
       : method === "PUT" && tail.length === 3
@@ -362,6 +493,7 @@ export function projectRouteAdmissionPolicy(
     if (tail.length === 2 && tail[1] === "inheritable" && method === "GET") return policy("PROJECT", [requirement("CAP_MODEL_VIEW", "Model")]);
     if (tail.length === 3 && tail[2] === "inherit" && method === "POST") return policy("PROJECT", [requirement("CAP_MODEL_CREATE", "Model")], tail[1]);
     if (tail.length === 3 && tail[2] === "inherit" && method === "DELETE") return policy("PROJECT", [requirement("CAP_MODEL_DELETE", "Model")], tail[1]);
+    if (tail.length === 3 && tail[2] === "removal-impact" && method === "GET") return policy("PROJECT", [requirement("CAP_MODEL_DELETE", "Model")], tail[1]);
     if (tail.length === 2 && tail[1] && method === "DELETE") return policy("PROJECT", [requirement("CAP_MODEL_DELETE", "Model")], tail[1]);
   }
   if (tail[0] === "inference-gateways" && tail.length === 1 && method === "GET") {
@@ -418,6 +550,7 @@ export function projectRouteAdmissionPolicy(
 
 export function conditionalInstanceCreateRequirements(
   input: Record<string, unknown>,
+  durableMemoryEnabled = true,
 ): readonly RouteCapabilityRequirement[] {
   const requirements: RouteCapabilityRequirement[] = [
     requirement("CAP_AGENT_INSTANCE_ACCESS_POLICY_ASSIGN", "AgentInstance"),
@@ -440,7 +573,8 @@ export function conditionalInstanceCreateRequirements(
     ? input.agentPlatform
     : defaultAgentPlatformId;
   if (
-    getAgentPlatformDefinition(requestedPlatform).capabilities.memory !== "none"
+    durableMemoryEnabled
+    && (requestedPlatform === "openclaw" || requestedPlatform === "hermes")
   ) {
     requirements.push(requirement("CAP_AGENT_MEMORY_CONFIG_UPDATE", "AgentMemory"));
   }
@@ -458,7 +592,12 @@ export function conditionalRequestRequirements(
   input: Record<string, unknown> = {},
 ): readonly RouteCapabilityRequirement[] {
   if (admission.kind === "INSTANCE_CREATE") {
-    return conditionalInstanceCreateRequirements(input);
+    const match = url.pathname.match(/^\/api\/v1\/projects\/([^/]+)(?:\/|$)/);
+    const projectId = match ? decodeURIComponent(match[1]!) : "";
+    return conditionalInstanceCreateRequirements(
+      input,
+      durableMemoryEnabledForProject(projectId),
+    );
   }
   if (
     admission.kind === "AUDIT_LOG_LIST"

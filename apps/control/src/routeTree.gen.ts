@@ -17,7 +17,6 @@ import { Route as ProjectIdIndexRouteImport } from './routes/$projectId/index'
 import { Route as ProjectIdCostRouteImport } from './routes/$projectId/cost'
 import { Route as ProjectIdHelpRouteImport } from './routes/$projectId/help'
 import { Route as ProjectIdMcpServersRouteImport } from './routes/$projectId/mcp-servers'
-import { Route as ProjectIdMemoryRouteImport } from './routes/$projectId/memory'
 import { Route as ProjectIdNotificationsRouteImport } from './routes/$projectId/notifications'
 import { Route as ProjectIdRuntimeRouteImport } from './routes/$projectId/runtime'
 import { Route as ProjectIdRuntimePoliciesRouteImport } from './routes/$projectId/runtime-policies'
@@ -32,6 +31,8 @@ import { Route as ProjectIdAgentGardenAgentIdRouteImport } from './routes/$proje
 import { Route as ProjectIdAuditLogsIndexRouteImport } from './routes/$projectId/audit-logs/index'
 import { Route as ProjectIdInstancesIndexRouteImport } from './routes/$projectId/instances/index'
 import { Route as ProjectIdInstancesInstanceIdRouteImport } from './routes/$projectId/instances/$instanceId'
+import { Route as ProjectIdMemoryIndexRouteImport } from './routes/$projectId/memory/index'
+import { Route as ProjectIdMemoryMemoryIdRouteImport } from './routes/$projectId/memory/$memoryId'
 import { Route as ProjectIdRequestsIndexRouteImport } from './routes/$projectId/requests/index'
 import { Route as ProjectIdRequestsNewRouteImport } from './routes/$projectId/requests/new'
 import { Route as ProjectIdSettingIndexRouteImport } from './routes/$projectId/setting/index'
@@ -77,11 +78,6 @@ const ProjectIdHelpRoute = ProjectIdHelpRouteImport.update({
 const ProjectIdMcpServersRoute = ProjectIdMcpServersRouteImport.update({
   id: '/$projectId/mcp-servers',
   path: '/$projectId/mcp-servers',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ProjectIdMemoryRoute = ProjectIdMemoryRouteImport.update({
-  id: '/$projectId/memory',
-  path: '/$projectId/memory',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProjectIdNotificationsRoute = ProjectIdNotificationsRouteImport.update({
@@ -160,6 +156,16 @@ const ProjectIdInstancesInstanceIdRoute =
     path: '/$projectId/instances/$instanceId',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ProjectIdMemoryIndexRoute = ProjectIdMemoryIndexRouteImport.update({
+  id: '/$projectId/memory/',
+  path: '/$projectId/memory/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProjectIdMemoryMemoryIdRoute = ProjectIdMemoryMemoryIdRouteImport.update({
+  id: '/$projectId/memory/$memoryId',
+  path: '/$projectId/memory/$memoryId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProjectIdRequestsIndexRoute = ProjectIdRequestsIndexRouteImport.update({
   id: '/$projectId/requests/',
   path: '/$projectId/requests/',
@@ -202,7 +208,6 @@ export interface FileRoutesByFullPath {
   '/$projectId/cost': typeof ProjectIdCostRoute
   '/$projectId/help': typeof ProjectIdHelpRoute
   '/$projectId/mcp-servers': typeof ProjectIdMcpServersRoute
-  '/$projectId/memory': typeof ProjectIdMemoryRoute
   '/$projectId/notifications': typeof ProjectIdNotificationsRoute
   '/$projectId/runtime': typeof ProjectIdRuntimeRoute
   '/$projectId/runtime-policies': typeof ProjectIdRuntimePoliciesRoute
@@ -214,12 +219,14 @@ export interface FileRoutesByFullPath {
   '/$projectId/access-policies/$policyId': typeof ProjectIdAccessPoliciesPolicyIdRoute
   '/$projectId/agent-garden/$agentId': typeof ProjectIdAgentGardenAgentIdRoute
   '/$projectId/instances/$instanceId': typeof ProjectIdInstancesInstanceIdRoute
+  '/$projectId/memory/$memoryId': typeof ProjectIdMemoryMemoryIdRoute
   '/$projectId/requests/new': typeof ProjectIdRequestsNewRoute
   '/$projectId/vector-databases/$databaseId': typeof ProjectIdVectorDatabasesDatabaseIdRoute
   '/$projectId/access-policies/': typeof ProjectIdAccessPoliciesIndexRoute
   '/$projectId/agent-garden/': typeof ProjectIdAgentGardenIndexRoute
   '/$projectId/audit-logs/': typeof ProjectIdAuditLogsIndexRoute
   '/$projectId/instances/': typeof ProjectIdInstancesIndexRoute
+  '/$projectId/memory/': typeof ProjectIdMemoryIndexRoute
   '/$projectId/requests/': typeof ProjectIdRequestsIndexRoute
   '/$projectId/setting/': typeof ProjectIdSettingIndexRoute
   '/$projectId/vector-databases/': typeof ProjectIdVectorDatabasesIndexRoute
@@ -233,7 +240,6 @@ export interface FileRoutesByTo {
   '/$projectId/cost': typeof ProjectIdCostRoute
   '/$projectId/help': typeof ProjectIdHelpRoute
   '/$projectId/mcp-servers': typeof ProjectIdMcpServersRoute
-  '/$projectId/memory': typeof ProjectIdMemoryRoute
   '/$projectId/notifications': typeof ProjectIdNotificationsRoute
   '/$projectId/runtime': typeof ProjectIdRuntimeRoute
   '/$projectId/runtime-policies': typeof ProjectIdRuntimePoliciesRoute
@@ -245,12 +251,14 @@ export interface FileRoutesByTo {
   '/$projectId/access-policies/$policyId': typeof ProjectIdAccessPoliciesPolicyIdRoute
   '/$projectId/agent-garden/$agentId': typeof ProjectIdAgentGardenAgentIdRoute
   '/$projectId/instances/$instanceId': typeof ProjectIdInstancesInstanceIdRoute
+  '/$projectId/memory/$memoryId': typeof ProjectIdMemoryMemoryIdRoute
   '/$projectId/requests/new': typeof ProjectIdRequestsNewRoute
   '/$projectId/vector-databases/$databaseId': typeof ProjectIdVectorDatabasesDatabaseIdRoute
   '/$projectId/access-policies': typeof ProjectIdAccessPoliciesIndexRoute
   '/$projectId/agent-garden': typeof ProjectIdAgentGardenIndexRoute
   '/$projectId/audit-logs': typeof ProjectIdAuditLogsIndexRoute
   '/$projectId/instances': typeof ProjectIdInstancesIndexRoute
+  '/$projectId/memory': typeof ProjectIdMemoryIndexRoute
   '/$projectId/requests': typeof ProjectIdRequestsIndexRoute
   '/$projectId/setting': typeof ProjectIdSettingIndexRoute
   '/$projectId/vector-databases': typeof ProjectIdVectorDatabasesIndexRoute
@@ -265,7 +273,6 @@ export interface FileRoutesById {
   '/$projectId/cost': typeof ProjectIdCostRoute
   '/$projectId/help': typeof ProjectIdHelpRoute
   '/$projectId/mcp-servers': typeof ProjectIdMcpServersRoute
-  '/$projectId/memory': typeof ProjectIdMemoryRoute
   '/$projectId/notifications': typeof ProjectIdNotificationsRoute
   '/$projectId/runtime': typeof ProjectIdRuntimeRoute
   '/$projectId/runtime-policies': typeof ProjectIdRuntimePoliciesRoute
@@ -277,12 +284,14 @@ export interface FileRoutesById {
   '/$projectId/access-policies/$policyId': typeof ProjectIdAccessPoliciesPolicyIdRoute
   '/$projectId/agent-garden/$agentId': typeof ProjectIdAgentGardenAgentIdRoute
   '/$projectId/instances/$instanceId': typeof ProjectIdInstancesInstanceIdRoute
+  '/$projectId/memory/$memoryId': typeof ProjectIdMemoryMemoryIdRoute
   '/$projectId/requests/new': typeof ProjectIdRequestsNewRoute
   '/$projectId/vector-databases/$databaseId': typeof ProjectIdVectorDatabasesDatabaseIdRoute
   '/$projectId/access-policies/': typeof ProjectIdAccessPoliciesIndexRoute
   '/$projectId/agent-garden/': typeof ProjectIdAgentGardenIndexRoute
   '/$projectId/audit-logs/': typeof ProjectIdAuditLogsIndexRoute
   '/$projectId/instances/': typeof ProjectIdInstancesIndexRoute
+  '/$projectId/memory/': typeof ProjectIdMemoryIndexRoute
   '/$projectId/requests/': typeof ProjectIdRequestsIndexRoute
   '/$projectId/setting/': typeof ProjectIdSettingIndexRoute
   '/$projectId/vector-databases/': typeof ProjectIdVectorDatabasesIndexRoute
@@ -298,7 +307,6 @@ export interface FileRouteTypes {
     | '/$projectId/cost'
     | '/$projectId/help'
     | '/$projectId/mcp-servers'
-    | '/$projectId/memory'
     | '/$projectId/notifications'
     | '/$projectId/runtime'
     | '/$projectId/runtime-policies'
@@ -310,12 +318,14 @@ export interface FileRouteTypes {
     | '/$projectId/access-policies/$policyId'
     | '/$projectId/agent-garden/$agentId'
     | '/$projectId/instances/$instanceId'
+    | '/$projectId/memory/$memoryId'
     | '/$projectId/requests/new'
     | '/$projectId/vector-databases/$databaseId'
     | '/$projectId/access-policies/'
     | '/$projectId/agent-garden/'
     | '/$projectId/audit-logs/'
     | '/$projectId/instances/'
+    | '/$projectId/memory/'
     | '/$projectId/requests/'
     | '/$projectId/setting/'
     | '/$projectId/vector-databases/'
@@ -329,7 +339,6 @@ export interface FileRouteTypes {
     | '/$projectId/cost'
     | '/$projectId/help'
     | '/$projectId/mcp-servers'
-    | '/$projectId/memory'
     | '/$projectId/notifications'
     | '/$projectId/runtime'
     | '/$projectId/runtime-policies'
@@ -341,12 +350,14 @@ export interface FileRouteTypes {
     | '/$projectId/access-policies/$policyId'
     | '/$projectId/agent-garden/$agentId'
     | '/$projectId/instances/$instanceId'
+    | '/$projectId/memory/$memoryId'
     | '/$projectId/requests/new'
     | '/$projectId/vector-databases/$databaseId'
     | '/$projectId/access-policies'
     | '/$projectId/agent-garden'
     | '/$projectId/audit-logs'
     | '/$projectId/instances'
+    | '/$projectId/memory'
     | '/$projectId/requests'
     | '/$projectId/setting'
     | '/$projectId/vector-databases'
@@ -360,7 +371,6 @@ export interface FileRouteTypes {
     | '/$projectId/cost'
     | '/$projectId/help'
     | '/$projectId/mcp-servers'
-    | '/$projectId/memory'
     | '/$projectId/notifications'
     | '/$projectId/runtime'
     | '/$projectId/runtime-policies'
@@ -372,12 +382,14 @@ export interface FileRouteTypes {
     | '/$projectId/access-policies/$policyId'
     | '/$projectId/agent-garden/$agentId'
     | '/$projectId/instances/$instanceId'
+    | '/$projectId/memory/$memoryId'
     | '/$projectId/requests/new'
     | '/$projectId/vector-databases/$databaseId'
     | '/$projectId/access-policies/'
     | '/$projectId/agent-garden/'
     | '/$projectId/audit-logs/'
     | '/$projectId/instances/'
+    | '/$projectId/memory/'
     | '/$projectId/requests/'
     | '/$projectId/setting/'
     | '/$projectId/vector-databases/'
@@ -392,7 +404,6 @@ export interface RootRouteChildren {
   ProjectIdCostRoute: typeof ProjectIdCostRoute
   ProjectIdHelpRoute: typeof ProjectIdHelpRoute
   ProjectIdMcpServersRoute: typeof ProjectIdMcpServersRoute
-  ProjectIdMemoryRoute: typeof ProjectIdMemoryRoute
   ProjectIdNotificationsRoute: typeof ProjectIdNotificationsRoute
   ProjectIdRuntimeRoute: typeof ProjectIdRuntimeRoute
   ProjectIdRuntimePoliciesRoute: typeof ProjectIdRuntimePoliciesRoute
@@ -404,12 +415,14 @@ export interface RootRouteChildren {
   ProjectIdAccessPoliciesPolicyIdRoute: typeof ProjectIdAccessPoliciesPolicyIdRoute
   ProjectIdAgentGardenAgentIdRoute: typeof ProjectIdAgentGardenAgentIdRoute
   ProjectIdInstancesInstanceIdRoute: typeof ProjectIdInstancesInstanceIdRoute
+  ProjectIdMemoryMemoryIdRoute: typeof ProjectIdMemoryMemoryIdRoute
   ProjectIdRequestsNewRoute: typeof ProjectIdRequestsNewRoute
   ProjectIdVectorDatabasesDatabaseIdRoute: typeof ProjectIdVectorDatabasesDatabaseIdRoute
   ProjectIdAccessPoliciesIndexRoute: typeof ProjectIdAccessPoliciesIndexRoute
   ProjectIdAgentGardenIndexRoute: typeof ProjectIdAgentGardenIndexRoute
   ProjectIdAuditLogsIndexRoute: typeof ProjectIdAuditLogsIndexRoute
   ProjectIdInstancesIndexRoute: typeof ProjectIdInstancesIndexRoute
+  ProjectIdMemoryIndexRoute: typeof ProjectIdMemoryIndexRoute
   ProjectIdRequestsIndexRoute: typeof ProjectIdRequestsIndexRoute
   ProjectIdSettingIndexRoute: typeof ProjectIdSettingIndexRoute
   ProjectIdVectorDatabasesIndexRoute: typeof ProjectIdVectorDatabasesIndexRoute
@@ -472,13 +485,6 @@ declare module '@tanstack/react-router' {
       path: '/$projectId/mcp-servers'
       fullPath: '/$projectId/mcp-servers'
       preLoaderRoute: typeof ProjectIdMcpServersRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/$projectId/memory': {
-      id: '/$projectId/memory'
-      path: '/$projectId/memory'
-      fullPath: '/$projectId/memory'
-      preLoaderRoute: typeof ProjectIdMemoryRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/$projectId/notifications': {
@@ -579,6 +585,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProjectIdInstancesInstanceIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/$projectId/memory/': {
+      id: '/$projectId/memory/'
+      path: '/$projectId/memory'
+      fullPath: '/$projectId/memory/'
+      preLoaderRoute: typeof ProjectIdMemoryIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/$projectId/memory/$memoryId': {
+      id: '/$projectId/memory/$memoryId'
+      path: '/$projectId/memory/$memoryId'
+      fullPath: '/$projectId/memory/$memoryId'
+      preLoaderRoute: typeof ProjectIdMemoryMemoryIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/$projectId/requests/': {
       id: '/$projectId/requests/'
       path: '/$projectId/requests'
@@ -632,7 +652,6 @@ const rootRouteChildren: RootRouteChildren = {
   ProjectIdCostRoute: ProjectIdCostRoute,
   ProjectIdHelpRoute: ProjectIdHelpRoute,
   ProjectIdMcpServersRoute: ProjectIdMcpServersRoute,
-  ProjectIdMemoryRoute: ProjectIdMemoryRoute,
   ProjectIdNotificationsRoute: ProjectIdNotificationsRoute,
   ProjectIdRuntimeRoute: ProjectIdRuntimeRoute,
   ProjectIdRuntimePoliciesRoute: ProjectIdRuntimePoliciesRoute,
@@ -644,6 +663,7 @@ const rootRouteChildren: RootRouteChildren = {
   ProjectIdAccessPoliciesPolicyIdRoute: ProjectIdAccessPoliciesPolicyIdRoute,
   ProjectIdAgentGardenAgentIdRoute: ProjectIdAgentGardenAgentIdRoute,
   ProjectIdInstancesInstanceIdRoute: ProjectIdInstancesInstanceIdRoute,
+  ProjectIdMemoryMemoryIdRoute: ProjectIdMemoryMemoryIdRoute,
   ProjectIdRequestsNewRoute: ProjectIdRequestsNewRoute,
   ProjectIdVectorDatabasesDatabaseIdRoute:
     ProjectIdVectorDatabasesDatabaseIdRoute,
@@ -651,6 +671,7 @@ const rootRouteChildren: RootRouteChildren = {
   ProjectIdAgentGardenIndexRoute: ProjectIdAgentGardenIndexRoute,
   ProjectIdAuditLogsIndexRoute: ProjectIdAuditLogsIndexRoute,
   ProjectIdInstancesIndexRoute: ProjectIdInstancesIndexRoute,
+  ProjectIdMemoryIndexRoute: ProjectIdMemoryIndexRoute,
   ProjectIdRequestsIndexRoute: ProjectIdRequestsIndexRoute,
   ProjectIdSettingIndexRoute: ProjectIdSettingIndexRoute,
   ProjectIdVectorDatabasesIndexRoute: ProjectIdVectorDatabasesIndexRoute,

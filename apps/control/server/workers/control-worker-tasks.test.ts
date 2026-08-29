@@ -81,17 +81,19 @@ describe("ControlWorkerTasks", () => {
       instances: () => service,
     });
     const instanceId = "00000000-0000-4000-8000-000000000401";
+    const operationId = "00000000-0000-4000-8000-000000000501";
 
     await expect(tasks.instanceLifecycle(metadata(
       CONTROL_JOB_QUEUES.instanceLifecycle,
-      { projectId: "individual", instanceId, action: "provision" },
+      { projectId: "individual", instanceId, operationId, action: "provision" },
       { retryCount: 2, retryLimit: 25 },
     ))).rejects.toThrow(failure);
-    expect(service.provision).toHaveBeenCalledWith(instanceId);
+    expect(service.provision).toHaveBeenCalledWith(instanceId, operationId);
     expect(service.recordProvisioningFailure).toHaveBeenCalledWith(
       instanceId,
       failure,
       false,
+      operationId,
     );
     expect(service.deleteRuntime).not.toHaveBeenCalled();
   });
@@ -112,12 +114,13 @@ describe("ControlWorkerTasks", () => {
       instances: () => service,
     });
     const instanceId = "00000000-0000-4000-8000-000000000402";
+    const operationId = "00000000-0000-4000-8000-000000000502";
 
     await expect(tasks.instanceLifecycle(metadata(
       CONTROL_JOB_QUEUES.instanceLifecycle,
-      { projectId: "individual", instanceId, action: "delete" },
+      { projectId: "individual", instanceId, operationId, action: "delete" },
     ))).resolves.toBeUndefined();
-    expect(service.deleteRuntime).toHaveBeenCalledWith(instanceId);
+    expect(service.deleteRuntime).toHaveBeenCalledWith(instanceId, operationId);
     expect(service.provision).not.toHaveBeenCalled();
   });
 
@@ -262,30 +265,91 @@ describe("ControlWorkerTasks", () => {
     const enqueueInstanceLifecycle = vi.fn(async () =>
       "00000000-0000-4000-8000-000000000499"
     );
+    const attachQueueJob = vi.fn(async () => undefined);
+    const createOperation = vi.fn(async (instanceId: string) => ({
+      id: `10000000-0000-4000-8000-${instanceId.slice(-12)}`,
+      status: "queued" as const,
+    }));
     const tasks = new ControlWorkerTasks({
       db,
       deletionService: {} as ProjectDeletionService,
       jobs: { enqueueInstanceLifecycle } as unknown as PgBossControlJobQueue,
       logger: quietLogger(),
       runtimeTargets: {} as ProjectRuntimeTargetService,
+      instanceLifecycleOperations: () => ({
+        attachQueueJob,
+        create: createOperation,
+        latestForInstance: vi.fn(async () => undefined),
+      }) as never,
     });
 
     await expect(tasks.attachInstanceLifecycleJobs()).resolves.toBe(3);
     expect(enqueueInstanceLifecycle).toHaveBeenCalledWith({
       projectId: "individual",
       instanceId: provisioningId,
+      operationId: expect.any(String),
       action: "provision",
     });
     expect(enqueueInstanceLifecycle).toHaveBeenCalledWith({
       projectId: "individual",
       instanceId: deletingId,
+      operationId: expect.any(String),
       action: "delete",
     });
     expect(enqueueInstanceLifecycle).toHaveBeenCalledWith({
       projectId: "individual",
       instanceId: legacyCompletedId,
+      operationId: expect.any(String),
       action: "delete",
     });
+    expect(attachQueueJob).toHaveBeenCalledTimes(3);
+  });
+
+  it("drains due Memory outbox work from the scheduled maintenance worker", async () => {
+    const db = createTestPrisma();
+    const referenceTime = new Date("2026-08-27T09:00:00.000Z");
+    const memory = await db.memoryRecord.create({
+      data: {
+        projectId: "individual",
+        displayName: "Worker test Memory",
+        idempotencyKey: "worker-memory-a",
+      },
+    });
+    await db.memoryOutboxRecord.create({
+      data: {
+        projectId: "individual",
+        memoryId: memory.id,
+        conversationId: "conversation-a",
+        eventType: "conversation.completed",
+        encryptedPayload: "opaque-envelope",
+        idempotencyKey: "retain-a",
+        nextRetryAt: new Date(referenceTime.getTime() - 1_000),
+      },
+    });
+    const processDueOutbox = vi.fn(async () => ({
+      claimed: 1,
+      deadLettered: 0,
+      delivered: 1,
+      retried: 0,
+    }));
+    const memories = vi.fn(() => ({ processDueOutbox }));
+    const tasks = new ControlWorkerTasks({
+      db,
+      deletionService: {} as ProjectDeletionService,
+      jobs: {} as PgBossControlJobQueue,
+      logger: quietLogger(),
+      runtimeTargets: {} as ProjectRuntimeTargetService,
+      memories,
+    });
+
+    await expect(tasks.drainMemoryOutbox(referenceTime)).resolves.toEqual({
+      claimed: 1,
+      deadLettered: 0,
+      delivered: 1,
+      retried: 0,
+    });
+    expect(memories).toHaveBeenCalledWith("individual");
+    expect(processDueOutbox).toHaveBeenCalledWith(25, referenceTime);
   });
 
   it("does not reconcile a Project after deletion has started", async () => {

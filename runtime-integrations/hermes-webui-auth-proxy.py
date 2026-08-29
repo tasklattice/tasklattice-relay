@@ -17,12 +17,13 @@ import json
 import os
 import secrets
 import signal
+import socket
 import time
 from dataclasses import dataclass, field
 from http.cookies import SimpleCookie
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlsplit
 
 from aiohttp import ClientSession, ClientTimeout, ClientWSTimeout, WSMsgType, web
 
@@ -179,6 +180,60 @@ def _forward_headers(
     return headers
 
 
+def _origin_tuple(value: str) -> tuple[str, str, int] | None:
+    try:
+        parsed = urlsplit(value)
+        if (
+            parsed.scheme not in {"http", "https"}
+            or not parsed.hostname
+            or parsed.username is not None
+            or parsed.password is not None
+            or parsed.path not in {"", "/"}
+            or parsed.query
+            or parsed.fragment
+        ):
+            return None
+        port = parsed.port or (443 if parsed.scheme == "https" else 80)
+        return parsed.scheme, parsed.hostname.lower(), port
+    except ValueError:
+        return None
+
+
+def _external_websocket_origin_allowed(request: web.Request) -> bool:
+    supplied = _origin_tuple(request.headers.get("origin", ""))
+    if supplied is None:
+        return False
+    # OpenShell allocates the public Sandbox hostname after the service starts
+    # and its Gateway may replace Host while retaining the browser authority in
+    # X-Forwarded-Host. Bind the browser Origin to that trusted edge authority,
+    # falling back to the direct Host when no forwarding metadata is present.
+    # Compare the authority under the browser's own scheme: nested local
+    # gateways do not always agree on X-Forwarded-Proto for *.localhost routes.
+    forwarded_host = request.headers.get("x-forwarded-host", "").split(",", 1)[0]
+    expected_host = forwarded_host.strip() or request.host
+    expected = _origin_tuple(f"{supplied[0]}://{expected_host}")
+    if expected is not None and supplied == expected:
+        return True
+    # The OpenShell service proxy currently strips both the public Host and
+    # forwarding metadata before it reaches the Sandbox. Its public route is
+    # nevertheless deterministically scoped to the live Sandbox hostname:
+    #   <sandbox-hostname>--webui.<gateway-domain>
+    # Resolve that identity only after the Sandbox exists, so no generated
+    # instance address needs to be known or persisted at launch time.
+    sandbox_hostname = socket.gethostname().strip().lower().rstrip(".")
+    return bool(
+        sandbox_hostname
+        and supplied[1].startswith(f"{sandbox_hostname}--webui.")
+    )
+
+
+def _upstream_origin(upstream: str) -> str:
+    parsed = urlsplit(upstream)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise ValueError("Hermes Dashboard upstream origin is invalid")
+    return f"{parsed.scheme}://{parsed.netloc}"
+
+
 async def _proxy_websocket(request: web.Request, state: ProxyState) -> web.StreamResponse:
     requested_protocols = [
         value.strip()
@@ -187,11 +242,24 @@ async def _proxy_websocket(request: web.Request, state: ProxyState) -> web.Strea
     ]
     browser = web.WebSocketResponse(protocols=requested_protocols)
     await browser.prepare(request)
+    if not _external_websocket_origin_allowed(request):
+        await browser.close(
+            code=4403,
+            message=b"WebSocket origin does not match request host",
+        )
+        return browser
     upstream_url = f"{state.upstream}{request.rel_url}"
+    upstream_headers = _forward_headers(request, websocket=True)
+    # The public OpenShell hostname is allocated only after the Sandbox service
+    # is exposed, so it cannot be baked into Hermes' loopback allowlist. The
+    # authenticated edge above validates that dynamic Origin against the Host
+    # that reached this exact service route. Translate it at the trusted proxy
+    # boundary so loopback-only Hermes sees the origin of its actual upstream.
+    upstream_headers["origin"] = _upstream_origin(state.upstream)
     try:
         upstream = await state.client.ws_connect(
             upstream_url,
-            headers=_forward_headers(request, websocket=True),
+            headers=upstream_headers,
             protocols=requested_protocols,
             timeout=ClientWSTimeout(ws_close=10),
         )

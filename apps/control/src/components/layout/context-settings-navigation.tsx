@@ -48,7 +48,9 @@ export function ContextSettingsSidebar<Section extends string>({
   return (
     <>
       <SidebarHeader className="min-h-16 shrink-0 justify-center border-b border-sidebar-border px-4 py-2">
-        {header}
+        <div className="grid min-w-0 gap-0.5 text-sidebar-foreground [&_.text-muted-foreground]:text-sidebar-foreground/55">
+          {header}
+        </div>
       </SidebarHeader>
       <SidebarContent className="py-3">
         <nav aria-label={ariaLabel}>

@@ -51,6 +51,7 @@ jobs:
       - run: npm run helm:dependencies
       - run: helm lint charts/tali-relay
       - run: npm run helm:validate:resources
+      - run: npm run helm:validate:dev-defaults
       - run: npm run helm:validate:openshift
       - run: npm run helm:validate:airgap
       - run: helm template tali-relay charts/tali-relay --namespace tali --kube-version 1.29.0 > /dev/null

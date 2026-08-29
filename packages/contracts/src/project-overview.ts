@@ -83,10 +83,30 @@ export interface ProjectOverviewUsagePoint {
 
 export interface ProjectOverviewAttentionItem {
   code: string;
+  source:
+    | "runtime"
+    | "budget"
+    | "quota"
+    | "provider"
+    | "telemetry"
+    | "approval"
+    | "memory"
+    | "policy"
+    | "runs";
   severity: "warning" | "critical";
   title: string;
-  description: string;
-  href: string;
+  impact: {
+    kind: string;
+    id?: string;
+    label: string;
+  };
+  owner: string;
+  openedAt: string;
+  reason: string;
+  nextStep: {
+    label: string;
+    href: string;
+  };
 }
 
 export interface ProjectOverviewResponse {
@@ -133,6 +153,24 @@ export interface ProjectOverviewResponse {
     runtimeType: ProjectRunSource;
     runs: number;
     percentage: number;
+  }>;
+  modelAssignment: {
+    totalAgents: number;
+    segments: Array<{
+      key: string;
+      label: string;
+      kind: "model" | "auto" | "unavailable";
+      agents: number;
+      percentage: number;
+    }>;
+  };
+  agentActivity: Array<{
+    agentId: string;
+    agentName: string;
+    runs: number;
+    activeUsers: number | null;
+    successRate: number | null;
+    costUsd: number;
   }>;
   attention: ProjectOverviewAttentionItem[];
   resources: {

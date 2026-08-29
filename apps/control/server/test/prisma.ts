@@ -57,6 +57,9 @@ import vectorDatabaseDocumentsMigration from "../../prisma/migrations/2026082712
 import vectorDocumentDirectoriesMigration from "../../prisma/migrations/20260827130000_vector_document_directories/migration.sql?raw";
 import vectorDatabaseFoldersMigration from "../../prisma/migrations/20260827140000_vector_database_folders/migration.sql?raw";
 import vectorDocumentMetadataMigration from "../../prisma/migrations/20260827200000_vector_document_metadata/migration.sql?raw";
+import projectDurableMemoryMigration from "../../prisma/migrations/20260828000000_project_durable_memory/migration.sql?raw";
+import memoryAgentIdempotencyMigration from "../../prisma/migrations/20260828010000_memory_agent_idempotency/migration.sql?raw";
+import instanceLifecycleOperationsMigration from "../../prisma/migrations/20260828030000_instance_lifecycle_operations/migration.sql?raw";
 import { developmentResourceCatalog } from "../catalog/development-resource-catalog";
 import { PrismaClient } from "../generated/prisma/client";
 
@@ -573,6 +576,19 @@ export function createTestPrisma(): PrismaClient {
       .replaceAll(" DEFAULT gen_random_uuid()", ""),
   );
   memory.public.none(vectorDocumentMetadataMigration);
+  memory.public.none(
+    projectDurableMemoryMigration.replaceAll(" DEFAULT gen_random_uuid()", ""),
+  );
+  memory.public.none(memoryAgentIdempotencyMigration);
+  const instanceLifecycleSchema = instanceLifecycleOperationsMigration
+    .split("INSERT INTO tasklattice.instance_lifecycle_operations")[0];
+  if (
+    !instanceLifecycleSchema?.includes("instance_lifecycle_operations")
+    || !instanceLifecycleSchema.includes("instance_lifecycle_events")
+  ) {
+    throw new Error("Instance lifecycle operation migration structure is incomplete.");
+  }
+  memory.public.none(instanceLifecycleSchema);
   const pg = memory.adapters.createPg();
   const query = pg.Client.prototype.query;
   pg.Client.prototype.query = function (
@@ -618,10 +634,17 @@ export function createTestPrisma(): PrismaClient {
                   : typeof value === "bigint" ? 20
                     : typeof value === "object" && value !== null ? 3802
                       : 25;
+          const postgresTextArrayFields = new Set([
+            "hindsight_memory_ids",
+            "source_document_ids",
+          ]);
           const fields = names.map((name, index) => ({
             ...(result.fields?.[index] ?? {}),
             name,
-            dataTypeID: (result.fields?.[index] as { dataTypeID?: number } | undefined)?.dataTypeID ?? oid(sample[name]),
+            dataTypeID: postgresTextArrayFields.has(name)
+              ? 1009
+              : (result.fields?.[index] as { dataTypeID?: number } | undefined)?.dataTypeID
+                ?? oid(sample[name]),
           }));
           return {
             ...result,

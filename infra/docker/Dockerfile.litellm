@@ -17,10 +17,16 @@ RUN python /tmp/tasklattice-litellm-overlay/apply-overlay.py --root /app \
 FROM ${LITELLM_IMAGE}
 
 USER root
-ENV PYTHONPATH=/app
+# LiteLLM otherwise downloads the latest model cost map from GitHub during
+# import. The pinned upstream image already contains a version-matched backup;
+# use it by default so this image starts deterministically in disconnected
+# environments. A runtime may explicitly override this environment variable.
+ENV PYTHONPATH=/app \
+    LITELLM_LOCAL_MODEL_COST_MAP=True
 COPY --from=tasklattice-litellm-builder /app/litellm /app/litellm
 RUN apk add --no-cache libatomic \
-    && chown -R 65532:65532 /app/.venv/lib/python3.13/site-packages/prisma
+    && chown -R 65532:65532 /app/.venv/lib/python3.13/site-packages/prisma \
+    && python -c 'import json; from importlib.resources import files; cost_map = json.loads(files("litellm").joinpath("model_prices_and_context_window_backup.json").read_text(encoding="utf-8")); assert len(cost_map) > 1000, "LiteLLM bundled model cost map is missing or incomplete"'
 
 # LiteLLM rewrites static UI routes on first import. Do that while the
 # image is writable so the non-root runtime can serve extensionless /ui routes.

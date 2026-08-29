@@ -49,6 +49,32 @@ Check LiteLLM health and logs, routing status, provider model name, network reac
 kubectl -n <namespace> logs deployment/<release>-litellm --since=30m
 ~~~
 
+If the log repeats `Child process [pid] died` while the Pod itself does not
+restart, inspect the configured worker count and cgroup memory counters before
+restarting. LiteLLM's Uvicorn workers are processes, not threads, and the
+supervisor message omits the child's exit code. A child-only OOM kill can
+therefore leave PID 1 and the Kubernetes container running.
+
+~~~shell
+kubectl -n <namespace> get deployment/<release>-litellm \
+  -o jsonpath='{.spec.template.spec.containers[0].args}{"\n"}{.spec.template.spec.containers[0].resources}{"\n"}'
+kubectl -n <namespace> exec deployment/<release>-litellm -- \
+  sh -c 'cat /sys/fs/cgroup/memory.events 2>/dev/null || true'
+kubectl -n <namespace> top pod -l app.kubernetes.io/component=litellm
+~~~
+
+An increasing `oom_kill` counter is direct evidence of a cgroup OOM. The chart
+defaults to one worker so a fatal process exit becomes a container termination
+that Kubernetes can report. Prefer scaling `litellm.replicaCount`; if multiple
+workers per Pod are required, raise the memory limit for each complete Router
+and Prisma process.
+
+Disconnected deployments should render
+`LITELLM_LOCAL_MODEL_COST_MAP=True`. The `tali-litellm` image validates and uses
+the price/context map bundled with its pinned LiteLLM version, so startup does
+not need GitHub access. New model metadata or pricing arrives with a new image,
+while private model prices should be declared explicitly on the deployment.
+
 ### Usage, cost, or audit data is delayed
 
 Confirm request completion, clock and timezone, ingestion services, database writes, selected time range, and attribution identifiers. Keep missing data distinct from a true zero.

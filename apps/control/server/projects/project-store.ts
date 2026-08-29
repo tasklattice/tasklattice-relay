@@ -21,6 +21,10 @@ import type {
 import { prisma } from "../db/prisma";
 import type { Prisma, PrismaClient } from "../generated/prisma/client";
 import { CostAnalyticsStore } from "../providers/cost-analytics-store";
+import {
+  EmbeddingModelDependencyService,
+  type EmbeddingModelRemovalImpact,
+} from "../providers/embedding-model-dependency-service";
 
 type ResourceDelegateName =
   | "skillRecord"
@@ -243,6 +247,22 @@ export class ProjectStore {
 
   database(): PrismaClient {
     return this.db;
+  }
+
+  embeddingModelRemovalImpact(
+    modelIds: readonly string[],
+  ): Promise<EmbeddingModelRemovalImpact> {
+    return new EmbeddingModelDependencyService(this).removalImpact(modelIds);
+  }
+
+  assertCanRemoveEmbeddingModels(
+    modelIds: readonly string[],
+    modelLabel?: string,
+  ): Promise<void> {
+    return new EmbeddingModelDependencyService(this).assertCanRemove(
+      modelIds,
+      modelLabel,
+    );
   }
 
   private resourceDelegate(name: ResourceDelegateName): {
@@ -473,12 +493,17 @@ export class ProjectStore {
       .some((specialization) => specialization[specializationField].includes(id));
   }
 
-  async save(agent: Agent, ownerUserId?: string): Promise<Agent> {
+  async save(
+    agent: Agent,
+    ownerUserId?: string,
+    creationIdempotencyKey?: string,
+  ): Promise<Agent> {
     const create = {
       projectId: this.projectId,
       id: agent.id,
       payload: agentPayload(agent),
       createdAt: agent.createdAt,
+      ...(creationIdempotencyKey ? { creationIdempotencyKey } : {}),
     };
     if (!ownerUserId) {
       const updated = await this.db.agentRecord.updateMany({
@@ -571,6 +596,23 @@ export class ProjectStore {
       select: { ownerUserId: true },
     });
     return row?.ownerUserId ?? undefined;
+  }
+
+  async getByCreationIdempotencyKey(
+    ownerUserId: string,
+    creationIdempotencyKey: string,
+  ): Promise<Agent | undefined> {
+    const row = await this.db.agentRecord.findFirst({
+      where: {
+        projectId: this.projectId,
+        ownerUserId,
+        creationIdempotencyKey,
+        kind: "SUPERVISOR",
+        deletedAt: null,
+      },
+      select: { id: true },
+    });
+    return row ? this.get(row.id) : undefined;
   }
 
   async list(ownerUserId?: string): Promise<Agent[]> {
@@ -959,6 +1001,67 @@ export class ProjectStore {
   private async inheritedRoutingModelIds(): Promise<Set<string>> {
     return new Set((await this.departmentRoutingModelSources()).keys());
   }
+
+  async departmentRoutingModelIdsLostAfterRemoving(
+    routingId: string,
+  ): Promise<string[]> {
+    const routingBinding = await this.db.projectDepartmentRoutingBinding.findUnique({
+      where: {
+        projectId_resourceId: { projectId: this.projectId, resourceId: routingId },
+      },
+      select: { departmentId: true },
+    });
+    if (!routingBinding) return [];
+    const routing = await this.db.departmentInferenceResourceRecord.findFirst({
+      where: {
+        departmentId: routingBinding.departmentId,
+        id: routingId,
+        kind: "ROUTING",
+        deletedAt: null,
+      },
+      select: { payload: true },
+    });
+    if (!routing) return [];
+    const candidateIds = [...routingDeploymentIds(parseModelRouting(routing.payload))];
+    if (!candidateIds.length) return [];
+    const [directBindings, otherRoutings] = await Promise.all([
+      this.db.projectDepartmentModelBinding.findMany({
+        where: {
+          projectId: this.projectId,
+          resourceId: { in: candidateIds },
+          OR: [
+            { projectInheritedAt: { not: null } },
+            { departmentAssignedAt: { not: null } },
+          ],
+        },
+        select: { resourceId: true },
+      }),
+      this.db.projectDepartmentRoutingBinding.findMany({
+        where: {
+          projectId: this.projectId,
+          resourceId: { not: routingId },
+          OR: [
+            { projectInheritedAt: { not: null } },
+            { departmentAssignedAt: { not: null } },
+          ],
+          resource: { kind: "ROUTING", deletedAt: null },
+        },
+        select: { resource: { select: { payload: true } } },
+      }),
+    ]);
+    const remainsAvailable = new Set(
+      directBindings.map((binding) => binding.resourceId),
+    );
+    for (const binding of otherRoutings) {
+      for (const modelId of routingDeploymentIds(
+        parseModelRouting(binding.resource.payload),
+      )) {
+        remainsAvailable.add(modelId);
+      }
+    }
+    return candidateIds.filter((id) => !remainsAvailable.has(id));
+  }
+
   async deleteModelDeployment(id: string): Promise<boolean> {
     if (await this.db.projectDepartmentModelBinding.findUnique({
       where: { projectId_resourceId: { projectId: this.projectId, resourceId: id } },
@@ -1422,6 +1525,9 @@ export class ProjectStore {
     if (!binding?.projectInheritedAt) throw new Error("Project Model inheritance not found.");
     const remainsAvailable = Boolean(binding.departmentAssignedAt)
       || (await this.inheritedRoutingModelIds()).has(id);
+    if (!remainsAvailable) {
+      await this.assertCanRemoveEmbeddingModels([id]);
+    }
     if (!remainsAvailable && (await this.listAgentIdsUsingModelDeployments([id])).length) {
       throw new Error("Reassign Instances using this Model before removing its inheritance.");
     }
@@ -1526,6 +1632,9 @@ export class ProjectStore {
       throw new Error("Choose another Project default before removing this inherited Routing.");
     }
     if (!binding.departmentAssignedAt) {
+      await this.assertCanRemoveEmbeddingModels(
+        await this.departmentRoutingModelIdsLostAfterRemoving(id),
+      );
       const consumers = (await this.listModelRoutingBindings(id)).filter(
         (consumer) => !consumer.revokedAt,
       );

@@ -20,6 +20,7 @@ export function DeleteEntitySheet({
   deleting,
   description,
   entityName,
+  eyebrow,
   error,
   impactDescription,
   onConfirm,
@@ -36,6 +37,7 @@ export function DeleteEntitySheet({
   deleting: boolean;
   description: ReactNode;
   entityName: string;
+  eyebrow?: string;
   error?: string;
   impactDescription?: ReactNode;
   onConfirm: () => void;
@@ -68,7 +70,7 @@ export function DeleteEntitySheet({
       onOpenChange={(next) => {
         if (!deleting) onOpenChange(next);
       }}
-      eyebrow={blocked ? "Deletion blocked" : "Confirm deletion"}
+      eyebrow={eyebrow ?? (blocked ? "Deletion blocked" : "Confirm deletion")}
       title={(
         <span className="flex items-center gap-2.5">
           <span className="grid size-9 shrink-0 place-items-center rounded-md bg-destructive/10 text-destructive">
