@@ -109,6 +109,7 @@ spec:
           volumeMounts:
             - name: tmp
               mountPath: /tmp
+        {{- include "tali.hindsightRouterContainer" (dict "root" . "hindsightPort" .Values.hindsight.service.port) | nindent 8 }}
       volumes:
         - name: tmp
           emptyDir:
@@ -228,6 +229,7 @@ spec:
           volumeMounts:
             - name: tmp
               mountPath: /tmp
+        {{- include "tali.hindsightRouterContainer" (dict "root" . "hindsightPort" .Values.hindsight.worker.service.port) | nindent 8 }}
       volumes:
         - name: tmp
           emptyDir:

@@ -205,11 +205,24 @@ hindsight:
     # Deployment after Helm has reconciled it.
     llmProvider: openai
     llm: hindsight-chat
-    embeddingProvider: litellm
+    # Use Hindsight's OpenAI-compatible adapter because it propagates Bank
+    # attribution on every embedding request; the localhost Project Router
+    # still resolves and invokes the Project's actual embedding provider.
+    embeddingProvider: openai
     embedding: hindsight-embedding
     embeddingDimensions: 1536
-    rerankerProvider: litellm
+    # Reciprocal-rank fusion is local and requires no model during bootstrap.
+    rerankerProvider: rrf
     reranker: hindsight-reranker
+  router:
+    port: 4010
+    resources:
+      requests:
+        cpu: 25m
+        memory: 64Mi
+      limits:
+        cpu: 250m
+        memory: 256Mi
   worker:
     # Keep extraction inside the API process until load testing justifies a
     # separately scaled worker. The optional StatefulSet uses the same queue.
@@ -226,6 +239,7 @@ hindsight:
         memory: 2Gi
   migration:
     activeDeadlineSeconds: 900
+    ttlSecondsAfterFinished: 60
     resources:
       requests:
         cpu: 50m
@@ -392,6 +406,8 @@ secrets:
   litellmSaltKey: tali-local-litellm-salt-v1
   hindsightDatabasePassword: tali-local-hindsight-db
   hindsightApiKey: tali-local-hindsight-api-key
+  # Dedicated only to Hindsight <-> Project Router; never a LiteLLM master key.
+  hindsightRouterToken: tali-local-hindsight-router-token
   metricsToken: tali-local-metrics-token
 
 auth:

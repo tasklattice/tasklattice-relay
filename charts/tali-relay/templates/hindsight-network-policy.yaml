@@ -44,10 +44,11 @@ spec:
         - podSelector:
             matchLabels:
               app.kubernetes.io/instance: {{ .Release.Name }}
-              app.kubernetes.io/component: litellm
+              app.kubernetes.io/component: control
       ports:
         - protocol: TCP
-          port: 4000
+          # NetworkPolicy is enforced after Service DNAT, at Control's Pod port.
+          port: 8080
     - to:
         - namespaceSelector: {}
       ports:
@@ -93,10 +94,11 @@ spec:
         - podSelector:
             matchLabels:
               app.kubernetes.io/instance: {{ .Release.Name }}
-              app.kubernetes.io/component: litellm
+              app.kubernetes.io/component: control
       ports:
         - protocol: TCP
-          port: 4000
+          # NetworkPolicy is enforced after Service DNAT, at Control's Pod port.
+          port: 8080
     - to:
         - namespaceSelector: {}
       ports:

@@ -4,6 +4,11 @@ import {
   RelayClient,
   cookieHeader,
   eventToolNames,
+  hermesSessionToken,
+  hermesTuiReady,
+  inferenceTuiReady,
+  terminalPrompt,
+  terminalResize,
   waitForInstanceModelAttribution,
   stripAnsi,
   websocketUrl,
@@ -28,7 +33,7 @@ test("requires the Instance Routing and LiteLLM spend fact to identify the selec
     instance: {
       id: "agent-1",
       agentPlatform: "openclaw",
-      modelDeploymentId: "deployment-1",
+      modelDeploymentId: "model-routing:routing-1",
       modelRoutingId: "routing-1",
     },
     routing: {
@@ -45,6 +50,7 @@ test("requires the Instance Routing and LiteLLM spend fact to identify the selec
     },
   });
   assert.equal(evidence.model, "deepseek-chat");
+  assert.equal(evidence.assignedModelDeploymentId, "model-routing:routing-1");
   assert.ok(calls.some((path) => path.startsWith("/costs/breakdown?")));
 });
 
@@ -53,6 +59,29 @@ test("extracts only cookie pairs from combined Set-Cookie headers", () => {
     "set-cookie": "session=abc; Path=/; HttpOnly",
   });
   assert.equal(cookieHeader(headers), "session=abc");
+});
+
+test("extracts the Hermes inner WebSocket credential from the authenticated page", () => {
+  assert.equal(
+    hermesSessionToken('<script>window.__HERMES_SESSION_TOKEN__="inner-token_123";</script>'),
+    "inner-token_123",
+  );
+  assert.equal(hermesSessionToken("<html></html>"), "");
+});
+
+test("waits for a non-empty Hermes tool catalog and submits one terminal line", () => {
+  assert.equal(hermesTuiReady("Available Skills (0)"), false);
+  assert.equal(hermesTuiReady("\u001b[32mAvailableSkills(69)\u001b[0m"), true);
+  assert.equal(terminalPrompt("first step\n  second step"), "first step second step");
+});
+
+test("uses the Runner resize protocol and waits for OpenClaw idle", () => {
+  assert.equal(terminalResize(120, 40), "\u0000TALI_RESIZE:120:40");
+  assert.equal(inferenceTuiReady("starting up", "openclaw"), false);
+  assert.equal(
+    inferenceTuiReady("gateway connected | idle", "openclaw"),
+    true,
+  );
 });
 
 test("normalizes terminal evidence and collects structured tool events", () => {

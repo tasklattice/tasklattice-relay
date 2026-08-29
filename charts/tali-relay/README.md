@@ -205,8 +205,9 @@ When `secrets.existingSecret` is used it must contain `control.toml`,
 `runner-token`, `litellm-master-key`, `postgres-password`, `database-url`,
 `litellm-ui-username`, `litellm-ui-password`, `litellm-salt-key`,
 `metrics-token`,
-`hindsight-database-password`, `hindsight-database-url`, and
-`hindsight-api-key` (the final three are required when `hindsight.enabled=true`).
+`hindsight-database-password`, `hindsight-database-url`,
+`hindsight-api-key`, and `hindsight-router-token` (the final four are required
+when `hindsight.enabled=true`).
 `control.toml` contains only the public URL, database and signing bootstrap,
 and the initial Platform Administrator credential. The chart supplies Runner,
 LiteLLM, internal Control, and Runtime Namespace values as one-time bootstrap
@@ -385,24 +386,31 @@ hindsight-admin run-db-migration --schema hindsight --embedding-dimension <confi
 API startup migrations remain disabled. The normal Job and Hindsight's
 database advisory locking make a Helm/Argo retry safe without turning the
 migration into a lifecycle hook. Keep `hindsight.models.embeddingDimensions`
-equal to the actual vector length returned by the configured LiteLLM embedding
-alias before running an upgrade.
+equal to the vector length returned by every Project embedding Model admitted
+to shared Hindsight before running an upgrade. The Project Router rejects a
+mismatched response before Hindsight can persist it.
 
-The following aliases must exist on the bundled or externally configured
-LiteLLM gateway:
+The following names are stable Hindsight-side bootstrap names. They do not need
+to exist in LiteLLM when the Platform is first installed:
 
 | Value | Default alias | Purpose |
 | --- | --- | --- |
 | `hindsight.models.llm` | `hindsight-chat` | Fact extraction and provider synthesis |
 | `hindsight.models.llmProvider` | `openai` | Hindsight LLM adapter used for the LiteLLM-compatible chat endpoint |
 | `hindsight.models.embedding` | `hindsight-embedding` | Document and query embeddings |
-| `hindsight.models.embeddingProvider` | `litellm` | Hindsight embedding adapter |
+| `hindsight.models.embeddingProvider` | `openai` | OpenAI-compatible adapter that propagates Bank attribution to the Project Router |
 | `hindsight.models.reranker` | `hindsight-reranker` | Recall reranking |
-| `hindsight.models.rerankerProvider` | `litellm` | Hindsight reranking adapter; may be set to `rrf` when no reranker model is provisioned |
+| `hindsight.models.rerankerProvider` | `rrf` | Local reciprocal-rank fusion; no reranker model is required |
 
-All three calls use the existing `litellm-master-key` Secret. The Hindsight API
-also reads `hindsight-database-url` and `hindsight-api-key` from the release
-Secret. A placeholder-only manifest showing the Hindsight keys is available at
+Hindsight never receives the LiteLLM master key. A localhost Project Router
+sidecar answers only model-free startup probes until Hindsight is healthy. For
+real calls, Hindsight attaches its Bank ID and the Router resolves that Bank to
+the owning Project, selects the Project's validated/default Model or Routing,
+and calls LiteLLM with a short-lived service key on the Project Team. Missing,
+ambiguous, or dimension-incompatible Project configuration fails closed. The
+Hindsight API also reads `hindsight-database-url`, `hindsight-api-key`, and the
+dedicated `hindsight-router-token` from the release Secret. A placeholder-only
+manifest showing the Hindsight keys is available at
 [`examples/hindsight-existing-secret.yaml`](examples/hindsight-existing-secret.yaml);
 merge those keys with every other key listed for `secrets.existingSecret`.
 Never commit rendered or real values.

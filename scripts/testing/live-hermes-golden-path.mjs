@@ -212,7 +212,10 @@ async function main() {
       `/catalog/vector-databases/${encodeURIComponent(vectorDatabase.id)}/search`,
       {
         method: "POST",
-        body: JSON.stringify({ query: "validation constellation code", topK: 4 }),
+        body: JSON.stringify({
+          query: `validation constellation code ${vectorMarker}`,
+          topK: 4,
+        }),
       },
     );
     if (!search.results?.some((result) => result.content.includes(vectorMarker))) {
@@ -298,7 +301,7 @@ async function main() {
       prompt: [
         "Perform this live acceptance flow with actual tools; do not simulate tool output.",
         "1. Call a2a_list, select a READY peer, create the required Kanban task assigned to tali-a2a, then call a2a_call asking the peer for a one-line health acknowledgement.",
-        `2. Call vector_database_list and vector_database_search for database ${vectorDatabase.id}, querying \"validation constellation code\".`,
+        `2. Call vector_database_list and vector_database_search for database ${vectorDatabase.id}, querying \"validation constellation code ${vectorMarker}\".`,
         `3. Remember this durable user preference verbatim: ${memoryMarker}.`,
         `4. Report the retrieved code ${vectorMarker} and finish with ${responseMarker}.`,
       ].join("\n"),

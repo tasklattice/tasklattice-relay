@@ -156,6 +156,13 @@ spec:
                 secretKeyRef:
                   name: {{ include "tali.secretName" . }}
                   key: hindsight-api-key
+            - name: TALI_HINDSIGHT_ROUTER_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tali.secretName" . }}
+                  key: hindsight-router-token
+            - name: TALI_HINDSIGHT_EMBEDDING_DIMENSIONS
+              value: {{ .Values.hindsight.models.embeddingDimensions | quote }}
             {{- end }}
             - name: TALI_BOOTSTRAP_RUNTIME_NAMESPACES_ENABLED
               value: {{ .Values.projectRuntimeNamespaces.enabled | quote }}

@@ -1225,10 +1225,12 @@ export const mcpSecretReferenceSchema = z.string().trim().min(1).max(500).refine
   "Credentials must use a supported Secret reference.",
 );
 
-const optionalMcpSecretReferenceSchema = z.string().trim().max(500).refine(
-  (value) => !value || /^(?:k8s|memory):\/\//.test(value),
-  "Credentials must use a supported Secret reference.",
-);
+const optionalMcpSecretReferenceSchema = z.string().trim()
+  .max(500, "Use no more than 500 characters.")
+  .refine(
+    (value) => !value || /^(?:k8s|memory):\/\//.test(value),
+    "Credentials must use a supported Secret reference.",
+  );
 
 export const mcpStaticHeaderSchema = z.object({
   name: z.string().trim().min(1).max(120),
@@ -1349,22 +1351,80 @@ export const mcpServerTemplateSchema = z.object({
   defaultAuthType: mcpAuthTypeSchema,
 }).strict();
 
+export const vectorDatabaseFormLimits = {
+  name: { min: 3, max: 120 },
+  description: { min: 10, max: 500 },
+  vectorStoreId: { min: 1, max: 240 },
+  topK: { min: 1, max: 50 },
+  providerField: { min: 1, max: 240 },
+  credentialReference: { max: 500 },
+} as const;
+
+export const vectorDatabaseDescriptionLimits = vectorDatabaseFormLimits.description;
+
+export const vectorDatabaseDescriptionSchema = z.string().trim()
+  .min(
+    vectorDatabaseDescriptionLimits.min,
+    `Enter at least ${vectorDatabaseDescriptionLimits.min} characters.`,
+  )
+  .max(
+    vectorDatabaseDescriptionLimits.max,
+    `Use no more than ${vectorDatabaseDescriptionLimits.max} characters.`,
+  );
+
 const knowledgeSourceDefinitionBaseSchema = z.object({
   id: z.string().trim().min(1).max(160),
-  name: z.string().trim().min(3).max(120),
-  description: z.string().trim().min(10).max(500),
-  vectorStoreId: z.string().trim().min(1).max(240),
+  name: z.string().trim()
+    .min(
+      vectorDatabaseFormLimits.name.min,
+      `Enter at least ${vectorDatabaseFormLimits.name.min} characters.`,
+    )
+    .max(
+      vectorDatabaseFormLimits.name.max,
+      `Use no more than ${vectorDatabaseFormLimits.name.max} characters.`,
+    ),
+  description: vectorDatabaseDescriptionSchema,
+  vectorStoreId: z.string().trim()
+    .min(vectorDatabaseFormLimits.vectorStoreId.min, "Vector Database ID is required.")
+    .max(
+      vectorDatabaseFormLimits.vectorStoreId.max,
+      `Use no more than ${vectorDatabaseFormLimits.vectorStoreId.max} characters.`,
+    ),
   provider: z.enum(["openai", "azure", "bedrock", "vertex_ai", "pg_vector", "postgresql", "elasticsearch"]),
-  apiBase: z.string().trim().url().optional(),
-  embeddingModelDeploymentId: z.string().uuid().optional(),
-  embeddingModel: z.string().trim().min(1).max(240).optional(),
+  apiBase: z.string().trim().url("Enter a valid provider API URL.").optional(),
+  embeddingModelDeploymentId: z.string().uuid("Select a valid embedding model.").optional(),
+  embeddingModel: z.string().trim()
+    .min(vectorDatabaseFormLimits.providerField.min)
+    .max(vectorDatabaseFormLimits.providerField.max)
+    .optional(),
   embeddingDimensions: z.number().int().min(1).max(16_000).optional(),
-  semanticField: z.string().trim().min(1).max(240).optional(),
-  contentField: z.string().trim().min(1).max(240).optional(),
+  semanticField: z.string().trim()
+    .min(vectorDatabaseFormLimits.providerField.min, "Elasticsearch semantic_text field is required.")
+    .max(
+      vectorDatabaseFormLimits.providerField.max,
+      `Use no more than ${vectorDatabaseFormLimits.providerField.max} characters.`,
+    )
+    .optional(),
+  contentField: z.string().trim()
+    .min(vectorDatabaseFormLimits.providerField.min, "Elasticsearch content field is required.")
+    .max(
+      vectorDatabaseFormLimits.providerField.max,
+      `Use no more than ${vectorDatabaseFormLimits.providerField.max} characters.`,
+    )
+    .optional(),
   credentialReference: optionalMcpSecretReferenceSchema.default(""),
   status: z.enum(["REGISTERED", "UNAVAILABLE"]),
   lastReconciliationError: z.string().max(4_000).nullable(),
-  topK: z.number().int().min(1).max(50),
+  topK: z.number({ error: "Enter a whole number from 1 to 50." })
+    .int("Enter a whole number.")
+    .min(
+      vectorDatabaseFormLimits.topK.min,
+      `Enter a value of at least ${vectorDatabaseFormLimits.topK.min}.`,
+    )
+    .max(
+      vectorDatabaseFormLimits.topK.max,
+      `Enter a value no greater than ${vectorDatabaseFormLimits.topK.max}.`,
+    ),
 }).strict();
 
 function validateKnowledgeSourceProvider(

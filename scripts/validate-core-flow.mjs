@@ -218,6 +218,7 @@ if (!runtime.terminal.available) {
     const right = 4_862;
     const expected = `RESULT-${left + right}`;
     const output = await runRelayTerminalInference({
+      agentPlatform: validationAgentPlatform,
       baseUrl,
       websocketPath: session.websocketUrl,
       expectedText: expected,

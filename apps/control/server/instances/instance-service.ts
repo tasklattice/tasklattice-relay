@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import {
   defaultNativeAgentMemoryConfiguration,
   getAgentPlatformDefinition,
@@ -60,6 +60,12 @@ export function agentSandboxName(id: string): string {
     .padStart(25, "0")
     .slice(-17);
   return `i-${compactId}`;
+}
+
+function costKeyIdentifier(value: string): string {
+  return value.startsWith("sha256:")
+    ? value
+    : `sha256:${createHash("sha256").update(value).digest("hex")}`;
 }
 
 export function isRunnerRuntimeTargetRoutable(target: {
@@ -516,8 +522,8 @@ export class InstanceService {
         projectId: this.store.projectId,
         instanceId: id,
         instanceName: agent.name,
-        liteLLMVirtualKeyId: instanceKey.tokenId,
-        hashedToken: instanceKey.tokenId,
+        liteLLMVirtualKeyId: costKeyIdentifier(instanceKey.tokenId),
+        hashedToken: costKeyIdentifier(instanceKey.tokenId),
         virtualKeyAlias: agent.costKeyAlias,
         liteLLMTeamId: created.teamId,
         providerAccountId: gateway.id,

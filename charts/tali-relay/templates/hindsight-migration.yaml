@@ -16,7 +16,7 @@ metadata:
 spec:
   backoffLimit: 6
   activeDeadlineSeconds: {{ .Values.hindsight.migration.activeDeadlineSeconds }}
-  ttlSecondsAfterFinished: 3600
+  ttlSecondsAfterFinished: {{ .Values.hindsight.migration.ttlSecondsAfterFinished }}
   template:
     metadata:
       labels:

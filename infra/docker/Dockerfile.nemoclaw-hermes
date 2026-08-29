@@ -6,6 +6,8 @@ FROM ${BASE_IMAGE}
 # the final image remains runnable by containerd/OrbStack's 127-layer limit.
 COPY scripts/bootstrap-hermes-config.py \
      scripts/patch-hermes-dashboard-credential-placeholder.py \
+     scripts/patch-hermes-dashboard-custom-provider.py \
+     scripts/patch-hermes-dashboard-relay-integrations.py \
      scripts/patch-hermes-dashboard-relay-memory.py \
      scripts/patch-hermes-dashboard-health-auth.py \
      scripts/patch-hermes-nonroot-cron-drain.py \
@@ -25,7 +27,9 @@ ARG OPENSHELL_SANDBOX_GID=1000
 USER root
 RUN set -eux; \
     /opt/hermes/.venv/bin/python3 -I /tmp/tali-hermes-overlay/patch-hermes-dashboard-credential-placeholder.py /usr/local/lib/nemoclaw/seed-hermes-dashboard-config.py; \
+    /opt/hermes/.venv/bin/python3 -I /tmp/tali-hermes-overlay/patch-hermes-dashboard-custom-provider.py /usr/local/lib/nemoclaw/seed-hermes-dashboard-config.py; \
     /opt/hermes/.venv/bin/python3 -I /tmp/tali-hermes-overlay/patch-hermes-dashboard-relay-memory.py /usr/local/lib/nemoclaw/seed-hermes-dashboard-config.py; \
+    /opt/hermes/.venv/bin/python3 -I /tmp/tali-hermes-overlay/patch-hermes-dashboard-relay-integrations.py /usr/local/lib/nemoclaw/seed-hermes-dashboard-config.py; \
     /opt/hermes/.venv/bin/python3 -I /tmp/tali-hermes-overlay/patch-hermes-dashboard-health-auth.py /opt/hermes/hermes_cli/web_server.py; \
     /opt/hermes/.venv/bin/python3 -I /tmp/tali-hermes-overlay/patch-hermes-nonroot-cron-drain.py /opt/hermes/gateway/drain_control.py; \
     install -D -m 0555 /tmp/tali-hermes-overlay/bootstrap-hermes-config.py /usr/local/lib/tali/bootstrap-hermes-config.py; \

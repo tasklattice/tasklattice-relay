@@ -638,6 +638,10 @@ describe("OpenShell Kubernetes command contract", () => {
     expect(dockerfile).toContain(
       "patch-hermes-dashboard-credential-placeholder.py",
     );
+    expect(dockerfile).toContain("patch-hermes-dashboard-custom-provider.py");
+    expect(dockerfile).toContain(
+      "patch-hermes-dashboard-relay-integrations.py",
+    );
     expect(dockerfile).toContain("/opt/hermes/hermes_cli/web_server.py");
     expect(dockerfile).toContain(
       "/usr/local/lib/nemoclaw/seed-hermes-dashboard-config.py",

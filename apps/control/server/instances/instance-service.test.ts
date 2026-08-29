@@ -823,6 +823,7 @@ describe("Instance Access Policy lifecycle", () => {
         where: { projectId: setup.store.projectId, instanceId: agent.id },
       });
     expect(attribution?.instanceId).toBe(agent.id);
+    expect(attribution?.liteLLMVirtualKeyId).toMatch(/^sha256:/);
 
     await setup.service.destroy(agent.id);
     expect(setup.litellm.blockKey).not.toHaveBeenCalled();
@@ -849,7 +850,7 @@ describe("Instance Access Policy lifecycle", () => {
     await expect(setup.store.database().costAttributionMappingRecord.findFirst({
       where: { projectId: setup.store.projectId, instanceId: agent.id },
     })).resolves.toMatchObject({
-      liteLLMVirtualKeyId: "instance-hashed-token",
+      liteLLMVirtualKeyId: expect.stringMatching(/^sha256:/),
       validTo: expect.any(Date),
     });
     await setup.service.deleteRuntime(agent.id);

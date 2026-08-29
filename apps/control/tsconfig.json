@@ -12,5 +12,5 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["src", "server", "vite.config.ts", "vite.worker.config.ts", "vitest.config.ts"]
+  "include": ["src", "server", "vite.config.ts", "vite.worker.config.ts", "vite.hindsight-router.config.ts", "vitest.config.ts"]
 }

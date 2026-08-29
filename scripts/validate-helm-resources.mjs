@@ -258,6 +258,9 @@ const hindsightApiPodSpec = hindsightApi.spec?.template?.spec;
 const hindsightApiContainer = hindsightApiPodSpec?.containers?.find(
   (container) => container.name === "api",
 );
+const hindsightRouterContainer = hindsightApiPodSpec?.containers?.find(
+  (container) => container.name === "project-router",
+);
 const hindsightEnv = hindsightApiContainer?.env ?? [];
 const hindsightEnvValue = (name) => hindsightEnv.find((entry) => entry.name === name)?.value;
 const hindsightEnvSecretKey = (name) => hindsightEnv.find((entry) => entry.name === name)
@@ -281,6 +284,7 @@ if (hindsightApiContainer?.securityContext?.readOnlyRootFilesystem !== true) {
   throw new Error("Hindsight API must use a read-only root filesystem.");
 }
 for (const [name, value] of [
+  ["LITELLM_LOCAL_MODEL_COST_MAP", "True"],
   ["HINDSIGHT_API_DATABASE_SCHEMA", "hindsight"],
   ["HINDSIGHT_API_RUN_MIGRATIONS_ON_STARTUP", "false"],
   ["HINDSIGHT_API_MCP_ENABLED", "false"],
@@ -289,8 +293,13 @@ for (const [name, value] of [
   ["HINDSIGHT_API_METRICS_INCLUDE_BANK_ID", "false"],
   ["HINDSIGHT_API_METRICS_BACKLOG_ENABLED", "true"],
   ["HINDSIGHT_API_LLM_PROVIDER", "openai"],
-  ["HINDSIGHT_API_EMBEDDINGS_PROVIDER", "litellm"],
-  ["HINDSIGHT_API_RERANKER_PROVIDER", "litellm"],
+  ["HINDSIGHT_API_LLM_BASE_URL", "http://127.0.0.1:4010/v1"],
+  ["HINDSIGHT_API_LLM_SEND_BANK_AS_USER", "true"],
+  ["HINDSIGHT_API_EMBEDDINGS_PROVIDER", "openai"],
+  ["HINDSIGHT_API_EMBEDDINGS_OPENAI_BASE_URL", "http://127.0.0.1:4010/v1"],
+  ["HINDSIGHT_API_EMBEDDINGS_OPENAI_MODEL", "hindsight-embedding"],
+  ["HINDSIGHT_API_EMBEDDINGS_OPENAI_DIMENSIONS", "1536"],
+  ["HINDSIGHT_API_RERANKER_PROVIDER", "rrf"],
   ["HINDSIGHT_API_WORKER_ENABLED", "true"],
 ]) {
   if (hindsightEnvValue(name) !== value) {
@@ -301,19 +310,48 @@ for (const [name, key] of [
   ["HINDSIGHT_API_DATABASE_URL", "hindsight-database-url"],
   ["HINDSIGHT_API_MIGRATION_DATABASE_URL", "hindsight-database-url"],
   ["HINDSIGHT_API_TENANT_API_KEY", "hindsight-api-key"],
-  ["HINDSIGHT_API_LLM_API_KEY", "litellm-master-key"],
-  ["HINDSIGHT_API_EMBEDDINGS_LITELLM_API_KEY", "litellm-master-key"],
-  ["HINDSIGHT_API_RERANKER_LITELLM_API_KEY", "litellm-master-key"],
+  ["HINDSIGHT_API_LLM_API_KEY", "hindsight-router-token"],
+  ["HINDSIGHT_API_EMBEDDINGS_OPENAI_API_KEY", "hindsight-router-token"],
 ]) {
   if (hindsightEnvSecretKey(name) !== key) {
     throw new Error(`Hindsight API ${name} must come from Secret key ${key}.`);
   }
 }
+if (hindsightEnv.some((entry) => entry.valueFrom?.secretKeyRef?.key === "litellm-master-key")) {
+  throw new Error("Hindsight must never receive the LiteLLM master key.");
+}
+const controlImage = requireObject("Deployment", `${releaseName}-control`)
+  .spec?.template?.spec?.containers?.find((container) => container.name === "control")?.image;
+const routerEnv = hindsightRouterContainer?.env ?? [];
+if (
+  hindsightRouterContainer?.image !== controlImage
+  || JSON.stringify(hindsightRouterContainer?.command)
+    !== JSON.stringify(["node", "apps/control/.output/hindsight-router/hindsight-router.mjs"])
+  || hindsightRouterContainer?.readinessProbe?.httpGet?.path !== "/health"
+  || hindsightRouterContainer?.livenessProbe?.httpGet?.path !== "/health/live"
+  || hindsightRouterContainer?.securityContext?.readOnlyRootFilesystem !== true
+  || routerEnv.find((entry) => entry.name === "TALI_HINDSIGHT_LOCAL_HEALTH_URL")?.value
+    !== "http://127.0.0.1:8888/health"
+  || routerEnv.find((entry) => entry.name === "TALI_HINDSIGHT_ROUTER_TOKEN")
+    ?.valueFrom?.secretKeyRef?.key !== "hindsight-router-token"
+  || routerEnv.find((entry) => entry.name === "TALI_HINDSIGHT_CONTROL_TOKEN")
+    ?.valueFrom?.secretKeyRef?.key !== "hindsight-router-token"
+) {
+  throw new Error("Hindsight must use the hardened localhost Project Router sidecar.");
+}
 const hindsightService = requireObject("Service", `${releaseName}-hindsight-api`);
 if (hindsightService.spec?.type !== "ClusterIP") {
   throw new Error("Hindsight API must remain an internal ClusterIP Service.");
 }
-requireComponentObject(objects, "NetworkPolicy", "hindsight-api");
+const hindsightNetworkPolicy = requireComponentObject(objects, "NetworkPolicy", "hindsight-api");
+const projectRouterEgress = hindsightNetworkPolicy.spec?.egress?.find((rule) =>
+  rule.to?.some((peer) =>
+    peer.podSelector?.matchLabels?.["app.kubernetes.io/component"] === "control"
+  )
+);
+if (!projectRouterEgress?.ports?.some((port) => port.protocol === "TCP" && port.port === 8080)) {
+  throw new Error("The Hindsight Project Router must reach Control's post-DNAT Pod port.");
+}
 requireObject("PodDisruptionBudget", `${releaseName}-hindsight-api`);
 
 const hindsightMigration = requireComponentObject(objects, "Job", "hindsight-migration");
@@ -322,6 +360,9 @@ if (hindsightMigration.metadata?.annotations?.[syncWaveAnnotation] !== "20") {
 }
 if (hindsightMigration.metadata?.annotations?.["helm.sh/hook"] != null) {
   throw new Error("The Hindsight migration Job must use normal Job semantics instead of a Helm hook.");
+}
+if (hindsightMigration.spec?.ttlSecondsAfterFinished !== 60) {
+  throw new Error("The completed Hindsight migration Pod must be cleaned up after 60 seconds.");
 }
 const migrationPodSpec = hindsightMigration.spec?.template?.spec;
 const migrationContainer = migrationPodSpec?.containers?.find(
@@ -380,6 +421,9 @@ const hindsightWorker = requireComponentObject(
 const hindsightWorkerContainer = hindsightWorker.spec?.template?.spec?.containers?.find(
   (container) => container.name === "worker",
 );
+const hindsightWorkerRouter = hindsightWorker.spec?.template?.spec?.containers?.find(
+  (container) => container.name === "project-router",
+);
 const workerId = hindsightWorkerContainer?.env?.find(
   (entry) => entry.name === "HINDSIGHT_API_WORKER_ID",
 );
@@ -389,8 +433,10 @@ if (
   || hindsightWorkerContainer?.readinessProbe?.httpGet?.path !== "/health"
   || hindsightWorkerContainer?.livenessProbe?.httpGet?.path !== "/health/live"
   || hindsightWorkerContainer?.securityContext?.readOnlyRootFilesystem !== true
+  || hindsightWorkerRouter?.env?.find((entry) => entry.name === "TALI_HINDSIGHT_LOCAL_HEALTH_URL")?.value
+    !== "http://127.0.0.1:8889/health"
 ) {
-  throw new Error("The optional Hindsight worker must use stable identity, health probes, and a read-only root filesystem.");
+  throw new Error("The optional Hindsight worker must use stable identity, health probes, its Project Router, and a read-only root filesystem.");
 }
 const externalWorkerApi = requireComponentObject(
   hindsightWorkerObjects,
@@ -555,14 +601,19 @@ if (
     !== `http://${releaseName}-hindsight-api.${releaseNamespace}.svc.cluster.local:8888`
   || localControlEnv.find((entry) => entry.name === "TALI_HINDSIGHT_API_KEY")
     ?.valueFrom?.secretKeyRef?.key !== "hindsight-api-key"
+  || localControlEnv.find((entry) => entry.name === "TALI_HINDSIGHT_ROUTER_TOKEN")
+    ?.valueFrom?.secretKeyRef?.key !== "hindsight-router-token"
+  || localControlEnv.find((entry) => entry.name === "TALI_HINDSIGHT_EMBEDDING_DIMENSIONS")?.value
+    !== "1536"
 ) {
-  throw new Error("Control must use the internal Hindsight Service and Secret-backed root credential.");
+  throw new Error("Control must use the internal Hindsight Service, root credential, and Project Router contract.");
 }
 for (const key of [
   "metrics-token",
   "hindsight-database-password",
   "hindsight-database-url",
   "hindsight-api-key",
+  "hindsight-router-token",
 ]) {
   if (localSecret?.stringData?.[key] == null) {
     throw new Error(`The generated release Secret is missing ${key}.`);

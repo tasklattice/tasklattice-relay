@@ -39,6 +39,33 @@ export function completedToolEvents(events) {
   return events.filter((event) => event?.type === "tool.complete");
 }
 
+export function hermesSessionToken(html) {
+  const match = String(html).match(
+    /window\.__HERMES_SESSION_TOKEN__\s*=\s*["']([^"']+)["']/,
+  );
+  return match?.[1] ?? "";
+}
+
+export function hermesTuiReady(output) {
+  return /Available\s*Skills\s*\([1-9]\d*\)/i.test(stripAnsi(output));
+}
+
+export function terminalPrompt(prompt) {
+  return String(prompt).replace(/\s*\r?\n\s*/g, " ").trim();
+}
+
+export function terminalResize(cols, rows) {
+  return `\u0000TALI_RESIZE:${cols}:${rows}`;
+}
+
+export function inferenceTuiReady(output, agentPlatform) {
+  if (agentPlatform === "openclaw") {
+    return /gateway connected\s*\|\s*idle/i.test(stripAnsi(output));
+  }
+  if (agentPlatform === "hermes") return hermesTuiReady(output);
+  return stripAnsi(output).trim().length > 0;
+}
+
 export async function eventually(operation, {
   description,
   intervalMs = 1_000,
@@ -145,11 +172,20 @@ export async function exchangeDashboardSession(interactionUrl, fetchImplementati
   if (!page.ok) {
     throw new Error(`Hermes independent Chat UI returned HTTP ${page.status}.`);
   }
+  const dashboardSessionToken = hermesSessionToken(await page.text());
+  if (!dashboardSessionToken) {
+    throw new Error("Hermes independent Chat UI did not provide its WebSocket session token.");
+  }
   const replay = await fetchImplementation(accessUrl, { redirect: "manual" });
   if (replay.status !== 401) {
     throw new Error(`Hermes one-time Dashboard URL replay returned HTTP ${replay.status}, expected 401.`);
   }
-  return { cookie, dashboardUrl: cleanUrl, pageStatus: page.status };
+  return {
+    cookie,
+    dashboardSessionToken,
+    dashboardUrl: cleanUrl,
+    pageStatus: page.status,
+  };
 }
 
 function openSocket(url, cookie, origin, WebSocketImplementation) {
@@ -181,6 +217,7 @@ function waitForOpen(socket, label, timeoutMs) {
 
 export async function runHermesDashboardTurn({
   cookie,
+  dashboardSessionToken,
   dashboardUrl,
   prompt,
   requiredTools = [],
@@ -193,7 +230,10 @@ export async function runHermesDashboardTurn({
   const events = [];
   let terminalOutput = "";
   const eventsSocket = openSocket(
-    websocketUrl(dashboardUrl, "/api/events", { channel }),
+    websocketUrl(dashboardUrl, "/api/events", {
+      channel,
+      token: dashboardSessionToken,
+    }),
     cookie,
     origin,
     WebSocketImplementation,
@@ -230,6 +270,7 @@ export async function runHermesDashboardTurn({
       attach: crypto.randomUUID(),
       channel,
       fresh: "1",
+      token: dashboardSessionToken,
     }),
     cookie,
     origin,
@@ -239,9 +280,21 @@ export async function runHermesDashboardTurn({
     terminalOutput += raw.toString();
   });
   await waitForOpen(ptySocket, "Hermes PTY", Math.min(timeoutMs, 15_000));
-  ptySocket.send("\u001b[RESIZE:120;40]");
-  await new Promise((resolve) => setTimeout(resolve, 2_000));
-  ptySocket.send(`${prompt}\r`);
+  ptySocket.send(terminalResize(120, 40));
+  await eventually(
+    () => hermesTuiReady(terminalOutput),
+    {
+      description: "the Hermes Dashboard TUI to become interactive",
+      intervalMs: 250,
+      timeoutMs: Math.min(timeoutMs, 120_000),
+    },
+  );
+  ptySocket.send(terminalPrompt(prompt));
+  // Hermes' Ink input parser deliberately coalesces burst text. Keeping Enter
+  // in the same WebSocket frame can make it part of the burst instead of a
+  // submission key, so mirror a human keystroke boundary.
+  await new Promise((resolve) => setTimeout(resolve, 500));
+  ptySocket.send("\r");
 
   try {
     const payload = await completion;
@@ -314,6 +367,7 @@ export async function probeRelayTerminal({
 }
 
 export async function runRelayTerminalInference({
+  agentPlatform,
   baseUrl,
   websocketPath,
   expectedText,
@@ -340,10 +394,18 @@ export async function runRelayTerminalInference({
         runtimeConnected = true;
         return;
       }
-      if (runtimeConnected && !promptSent && chunk.length > 0) {
+      if (
+        runtimeConnected
+        && !promptSent
+        && inferenceTuiReady(output, agentPlatform)
+      ) {
         promptSent = true;
-        socket.send("\u001b[RESIZE:120;40]");
-        socket.send(`${prompt}\r`);
+        socket.send(terminalResize(120, 40));
+        socket.send(terminalPrompt(prompt));
+        // Interactive TUIs can coalesce a burst containing both text and
+        // Enter into one edit operation. Preserve a real keystroke boundary
+        // so OpenClaw, Hermes, and Deep Agents all submit the prompt.
+        setTimeout(() => socket.send("\r"), 500);
         return;
       }
       if (promptSent && stripAnsi(output).includes(expectedText)) {
@@ -425,9 +487,13 @@ export async function waitForInstanceModelAttribution({
       `Routing ${routing.id} references missing Model Deployment ${routing.routingPolicy.modelDeploymentId}.`,
     );
   }
-  if (instance.modelDeploymentId !== deployment.id) {
+  const routingAssignment = `model-routing:${routing.id}`;
+  if (
+    instance.modelDeploymentId !== deployment.id
+    && instance.modelDeploymentId !== routingAssignment
+  ) {
     throw new Error(
-      `Instance ${instance.id} was assigned Model Deployment ${instance.modelDeploymentId}, expected ${deployment.id}.`,
+      `Instance ${instance.id} was assigned Model Deployment ${instance.modelDeploymentId}, expected ${deployment.id} or ${routingAssignment}.`,
     );
   }
   const start = new Date(new Date(startedAt).getTime() - 60_000).toISOString();
