@@ -135,6 +135,8 @@ export const testModules = [
     block: "control-plane",
     label: "Control / Durable Memory",
     sourcePatterns: [
+      "apps/control/server/hindsight-inference/**",
+      "apps/control/server/hindsight-router/**",
       "apps/control/server/memories/**",
       "apps/control/server/runtime-bridge/memory-runtime-sanitizer.ts",
       "apps/control/server/runtime-bridge/project-memory-runtime-service*",
@@ -146,6 +148,8 @@ export const testModules = [
       "runtime-integrations/hermes-durable-memory-provider/**",
     ],
     controlTestPatterns: [
+      "apps/control/server/hindsight-inference/**",
+      "apps/control/server/hindsight-router/**",
       "apps/control/server/memories/**",
       "apps/control/server/runtime-bridge/project-memory-runtime-service.test.ts",
       "apps/control/src/components/agents/durable-memory-selection.test.ts",
@@ -168,14 +172,18 @@ export const testModules = [
     sourcePatterns: [
       "apps/control/server/catalog/**",
       "apps/control/server/runtime-bridge/project-vector-database-runtime-service*",
+      "apps/control/src/features/vector-database-form-validation*",
       "apps/control/src/features/vector-database-file-browser/**",
+      "apps/control/src/routes/-vector-database-validation.test.ts",
       "apps/runner/src/hermes-config-bootstrap*",
       "runtime-integrations/hermes-vector-database-plugin/**",
     ],
     controlTestPatterns: [
       "apps/control/server/catalog/**",
       "apps/control/server/runtime-bridge/project-vector-database-runtime-service.test.ts",
+      "apps/control/src/features/vector-database-form-validation*",
       "apps/control/src/features/vector-database-file-browser/**",
+      "apps/control/src/routes/-vector-database-validation.test.ts",
     ],
     pythonTests: [
       "runtime-integrations/hermes-vector-database-plugin/tests/test_client.py",
