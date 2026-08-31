@@ -95,6 +95,16 @@ jobs:
             target: runner
             architecture: arm64
             runner: ubuntu-24.04-arm
+          - image: tali-expert-agent-runtime
+            dockerfile: infra/docker/Dockerfile
+            target: expert-agent-runtime
+            architecture: amd64
+            runner: ubuntu-24.04
+          - image: tali-expert-agent-runtime
+            dockerfile: infra/docker/Dockerfile
+            target: expert-agent-runtime
+            architecture: arm64
+            runner: ubuntu-24.04-arm
           - image: tali-litellm
             dockerfile: infra/docker/Dockerfile.litellm
             target: ""
@@ -178,6 +188,7 @@ jobs:
         image:
           - tali-control
           - tali-openshell-runner
+          - tali-expert-agent-runtime
           - tali-litellm
           - demo-test
     steps:
@@ -317,38 +328,123 @@ jobs:
             bash scripts/package-control-plane-chart.sh "${version}"
           cp dist/control-plane-chart/tali-relay.tgz "dist/tali-relay-${version}.tgz"
           helm push "dist/tali-relay-${version}.tgz" "oci://${registry}/charts"
-      - name: Create image transfer list
+      - name: Create and validate offline image inventory
         shell: bash
         run: |
           set -euo pipefail
           version="${GITHUB_REF_NAME#v}"
           registry="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}"
-          image_list="dist/tasklattice-images-${version}.txt"
-          images=(
-            tali-control
-            tali-openshell-runner
-            tali-litellm
-            demo-test
-            tali-nemoclaw-sandbox
-            tali-nemoclaw-hermes-sandbox
-            tali-nemoclaw-deepagents-sandbox
+          built_list="dist/tasklattice-built-images-${version}.txt"
+          runtime_list="dist/tasklattice-runtime-dependency-images-${version}.txt"
+          offline_list="dist/tasklattice-offline-images-${version}.txt"
+
+          built_images=(
+            "${registry}/tali-control:${version}"
+            "${registry}/tali-openshell-runner:${version}"
+            "${registry}/tali-expert-agent-runtime:${version}"
+            "${registry}/tali-litellm:${version}"
+            "${registry}/demo-test:${version}"
+            "${registry}/tali-nemoclaw-sandbox:${version}"
+            "${registry}/tali-nemoclaw-hermes-sandbox:${version}"
+            "${registry}/tali-nemoclaw-deepagents-sandbox:${version}"
           )
-          : > "${image_list}"
-          for image in "${images[@]}"; do
-            echo "${registry}/${image}:${version}" >> "${image_list}"
-          done
+
+          # Runtime dependencies include images used directly by Pods and
+          # images that OpenShell launches dynamically from its configuration.
+          # Keycloak is optional but belongs in an air-gap transfer inventory.
+          runtime_dependency_images=(
+            "docker.io/pgvector/pgvector:0.8.6-pg17"
+            "ghcr.io/docling-project/docling-serve-cpu:v1.29.0"
+            "ghcr.io/vectorize-io/hindsight-api:0.9.2-slim@sha256:7635a15739361dbdf221ba796ad25a813f876144fe113022eea8e26cb6ee75e7"
+            "registry.k8s.io/agent-sandbox/agent-sandbox-controller:${AGENT_SANDBOX_VERSION}"
+            "ghcr.io/nvidia/openshell/gateway:${OPENSHELL_VERSION}"
+            "ghcr.io/nvidia/openshell/supervisor:${OPENSHELL_VERSION}"
+            "ghcr.io/nvidia/nemoclaw/sandbox-base:${NEMOCLAW_VERSION}"
+            "quay.io/keycloak/keycloak:26.7.0"
+          )
+
+          printf '%s\n' "${built_images[@]}" | sort -u > "${built_list}"
+          printf '%s\n' "${runtime_dependency_images[@]}" | sort -u > "${runtime_list}"
+          cat "${built_list}" "${runtime_list}" | sort -u > "${offline_list}"
+
+          rendered_chart="dist/rendered-image-inventory-${version}.yaml"
           {
-            echo "## Image transfer list"
+            helm template tali-relay "dist/tali-relay-${version}.tgz" \
+              --namespace tali \
+              --kube-version 1.29.0
+            helm template tali-relay "dist/tali-relay-${version}.tgz" \
+              --namespace tali \
+              --kube-version 1.29.0 \
+              --set control.publicUrl=http://192.0.2.10 \
+              --set keycloak.enabled=true \
+              --set keycloak.publicUrl=http://192.0.2.11:8080
+          } > "${rendered_chart}"
+
+          while IFS= read -r image; do
+            short_image="${image#docker.io/}"
+            if ! grep -Fq "${image}" "${rendered_chart}" \
+              && ! grep -Fq "${short_image}" "${rendered_chart}"; then
+              echo "Image inventory entry is not referenced by the packaged Chart: ${image}" >&2
+              exit 1
+            fi
+          done < "${offline_list}"
+
+          while IFS= read -r image; do
+            canonical_image="${image}"
+            if [[ "${canonical_image}" != *.*/* ]]; then
+              canonical_image="docker.io/${canonical_image}"
+            fi
+            if ! grep -Fxq "${canonical_image}" "${offline_list}"; then
+              echo "Rendered Chart image is missing from the deployment inventory: ${canonical_image}" >&2
+              exit 1
+            fi
+          done < <(
+            awk '$1 == "image:" { image=$2; gsub(/"/, "", image); print image }' \
+              "${rendered_chart}" | sort -u
+          )
+
+          append_summary() {
+            local title="$1"
+            local description="$2"
+            local file="$3"
+            local count
+            count="$(wc -l < "${file}" | tr -d ' ')"
+            echo "### ${title} (${count})"
+            echo
+            echo "${description}"
             echo
             echo '```text'
-            cat "${image_list}"
+            cat "${file}"
             echo '```'
+            echo
+          }
+
+          {
+            echo "## Offline deployment image inventory"
+            echo
+            echo "Release: \`${GITHUB_REF_NAME}\`"
+            echo
+            append_summary \
+              "TaskLattice-built images" \
+              "Published by this workflow for the release." \
+              "${built_list}"
+            append_summary \
+              "Runtime dependency images" \
+              "Pulled for the default or optional Helm runtime; Keycloak is optional." \
+              "${runtime_list}"
+            append_summary \
+              "Complete offline image set" \
+              "Deduplicated union to mirror before installing in an offline environment." \
+              "${offline_list}"
           } >> "${GITHUB_STEP_SUMMARY}"
-      - name: Upload image transfer list
+      - name: Upload offline image inventory
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: tasklattice-image-list-${{ github.ref_name }}
-          path: dist/tasklattice-images-*.txt
+          name: tasklattice-offline-image-inventory-${{ github.ref_name }}
+          path: |
+            dist/tasklattice-built-images-*.txt
+            dist/tasklattice-runtime-dependency-images-*.txt
+            dist/tasklattice-offline-images-*.txt
           if-no-files-found: error
           retention-days: 90
       - name: Create or update GitHub Release
