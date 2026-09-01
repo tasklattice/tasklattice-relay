@@ -4,6 +4,8 @@ import {
   expertAgentDraftTryInputSchema,
   expertAgentDraftTryResultSchema,
   expertAgentExecutionModes,
+  expertAgentTryInputSchema,
+  expertAgentTryResultSchema,
   expertAgentVersionViewSchema,
 } from "@tali/contracts";
 import { z } from "zod";
@@ -88,6 +90,12 @@ export const expertAgentContracts = defineContracts([
     summary: "Run the publish test for the current Agent digest", tags: ["Agent Developer"],
     request: { params: expertAgentParamsSchema },
     responses: { 201: response("Recorded Test Run", openObjectSchema) },
+  }),
+  projectRoute({
+    method: "post", path: "/agents/{agentId}/tries", operationId: "tryDevelopedAgent",
+    summary: "Run the saved Agent definition with a developer test message", tags: ["Agent Developer"],
+    request: { params: expertAgentParamsSchema, body: expertAgentTryInputSchema },
+    responses: { 200: response("Developer test result", expertAgentTryResultSchema) },
   }),
   projectRoute({
     method: "post", path: "/agents/{agentId}/publications", operationId: "publishDevelopedAgent",

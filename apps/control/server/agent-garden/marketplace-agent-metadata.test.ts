@@ -7,7 +7,7 @@ import {
 
 describe("database Agent marketplace catalog", () => {
   it("publishes a complete brief for every callable catalog entry", () => {
-    expect(agentCatalogSeedVersion).toBe("2026-08-27.1");
+    expect(agentCatalogSeedVersion).toBe("2026-08-31.1");
 
     for (const agent of databaseAgentCatalog) {
       const brief = JSON.parse(

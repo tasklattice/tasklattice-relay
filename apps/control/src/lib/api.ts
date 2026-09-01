@@ -121,6 +121,7 @@ import type {
   ExpertAgentAvailableResource,
   ExpertAgentListItem,
   ExpertAgentResourceRevision,
+  ExpertAgentTryResult,
   ExpertAgentDefinitionInput,
 } from "@/features/expert-agents/expert-agent-types";
 
@@ -275,6 +276,11 @@ export const api = {
     request<AgentTestRun>(
       `/api/v1/agents/${encodeURIComponent(agentId)}/test-runs`,
       { method: "POST", body: "{}" },
+    ),
+  tryExpertAgent: (agentId: string, message: string) =>
+    request<ExpertAgentTryResult>(
+      `/api/v1/agents/${encodeURIComponent(agentId)}/tries`,
+      { method: "POST", body: JSON.stringify({ message }) },
     ),
   publishExpertAgent: (agentId: string, input: {
     expectedRevision: number;

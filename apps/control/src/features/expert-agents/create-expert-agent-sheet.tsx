@@ -21,6 +21,7 @@ import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import {
   createInitialAgentDefinition,
+  isInitialAgentDefinitionReady,
   slugifyExpertAgentName,
 } from "./create-agent-definition";
 
@@ -95,7 +96,7 @@ export function CreateExpertAgentSheet({
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const pending = create.isPending;
-  const ready = Boolean(name.trim() && purpose.trim().length >= 20);
+  const ready = isInitialAgentDefinitionReady({ name, purpose });
 
   const close = () => {
     if (pending) return;
@@ -123,21 +124,22 @@ export function CreateExpertAgentSheet({
     <EntitySheet
       open={open}
       onOpenChange={(next) => next ? onOpenChange(true) : close()}
-      title="Define Agent"
-      description="Define the product promise and choose its execution model. The definition remains editable until you Publish a Version."
+      title="Create Agent"
+      description="Describe what this Agent should accomplish and choose how it should work."
       width="lg"
       footer={(
         <>
           <Button variant="outline" onClick={close} disabled={pending}>
             Cancel
           </Button>
-          <div className="flex flex-1 flex-wrap items-center justify-end gap-3">
-            <span className="text-xs text-muted-foreground">
-              Saves an editable Agent definition. No Version or Instance is created.
+          <div className="flex w-full min-w-0 flex-1 items-center justify-end gap-4 sm:w-auto">
+            <span className="hidden text-xs text-muted-foreground md:inline">
+              You can change these settings later.
             </span>
             <Button
               type="submit"
               form={formId}
+              className="w-full sm:w-auto"
               disabled={!ready || pending}
               aria-describedby="agent-create-readiness"
             >
@@ -150,7 +152,7 @@ export function CreateExpertAgentSheet({
     >
       <form
         id={formId}
-        className="mx-auto max-w-2xl space-y-7"
+        className="mx-auto max-w-2xl space-y-8"
         onSubmit={(event) => {
           event.preventDefault();
           submit();
@@ -158,11 +160,39 @@ export function CreateExpertAgentSheet({
       >
         <fieldset className="space-y-5">
           <legend className="sr-only">Agent definition</legend>
+          <div className="space-y-2.5">
+            <Label htmlFor="new-agent-purpose" className="text-base font-semibold">
+              What should this Agent do?
+            </Label>
+            <Textarea
+              id="new-agent-purpose"
+              autoFocus
+              required
+              minLength={20}
+              disabled={pending}
+              maxLength={12_000}
+              value={purpose}
+              aria-describedby="agent-create-readiness"
+              aria-invalid={purpose.trim().length > 0 && purpose.trim().length < 20}
+              className="min-h-36 resize-y text-base leading-7"
+              placeholder="Help engineering leads evaluate release risk from approved test results and deployment evidence. Explain uncertainty and never invent missing signals."
+              onChange={(event) => {
+                setPurpose(event.target.value);
+                if (create.isError) create.reset();
+              }}
+            />
+            <p id="agent-create-readiness" className="text-xs leading-5 text-muted-foreground">
+              {purpose.trim().length > 0 && purpose.trim().length < 20
+                ? "Add a little more detail so the Agent has a clear direction."
+                : "Describe the desired outcome and important boundaries."}
+            </p>
+          </div>
+
           <div className="space-y-2">
             <Label htmlFor="new-agent-name">Agent name</Label>
             <Input
               id="new-agent-name"
-              autoFocus
+              required
               disabled={pending}
               maxLength={120}
               value={name}
@@ -174,66 +204,34 @@ export function CreateExpertAgentSheet({
               }}
             />
           </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="new-agent-purpose">What should it accomplish?</Label>
-            <Textarea
-              id="new-agent-purpose"
-              disabled={pending}
-              maxLength={12_000}
-              value={purpose}
-              className="min-h-36 resize-y text-base leading-7"
-              placeholder="Help engineering leads evaluate release risk from approved test results and deployment evidence. It should explain uncertainty and never invent missing signals."
-              onChange={(event) => {
-                setPurpose(event.target.value);
-                if (create.isError) create.reset();
-              }}
-            />
-            <div className="flex items-start justify-between gap-4 text-xs text-muted-foreground">
-              <span id="agent-create-readiness">
-                {purpose.trim().length < 20
-                  ? "Describe the outcome and boundaries in at least 20 characters."
-                  : "The Project model may enrich this into an editable starting definition."}
-              </span>
-              <span className="shrink-0 font-mono tabular-nums">
-                {purpose.length}/12000
-              </span>
-            </div>
-          </div>
         </fieldset>
 
         <fieldset disabled={pending} className="space-y-4">
-          <div>
-            <legend className="text-base font-semibold">Choose the execution model</legend>
-            <p className="mt-1 text-sm leading-6 text-muted-foreground">
-              This determines how the Agent makes decisions and which editor opens next.
-            </p>
-          </div>
+          <legend className="text-base font-semibold">How should it work?</legend>
+          <p className="-mt-3 text-sm leading-6 text-muted-foreground">
+            Choose how much freedom the Agent has when deciding what to do next.
+          </p>
           <div className="grid gap-3 sm:grid-cols-2">
             <BuildMethodChoice
               active={executionMode === "AGENTIC"}
-              description="The model interprets each request, chooses tools, and adapts its steps within your Guardrails."
-              detail="Develop with instructions, model routing, tools, and knowledge."
+              description="Decides how to complete each request dynamically using available knowledge, tools, and actions."
+              detail="Best for assistants, research, analysis, support, and open-ended tasks."
               icon={Bot}
               name="agent-build-method"
               onChange={() => setExecutionMode("AGENTIC")}
-              title="Adaptive Agent"
+              title="Adaptive"
               value="AGENTIC"
             />
             <BuildMethodChoice
               active={executionMode === "WORKFLOW"}
-              description="Requests follow explicit LangGraph nodes, conditions, approvals, and failure paths you design."
-              detail="Develop with the Workflow editor and node inspector."
+              description="Follows explicit steps, conditions, approvals, and failure paths that you define."
+              detail="Best for repeatable processes that require predictable execution and tighter control."
               icon={Workflow}
               name="agent-build-method"
               onChange={() => setExecutionMode("WORKFLOW")}
-              title="Workflow Agent"
+              title="Structured Workflow"
               value="WORKFLOW"
             />
-          </div>
-          <div className="border-l-2 border-border pl-4 text-xs leading-5 text-muted-foreground">
-            <strong className="text-foreground">Chat and Voice are not separate Agent types in Relay.</strong>{" "}
-            API, Webhook, Embed, A2A, Chat, and Voice are delivery channels configured when a published Version becomes an Instance. Availability depends on the runtime release surface.
           </div>
         </fieldset>
 
@@ -250,7 +248,7 @@ export function CreateExpertAgentSheet({
                   : "Review the definition and try again."}
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
-                Your name, description, and build method are preserved.
+                Your intent, name, and execution method are preserved.
               </p>
             </div>
           </div>
@@ -285,20 +283,26 @@ function BuildMethodChoice({
   title: string;
   value: ExpertAgentExecutionMode;
 }) {
+  const choiceId = `agent-build-method-${value.toLowerCase()}`;
+  const descriptionId = `${choiceId}-description`;
+  const detailId = `${choiceId}-detail`;
+
   return (
     <label className={cn(
-      "group relative min-h-44 cursor-pointer border p-4 transition-colors",
-      "hover:border-foreground/20 hover:bg-muted/25",
+      "group relative h-full min-h-52 cursor-pointer rounded-md border border-border/80 bg-card/50 p-4 transition-colors",
+      "hover:border-primary/35 hover:bg-primary-surface/35",
       "has-[:focus-visible]:border-ring has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring/25",
       "has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-55",
-      active && "border-primary bg-primary/5 hover:border-primary hover:bg-primary/5",
+      active && "border-primary bg-primary-surface/70 hover:border-primary hover:bg-primary-surface/70",
     )}>
       <input
+        id={choiceId}
         type="radio"
         className="sr-only"
         name={name}
         value={value}
         checked={active}
+        aria-describedby={`${descriptionId} ${detailId}`}
         onChange={onChange}
       />
       <span className="flex items-start justify-between gap-4">
@@ -316,10 +320,10 @@ function BuildMethodChoice({
         </span>
       </span>
       <strong className="mt-4 block text-base">{title}</strong>
-      <span className="mt-2 block text-sm leading-6 text-muted-foreground">
+      <span id={descriptionId} className="mt-2 block text-sm leading-6 text-foreground/80">
         {description}
       </span>
-      <span className="mt-3 block border-t pt-3 text-xs leading-5 text-muted-foreground">
+      <span id={detailId} className="mt-4 block border-t border-border/70 pt-3 text-xs leading-5 text-muted-foreground">
         {detail}
       </span>
     </label>

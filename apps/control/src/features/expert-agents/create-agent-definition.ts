@@ -40,6 +40,12 @@ export interface InitialAgentDefinitionInput {
   purpose: string;
 }
 
+export function isInitialAgentDefinitionReady(
+  input: Pick<InitialAgentDefinitionInput, "name" | "purpose">,
+): boolean {
+  return Boolean(input.name.trim() && input.purpose.trim().length >= 20);
+}
+
 const frameworkNames: Record<AgenticFrameworkPreference, string> = {
   AUTO: "platform-selected-agent-sdk",
   GOOGLE_ADK: "google-adk",
@@ -211,11 +217,7 @@ export function createAgentDefinition(
           version: "design",
         },
         modelRoutingId: "unassigned-model-routing",
-        instruction: [
-          `Product purpose: ${brief.purpose}`,
-          "Use only capabilities and resources that are explicitly bound to this Agent.",
-          "Return UNKNOWN or request more information instead of inventing facts.",
-        ].join("\n\n"),
+        instruction: "Reason and respond using the request context and resources bound to this Agent.",
         configuration: {
           engineType: "DELEGATED_AGENT_DESIGN",
           developmentStatus: "DESIGN",

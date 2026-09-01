@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import {
   answerDocumentSchema,
+  expertAgentTryResultSchema,
   expertAgentVersionManifestSchema,
   expertAgentVersionSnapshotSchema,
   type ExpertAgentVersionSnapshot,
@@ -229,6 +230,136 @@ export class ExpertAgentTestService {
       attempt: receipt.attempt,
       evidence,
     };
+  }
+
+  async runDeveloperTry(input: {
+    agentId: string;
+    actorId: string;
+    message: string;
+  }) {
+    const detail = await this.developer.detail(this.projectId, input.agentId, input.actorId);
+    const { expectedRevision: _expectedRevision, ...definition } = detail.definition;
+    const snapshot = buildExpertAgentVersionSnapshot({
+      agentId: input.agentId,
+      definition,
+    });
+    const agentDigest = expertAgentContentDigest(snapshot);
+    if (agentDigest !== detail.contentDigest) {
+      throw new Error("The Agent digest does not match its normalized definition.");
+    }
+
+    const messageId = randomUUID();
+    const traceId = createHash("sha256").update(messageId).digest("hex").slice(0, 32);
+    const testRunKey = `agent:${input.agentId}:r${detail.revision}:try:${messageId}`;
+    const startedAt = new Date();
+    const baseResources = this.runtimeResources ?? new ExpertAgentRuntimeResourceService({
+      namespace: "agent-test",
+      projectId: this.projectId,
+      agentId: input.agentId,
+      versionId: testRunKey,
+      contentDigest: agentDigest,
+      expiresAt: new Date(Date.now() + 60 * 60 * 1_000).toISOString(),
+    }, {
+      db: this.db,
+      store: this.store,
+      litellm: this.litellm,
+      revisions: this.revisions,
+      snapshot,
+    });
+    const recorded = this.recordResources(baseResources);
+    const createdAt = startedAt.toISOString();
+    const envelope = {
+      versionId: testRunKey,
+      versionNumber: 1,
+      contentDigest: agentDigest,
+      snapshot,
+      manifest: expertAgentVersionManifestSchema.parse({
+        schemaVersion: "agent-version-manifest/v1",
+        agentId: input.agentId,
+        versionId: testRunKey,
+        versionNumber: 1,
+        contentDigest: agentDigest,
+        executionMode: snapshot.execution.mode,
+        artifacts: [{
+          kind: "RUNTIME_CONFIG",
+          mediaType: "application/vnd.tasklattice.agent-test+json",
+          digest: agentDigest,
+          uri: `agent://${input.agentId}/tests/${testRunKey}/runtime-config`,
+          sizeBytes: null,
+          metadata: { ephemeral: true },
+        }],
+        requirements: snapshot.resources,
+        evidence: {
+          testRunId: testRunKey,
+          testedDigest: agentDigest,
+          passedAt: createdAt,
+        },
+        createdAt,
+      }),
+    };
+
+    let result: ExpertAgentExecutionResult;
+    let executionError: string | undefined;
+    try {
+      const runtime = new ExpertAgentRuntime({
+        envelope,
+        resources: recorded.client,
+        engines: [
+          new GitHubWeeklyCommitEngine(),
+          new DeterministicCustomerSupportEngine(),
+          new ControlledOffboardingEngine(),
+        ],
+      });
+      result = await runtime.execute({
+        messageId,
+        contextId: traceId,
+        text: input.message,
+        metadata: { source: "agent-development-workspace" },
+      });
+    } catch (error) {
+      executionError = errorMessage(error, "Agent test failed.");
+      result = {
+        outcome: "FAILED",
+        text: executionError,
+        data: {},
+        citations: [],
+        trace: [{
+          step: "developer.try",
+          status: "FAILED",
+          summary: executionError,
+          occurredAt: new Date().toISOString(),
+          attributes: { revision: detail.revision },
+        }],
+      };
+    }
+
+    const durationMs = Math.max(0, Date.now() - startedAt.getTime());
+    await this.storeEvaluationTrace({
+      agentId: input.agentId,
+      testRunKey,
+      agentDigest,
+      messageId,
+      traceId,
+      startedAt,
+      outcome: result.outcome,
+      trace: result.trace,
+      citations: result.citations,
+      ...(executionError ? { error: executionError } : {}),
+      engineVersion: snapshot.execution.engine.version,
+      source: "expert-agent",
+      triggerType: "USER",
+    });
+
+    return expertAgentTryResultSchema.parse({
+      traceId,
+      outcome: result.outcome,
+      text: result.text,
+      durationMs,
+      toolCallCount: recorded.toolCalls.length,
+      knowledgeSourceCount: recorded.sourceIds.length,
+      citations: result.citations,
+      trace: result.trace,
+    });
   }
 
   private assertions(
@@ -733,8 +864,8 @@ export class ExpertAgentTestService {
     agentId: string;
     testRunKey: string;
     agentDigest: string;
-    suiteId: string;
-    caseId: string;
+    suiteId?: string;
+    caseId?: string;
     messageId: string;
     traceId: string;
     startedAt: Date;
@@ -743,6 +874,8 @@ export class ExpertAgentTestService {
     citations: ExpertAgentExecutionResult["citations"];
     engineVersion: string;
     error?: string;
+    source?: string;
+    triggerType?: string;
   }): Promise<void> {
     const endedAt = new Date();
     const failed = input.outcome === "FAILED" || Boolean(input.error);
@@ -755,9 +888,9 @@ export class ExpertAgentTestService {
         id,
         instanceId: input.agentId,
         agentPlatform: "expert-agent",
-        source: "expert-agent-evaluation",
+        source: input.source ?? "expert-agent-evaluation",
         externalRunId: input.messageId,
-        triggerType: "EVALUATION",
+        triggerType: input.triggerType ?? "EVALUATION",
         status: failed ? "FAILED" : "SUCCEEDED",
         traceId: input.traceId,
         startedAt: input.startedAt,
@@ -773,8 +906,8 @@ export class ExpertAgentTestService {
         expertTrace: {
           testRunKey: input.testRunKey,
           agentDigest: input.agentDigest,
-          evaluationSuiteId: input.suiteId,
-          evaluationCaseId: input.caseId,
+          ...(input.suiteId ? { evaluationSuiteId: input.suiteId } : {}),
+          ...(input.caseId ? { evaluationCaseId: input.caseId } : {}),
           outcome: input.outcome,
           trace: input.trace,
           citations: input.citations,

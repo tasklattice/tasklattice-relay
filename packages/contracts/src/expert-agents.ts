@@ -39,6 +39,43 @@ export const expertAgentTestStatuses = [
   "CANCELLED",
 ] as const;
 
+export const expertAgentTryInputSchema = z.object({
+  message: z.string().trim().min(1).max(32_000),
+}).strict();
+
+export const expertAgentTryResultSchema = z.object({
+  traceId: z.string().trim().min(1).max(128),
+  outcome: z.enum([
+    "COMPLETED",
+    "NEED_MORE_INFORMATION",
+    "UNKNOWN",
+    "ESCALATED",
+    "REJECTED",
+    "FAILED",
+  ]),
+  text: z.string().max(32_000),
+  durationMs: z.number().int().nonnegative(),
+  toolCallCount: z.number().int().nonnegative(),
+  knowledgeSourceCount: z.number().int().nonnegative(),
+  citations: z.array(z.object({
+    sourceId: z.string(),
+    title: z.string(),
+    uri: z.string().nullable(),
+    excerpt: z.string().nullable(),
+    revision: z.string().nullable(),
+  }).strict()).max(500),
+  trace: z.array(z.object({
+    step: z.string(),
+    status: z.enum(["STARTED", "COMPLETED", "FAILED", "SKIPPED"]),
+    summary: z.string(),
+    occurredAt: z.string().datetime(),
+    attributes: z.record(
+      z.string(),
+      z.union([z.boolean(), z.number(), z.string(), z.null()]),
+    ),
+  }).strict()).max(2_000),
+}).strict();
+
 export type ExpertAgentRelation = (typeof expertAgentRelations)[number];
 export type ExpertAgentExecutionMode =
   (typeof expertAgentExecutionModes)[number];
@@ -46,6 +83,8 @@ export type ExpertAgentProductPreset =
   (typeof expertAgentProductPresets)[number];
 export type ExpertAgentTestMode = (typeof expertAgentTestModes)[number];
 export type ExpertAgentTestStatus = (typeof expertAgentTestStatuses)[number];
+export type ExpertAgentTryInput = z.infer<typeof expertAgentTryInputSchema>;
+export type ExpertAgentTryResult = z.infer<typeof expertAgentTryResultSchema>;
 
 const identifierSchema = z.string().trim().min(1).max(160).regex(
   /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/,

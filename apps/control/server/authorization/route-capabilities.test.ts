@@ -125,10 +125,11 @@ describe("Project route capability declarations", () => {
     }
   });
 
-  it("uses Agent update authority for direct edits, Tests, and Releases", () => {
+  it("uses Agent update authority for direct edits, developer tries, Tests, and Releases", () => {
     for (const [method, path] of [
       ["PATCH", "/api/v1/projects/individual/agents/agent-1"],
       ["POST", "/api/v1/projects/individual/agents/agent-1/test-runs"],
+      ["POST", "/api/v1/projects/individual/agents/agent-1/tries"],
       ["POST", "/api/v1/projects/individual/agents/agent-1/publications"],
     ] as const) {
       expect(projectRouteAdmissionPolicy(method, path)).toEqual({

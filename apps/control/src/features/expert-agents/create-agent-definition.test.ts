@@ -2,6 +2,7 @@ import type { ExpertAgentContractDraft } from "@tali/contracts";
 import { describe, expect, it } from "vitest";
 import {
   createInitialAgentDefinition,
+  isInitialAgentDefinitionReady,
   slugifyExpertAgentName,
 } from "./create-agent-definition";
 
@@ -42,6 +43,10 @@ describe("initial Agent definition", () => {
     ]);
     expect(definition.execution.mode).toBe("AGENTIC");
     expect(definition.policy.preset).toBe("FLEXIBLE");
+    if (definition.execution.mode !== "AGENTIC") throw new Error("Expected Adaptive Agent");
+    expect(definition.execution.instruction).toBe(
+      "Reason and respond using the request context and resources bound to this Agent.",
+    );
   });
 
   it("creates a safe Workflow scaffold when no Project model draft is available", () => {
@@ -68,5 +73,33 @@ describe("initial Agent definition", () => {
     expect(slugifyExpertAgentName("Release Risk Analyst")).toBe(
       "release-risk-analyst",
     );
+  });
+
+  it.each(["AGENTIC", "WORKFLOW"] as const)(
+    "preserves the %s execution mode used to select the development editor",
+    (executionMode) => {
+      const definition = createInitialAgentDefinition({
+        executionMode,
+        name: "Editor routing check",
+        purpose: "Verify that the selected execution method reaches its matching editor.",
+      });
+
+      expect(definition.execution.mode).toBe(executionMode);
+    },
+  );
+
+  it("requires both a name and a meaningful intent before development can start", () => {
+    expect(isInitialAgentDefinitionReady({
+      name: "",
+      purpose: "Summarize approved engineering activity without inventing evidence.",
+    })).toBe(false);
+    expect(isInitialAgentDefinitionReady({
+      name: "Activity summary",
+      purpose: "Too short",
+    })).toBe(false);
+    expect(isInitialAgentDefinitionReady({
+      name: "Activity summary",
+      purpose: "Summarize approved engineering activity without inventing evidence.",
+    })).toBe(true);
   });
 });

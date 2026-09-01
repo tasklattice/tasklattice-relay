@@ -46,18 +46,10 @@ describe("getHeaderBreadcrumbItems", () => {
     ]);
   });
 
-  it("keeps Agent development and delivery routes in the Agent hierarchy", () => {
+  it("keeps Agent development routes in the Agent hierarchy", () => {
     expect(getHeaderBreadcrumbItems("/web3/agents/agent-1", englishT)).toEqual([
       { href: "/web3/agents", label: "Agents" },
       { href: "/web3/agents/agent-1", label: "Agent details" },
-    ]);
-    expect(getHeaderBreadcrumbItems("/web3/agents/evaluations", englishT)).toEqual([
-      { href: "/web3/agents", label: "Agents" },
-      { href: "/web3/agents/evaluations", label: "Test & Evaluate" },
-    ]);
-    expect(getHeaderBreadcrumbItems("/web3/agents/releases", englishT)).toEqual([
-      { href: "/web3/agents", label: "Agents" },
-      { href: "/web3/agents/releases", label: "Release Requests" },
     ]);
   });
 

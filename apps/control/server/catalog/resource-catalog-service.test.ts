@@ -487,7 +487,7 @@ describe("ResourceCatalogService", () => {
         provider: "pg_vector",
         metadata: expect.objectContaining({ tali_provider: "postgresql" }),
         litellmParams: expect.objectContaining({
-          api_base: "http://127.0.0.1:8080/api/internal/vector-stores/individual",
+          api_base: "http://localhost:5173/api/internal/vector-stores/individual",
           api_key: expect.any(String),
         }),
       }),
@@ -614,7 +614,7 @@ describe("ResourceCatalogService", () => {
         }),
         litellmParams: expect.objectContaining({
           api_base:
-            "http://127.0.0.1:8080/api/internal/vector-stores/individual",
+            "http://localhost:5173/api/internal/vector-stores/individual",
           api_key: expect.any(String),
         }),
       }),

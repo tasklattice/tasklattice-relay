@@ -6,6 +6,7 @@ import type {
   ExpertAgentExecutionMode,
   ExpertAgentRelation,
   ExpertAgentTestEvidence,
+  ExpertAgentTryResult,
   ExpertAgentVersionManifest,
   ExpertAgentVersionSnapshot,
 } from "@tali/contracts";
@@ -126,4 +127,5 @@ export type {
   ExpertAgentDefinitionInput,
   ExpertAgentDraftTryResult,
   ExpertAgentTestEvidence,
+  ExpertAgentTryResult,
 };

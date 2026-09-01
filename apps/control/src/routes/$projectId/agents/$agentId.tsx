@@ -5,28 +5,36 @@ import type { ExpertAgentDefinitionInput, ExpertAgentExecutionSpec } from "@tali
 import { z } from "zod";
 import {
   ArrowLeft,
+  BookOpen,
+  Bot,
   Check,
   CheckCircle2,
   Circle,
   CircleAlert,
-  Database,
   ExternalLink,
   FileArchive,
   FlaskConical,
   History,
+  Link2,
+  MessageSquare,
   MoreHorizontal,
   PackageCheck,
   PencilLine,
+  Play,
   Plus,
+  RotateCcw,
   Save,
+  Search,
   ShieldCheck,
   Trash2,
+  Wrench,
   Workflow,
   X,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DeleteEntitySheet } from "@/components/shared/delete-entity-sheet";
+import { EntitySheet } from "@/components/shared/entity-sheet";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -47,26 +55,48 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { PlaybookWorkflowCanvas } from "@/features/expert-agents/playbook-workflow-canvas";
-import type { AgentLifecycleState, AgentVersion } from "@/features/expert-agents/expert-agent-types";
+import type {
+  AgentLifecycleState,
+  AgentVersion,
+  ExpertAgentAvailableResource,
+  ExpertAgentDetail,
+  ExpertAgentListItem,
+  ExpertAgentResourceRevision,
+  ExpertAgentTryResult,
+} from "@/features/expert-agents/expert-agent-types";
+import {
+  bindAgentResource,
+  developerInstruction,
+  patchAgentProduct,
+  patchDeveloperInstruction,
+  removeAgentResource,
+} from "@/features/expert-agents/agent-development-model";
 import { useCurrentProjectId } from "@/hooks/use-project";
 import { useProjectQueryScope } from "@/hooks/use-project-query-scope";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
-const stages = ["define", "test-data", "test", "versions"] as const;
+const stages = ["build", "evaluations", "versions"] as const;
+const routeStages = [...stages, "define", "test-data", "test"] as const;
 type Stage = (typeof stages)[number];
+type RouteStage = (typeof routeStages)[number];
 
 export const Route = createFileRoute("/$projectId/agents/$agentId")({
-  validateSearch: z.object({ stage: z.enum(stages).optional().default("define") }),
+  validateSearch: z.object({ stage: z.enum(routeStages).optional().default("build") }),
   component: AgentDeveloper,
 });
 
 const stageMeta: Record<Stage, { label: string }> = {
-  define: { label: "Edit" },
-  "test-data": { label: "Test data" },
-  test: { label: "Evaluate" },
+  build: { label: "Build" },
+  evaluations: { label: "Evaluations" },
   versions: { label: "Versions" },
 };
+
+function normalizedStage(stage: RouteStage): Stage {
+  if (stage === "define") return "build";
+  if (stage === "test-data" || stage === "test") return "evaluations";
+  return stage;
+}
 
 const lifecycleLabel: Record<AgentLifecycleState, string> = {
   NEEDS_TESTING: "Needs testing",
@@ -83,21 +113,13 @@ function shortDigest(value: string): string {
   return `${value.slice(0, 15)}…${value.slice(-8)}`;
 }
 
-type AgenticExecution = Extract<ExpertAgentExecutionSpec, { mode: "AGENTIC" }>;
 type WorkflowExecution = Extract<ExpertAgentExecutionSpec, { mode: "WORKFLOW" }>;
 type WorkflowNode = WorkflowExecution["nodes"][number];
 
-function patchAgenticExecution(
-  definition: ExpertAgentDefinitionInput,
-  patch: Partial<AgenticExecution>,
-): ExpertAgentDefinitionInput {
-  if (definition.execution.mode !== "AGENTIC") return definition;
-  return { ...definition, execution: { ...definition.execution, ...patch } };
-}
-
 function AgentDeveloper() {
   const { agentId } = Route.useParams();
-  const { stage } = Route.useSearch();
+  const { stage: routeStage } = Route.useSearch();
+  const stage = normalizedStage(routeStage);
   const navigate = Route.useNavigate();
   const projectId = useCurrentProjectId();
   const scope = useProjectQueryScope();
@@ -242,10 +264,10 @@ function AgentDeveloper() {
               </span>
             </div>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">{agent.description}</p>
-            <p className="mt-2 font-mono text-[11px] text-muted-foreground">r{agent.revision} · {shortDigest(agent.contentDigest)}</p>
           </div>
           <div className="flex w-full shrink-0 items-start gap-2 xl:w-auto xl:items-center">
             <div className="grid min-w-0 flex-1 gap-2 sm:flex sm:items-center sm:justify-end">
+              {!dirty ? <span className="hidden items-center gap-1.5 text-xs text-muted-foreground sm:inline-flex"><Check className="size-3.5" /> Saved</span> : null}
               {headerActions}
             </div>
             <DropdownMenu>
@@ -255,6 +277,10 @@ function AgentDeveloper() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuItem disabled className="block text-xs text-muted-foreground">
+                  Revision r{agent.revision}
+                  <span className="mt-1 block font-mono text-[10px]">{shortDigest(agent.contentDigest)}</span>
+                </DropdownMenuItem>
                 <DropdownMenuItem
                   className="text-destructive focus:text-destructive"
                   onSelect={() => {
@@ -270,7 +296,7 @@ function AgentDeveloper() {
         </div>
       </header>
 
-      <nav aria-label="Agent development workspace" className="grid min-h-11 grid-cols-4 items-end border-b sm:flex sm:gap-1">
+      <nav aria-label="Agent development workspace" className="grid min-h-11 grid-cols-3 items-end border-b sm:flex sm:gap-1">
         {stages.map((item) => {
           const active = stage === item;
           return (
@@ -285,10 +311,9 @@ function AgentDeveloper() {
                 active && "text-foreground after:opacity-100",
               )}
             >
-              {item === "test" && currentTestPassed ? <CheckCircle2 className="hidden size-3.5 text-success-foreground sm:block" /> : null}
-              {item === "test" && currentTest?.status === "FAILED" ? <CircleAlert className="hidden size-3.5 text-destructive sm:block" /> : null}
-              {item === "define" ? <PencilLine className="hidden size-3.5 sm:block" /> : null}
-              {item === "test-data" ? <Database className="hidden size-3.5 sm:block" /> : null}
+              {item === "evaluations" && currentTestPassed ? <CheckCircle2 className="hidden size-3.5 text-success-foreground sm:block" /> : null}
+              {item === "evaluations" && currentTest?.status === "FAILED" ? <CircleAlert className="hidden size-3.5 text-destructive sm:block" /> : null}
+              {item === "build" ? <PencilLine className="hidden size-3.5 sm:block" /> : null}
               {item === "versions" ? <History className="hidden size-3.5 sm:block" /> : null}
               {stageMeta[item].label}
             </button>
@@ -296,24 +321,30 @@ function AgentDeveloper() {
         })}
       </nav>
 
-      {dirty && stage !== "define" && stage !== "test-data" ? (
+      {dirty && stage !== "build" && stage !== "evaluations" ? (
         <div className="flex items-start gap-3 border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           <CircleAlert className="mt-0.5 size-4 shrink-0" />
           Save your changes before evaluating or publishing. Results are bound to the saved content digest.
         </div>
       ) : null}
 
-      {stage === "define" ? (
-        <DefineStage
+      {stage === "build" ? (
+        <BuildStage
+          agent={agent}
           definition={definition}
+          dirty={dirty}
           selectedNode={selectedNode}
           onChange={setDefinition}
           onSelectNode={setSelectedNode}
         />
-      ) : stage === "test-data" ? (
-        <TestDataStage definition={definition} onChange={setDefinition} />
-      ) : stage === "test" ? (
-        <TestStage agent={agent} currentTest={currentTest} error={test.error} />
+      ) : stage === "evaluations" ? (
+        <EvaluationsStage
+          agent={agent}
+          currentTest={currentTest}
+          definition={definition}
+          error={test.error}
+          onChange={setDefinition}
+        />
       ) : stage === "versions" ? (
         <VersionsStage agent={agent} />
       ) : null}
@@ -372,24 +403,26 @@ function AgentDeveloper() {
   );
 }
 
-function DefineStage({
+function BuildStage({
+  agent,
   definition,
+  dirty,
   onChange,
   onSelectNode,
   selectedNode,
 }: {
+  agent: ExpertAgentDetail;
   definition: ExpertAgentDefinitionInput;
+  dirty: boolean;
   onChange: (definition: ExpertAgentDefinitionInput) => void;
   onSelectNode: (id: string | null) => void;
   selectedNode: string | null;
 }) {
   const product = definition.product;
-  const patchProduct = (patch: Partial<typeof product>) => onChange({
-    ...definition,
-    product: { ...product, ...patch },
-  });
+  const patchProduct = (patch: Partial<typeof product>) => onChange(
+    patchAgentProduct(definition, patch),
+  );
   const workflow = definition.execution.mode === "WORKFLOW" ? definition.execution : null;
-  const agentic = definition.execution.mode === "AGENTIC" ? definition.execution : null;
   const selectedWorkflowNode = workflow?.nodes.find((node) => node.id === selectedNode) ?? null;
   const patchWorkflow = (next: WorkflowExecution) => onChange({ ...definition, execution: next });
   const addWorkflowNode = () => {
@@ -406,87 +439,634 @@ function DefineStage({
     onSelectNode(node.id);
   };
   return (
-    <div className="space-y-10">
-      <section aria-labelledby="agent-editor-heading">
-        <div className="flex flex-col gap-3 border-b pb-3 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h2 id="agent-editor-heading" className="text-[1.05rem] font-semibold tracking-[-0.01em]">
-              {workflow ? "Workflow editor" : "Agent editor"}
-            </h2>
-            <p className="mt-1 text-sm leading-6 text-muted-foreground">
-              {workflow
-                ? "Design the executable LangGraph. Select a node to edit its operator, configuration, timeout, and outcomes."
-                : "Shape the adaptive reasoning instructions and model route used by this Agent."}
-            </p>
+    <div className="grid items-start gap-8 xl:grid-cols-[minmax(0,1fr)_22rem]">
+      <div className="min-w-0 space-y-10">
+        <section aria-labelledby="agent-editor-heading">
+          <div className="flex flex-col gap-3 border-b pb-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h2 id="agent-editor-heading" className="text-[1.05rem] font-semibold tracking-[-0.01em]">
+                {workflow ? "Workflow" : "Instructions"}
+              </h2>
+              <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                {workflow
+                  ? "Design the explicit steps, decisions, approvals, and failure paths this Agent follows."
+                  : "Tell the Agent how it should reason and respond."}
+              </p>
+            </div>
+            {workflow ? <Button type="button" variant="outline" size="sm" onClick={addWorkflowNode}><Plus /> Add step</Button> : null}
           </div>
-          {workflow ? <Button type="button" variant="outline" size="sm" onClick={addWorkflowNode}><Plus /> Add step</Button> : null}
-        </div>
-        {workflow ? (
-          <div className="mt-4 grid min-h-[40rem] overflow-hidden border xl:grid-cols-[minmax(0,1fr)_22rem]">
-            <PlaybookWorkflowCanvas
-              execution={workflow}
-              selectedId={selectedNode}
-              onSelect={onSelectNode}
-              onConnect={(source, target) => {
-                const ordinal = workflow.transitions.filter((item) => item.from === source).length + 1;
-                patchWorkflow({
-                  ...workflow,
-                  transitions: [...workflow.transitions, { from: source, to: target, outcome: `NEXT_${ordinal}` }],
-                });
-              }}
+          {workflow ? (
+            <div className="mt-4 grid min-h-[38rem] overflow-hidden border 2xl:grid-cols-[minmax(0,1fr)_19rem]">
+              <PlaybookWorkflowCanvas
+                execution={workflow}
+                selectedId={selectedNode}
+                onSelect={onSelectNode}
+                onConnect={(source, target) => {
+                  const ordinal = workflow.transitions.filter((item) => item.from === source).length + 1;
+                  patchWorkflow({
+                    ...workflow,
+                    transitions: [...workflow.transitions, { from: source, to: target, outcome: `NEXT_${ordinal}` }],
+                  });
+                }}
+              />
+              <WorkflowNodeInspector
+                execution={workflow}
+                node={selectedWorkflowNode}
+                onChange={patchWorkflow}
+                onSelectNode={onSelectNode}
+              />
+            </div>
+          ) : (
+            <Textarea
+              aria-label="Instructions"
+              className="mt-5 min-h-[16rem] font-mono text-sm leading-6"
+              value={developerInstruction(definition)}
+              onChange={(event) => onChange(
+                patchDeveloperInstruction(definition, event.target.value),
+              )}
+              placeholder="Describe how the Agent should reason, use evidence, and respond."
             />
-            <WorkflowNodeInspector
-              execution={workflow}
-              node={selectedWorkflowNode}
-              onChange={patchWorkflow}
-              onSelectNode={onSelectNode}
-            />
-          </div>
-        ) : (
-          <div className="mt-5 grid gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
-            <Field label="Instructions"><Textarea className="min-h-[26rem] font-mono text-sm leading-6" value={agentic?.instruction ?? ""} onChange={(event) => onChange(patchAgenticExecution(definition, { instruction: event.target.value }))} /></Field>
-            <aside className="space-y-5 border bg-surface-subtle/30 p-5">
-              <SectionHeading title="Runtime reasoning" description="These settings guide adaptive execution. Delivery channels are selected later when a Version becomes an Instance." compact />
-              <Field label="Model routing"><Input value={agentic?.modelRoutingId ?? ""} onChange={(event) => onChange(patchAgenticExecution(definition, { modelRoutingId: event.target.value }))} /></Field>
-              <dl className="divide-y border-y text-sm">
-                <Stat label="Tools and resources" value={String(definition.resources.length)} />
-                <Stat label="Delegations" value={String(definition.delegations.filter((item) => item.enabled).length)} />
-              </dl>
-            </aside>
-          </div>
-        )}
-      </section>
+          )}
+        </section>
 
-      <div className="grid gap-8 border-t pt-8 xl:grid-cols-[minmax(0,1fr)_22rem]">
-        <section className="min-w-0">
-          <SectionHeading title="Agent definition" description="Describe the stable product promise independently from its implementation." />
-          <div className="mt-4 grid gap-5 sm:grid-cols-2">
+        <section aria-labelledby="agent-behavior-heading" className="border-t pt-8">
+          <SectionHeading
+            title="Behavior & boundaries"
+            description="Define the stable product contract separately from implementation instructions."
+            id="agent-behavior-heading"
+          />
+          <div className="mt-5 grid gap-5 sm:grid-cols-2">
             <Field label="Name"><Input value={product.name} onChange={(event) => patchProduct({ name: event.target.value })} /></Field>
             <Field label="Target users"><Textarea className="min-h-24" value={product.targetUsers.join("\n")} onChange={(event) => patchProduct({ targetUsers: lines(event.target.value) })} /></Field>
           </div>
           <Field className="mt-5" label="Purpose"><Textarea className="min-h-28" value={product.purpose} onChange={(event) => patchProduct({ purpose: event.target.value })} /></Field>
           <div className="mt-5 grid gap-5 sm:grid-cols-2">
             <Field label="Capabilities" hint="One observable capability per line"><Textarea className="min-h-40" value={product.capabilities.join("\n")} onChange={(event) => patchProduct({ capabilities: lines(event.target.value) })} /></Field>
-            <Field label="Out of scope" hint="One explicit boundary per line"><Textarea className="min-h-40" value={product.outOfScope.join("\n")} onChange={(event) => patchProduct({ outOfScope: lines(event.target.value) })} /></Field>
+            <Field label="Boundaries" hint="One explicit boundary per line"><Textarea className="min-h-40" value={product.outOfScope.join("\n")} onChange={(event) => patchProduct({ outOfScope: lines(event.target.value) })} /></Field>
+          </div>
+          <div className="mt-6 border-y py-4">
+            <div className="flex items-start gap-3">
+              <ShieldCheck className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+              <div>
+                <h3 className="text-sm font-semibold">Uncertainty handling</h3>
+                <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                  Return <strong className="text-foreground">{definition.safety.noEvidenceBehavior}</strong> when reliable evidence is unavailable. General model fallback is {definition.safety.allowGeneralModelFallback ? "allowed" : "disabled"}.
+                </p>
+              </div>
+            </div>
           </div>
         </section>
-        <aside className="space-y-6">
-          <section className="border p-5">
-            <SectionHeading title="Publish contract" description="Frozen into every published Version." compact />
-            <dl className="mt-5 divide-y text-sm">
-              <Stat label="Test cases" value={String(definition.acceptance.cases.length)} />
-              <Stat label="Required guardrails" value={String(definition.safety.guardrails.filter((item) => item.required).length)} />
-              <Stat label="Resource bindings" value={String(definition.resources.length)} />
-              <Stat label="Delegations" value={String(definition.delegations.filter((item) => item.enabled).length)} />
-            </dl>
-          </section>
-          <section className="border p-5">
-            <div className="flex items-center gap-2"><ShieldCheck className="size-4 text-muted-foreground" /><h2 className="text-sm font-semibold">Safety behavior</h2></div>
-            <p className="mt-3 text-sm leading-6 text-muted-foreground">Without evidence, return <strong className="text-foreground">{definition.safety.noEvidenceBehavior}</strong>. General model fallback is {definition.safety.allowGeneralModelFallback ? "allowed" : "disabled"}.</p>
-          </section>
-        </aside>
+
+        <ResourcesSection
+          agentId={agent.id}
+          definition={definition}
+          onChange={onChange}
+        />
+
+        <ReleaseReadinessSection agent={agent} definition={definition} dirty={dirty} />
       </div>
+
+      <TestAgentPane agentId={agent.id} dirty={dirty} />
     </div>
+  );
+}
+
+type ResourceSelectionKind = ExpertAgentAvailableResource["kind"] | "DELEGATED_AGENT";
+
+const resourceMeta: Record<ResourceSelectionKind, { label: string; plural: string }> = {
+  MODEL_ROUTING: { label: "Model", plural: "Models" },
+  KNOWLEDGE_VECTOR_DATABASE: { label: "Knowledge", plural: "Knowledge sources" },
+  MCP_SERVER: { label: "Tool", plural: "Tools" },
+  DELEGATED_AGENT: { label: "Delegated Agent", plural: "Delegated Agents" },
+};
+
+function ResourcesSection({
+  agentId,
+  definition,
+  onChange,
+}: {
+  agentId: string;
+  definition: ExpertAgentDefinitionInput;
+  onChange: (definition: ExpertAgentDefinitionInput) => void;
+}) {
+  const scope = useProjectQueryScope();
+  const [selectionKind, setSelectionKind] = useState<ResourceSelectionKind | null>(null);
+  const available = useQuery({
+    queryKey: scope.key("agent", agentId, "available-resources"),
+    queryFn: () => api.listExpertAgentAvailableResources(agentId),
+  });
+  const revisions = useQuery({
+    queryKey: scope.key("agent", agentId, "resource-revisions"),
+    queryFn: () => api.getExpertAgentResourceRevisions(agentId),
+  });
+  const agents = useQuery({
+    queryKey: scope.key("expert-agents"),
+    queryFn: api.listExpertAgents,
+  });
+  const resourceName = (kind: string, resourceId: string) =>
+    available.data?.find((item) => item.kind === kind && item.resourceId === resourceId)?.name
+    ?? resourceId;
+  const statusFor = (kind: string, resourceId: string) => revisions.data?.find((item) =>
+    item.kind === kind && item.resourceId === resourceId
+  );
+  const model = definition.resources.find((item) => item.kind === "MODEL_ROUTING");
+  const knowledge = definition.resources.filter((item) => item.kind === "KNOWLEDGE_VECTOR_DATABASE");
+  const tools = definition.resources.filter((item) => item.kind === "MCP_SERVER");
+  const additional = definition.resources.filter((item) =>
+    item.kind !== "MODEL_ROUTING"
+    && item.kind !== "KNOWLEDGE_VECTOR_DATABASE"
+    && item.kind !== "MCP_SERVER"
+  );
+  const delegated = definition.delegations.filter((item) => item.enabled);
+  const agentName = (id: string) => agents.data?.find((item) => item.id === id)?.name ?? id;
+
+  return (
+    <section aria-labelledby="agent-resources-heading" className="border-t pt-8">
+      <SectionHeading
+        id="agent-resources-heading"
+        title="Resources"
+        description="Attach the approved capabilities this Agent can use. Bindings are saved with Agent changes."
+      />
+      <div className="mt-3 divide-y border-y">
+        <ResourceRow
+          icon={Bot}
+          label="Model"
+          value={definition.execution.mode === "WORKFLOW"
+            ? "Not used by this structured workflow"
+            : model ? resourceName(model.kind, model.resourceId) : "No model configured"}
+          detail={model ? resourceBindingStatus(statusFor(model.kind, model.resourceId)) : undefined}
+          action={definition.execution.mode === "AGENTIC" ? (model ? "Change" : "Configure") : undefined}
+          onAction={() => setSelectionKind("MODEL_ROUTING")}
+        />
+        <ResourceRow
+          icon={BookOpen}
+          label="Knowledge"
+          value={knowledge.length
+            ? knowledge.map((item) => resourceName(item.kind, item.resourceId)).join(", ")
+            : "No knowledge attached"}
+          detail={bindingCollectionStatus(knowledge, statusFor)}
+          action="Manage"
+          onAction={() => setSelectionKind("KNOWLEDGE_VECTOR_DATABASE")}
+        />
+        <ResourceRow
+          icon={Wrench}
+          label="Tools"
+          value={tools.length
+            ? tools.map((item) => resourceName(item.kind, item.resourceId)).join(", ")
+            : "No tools attached"}
+          detail={bindingCollectionStatus(tools, statusFor)}
+          action="Manage"
+          onAction={() => setSelectionKind("MCP_SERVER")}
+        />
+        <ResourceRow
+          icon={Link2}
+          label="Delegated Agents"
+          value={delegated.length
+            ? delegated.map((item) => agentName(item.expertAgentId)).join(", ")
+            : "None"}
+          action="Manage"
+          onAction={() => setSelectionKind("DELEGATED_AGENT")}
+        />
+        {additional.length ? (
+          <ResourceRow
+            icon={PackageCheck}
+            label="Additional bindings"
+            value={additional.map((item) => resourceName(item.kind, item.resourceId)).join(", ")}
+            detail="These existing bindings are preserved. This workspace has no discovery API for managing their resource type yet."
+          />
+        ) : null}
+      </div>
+      <ResourceBindingSheet
+        agentId={agentId}
+        available={available.data ?? []}
+        availableAgents={agents.data ?? []}
+        definition={definition}
+        kind={selectionKind}
+        loading={available.isPending || agents.isPending}
+        onChange={onChange}
+        onOpenChange={(open) => {
+          if (!open) setSelectionKind(null);
+        }}
+      />
+    </section>
+  );
+}
+
+function resourceBindingStatus(revision?: ExpertAgentResourceRevision): string | undefined {
+  if (!revision) return undefined;
+  if (!revision.available) return "Unavailable";
+  if (revision.drifted) return "Changed since it was attached";
+  return "Connected";
+}
+
+function bindingCollectionStatus(
+  bindings: ExpertAgentDefinitionInput["resources"],
+  statusFor: (kind: string, resourceId: string) => ExpertAgentResourceRevision | undefined,
+): string | undefined {
+  if (!bindings.length) return undefined;
+  const statuses = bindings.map((item) => statusFor(item.kind, item.resourceId));
+  if (statuses.some((item) => item && !item.available)) return "One or more unavailable";
+  if (statuses.some((item) => item?.drifted)) return "One or more changed";
+  return `${bindings.length} connected`;
+}
+
+function ResourceRow({
+  action,
+  detail,
+  icon: Icon,
+  label,
+  onAction,
+  value,
+}: {
+  action?: string | undefined;
+  detail?: string | undefined;
+  icon: typeof Bot;
+  label: string;
+  onAction?: (() => void) | undefined;
+  value: string;
+}) {
+  return (
+    <div className="flex min-h-20 items-center gap-4 py-4">
+      <span className="grid size-9 shrink-0 place-items-center rounded-md border bg-surface-subtle/40 text-muted-foreground">
+        <Icon className="size-4" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-medium">{label}</p>
+        <p className="mt-1 truncate text-sm text-muted-foreground" title={value}>{value}</p>
+        {detail ? <p className="mt-1 text-xs text-muted-foreground">{detail}</p> : null}
+      </div>
+      {action ? (
+        <Button type="button" variant="ghost" size="sm" onClick={onAction}>
+          {action}
+        </Button>
+      ) : null}
+    </div>
+  );
+}
+
+function ResourceBindingSheet({
+  agentId,
+  available,
+  availableAgents,
+  definition,
+  kind,
+  loading,
+  onChange,
+  onOpenChange,
+}: {
+  agentId: string;
+  available: ExpertAgentAvailableResource[];
+  availableAgents: ExpertAgentListItem[];
+  definition: ExpertAgentDefinitionInput;
+  kind: ResourceSelectionKind | null;
+  loading: boolean;
+  onChange: (definition: ExpertAgentDefinitionInput) => void;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const [query, setQuery] = useState("");
+  useEffect(() => {
+    if (kind) setQuery("");
+  }, [kind]);
+  const meta = kind ? resourceMeta[kind] : null;
+  const resources = kind && kind !== "DELEGATED_AGENT"
+    ? available.filter((item) => item.kind === kind && `${item.name} ${item.detail}`.toLowerCase().includes(query.toLowerCase()))
+    : [];
+  const agents = kind === "DELEGATED_AGENT"
+    ? availableAgents.filter((item) => item.id !== agentId && `${item.name} ${item.description}`.toLowerCase().includes(query.toLowerCase()))
+    : [];
+
+  return (
+    <EntitySheet
+      open={Boolean(kind)}
+      onOpenChange={onOpenChange}
+      title={meta ? `Manage ${meta.plural}` : "Manage resources"}
+      description="Choose from resources already available in this Project. Changes are applied to the editable Agent definition."
+      width="md"
+      footer={<Button variant="outline" onClick={() => onOpenChange(false)}>Done</Button>}
+    >
+      <div className="space-y-5">
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            className="pl-9"
+            placeholder={`Search ${meta?.plural.toLowerCase() ?? "resources"}…`}
+            aria-label={`Search ${meta?.plural ?? "resources"}`}
+          />
+        </div>
+        {loading ? (
+          <div className="space-y-2"><Skeleton className="h-16" /><Skeleton className="h-16" /></div>
+        ) : kind === "DELEGATED_AGENT" ? (
+          <div className="divide-y border-y">
+            {agents.length ? agents.map((item) => {
+              const selected = definition.delegations.some((delegation) =>
+                delegation.expertAgentId === item.id && delegation.enabled
+              );
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  aria-pressed={selected}
+                  className="flex min-h-16 w-full items-center gap-3 px-1 py-3 text-left outline-none hover:bg-muted/30 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/30"
+                  onClick={() => onChange({
+                    ...definition,
+                    delegations: selected
+                      ? definition.delegations.filter((delegation) => delegation.expertAgentId !== item.id)
+                      : [...definition.delegations, {
+                          expertAgentId: item.id,
+                          when: `Delegate when ${item.name} is better suited to complete the request.`,
+                          delegationPolicy: "AUTOMATIC",
+                          executionPolicy: "SYNCHRONOUS",
+                          approvalPolicy: "NOT_REQUIRED",
+                          enabled: true,
+                        }],
+                  })}
+                >
+                  <span className={cn(
+                    "grid size-5 shrink-0 place-items-center rounded-full border",
+                    selected && "border-primary bg-primary text-primary-foreground",
+                  )}>{selected ? <Check className="size-3" /> : null}</span>
+                  <span className="min-w-0 flex-1">
+                    <strong className="block truncate text-sm font-medium">{item.name}</strong>
+                    <span className="mt-1 block truncate text-xs text-muted-foreground">{item.description}</span>
+                  </span>
+                </button>
+              );
+            }) : <EmptyResourceSelection label="No other developer-owned Agents are available." />}
+          </div>
+        ) : (
+          <div className="divide-y border-y">
+            {resources.length ? resources.map((item) => {
+              const selected = definition.resources.some((binding) =>
+                binding.kind === item.kind && binding.resourceId === item.resourceId
+              );
+              return (
+                <button
+                  key={`${item.kind}:${item.resourceId}`}
+                  type="button"
+                  aria-pressed={selected}
+                  disabled={!selected && (!item.ready || !item.revision)}
+                  className="flex min-h-16 w-full items-center gap-3 px-1 py-3 text-left outline-none hover:bg-muted/30 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:opacity-50"
+                  onClick={() => onChange(selected
+                    ? removeAgentResource(definition, item)
+                    : bindAgentResource(definition, item))}
+                >
+                  <span className={cn(
+                    "grid size-5 shrink-0 place-items-center rounded-full border",
+                    selected && "border-primary bg-primary text-primary-foreground",
+                  )}>{selected ? <Check className="size-3" /> : null}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-center gap-2">
+                      <strong className="truncate text-sm font-medium">{item.name}</strong>
+                      {!item.ready ? <Badge variant="outline">Unavailable</Badge> : null}
+                    </span>
+                    <span className="mt-1 block truncate text-xs text-muted-foreground">{item.detail}</span>
+                  </span>
+                </button>
+              );
+            }) : <EmptyResourceSelection label={`No ${meta?.plural.toLowerCase() ?? "resources"} are available in this Project.`} />}
+          </div>
+        )}
+      </div>
+    </EntitySheet>
+  );
+}
+
+function EmptyResourceSelection({ label }: { label: string }) {
+  return <p className="px-4 py-8 text-center text-sm leading-6 text-muted-foreground">{label}</p>;
+}
+
+function ReleaseReadinessSection({
+  agent,
+  definition,
+  dirty,
+}: {
+  agent: ExpertAgentDetail;
+  definition: ExpertAgentDefinitionInput;
+  dirty: boolean;
+}) {
+  const scope = useProjectQueryScope();
+  const revisions = useQuery({
+    queryKey: scope.key("agent", agent.id, "resource-revisions"),
+    queryFn: () => api.getExpertAgentResourceRevisions(agent.id),
+  });
+  const currentTest = agent.testRuns.find((run) => run.contentDigest === agent.contentDigest) ?? null;
+  const agenticExecution = definition.execution.mode === "AGENTIC" ? definition.execution : null;
+  const modelReady = !agenticExecution || (
+    agenticExecution.modelRoutingId !== "unassigned-model-routing"
+    && definition.resources.some((item) =>
+      item.kind === "MODEL_ROUTING"
+      && item.resourceId === agenticExecution.modelRoutingId
+    )
+  );
+  const resourceProblem = revisions.isError
+    || (revisions.data?.some((item) => !item.available || item.drifted) ?? false);
+  const items = [
+    {
+      label: "Definition saved",
+      detail: dirty ? "Save the current changes before testing." : `Saved as revision r${agent.revision}.`,
+      complete: !dirty,
+    },
+    {
+      label: "Evaluation cases configured",
+      detail: `${definition.acceptance.cases.length} case${definition.acceptance.cases.length === 1 ? "" : "s"}; ${definition.acceptance.cases.filter((item) => item.required).length} required.`,
+      complete: definition.acceptance.cases.some((item) => item.required),
+    },
+    {
+      label: definition.execution.mode === "WORKFLOW" ? "Workflow defined" : "Model configured",
+      detail: definition.execution.mode === "WORKFLOW"
+        ? `${definition.execution.nodes.length} steps with an explicit entrypoint.`
+        : modelReady ? "The selected Model Routing is attached to this Agent." : "Choose an available Model Routing in Resources.",
+      complete: definition.execution.mode === "WORKFLOW"
+        ? definition.execution.nodes.length >= 2
+        : modelReady,
+    },
+    {
+      label: "Resource bindings current",
+      detail: !definition.resources.length
+        ? "No external resources are attached."
+        : revisions.isPending ? "Checking bound revisions…"
+          : resourceProblem ? "One or more resources are unavailable or have changed."
+            : `${definition.resources.length} binding${definition.resources.length === 1 ? "" : "s"} available at the pinned revision.`,
+      complete: !revisions.isPending && !resourceProblem,
+    },
+    {
+      label: "Current evaluation passed",
+      detail: currentTest?.status === "PASSED"
+        ? "The passing result matches the saved Agent content."
+        : agent.publishReadiness.reason === "TESTS_OUTDATED"
+          ? "The Agent changed after its last passing evaluation."
+          : agent.publishReadiness.reason === "TESTS_FAILED"
+            ? "Resolve the failed evaluation before publishing."
+            : "Run an evaluation before publishing.",
+      complete: agent.publishReadiness.ready,
+    },
+  ];
+  const issueCount = items.filter((item) => !item.complete).length;
+  return (
+    <section aria-labelledby="release-readiness-heading" className="border-t pt-8">
+      <SectionHeading
+        id="release-readiness-heading"
+        title="Release readiness"
+        description={issueCount
+          ? `${issueCount} item${issueCount === 1 ? "" : "s"} need attention before publishing.`
+          : "The saved Agent has current evidence and is ready to publish."}
+      />
+      <div className="mt-3 divide-y border-y">
+        {items.map((item) => (
+          <div key={item.label} className="flex gap-3 py-3.5">
+            {item.complete
+              ? <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-success-foreground" />
+              : <CircleAlert className="mt-0.5 size-4 shrink-0 text-warning-foreground" />}
+            <div>
+              <p className="text-sm font-medium">{item.label}</p>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">{item.detail}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+interface TestConversationMessage {
+  id: string;
+  role: "user" | "agent";
+  text: string;
+  result?: ExpertAgentTryResult;
+}
+
+function TestAgentPane({ agentId, dirty }: { agentId: string; dirty: boolean }) {
+  const projectId = useCurrentProjectId();
+  const [draft, setDraft] = useState("");
+  const [messages, setMessages] = useState<TestConversationMessage[]>([]);
+  const run = useMutation({
+    mutationFn: (message: string) => api.tryExpertAgent(agentId, message),
+    onSuccess: (result) => {
+      setMessages((current) => [...current, {
+        id: crypto.randomUUID(),
+        role: "agent",
+        text: result.text,
+        result,
+      }]);
+    },
+  });
+  const send = () => {
+    const message = draft.trim();
+    if (!message || dirty || run.isPending) return;
+    run.reset();
+    setMessages((current) => [...current, {
+      id: crypto.randomUUID(),
+      role: "user",
+      text: message,
+    }]);
+    setDraft("");
+    run.mutate(message);
+  };
+
+  return (
+    <aside aria-labelledby="test-agent-heading" className="min-w-0 border bg-background xl:sticky xl:top-6">
+      <div className="flex min-h-14 items-center justify-between gap-3 border-b px-4">
+        <div>
+          <h2 id="test-agent-heading" className="text-sm font-semibold">Test Agent</h2>
+          <p className="mt-0.5 text-[11px] text-muted-foreground">Runs the saved definition</p>
+        </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          disabled={run.isPending || !messages.length}
+          onClick={() => {
+            setMessages([]);
+            run.reset();
+          }}
+        >
+          <RotateCcw /> New session
+        </Button>
+      </div>
+      <div className="flex min-h-[32rem] max-h-[calc(100vh-16rem)] flex-col">
+        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-4">
+          {messages.length ? messages.map((message) => (
+            <div key={message.id} className="border-b pb-4 last:border-0">
+              <div className="flex items-center gap-2 text-xs font-medium">
+                {message.role === "user" ? <MessageSquare className="size-3.5 text-muted-foreground" /> : <Bot className="size-3.5 text-link" />}
+                {message.role === "user" ? "User" : "Agent"}
+              </div>
+              <p className={cn(
+                "mt-2 whitespace-pre-wrap text-sm leading-6",
+                message.result?.outcome === "FAILED" && "text-destructive",
+              )}>{message.text}</p>
+              {message.result ? (
+                <div className="mt-3 text-xs text-muted-foreground">
+                  <span>{(message.result.durationMs / 1_000).toFixed(1)}s</span>
+                  <span aria-hidden="true"> · </span>
+                  <span>{message.result.toolCallCount} tool calls</span>
+                  <details className="mt-2">
+                    <summary className="min-h-8 cursor-pointer select-none py-1 font-medium text-link outline-none focus-visible:ring-2 focus-visible:ring-ring/30">View trace</summary>
+                    <div className="mt-2 space-y-2 border-l pl-3">
+                      {message.result.trace.map((event, index) => (
+                        <div key={`${event.step}:${index}`}>
+                          <p className="font-mono text-[10px] text-foreground">{event.step}</p>
+                          <p className="mt-0.5 leading-5">{event.summary}</p>
+                        </div>
+                      ))}
+                      <Link
+                        to="/$projectId/traces"
+                        params={{ projectId }}
+                        search={{ traceId: message.result.traceId }}
+                        className="inline-flex min-h-9 items-center gap-1.5 font-medium text-link hover:underline"
+                      >
+                        Open full trace <ExternalLink className="size-3" />
+                      </Link>
+                    </div>
+                  </details>
+                </div>
+              ) : null}
+            </div>
+          )) : (
+            <div className="grid min-h-56 place-items-center text-center">
+              <div className="max-w-56">
+                <Play className="mx-auto size-5 text-muted-foreground" />
+                <p className="mt-3 text-sm font-medium">Try the current Agent</p>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">Send a representative request, inspect the result, then open its trace only when needed.</p>
+              </div>
+            </div>
+          )}
+          {run.isPending ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground"><Spinner /> Running the saved Agent…</div>
+          ) : null}
+          {run.isError ? (
+            <div role="alert" className="border border-destructive-border bg-destructive-surface px-3 py-2 text-xs leading-5 text-destructive">
+              {run.error instanceof Error ? run.error.message : "The Agent test failed."}
+            </div>
+          ) : null}
+        </div>
+        <form className="border-t p-3" onSubmit={(event) => { event.preventDefault(); send(); }}>
+          {dirty ? <p className="mb-2 text-xs leading-5 text-warning-foreground">Save changes before testing so the result matches a stable revision.</p> : null}
+          <Textarea
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                send();
+              }
+            }}
+            disabled={dirty || run.isPending}
+            className="min-h-24 resize-none"
+            placeholder="Ask this Agent…"
+            aria-label="Test message"
+          />
+          <div className="mt-2 flex items-center justify-between gap-3">
+            <span className="text-[11px] text-muted-foreground">Enter to send · Shift+Enter for a new line</span>
+            <Button type="submit" size="sm" disabled={dirty || run.isPending || !draft.trim()}>
+              {run.isPending ? <Spinner /> : <Play />} Send
+            </Button>
+          </div>
+        </form>
+      </div>
+    </aside>
   );
 }
 
@@ -585,6 +1165,28 @@ function WorkflowConfigurationEditor({ value, onChange }: { value: Record<string
 
 type AcceptanceCase = ExpertAgentDefinitionInput["acceptance"]["cases"][number];
 
+function EvaluationsStage({
+  agent,
+  currentTest,
+  definition,
+  error,
+  onChange,
+}: {
+  agent: ExpertAgentDetail;
+  currentTest: ExpertAgentDetail["testRuns"][number] | null;
+  definition: ExpertAgentDefinitionInput;
+  error: Error | null;
+  onChange: (definition: ExpertAgentDefinitionInput) => void;
+}) {
+  return (
+    <div className="space-y-12">
+      <TestDataStage definition={definition} onChange={onChange} />
+      <TestStage agent={agent} currentTest={currentTest} error={error} />
+      <EvaluationHistory agent={agent} />
+    </div>
+  );
+}
+
 function TestDataStage({ definition, onChange }: {
   definition: ExpertAgentDefinitionInput;
   onChange: (definition: ExpertAgentDefinitionInput) => void;
@@ -631,8 +1233,8 @@ function TestDataStage({ definition, onChange }: {
     <section aria-labelledby="test-data-heading">
       <div className="flex flex-col gap-3 border-b pb-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h2 id="test-data-heading" className="text-[1.05rem] font-semibold tracking-[-0.01em]">Test data</h2>
-          <p className="mt-1 text-sm leading-6 text-muted-foreground">Maintain representative requests and expected outcomes before running an Evaluation.</p>
+          <h2 id="test-data-heading" className="text-[1.05rem] font-semibold tracking-[-0.01em]">Test cases</h2>
+          <p className="mt-1 text-sm leading-6 text-muted-foreground">Define representative requests and expected outcomes, then run them as one Evaluation.</p>
         </div>
         <Button type="button" variant="outline" size="sm" onClick={addCase}><Plus /> Add case</Button>
       </div>
@@ -733,7 +1335,7 @@ function TestStage({ agent, currentTest, error }: {
   return (
     <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_22rem]">
       <section>
-        <SectionHeading title="Evaluate Agent" description="Run the saved definition against its Test data, safety policy, resources, and A2A contract." />
+        <SectionHeading title="Latest result" description="The most recent Evaluation for the current saved Agent content." />
         <div className={cn("mt-4 border-l-4 p-5", passed ? "border-success bg-success-surface" : currentTest?.status === "FAILED" ? "border-destructive bg-destructive-surface" : "border-border bg-muted/20")}>
           <div className="flex items-start gap-3">
             {passed ? <CheckCircle2 className="mt-0.5 size-5 text-success-foreground" /> : currentTest?.status === "FAILED" ? <CircleAlert className="mt-0.5 size-5 text-destructive" /> : <FlaskConical className="mt-0.5 size-5 text-muted-foreground" />}
@@ -772,6 +1374,73 @@ function TestStage({ agent, currentTest, error }: {
   );
 }
 
+function EvaluationHistory({ agent }: { agent: ExpertAgentDetail }) {
+  const projectId = useCurrentProjectId();
+  return (
+    <section aria-labelledby="evaluation-history-heading" className="border-t pt-8">
+      <SectionHeading
+        id="evaluation-history-heading"
+        title="Recent runs"
+        description="Evaluation evidence stays attached to the exact Agent revision and content digest it tested."
+      />
+      {agent.testRuns.length ? (
+        <div className="mt-4 overflow-x-auto border">
+          <table className="w-full min-w-[46rem] text-left text-sm">
+            <thead className="border-b bg-muted/30 text-xs text-muted-foreground">
+              <tr>
+                <th className="px-4 py-3 font-medium">Run</th>
+                <th className="px-4 py-3 font-medium">Result</th>
+                <th className="px-4 py-3 font-medium">Revision</th>
+                <th className="px-4 py-3 font-medium">Created</th>
+                <th className="px-4 py-3 font-medium">Trace</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {agent.testRuns.map((run) => {
+                const traceIds = run.evidence.evaluationSuites?.flatMap((suite) =>
+                  suite.cases.map((testCase) => testCase.traceId)
+                ) ?? [];
+                return (
+                  <tr key={run.id} className="hover:bg-muted/20">
+                    <td className="px-4 py-3 font-medium">#{run.attempt}</td>
+                    <td className="px-4 py-3">
+                      <span className={cn(
+                        "inline-flex items-center gap-1.5 text-xs font-medium",
+                        run.status === "PASSED" ? "text-success-foreground" : "text-destructive",
+                      )}>
+                        {run.status === "PASSED" ? <CheckCircle2 className="size-3.5" /> : <CircleAlert className="size-3.5" />}
+                        {run.status === "PASSED" ? "Passed" : "Failed"}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 font-mono text-xs">r{run.agentRevision}</td>
+                    <td className="px-4 py-3 text-xs text-muted-foreground">{new Date(run.createdAt).toLocaleString()}</td>
+                    <td className="px-4 py-3">
+                      {traceIds[0] ? (
+                        <Link
+                          to="/$projectId/traces"
+                          params={{ projectId }}
+                          search={{ traceId: traceIds[0] }}
+                          className="inline-flex min-h-9 items-center gap-1.5 text-xs font-medium text-link hover:underline"
+                        >
+                          View trace <ExternalLink className="size-3" />
+                        </Link>
+                      ) : <span className="text-xs text-muted-foreground">No execution trace</span>}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="mt-4 grid min-h-40 place-items-center border text-center">
+          <div><FlaskConical className="mx-auto size-5 text-muted-foreground" /><p className="mt-3 text-sm font-medium">No Evaluation runs yet</p></div>
+        </div>
+      )}
+    </section>
+  );
+}
+
 function VersionsStage({ agent }: { agent: Awaited<ReturnType<typeof api.getExpertAgent>> }) {
   const projectId = useCurrentProjectId();
   return (
@@ -791,9 +1460,10 @@ function VersionsStage({ agent }: { agent: Awaited<ReturnType<typeof api.getExpe
               <tr>
                 <th className="px-4 py-3 font-medium">Version</th>
                 <th className="px-4 py-3 font-medium">Source</th>
-                <th className="px-4 py-3 font-medium">Artifacts</th>
+                <th className="px-4 py-3 font-medium">Evaluation</th>
+                <th className="px-4 py-3 font-medium">Published by</th>
                 <th className="px-4 py-3 font-medium">Published</th>
-                <th className="px-4 py-3 font-medium">Garden</th>
+                <th className="px-4 py-3 font-medium">Status</th>
               </tr>
             </thead>
             <tbody className="divide-y">
@@ -807,7 +1477,8 @@ function VersionsStage({ agent }: { agent: Awaited<ReturnType<typeof api.getExpe
                     {version.publicationNotes ? <p className="mt-1 max-w-md truncate text-xs text-muted-foreground">{version.publicationNotes}</p> : null}
                   </td>
                   <td className="px-4 py-3 font-mono text-xs">r{version.sourceRevision}</td>
-                  <td className="px-4 py-3 tabular-nums">{version.artifacts.length}</td>
+                  <td className="px-4 py-3"><span className="inline-flex items-center gap-1.5 text-xs font-medium text-success-foreground"><CheckCircle2 className="size-3.5" /> Passed</span></td>
+                  <td className="px-4 py-3 text-xs">{version.publishedBy}</td>
                   <td className="px-4 py-3 text-xs text-muted-foreground">{new Date(version.publishedAt).toLocaleString()}</td>
                   <td className="px-4 py-3"><Badge variant="outline">{version.gardenStatus === "PUBLISHED" ? "Available" : "Withdrawn"}</Badge></td>
                 </tr>
@@ -957,8 +1628,8 @@ function PublishVersionSheet({
   );
 }
 
-function SectionHeading({ compact = false, description, title }: { compact?: boolean; description: string; title: string }) {
-  return <div className={cn(!compact && "border-b pb-3")}><h2 className="text-[1.05rem] font-semibold tracking-[-0.01em]">{title}</h2><p className="mt-1 text-sm leading-6 text-muted-foreground">{description}</p></div>;
+function SectionHeading({ compact = false, description, id, title }: { compact?: boolean; description: string; id?: string; title: string }) {
+  return <div className={cn(!compact && "border-b pb-3")}><h2 id={id} className="text-[1.05rem] font-semibold tracking-[-0.01em]">{title}</h2><p className="mt-1 text-sm leading-6 text-muted-foreground">{description}</p></div>;
 }
 
 function Field({ children, className, hint, label }: { children: React.ReactNode; className?: string; hint?: string; label: string }) {

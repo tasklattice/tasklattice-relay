@@ -233,7 +233,7 @@ export function projectRouteAdmissionPolicy(
     }
     if (
       tail.length === 3
-      && (tail[2] === "test-runs" || tail[2] === "publications")
+      && (tail[2] === "test-runs" || tail[2] === "tries" || tail[2] === "publications")
       && method === "POST"
     ) {
       return policy("EXPERT_AGENT", [requirement("CAP_AGENT_REGISTRATION_UPDATE", "ExpertAgent")], agentId);

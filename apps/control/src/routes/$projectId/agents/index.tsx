@@ -60,7 +60,7 @@ function ExpertAgents() {
               search: { define: true },
             })}
           >
-            <Plus /> Define Agent
+            <Plus /> Create Agent
           </Button>
         )}
       />
@@ -155,7 +155,7 @@ function ExpertAgents() {
         <div className="grid min-h-72 place-items-center border text-center">
           <div className="max-w-lg px-6">
             <Bot className="mx-auto size-7 text-muted-foreground" />
-            <h2 className="mt-4 text-lg font-semibold">{query ? "No matching Agents" : "Define your first independent Agent"}</h2>
+            <h2 className="mt-4 text-lg font-semibold">{query ? "No matching Agents" : "Create your first independent Agent"}</h2>
             <p className="mt-2 text-sm leading-6 text-muted-foreground">
               {query
                 ? "Try another search term."
@@ -167,7 +167,7 @@ function ExpertAgents() {
                 params: { projectId },
                 search: { define: true },
               })}>
-                <Plus /> Define Agent
+                <Plus /> Create Agent
               </Button>
             ) : null}
           </div>
