@@ -11,7 +11,11 @@ export type RelationResolver =
   | "NEW_OWNER"
   | "INSTANCE"
   | "INSTANCE_COLLECTION"
-  | "REGISTERED_AGENT";
+  | "REGISTERED_AGENT"
+  | "EXPERT_AGENT"
+  | "EXPERT_AGENT_COLLECTION"
+  | "TRACE"
+  | "TRACE_COLLECTION";
 
 export interface RouteCapabilityRequirement {
   capability: ProjectCapability;
@@ -132,6 +136,12 @@ export function projectRouteAdmissionPolicy(
       requirement("CAP_ACCESS_POLICY_VIEW", "AccessPolicy"),
     ]);
   }
+  if (tail[0] === "runtime-inventory" && tail.length === 1 && method === "GET") {
+    return policy(
+      "INSTANCE_COLLECTION",
+      [requirement("CAP_AGENT_INSTANCE_CONFIG_VIEW", "RuntimeInventory")],
+    );
+  }
   if (
     tail[0] === "authorization"
     && tail.length === 2
@@ -191,6 +201,48 @@ export function projectRouteAdmissionPolicy(
     }
     if (tail.length === 3 && tail[2] === "terminal-sessions" && method === "POST") {
       return policy("INSTANCE", [requirement("CAP_AGENT_INSTANCE_TERMINAL_EXEC", "AgentInstance")], instanceId);
+    }
+  }
+
+  if (tail[0] === "agents") {
+    if (tail.length === 1 && method === "GET") {
+      return policy("EXPERT_AGENT_COLLECTION", [requirement("CAP_AGENT_REGISTRATION_VIEW", "ExpertAgent")]);
+    }
+    if (tail.length === 1 && method === "POST") {
+      return policy("NEW_OWNER", [requirement("CAP_AGENT_REGISTRATION_CREATE", "ExpertAgent")]);
+    }
+    if (tail.length === 2 && tail[1] === "contract-drafts" && method === "POST") {
+      return policy("NEW_OWNER", [requirement("CAP_AGENT_REGISTRATION_CREATE", "ExpertAgent")]);
+    }
+    if (tail.length === 2 && tail[1] === "draft-tries" && method === "POST") {
+      return policy("NEW_OWNER", [requirement("CAP_AGENT_REGISTRATION_CREATE", "ExpertAgent")]);
+    }
+    const agentId = tail[1];
+    if (!agentId) return undefined;
+    if (tail.length === 2 && method === "GET") {
+      return policy("EXPERT_AGENT", [requirement("CAP_AGENT_REGISTRATION_VIEW", "ExpertAgent")], agentId);
+    }
+    if (tail.length === 2 && method === "PATCH") {
+      return policy("EXPERT_AGENT", [requirement("CAP_AGENT_REGISTRATION_UPDATE", "ExpertAgent")], agentId);
+    }
+    if (tail.length === 2 && method === "DELETE") {
+      return policy("EXPERT_AGENT", [requirement("CAP_AGENT_REGISTRATION_DELETE", "ExpertAgent")], agentId);
+    }
+    if (tail.length === 3 && tail[2] === "versions" && method === "GET") {
+      return policy("EXPERT_AGENT", [requirement("CAP_AGENT_REGISTRATION_VIEW", "ExpertAgent")], agentId);
+    }
+    if (
+      tail.length === 3
+      && (tail[2] === "test-runs" || tail[2] === "publications")
+      && method === "POST"
+    ) {
+      return policy("EXPERT_AGENT", [requirement("CAP_AGENT_REGISTRATION_UPDATE", "ExpertAgent")], agentId);
+    }
+    if (tail.length === 3 && tail[2] === "resource-revisions" && method === "GET") {
+      return policy("EXPERT_AGENT", [requirement("CAP_AGENT_REGISTRATION_VIEW", "ExpertAgent")], agentId);
+    }
+    if (tail.length === 3 && tail[2] === "available-resources" && method === "GET") {
+      return policy("EXPERT_AGENT", [requirement("CAP_AGENT_REGISTRATION_VIEW", "ExpertAgent")], agentId);
     }
   }
 
@@ -535,8 +587,8 @@ export function projectRouteAdmissionPolicy(
     }
   }
   if (tail[0] === "traces") {
-    if (tail.length === 1 && method === "GET") return policy("PROJECT", [requirement("CAP_TRACE_VIEW", "Trace")]);
-    if (tail.length === 2 && tail[1] && method === "GET") return policy("PROJECT", [requirement("CAP_TRACE_CONTENT_VIEW", "Trace")], tail[1]);
+    if (tail.length === 1 && method === "GET") return policy("TRACE_COLLECTION", [requirement("CAP_TRACE_VIEW", "Trace")]);
+    if (tail.length === 2 && tail[1] && method === "GET") return policy("TRACE", [requirement("CAP_TRACE_VIEW", "Trace")], tail[1]);
   }
   if (tail[0] === "costs" && tail.length === 2 && method === "GET") {
     const requirements = [requirement("CAP_COST_VIEW", "Cost")];
@@ -612,6 +664,7 @@ export function concreteRelation(
   resolver: RelationResolver,
   ownedByActor: boolean,
   collectionRole?: "admin" | "auditor" | "developer" | "user" | "reviewer",
+  resolvedRelation?: ResourceRelation,
 ): ResourceRelation {
   if (resolver === "NEW_OWNER") return "OWNER";
   if (resolver === "INSTANCE_COLLECTION") {
@@ -621,7 +674,22 @@ export function concreteRelation(
     if (collectionRole === "developer") return "OWNER";
     return "PROJECT_ANY";
   }
-  if (resolver === "INSTANCE" || resolver === "REGISTERED_AGENT") {
+  if (resolver === "EXPERT_AGENT_COLLECTION") {
+    return collectionRole === "developer" ? "OWNER" : "PROJECT_ANY";
+  }
+  if (resolver === "TRACE_COLLECTION") {
+    return collectionRole === "developer" ? "OWNER" : "PROJECT_ANY";
+  }
+  if (resolver === "TRACE") {
+    return resolvedRelation ?? "PROJECT_ANY";
+  }
+  if (resolver === "EXPERT_AGENT") {
+    return resolvedRelation ?? (ownedByActor ? "OWNER" : "PROJECT_ANY");
+  }
+  if (resolver === "INSTANCE") {
+    return resolvedRelation ?? (ownedByActor ? "OWNER" : "PROJECT_ANY");
+  }
+  if (resolver === "REGISTERED_AGENT") {
     return ownedByActor ? "OWNER" : "PROJECT_ANY";
   }
   return "PROJECT_ANY";

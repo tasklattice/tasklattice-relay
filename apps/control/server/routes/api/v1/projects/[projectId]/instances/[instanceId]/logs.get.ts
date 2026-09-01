@@ -18,6 +18,8 @@ export default defineHandler(async (event) => {
       ? instanceRuntimeLogView(detail.instance)
       : detail?.kind === "A2A"
         ? a2aInstanceRuntimeLogView(detail.instance)
+        : detail?.kind === "PROJECT_AGENT"
+          ? a2aInstanceRuntimeLogView(detail.instance)
         : undefined;
     return logs
       ? jsonResponse(logs, {

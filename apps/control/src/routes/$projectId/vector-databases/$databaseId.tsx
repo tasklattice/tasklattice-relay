@@ -2,17 +2,18 @@ import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { hasValidatedEmbeddingModel, type VectorDocument } from "@tali/contracts";
-import { Activity, Database, FileUp, MoreHorizontal, Search, Settings, Trash2 } from "lucide-react";
+import { Activity, CheckCircle2, Database, MoreHorizontal, Settings, Trash2 } from "lucide-react";
 import { DeleteEntitySheet } from "@/components/shared/delete-entity-sheet";
 import { EmbeddingModelSetupNotice } from "@/components/providers/embedding-model-setup-notice";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Toast, ToastClose, ToastDescription, ToastTitle } from "@/components/ui/toast";
 import { DeleteObjectDialog, NewFolderDialog, RenameMoveDialog, UploadFilesSheet, VectorDocumentActionSheet } from "@/features/vector-database-file-browser/vector-database-file-actions";
-import { SearchVectorsSheet, VectorDatabaseActivitySheet } from "@/features/vector-database-file-browser/vector-database-auxiliary";
+import { VectorDatabaseActivitySheet, VectorRetrievalWorkbench } from "@/features/vector-database-file-browser/vector-database-auxiliary";
 import { descendantFolderIds, type FileBrowserSelection } from "@/features/vector-database-file-browser/file-browser-utils";
-import { VectorDatabaseFileBrowser } from "@/features/vector-database-file-browser/vector-database-file-browser";
+import { VectorDatabaseFileBrowser, type VectorDatabaseWorkspaceView } from "@/features/vector-database-file-browser/vector-database-file-browser";
 import { VectorDatabaseProperties } from "@/features/vector-database-file-browser/vector-database-properties";
 import { VectorDocumentDetailsPanel } from "@/features/vector-database-file-browser/vector-document-details-panel";
 import { useCurrentProjectId } from "@/hooks/use-project";
@@ -30,6 +31,7 @@ type FileActionState = {
   view: "preview" | "chunks" | "metadata";
   targetChunkId?: string;
 };
+type SuccessToast = { id: number; title: string; description: string };
 
 function VectorDatabaseDetail() {
   const { databaseId } = Route.useParams();
@@ -41,7 +43,7 @@ function VectorDatabaseDetail() {
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [selection, setSelection] = useState<FileBrowserSelection | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [searchOpen, setSearchOpen] = useState(false);
+  const [workspaceView, setWorkspaceView] = useState<VectorDatabaseWorkspaceView>("files");
   const [activityOpen, setActivityOpen] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [uploadFiles, setUploadFiles] = useState<File[]>([]);
@@ -53,12 +55,19 @@ function VectorDatabaseDetail() {
   const [deleteTarget, setDeleteTarget] = useState<FileBrowserSelection | null>(null);
   const [deleteDatabaseOpen, setDeleteDatabaseOpen] = useState(false);
   const [fileAction, setFileAction] = useState<FileActionState | null>(null);
-  const [notice, setNotice] = useState("");
+  const [successToast, setSuccessToast] = useState<SuccessToast | null>(null);
+  const showSuccess = (title: string, description: string) => {
+    setSuccessToast({ id: Date.now(), title, description });
+  };
 
   const overview = useQuery({
     queryKey: scope.key("vector-database", databaseId),
     queryFn: () => api.getVectorDatabase(databaseId),
     refetchInterval: (query) => query.state.data?.stats.processingDocumentCount ? 2_000 : false,
+  });
+  const catalog = useQuery({
+    queryKey: scope.key("resource-catalog"),
+    queryFn: api.getResourceCatalog,
   });
   const modelDeployments = useQuery({
     queryKey: scope.key("model-deployments"),
@@ -73,6 +82,10 @@ function VectorDatabaseDetail() {
     await queryClient.invalidateQueries({ queryKey: scope.key("vector-database", databaseId) });
   };
   const database = overview.data?.database;
+  const catalogDatabaseOptions = catalog.data?.vectorDatabases ?? [];
+  const databaseOptions = database && !catalogDatabaseOptions.some((item) => item.id === database.id)
+    ? [database, ...catalogDatabaseOptions]
+    : catalogDatabaseOptions;
   const folders = overview.data?.folders ?? [];
   const documents = overview.data?.documents ?? [];
   const currentFolder = currentFolderId ? folders.find((folder) => folder.id === currentFolderId) : undefined;
@@ -93,7 +106,10 @@ function VectorDatabaseDetail() {
     onSuccess: async (queued) => {
       setUploadOpen(false);
       setUploadFiles([]);
-      setNotice(`${queued.length} ${queued.length === 1 ? "file was" : "files were"} queued for parsing and vector indexing.`);
+      showSuccess(
+        queued.length === 1 ? "File queued" : "Files queued",
+        `${queued.length} ${queued.length === 1 ? "file was" : "files were"} queued for parsing and vector indexing.`,
+      );
       await refresh();
     },
   });
@@ -102,7 +118,7 @@ function VectorDatabaseDetail() {
     onSuccess: async (folder) => {
       setNewFolderOpen(false);
       setNewFolderName("");
-      setNotice(`Folder “${folder.name}” was created.`);
+      showSuccess("Folder created", `“${folder.name}” is ready to use.`);
       await refresh();
     },
   });
@@ -117,7 +133,10 @@ function VectorDatabaseDetail() {
     onSuccess: async () => {
       const mode = edit?.mode;
       setEdit(null);
-      setNotice(mode === "rename" ? "The name was updated without re-embedding." : "The item was moved without re-embedding.");
+      showSuccess(
+        mode === "rename" ? "Name updated" : "Item moved",
+        mode === "rename" ? "The name was updated without re-embedding." : "The item was moved without re-embedding.",
+      );
       await refresh();
     },
   });
@@ -134,7 +153,10 @@ function VectorDatabaseDetail() {
       setDeleteTarget(null);
       setSelection(null);
       setFileAction(null);
-      setNotice(target?.kind === "folder" ? "The folder, nested files, and Vector Records were permanently deleted." : "The file and its Vector Records were permanently deleted.");
+      showSuccess(
+        target?.kind === "folder" ? "Folder deleted" : "File deleted",
+        target?.kind === "folder" ? "The folder, nested files, and Vector Records were permanently deleted." : "The file and its Vector Records were permanently deleted.",
+      );
       await refresh();
     },
   });
@@ -151,7 +173,6 @@ function VectorDatabaseDetail() {
     view: FileActionState["view"],
     options: Pick<FileActionState, "targetChunkId"> = {},
   ) => {
-    setSearchOpen(false);
     setSelection({ kind: "file", id: document.id });
     setFileAction({ documentId: document.id, view, ...options });
   };
@@ -163,6 +184,21 @@ function VectorDatabaseDetail() {
     setCurrentFolderId(folderId);
     setSelection(null);
     setFileAction(null);
+  };
+  const changeWorkspaceView = (view: VectorDatabaseWorkspaceView) => {
+    setWorkspaceView(view);
+    setSelection(null);
+    setFileAction(null);
+  };
+  const changeDatabase = (nextDatabaseId: string) => {
+    if (nextDatabaseId === databaseId) return;
+    setCurrentFolderId(null);
+    setSelection(null);
+    setFileAction(null);
+    void navigate({
+      to: "/$projectId/vector-databases/$databaseId",
+      params: { projectId, databaseId: nextDatabaseId },
+    });
   };
   const beginEdit = (mode: EditState["mode"], target: FileBrowserSelection) => {
     const folder = target.kind === "folder" ? folders.find((item) => item.id === target.id) : undefined;
@@ -225,10 +261,19 @@ function VectorDatabaseDetail() {
       onViewChunks={() => openFileAction(selectedDocument, "chunks")}
     />
   ) : null;
+  const retrievalUnavailableMessage = modelDeployments.isPending
+    ? "Embedding model availability is still loading."
+    : modelDeployments.error
+      ? "The embedding model status could not be verified. Reload the page and try again."
+      : !embeddingModelReady
+        ? "Configure and validate an embedding model before testing retrieval."
+        : !permissions.canViewVectorDatabaseContent
+          ? "CAP_VECTOR_DATABASE_CONTENT_VIEW is required to search indexed content."
+          : undefined;
 
   return (
-    <div className="min-w-0 space-y-5 pb-10">
-      <header className="flex flex-col gap-5 border-b pb-5 lg:flex-row lg:items-start lg:justify-between">
+    <div className="flex min-h-[calc(100svh-4rem)] min-w-0 flex-col bg-background">
+      <header className="flex items-start justify-between gap-4 border-b px-5 py-5 sm:px-6 lg:px-8">
         <div className="min-w-0">
           <h1 className="truncate font-display text-[1.625rem] font-light leading-tight tracking-[0.005em]">{database.name}</h1>
           <p className="mt-1.5 text-sm text-muted-foreground">
@@ -236,38 +281,89 @@ function VectorDatabaseDetail() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" className="h-11" disabled={!vectorDatabaseAvailable || !permissions.canViewVectorDatabaseContent} onClick={() => { setFileAction(null); setSelection(null); setSearchOpen(true); }}><Search />Test retrieval</Button>
-          {database.provider === "postgresql" ? <Button className="h-11" disabled={!vectorDatabaseAvailable || !permissions.canUpdateVectorDatabases} onClick={() => { upload.reset(); setUploadFiles([]); setUploadOpen(true); }}><FileUp />Upload files</Button> : null}
           <DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="size-11" aria-label={`Actions for ${database.name}`}><MoreHorizontal /></Button></DropdownMenuTrigger><DropdownMenuContent align="end" className="w-56"><DropdownMenuItem onSelect={() => setSettingsOpen(true)}><Settings />Database settings</DropdownMenuItem><DropdownMenuItem onSelect={() => setActivityOpen(true)}><Activity />View activity</DropdownMenuItem>{permissions.canDeleteVectorDatabases ? <><DropdownMenuSeparator /><DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={() => setDeleteDatabaseOpen(true)}><Trash2 />Delete vector database</DropdownMenuItem></> : null}</DropdownMenuContent></DropdownMenu>
         </div>
       </header>
       {!modelDeployments.isPending && !embeddingModelReady ? (
-        <EmbeddingModelSetupNotice
+        <div className="px-5 pt-4 sm:px-6 lg:px-8"><EmbeddingModelSetupNotice
           canManageProject={permissions.canManageProject}
           projectId={projectId}
-        />
+        /></div>
       ) : null}
-      {notice ? <p role="status" className="border-l-2 border-primary bg-primary/5 px-4 py-3 text-sm">{notice}</p> : null}
-
-      <div className="min-h-[42rem] min-w-0 overflow-hidden rounded-md border bg-card">
-        <VectorDatabaseFileBrowser builtIn={database.provider === "postgresql"} canManage={vectorDatabaseAvailable && permissions.canUpdateVectorDatabases} currentFolderId={currentFolderId} documents={documents} folders={folders} refreshing={overview.isFetching} selection={selection} onAction={objectAction} onCurrentFolderChange={changeFolder} onNewFolder={() => { createFolder.reset(); setNewFolderName(""); setNewFolderOpen(true); }} onRefresh={() => void refresh()} onSelectionChange={select} onUpload={() => { upload.reset(); setUploadFiles([]); setUploadOpen(true); }} />
+      <div className="min-h-0 min-w-0 flex-1 border-b bg-card">
+        <VectorDatabaseFileBrowser
+          builtIn={database.provider === "postgresql"}
+          canManage={vectorDatabaseAvailable && permissions.canUpdateVectorDatabases}
+          currentFolderId={currentFolderId}
+          databaseId={databaseId}
+          databaseName={database.name}
+          databaseOptions={databaseOptions}
+          databaseOptionsError={catalog.error?.message}
+          databaseOptionsLoading={catalog.isPending}
+          documents={documents}
+          folders={folders}
+          refreshing={overview.isFetching}
+          retrievalContent={(
+            <VectorRetrievalWorkbench
+              canViewContent={!retrievalUnavailableMessage}
+              currentFolderId={currentFolderId}
+              currentFolderPath={currentFolder?.path ?? "/"}
+              databaseId={databaseId}
+              metadataSchema={overview.data.metadataSchema}
+              unavailableMessage={retrievalUnavailableMessage}
+              onViewSource={({ chunkId, documentId }) => {
+                const document = documents.find((item) => item.id === documentId);
+                if (document) openFileAction(document, "chunks", { targetChunkId: chunkId });
+              }}
+            />
+          )}
+          selection={selection}
+          view={workspaceView}
+          onAction={objectAction}
+          onCurrentFolderChange={changeFolder}
+          onDatabaseChange={changeDatabase}
+          onNewFolder={() => { createFolder.reset(); setNewFolderName(""); setNewFolderOpen(true); }}
+          onRefresh={() => void refresh()}
+          onSelectionChange={select}
+          onUpload={() => { upload.reset(); setUploadFiles([]); setUploadOpen(true); }}
+          onViewChange={changeWorkspaceView}
+        />
       </div>
 
       <UploadFilesSheet destination={currentFolder?.path ?? "/"} error={errorMessage(upload.error)} files={uploadFiles} open={uploadOpen} pending={upload.isPending} onFiles={setUploadFiles} onOpenChange={setUploadOpen} onUpload={() => upload.mutate()} />
       <NewFolderDialog error={errorMessage(createFolder.error)} name={newFolderName} open={newFolderOpen} pending={createFolder.isPending} onNameChange={setNewFolderName} onOpenChange={setNewFolderOpen} onSubmit={() => createFolder.mutate()} />
       <RenameMoveDialog currentParentId={editParentId} error={errorMessage(updateObject.error)} folders={editFolders} mode={edit?.mode ?? "rename"} name={editName} open={Boolean(edit)} pending={updateObject.isPending} title={editName} onNameChange={setEditName} onOpenChange={(open) => { if (!open) setEdit(null); }} onParentChange={setEditParentId} onSubmit={() => updateObject.mutate()} />
       <DeleteObjectDialog error={errorMessage(removeObject.error)} failedFileCount={deleteFailed} fileCount={deleteFolder?.totalFileCount ?? (deleteDocument ? 1 : 0)} name={deleteFolder?.name ?? deleteDocument?.filename ?? "selected item"} open={Boolean(deleteTarget)} pending={removeObject.isPending} processingFileCount={deleteProcessing} type={deleteTarget?.kind ?? "file"} vectorCount={deleteFolder?.totalVectorCount ?? deleteDocument?.chunkCount ?? 0} onConfirm={() => removeObject.mutate()} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }} />
-      <Sheet open={Boolean(selectedDocument) && !fileAction && !searchOpen} onOpenChange={(open) => { if (!open) setSelection(null); }}>
+      <Sheet open={workspaceView === "files" && Boolean(selectedDocument) && !fileAction} onOpenChange={(open) => { if (!open) setSelection(null); }}>
         <SheetContent side="right" showCloseButton={false} className="!w-full gap-0 overflow-hidden p-0 sm:!w-[min(94vw,34rem)] sm:!max-w-[34rem]">
           <SheetHeader className="sr-only"><SheetTitle>File details</SheetTitle><SheetDescription>Selected Vector Database file summary</SheetDescription></SheetHeader>
           {renderSelectedDocumentDetails(() => setSelection(null))}
         </SheetContent>
       </Sheet>
-      <VectorDocumentActionSheet canManage={permissions.canUpdateVectorDatabases} databaseId={databaseId} document={actionDocument ?? null} initialView={fileAction?.view ?? "preview"} open={Boolean(fileAction) && !searchOpen} targetChunkId={fileAction?.targetChunkId} onOpenChange={(open) => { if (!open) setFileAction(null); }} onUpdated={() => void refresh()} />
-      <SearchVectorsSheet canViewContent={vectorDatabaseAvailable && permissions.canViewVectorDatabaseContent} currentFolderId={currentFolderId} currentFolderPath={currentFolder?.path ?? "/"} databaseId={databaseId} metadataSchema={overview.data.metadataSchema} open={searchOpen && !fileAction} onOpenChange={(open) => setSearchOpen(open)} onViewSource={({ chunkId, documentId }) => { const document = documents.find((item) => item.id === documentId); if (document) openFileAction(document, "chunks", { targetChunkId: chunkId }); }} />
+      <VectorDocumentActionSheet canManage={permissions.canUpdateVectorDatabases} databaseId={databaseId} document={actionDocument ?? null} initialView={fileAction?.view ?? "preview"} open={Boolean(fileAction)} targetChunkId={fileAction?.targetChunkId} onOpenChange={(open) => { if (!open) setFileAction(null); }} onUpdated={() => void refresh()} />
       <VectorDatabaseActivitySheet jobs={overview.data.jobs} open={activityOpen} onOpenChange={setActivityOpen} />
       <Sheet open={settingsOpen} onOpenChange={setSettingsOpen}><SheetContent side="right" className="w-[min(94vw,25rem)] sm:max-w-[25rem]"><SheetHeader className="sr-only"><SheetTitle>Database settings</SheetTitle><SheetDescription>Vector Database provider and index settings</SheetDescription></SheetHeader><VectorDatabaseProperties canManage={permissions.canUpdateVectorDatabases} overview={overview.data} onDelete={() => setDeleteDatabaseOpen(true)} onMove={() => undefined} onOpenFile={() => undefined} onRename={() => undefined} /></SheetContent></Sheet>
       <DeleteEntitySheet open={deleteDatabaseOpen} onOpenChange={setDeleteDatabaseOpen} title="Delete Vector Database" description={<>Permanently delete <strong>{database.name}</strong>.</>} entityName={database.name} confirmLabel="Delete Vector Database" deleting={removeDatabase.isPending} onConfirm={() => removeDatabase.mutate()} {...(errorMessage(removeDatabase.error) ? { error: errorMessage(removeDatabase.error) } : {})} impactDescription={`${overview.data.stats.documentCount} files and ${overview.data.stats.chunkCount} Vector Records will be deleted permanently. ${overview.data.stats.processingDocumentCount} files are processing and ${overview.data.stats.failedDocumentCount} have failed.`} />
+
+      {successToast ? (
+        <Toast
+          key={successToast.id}
+          open
+          onOpenChange={(open) => { if (!open) setSuccessToast(null); }}
+          className="border-success-border border-l-2"
+        >
+          <div className="flex items-start gap-3">
+            <span className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-full bg-success-surface text-success-foreground">
+              <CheckCircle2 className="size-4" />
+            </span>
+            <span>
+              <ToastTitle>{successToast.title}</ToastTitle>
+              <ToastDescription>{successToast.description}</ToastDescription>
+            </span>
+          </div>
+          <ToastClose className="size-11" />
+        </Toast>
+      ) : null}
     </div>
   );
 }

@@ -489,18 +489,19 @@ describe("OpenShell Kubernetes command contract", () => {
         hermesInput.agentPlatform,
       ).at(-1),
     ).toContain("127.0.0.1:8642/health");
-    expect(
-      openShellTerminalArguments(
-        hermesInput.name,
-        hermesInput.agentPlatform,
-      ).at(-1),
-    ).toBe("exec hermes --tui");
-    expect(
-      nemoClawTerminalArguments(
-        hermesInput.name,
-        hermesInput.agentPlatform,
-      ).at(-1),
-    ).toBe("exec hermes --tui");
+    const openShellTerminal = openShellTerminalArguments(
+      hermesInput.name,
+      hermesInput.agentPlatform,
+    ).at(-1);
+    const nemoClawTerminal = nemoClawTerminalArguments(
+      hermesInput.name,
+      hermesInput.agentPlatform,
+    ).at(-1);
+    expect(openShellTerminal).toContain(
+      "TALI_DURABLE_MEMORY_TOKEN=\"${TALI_DURABLE_MEMORY_TOKEN:-${TALI_PROJECT_RUNTIME_BRIDGE_TOKEN:-}}\"",
+    );
+    expect(openShellTerminal).toContain("exec hermes --tui");
+    expect(nemoClawTerminal).toBe(openShellTerminal);
 
     const bootstrap = getAgentPlatformRuntime("hermes").bootstrapScript(
       "https://hermes.example.test",
@@ -525,6 +526,7 @@ describe("OpenShell Kubernetes command contract", () => {
       '--vector-database-registry-token "$TALI_PROJECT_RUNTIME_BRIDGE_TOKEN"',
     );
     expect(bootstrap).toContain("--durable-memory-provider tali_relay");
+    expect(bootstrap).toContain("--durable-memory-endpoint");
     expect(bootstrap).toContain("TALI_DURABLE_MEMORY_ENDPOINT");
     expect(bootstrap).not.toContain("tali_prc_v1.test-payload.test-signature");
     expect(bootstrap).toContain(

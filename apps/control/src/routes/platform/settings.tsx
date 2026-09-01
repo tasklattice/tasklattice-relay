@@ -66,6 +66,7 @@ import {
 } from "@/components/layout/context-settings-navigation";
 import { CreateProjectSheet } from "@/components/project/create-project-sheet";
 import { EntitySheet } from "@/components/shared/entity-sheet";
+import { StatusBadge } from "@/components/shared/status";
 import { ProviderIcon } from "@/components/providers/provider-icon";
 import { PageHeader } from "@/components/layout/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -1018,7 +1019,7 @@ function DepartmentRow({ department }: { department: PlatformOrganizationView["d
   return (
     <div className="grid min-h-24 gap-4 px-5 py-4 lg:grid-cols-[minmax(0,1.5fr)_minmax(12rem,1fr)_8rem_8rem] lg:items-center lg:px-6">
       <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-2"><strong className="text-sm">{department.name}</strong><code className="text-[11px] text-muted-foreground">{department.id}</code><Badge variant="outline" className={department.status === "active" ? "border-emerald-500/25 text-emerald-700 dark:text-emerald-300" : ""}>{department.status}</Badge></div>
+        <div className="flex flex-wrap items-center gap-2"><strong className="text-sm">{department.name}</strong><code className="text-[11px] text-muted-foreground">{department.id}</code><StatusBadge label={department.status === "active" ? "Active" : "Inactive"} tone={department.status === "active" ? "info" : "neutral"} /></div>
         <p className="mt-1 truncate text-xs text-muted-foreground">{department.description || "No Department description."}</p>
       </div>
       <div className="min-w-0">
@@ -1489,19 +1490,19 @@ function CreateDepartmentSheet({ onCreated, onOpenChange, open, people }: { onCr
     >
       <form id="create-department-form" onSubmit={submit} className="space-y-7">
         <div className="space-y-2">
-          <Label htmlFor="department-name">Department name</Label>
-          <Input id="department-name" autoFocus value={name} maxLength={scopedEntityNameLimits.max} aria-invalid={Boolean(name) && !validatedName.success} onChange={(event) => { const next = event.target.value; setName(next); if (!idEdited) setId(scopedEntityIdFromName(next)); create.reset(); }} placeholder="Research & Development" />
+          <Label htmlFor="department-name" required>Department name</Label>
+          <Input id="department-name" autoFocus required value={name} maxLength={scopedEntityNameLimits.max} aria-invalid={Boolean(name) && !validatedName.success} onChange={(event) => { const next = event.target.value; setName(next); if (!idEdited) setId(scopedEntityIdFromName(next)); create.reset(); }} placeholder="Research & Development" />
           <p className="text-xs leading-5 text-muted-foreground">{scopedEntityNameLimits.min}–{scopedEntityNameLimits.max} characters. Slashes, backslashes, and control characters are not allowed.</p>
           {name && !validatedName.success ? <p className="text-xs text-destructive" role="alert">{validatedName.error.issues[0]?.message}</p> : null}
         </div>
         <div className="space-y-2">
-          <Label htmlFor="department-id">Department ID</Label>
-          <Input id="department-id" className="font-mono" value={id} maxLength={scopedEntityIdLimits.max} aria-invalid={Boolean(id) && !validatedId.success} onChange={(event) => { setIdEdited(true); setId(event.target.value.toLowerCase()); create.reset(); }} placeholder="research-development" aria-describedby="department-id-help" />
+          <Label htmlFor="department-id" required>Department ID</Label>
+          <Input id="department-id" className="font-mono" required value={id} maxLength={scopedEntityIdLimits.max} aria-invalid={Boolean(id) && !validatedId.success} onChange={(event) => { setIdEdited(true); setId(event.target.value.toLowerCase()); create.reset(); }} placeholder="research-development" aria-describedby="department-id-help" />
           <p id="department-id-help" className="text-xs leading-5 text-muted-foreground">Immutable ID used in APIs, ownership references, and SSO paths. Use {scopedEntityIdLimits.min}–{scopedEntityIdLimits.max} lowercase letters, numbers, or hyphens.</p>
           {id && !validatedId.success ? <p className="text-xs text-destructive" role="alert">{validatedId.error.issues[0]?.message}</p> : null}
         </div>
         <div className="space-y-2"><Label htmlFor="department-description">Description</Label><Textarea id="department-description" value={description} onChange={(event) => setDescription(event.target.value)} placeholder="What this Department owns…" /></div>
-        <div className="space-y-2"><Label htmlFor="department-administrator">Initial Department Administrator</Label><Select value={administratorUserId} onValueChange={setAdministratorUserId}><SelectTrigger id="department-administrator" size="lg" className="w-full"><SelectValue placeholder="Select an active person" /></SelectTrigger><SelectContent>{activePeople.map((person) => <SelectItem key={person.id} value={person.id}>{person.displayName} · {person.email}</SelectItem>)}</SelectContent></Select><p className="text-xs leading-5 text-muted-foreground">This assignment does not grant Platform Administrator or Project Administrator access.</p></div>
+        <div className="space-y-2"><Label htmlFor="department-administrator" required>Initial Department Administrator</Label><Select value={administratorUserId} onValueChange={setAdministratorUserId} required><SelectTrigger id="department-administrator" size="lg" className="w-full"><SelectValue placeholder="Select an active person" /></SelectTrigger><SelectContent>{activePeople.map((person) => <SelectItem key={person.id} value={person.id}>{person.displayName} · {person.email}</SelectItem>)}</SelectContent></Select><p className="text-xs leading-5 text-muted-foreground">This assignment does not grant Platform Administrator or Project Administrator access.</p></div>
         {create.error ? <p className="border-l-2 border-destructive bg-destructive/5 px-3 py-2 text-sm text-destructive" role="alert">{create.error.message}</p> : null}
       </form>
     </EntitySheet>
@@ -1953,8 +1954,8 @@ function ExternalRoleBindingSheet({
         }}
       >
         <div className="space-y-2">
-          <Label htmlFor="binding-scope">Scope</Label>
-          <Select value={scope} onValueChange={(value) => changeScope(value as ExternalRoleBindingScope)}>
+          <Label htmlFor="binding-scope" required>Scope</Label>
+          <Select value={scope} onValueChange={(value) => changeScope(value as ExternalRoleBindingScope)} required>
             <SelectTrigger id="binding-scope" size="lg" className="w-full"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="PLATFORM">Platform</SelectItem>
@@ -1965,8 +1966,8 @@ function ExternalRoleBindingSheet({
         </div>
         {scope !== "PLATFORM" ? (
           <div className="space-y-2">
-            <Label htmlFor="binding-department">Department</Label>
-            <Select value={departmentId} onValueChange={(value) => { setDepartmentId(value); setProjectId(""); }}>
+            <Label htmlFor="binding-department" required>Department</Label>
+            <Select value={departmentId} onValueChange={(value) => { setDepartmentId(value); setProjectId(""); }} required>
               <SelectTrigger id="binding-department" size="lg" className="w-full"><SelectValue placeholder={organization.isPending ? "Loading Departments…" : "Select Department"} /></SelectTrigger>
               <SelectContent>
                 {organization.data?.departments.map((department) => (
@@ -1978,8 +1979,8 @@ function ExternalRoleBindingSheet({
         ) : null}
         {scope === "PROJECT" ? (
           <div className="space-y-2">
-            <Label htmlFor="binding-project">Project</Label>
-            <Select value={projectId} onValueChange={setProjectId} disabled={!departmentId}>
+            <Label htmlFor="binding-project" required>Project</Label>
+            <Select value={projectId} onValueChange={setProjectId} disabled={!departmentId} required>
               <SelectTrigger id="binding-project" size="lg" className="w-full"><SelectValue placeholder="Select Project" /></SelectTrigger>
               <SelectContent>
                 {selectedDepartment?.projects.map((project) => (
@@ -1990,8 +1991,8 @@ function ExternalRoleBindingSheet({
           </div>
         ) : null}
         <div className="space-y-2">
-          <Label htmlFor="binding-role">Role</Label>
-          <Select value={roleId} onValueChange={(value) => setRoleId(value as ExternalRoleBindingInput["roleId"])}>
+          <Label htmlFor="binding-role" required>Role</Label>
+          <Select value={roleId} onValueChange={(value) => setRoleId(value as ExternalRoleBindingInput["roleId"])} required>
             <SelectTrigger id="binding-role" size="lg" className="w-full"><SelectValue /></SelectTrigger>
             <SelectContent>
               {roleOptions.map((role) => (
@@ -2164,7 +2165,7 @@ function EmailSettings({ settings }: { settings: PlatformSettingsView }) {
 }
 
 function SecurityStatusRow({ description, enabled, icon: Icon, title }: { description: string; enabled: boolean; icon: typeof Shield; title: string }) {
-  return <div className="flex min-h-20 items-center gap-3 py-3"><span className="grid size-9 shrink-0 place-items-center rounded-md bg-muted/55 text-muted-foreground"><Icon className="size-4" /></span><span className="min-w-0 flex-1"><strong className="block text-sm">{title}</strong><span className="mt-0.5 block text-xs text-muted-foreground">{description}</span></span><Badge variant="outline" className={enabled ? "border-emerald-500/25 text-emerald-700 dark:text-emerald-300" : ""}>{enabled ? "Enabled" : "Disabled"}</Badge></div>;
+  return <div className="flex min-h-20 items-center gap-3 py-3"><span className="grid size-9 shrink-0 place-items-center rounded-md bg-muted/55 text-muted-foreground"><Icon className="size-4" /></span><span className="min-w-0 flex-1"><strong className="block text-sm">{title}</strong><span className="mt-0.5 block text-xs text-muted-foreground">{description}</span></span><StatusBadge label={enabled ? "Enabled" : "Disabled"} tone={enabled ? "info" : "neutral"} /></div>;
 }
 
 function ReadOnlySetting({ id, label, placeholder, value }: { id: string; label: string; placeholder?: string; value: string }) {

@@ -46,6 +46,7 @@ import {
   getSpecialization,
   type SpecializationId,
 } from "@/components/agents/specializations";
+import { StatusBanner } from "@/components/shared/status";
 import { CreationFlow } from "@/components/shared/creation-flow";
 import { EntitySheet } from "@/components/shared/entity-sheet";
 import { Button } from "@/components/ui/button";
@@ -713,14 +714,14 @@ export function CreateInstanceSheet({
 
   const shellProps = {
     description:
-      "Deploy one Project-scoped Instance from a reusable Agent definition.",
-    eyebrow: "Agent Instance",
+      "Provision one Project-scoped Supervisor from a reusable Agent definition, then review its capabilities and runtime boundaries.",
+    eyebrow: "Supervisor runtime",
     onOpenChange: (next: boolean) => {
       if (mutation.isPending) return;
       if (!next) discardAndClose();
     },
     open,
-    title: "Create Agent Instance",
+    title: "Create Supervisor",
     width: "xl" as const,
   };
 
@@ -850,7 +851,7 @@ export function CreateInstanceSheet({
                       (item) => item.id === durableMemoryId,
                     );
                   const reason = instanceName.length < 3
-                    ? "Enter an Instance name using 3–64 characters."
+                    ? "Enter a Supervisor name using 3–64 characters."
                     : memoryReadinessPending
                       ? "Checking Project embedding model availability…"
                       : durableMemoryFeatureEnabled
@@ -991,7 +992,7 @@ export function CreateInstanceSheet({
                       || modelRoutings.error
                       ? "Resolve the policy or routing loading error before creating."
                       : !canSubmit
-                        ? "Review the required fields before creating this Instance."
+                        ? "Review the required fields before creating this Supervisor."
                         : !String(policyId)
                           || !selectedIds.length
                           || !selectedAreActive
@@ -1017,8 +1018,8 @@ export function CreateInstanceSheet({
                       >
                         <ShieldCheck />{" "}
                         {mutation.isPending
-                          ? "Creating Instance…"
-                          : "Approve and Create Instance"}
+                          ? "Creating Supervisor…"
+                          : "Approve and Create Supervisor"}
                       </Button>
                     </FooterAction>
                   );
@@ -1040,7 +1041,7 @@ export function CreateInstanceSheet({
               role="status"
               className="border-l-2 border-primary bg-primary/5 px-4 py-3 text-xs leading-5"
             >
-              Your unfinished Instance draft was restored for this browser tab.
+              Your unfinished Supervisor draft was restored for this browser tab.
             </p>
           ) : null}
           {step === 0 ? (
@@ -1164,7 +1165,7 @@ export function CreateInstanceSheet({
                   </CardTitle>
                   <CardDescription>
                     Set the access, execution, and model-routing boundaries for
-                    this Instance.
+                    this Supervisor.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-5">
@@ -1197,7 +1198,8 @@ export function CreateInstanceSheet({
                               <FieldLabel
                                 htmlFor="instance-access-policies"
                                 label="Access Policies"
-                                tip="One or more active policies define the MCP tools this Instance may invoke. Deny overrides allow when policies overlap."
+                                required
+                                tip="One or more active policies define the MCP tools this Supervisor may invoke. Deny overrides allow when policies overlap."
                               />
                               <Link
                                 to="/$projectId/access-policies"
@@ -1210,6 +1212,7 @@ export function CreateInstanceSheet({
                             <MultiSelectCombobox
                               id="instance-access-policies"
                               ariaLabel="Select Access Policies"
+                              required
                               value={selectedIds}
                               options={accessPolicyOptions}
                               maxSelected={64}
@@ -1346,7 +1349,9 @@ export function CreateInstanceSheet({
                           <div className="space-y-2">
                             <div className="flex flex-col gap-1 sm:min-h-11 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                               <FieldLabel
+                                htmlFor="instance-sandbox-policy"
                                 label="Sandbox Policy"
+                                required
                                 tip="Controls the files, commands, and network resources the Agent can access while it runs."
                               />
                               <Link
@@ -1358,6 +1363,7 @@ export function CreateInstanceSheet({
                               </Link>
                             </div>
                             <Select
+                              required
                               value={field.state.value}
                               disabled={
                                 policies.isPending || Boolean(policies.error)
@@ -1373,6 +1379,7 @@ export function CreateInstanceSheet({
                               }}
                             >
                               <SelectTrigger
+                                id="instance-sandbox-policy"
                                 aria-label="Sandbox Policy"
                                 className="h-auto min-h-14 w-full"
                               >
@@ -1442,7 +1449,8 @@ export function CreateInstanceSheet({
                                 <FieldLabel
                                   htmlFor="instance-model-routing"
                                   label="Routing"
-                                  tip="Select the LiteLLM-managed routing configuration for this Instance. The Project default is preselected when available."
+                                  required
+                                  tip="Select the LiteLLM-managed routing configuration for this Supervisor. The Project default is preselected when available."
                                 />
                                 <nav
                                   aria-label="Manage routing settings"
@@ -1467,6 +1475,7 @@ export function CreateInstanceSheet({
                                 </nav>
                               </div>
                               <Select
+                                required
                                 value={field.state.value}
                                 disabled={
                                   modelRoutings.isPending ||
@@ -1537,13 +1546,13 @@ export function CreateInstanceSheet({
                                 !modelRoutings.data?.length ? (
                                 <p className="border-l-2 border-amber-500 bg-amber-500/5 px-3 py-2 text-xs">
                                   Configure routing before creating an
-                                  Instance.
+                                  Supervisor.
                                 </p>
                               ) : !modelRoutings.isPending &&
                                 !hasReadyRouting ? (
                                 <p className="border-l-2 border-amber-500 bg-amber-500/5 px-3 py-2 text-xs">
                                   No ready routing is available. Resolve
-                                  validation before creating an Instance.
+                                  validation before creating a Supervisor.
                                 </p>
                               ) : selectedRouting?.status !== "READY" ? (
                                 <p className="border-l-2 border-amber-500 bg-amber-500/5 px-3 py-2 text-xs">
@@ -1556,9 +1565,9 @@ export function CreateInstanceSheet({
                                 >
                                   {selectedRouting.isDefault
                                     ? "Project default selected"
-                                    : "Instance-specific override"}
+                                    : "Supervisor-specific override"}
                                   {" · "}an isolated LiteLLM key will be
-                                  provisioned for this Instance.
+                                  provisioned for this Supervisor.
                                 </p>
                               )}
                             </div>
@@ -1649,7 +1658,7 @@ export function CreateInstanceSheet({
 
                       <ReviewGroup
                         title="Security Boundaries"
-                        description="Execution, access, and inference controls applied to this Instance."
+                        description="Execution, access, and inference controls applied to this Supervisor."
                       >
                         <dl className="grid gap-5 sm:grid-cols-3">
                           <ReviewFact
@@ -1683,11 +1692,11 @@ export function CreateInstanceSheet({
 
                       <ReviewGroup
                         title="Agent Definition"
-                        description="The reusable Agent definition, deployed Instance name, and Memory continuity."
+                        description="The reusable Agent definition, deployed Supervisor name, and Memory continuity."
                       >
                         <dl className="grid gap-5 sm:grid-cols-3">
                           <ReviewFact
-                            label="Instance name"
+                            label="Supervisor name"
                             value={values.name}
                           />
                           <ReviewFact
@@ -1706,7 +1715,7 @@ export function CreateInstanceSheet({
                                   ? `Continue · ${availableDurableMemories.find((item) => item.id === durableMemoryId)?.displayName ?? "Existing Memory"}`
                                   : durableMemoryAvailable
                                     ? "Durable Memory · automatic"
-                                    : "Native text Memory · Instance-scoped"
+                                    : "Native text Memory · Supervisor-scoped"
                             }
                           />
                         </dl>
@@ -1716,7 +1725,7 @@ export function CreateInstanceSheet({
 
                       <ReviewGroup
                         title="Toolbox"
-                        description="Instructions, tools, and knowledge available to this Instance."
+                        description="Instructions, tools, and knowledge available to this Supervisor."
                       >
                         <dl className="mb-5 grid gap-5 border-b pb-5 sm:grid-cols-2">
                           <ReviewFact
@@ -1728,7 +1737,7 @@ export function CreateInstanceSheet({
                             value={
                               specialization.id === "custom" ||
                               currentSystemPrompt !== specialization.systemPrompt
-                                ? "Customized for this Instance"
+                                ? "Customized for this Supervisor"
                                 : "Using preset instructions"
                             }
                           />
@@ -2141,15 +2150,17 @@ function SandboxPolicyIdentity({
 function FieldLabel({
   htmlFor,
   label,
+  required = false,
   tip,
 }: {
   htmlFor?: string;
   label: string;
+  required?: boolean;
   tip: string;
 }) {
   return (
     <div className="flex items-center gap-0.5">
-      <Label htmlFor={htmlFor}>{label}</Label>
+      <Label htmlFor={htmlFor} required={required}>{label}</Label>
       <Tooltip>
         <TooltipTrigger asChild>
           <button
@@ -2182,7 +2193,7 @@ function ReviewAssessment({
   const warnings = [
     ...(!accessPolicyNames.length
       ? [
-          "Select at least one active Access Policy before creating this Instance.",
+          "Select at least one active Access Policy before creating this Supervisor.",
         ]
       : []),
     ...(incompleteMcpNames.length
@@ -2193,50 +2204,27 @@ function ReviewAssessment({
   ];
 
   return (
-    <section
-      aria-labelledby="creation-assessment-heading"
-      className={
-        warnings.length
-          ? "border border-amber-500/30 bg-amber-500/5 p-4"
-          : "border border-emerald-500/30 bg-emerald-500/5 p-4"
-      }
+    <StatusBanner
+      tone={warnings.length ? "warning" : "success"}
+      title={warnings.length ? "Ready with attention required" : "Ready to create"}
     >
-      <div className="flex items-start gap-3">
-        {warnings.length ? (
-          <CircleAlert className="mt-0.5 size-5 shrink-0 text-amber-700 dark:text-amber-300" />
-        ) : (
-          <ShieldCheck className="mt-0.5 size-5 shrink-0 text-emerald-700 dark:text-emerald-300" />
-        )}
-        <div className="min-w-0">
-          <h3
-            id="creation-assessment-heading"
-            className="text-sm font-semibold"
-          >
-            {warnings.length
-              ? "Ready with attention required"
-              : "Ready to create"}
-          </h3>
-          <p className="mt-1 text-xs leading-5 text-muted-foreground">
-            Required deployment controls are complete: Agent definition,
-            Memory, Toolbox, Access Policies, Sandbox Policy, and Routing.
-          </p>
-          {accessPolicyNames.length ? (
-            <p className="mt-2 text-xs leading-5">
-              <span className="text-muted-foreground">
-                Effective Access Policies:
-              </span>{" "}
-              <strong>{accessPolicyNames.join(", ")}</strong>
-            </p>
-          ) : null}
-          {warnings.length ? (
-            <ul className="mt-2 space-y-1 text-xs leading-5">
-              {warnings.map((warning) => (
-                <li key={warning}>• {warning}</li>
-              ))}
-            </ul>
-          ) : null}
-        </div>
-      </div>
-    </section>
+      <p>
+        Required deployment controls are complete: Agent definition, Memory,
+        capabilities, Access Policies, Sandbox Policy, and Routing.
+      </p>
+      {accessPolicyNames.length ? (
+        <p className="mt-2">
+          <span>Effective Access Policies:</span>{" "}
+          <strong className="font-semibold text-foreground">{accessPolicyNames.join(", ")}</strong>
+        </p>
+      ) : null}
+      {warnings.length ? (
+        <ul className="mt-2 space-y-1 text-foreground">
+          {warnings.map((warning) => (
+            <li key={warning}>• {warning}</li>
+          ))}
+        </ul>
+      ) : null}
+    </StatusBanner>
   );
 }

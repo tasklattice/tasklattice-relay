@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { AgentGardenEntry } from "@tali/contracts";
+import { runLangGraphSupportDemo } from "@tali/expert-agent-runtime/library";
 import { demoAgentMessageInputSchema } from "../api-contracts/schemas";
 import { exampleStoreAgentDefinitions } from "./example-store-agent-definitions";
 
@@ -188,7 +189,7 @@ export const demoAgentDefinitions: DemoAgentDefinition[] = [
       "Route a billing dispute from an enterprise customer with a production outage.",
       "Classify this support case and show where human approval is required.",
     ],
-    trace: ["Classify", "Policy check", "Approval gate", "Response handoff"],
+    trace: ["Normalize input", "Classify case", "Policy check", "Approval gate", "Response handoff"],
     response: (prompt) => [
       "LangGraph workflow preview",
       "",
@@ -198,7 +199,7 @@ export const demoAgentDefinitions: DemoAgentDefinition[] = [
       "Next action: acknowledge the outage now, then attach the approved remediation plan.",
       "",
       `Task interpreted as: “${prompt.slice(0, 180)}”`,
-      "The graph trace is simulated and no ticketing system was changed.",
+      "The preview executes a real LangGraph StateGraph with deterministic policy data and does not change a ticketing system.",
     ].join("\n"),
   },
 ];
@@ -207,6 +208,7 @@ export const demoAgentDefinitions: DemoAgentDefinition[] = [
 export const hermesMvpA2aAgentIds = [
   "a2a-github-daily-triage",
   "a2a-pull-request-risk-scanner",
+  "langgraph-support-escalation-router",
 ] as const;
 
 export function demoTestImageReference(): string {
@@ -255,33 +257,121 @@ export function demoAgentCard(id: string) {
   };
 }
 
-export function runDemoAgentMessage(id: string, rawInput: unknown) {
+export type DemoAgentLogSink = (line: string) => void;
+
+function stdoutDemoLog(line: string): void {
+  console.log(line);
+}
+
+export async function runDemoAgentMessage(
+  id: string,
+  rawInput: unknown,
+  logSink: DemoAgentLogSink = stdoutDemoLog,
+) {
   const definition = getDemoAgentDefinition(id);
   const input = demoAgentMessageInputSchema.parse(rawInput);
   const prompt = input.params.message.parts
     .map((part) => part.text)
     .join("\n")
     .trim();
-  return {
-    jsonrpc: "2.0",
-    id: input.id,
-    result: {
-      message: {
-        messageId: randomUUID(),
-        role: "ROLE_AGENT",
-        parts: [
-          {
-            text: definition.response(prompt),
+  const startedAt = Date.now();
+  const runId = typeof input.id === "string" || typeof input.id === "number"
+    ? String(input.id)
+    : randomUUID();
+  const runtimeLogs: string[] = [];
+  const emit = (
+    level: "info" | "warn" | "error",
+    event: string,
+    fields: Record<string, boolean | number | string | null> = {},
+  ) => {
+    const line = JSON.stringify({
+      timestamp: new Date().toISOString(),
+      level,
+      event,
+      component: "agent-garden-demo",
+      agentId: definition.id,
+      runId,
+      messageId: input.params.message.messageId,
+      ...fields,
+    });
+    runtimeLogs.push(line);
+    logSink(line);
+  };
+  emit("info", "agent.demo.run.started", {
+    framework: definition.framework ?? "A2A SDK",
+    promptLength: prompt.length,
+  });
+
+  try {
+    const graphRun = definition.id === "langgraph-support-escalation-router"
+      ? await runLangGraphSupportDemo(prompt)
+      : undefined;
+    const occurredAt = new Date().toISOString();
+    const traceEvents = graphRun?.traceEvents ?? definition.trace.map((step) => ({
+      step,
+      status: "COMPLETED" as const,
+      summary: `${step} completed with deterministic sample data.`,
+      occurredAt,
+      attributes: { simulated: true },
+    }));
+    for (const traceEvent of traceEvents) {
+      const attributes: Record<string, boolean | number | string | null> =
+        traceEvent.attributes;
+      emit(traceEvent.status === "FAILED" ? "error" : "info", "agent.demo.trace", {
+        step: traceEvent.step,
+        status: traceEvent.status,
+        ...(typeof attributes.attempt === "number"
+          ? { attempt: attributes.attempt }
+          : {}),
+        ...(typeof attributes.outcome === "string"
+          ? { outcome: attributes.outcome }
+          : {}),
+      });
+    }
+    const executionRuntime = graphRun
+      ? "LANGGRAPH_STATE_GRAPH"
+      : "DETERMINISTIC_SAMPLE";
+    emit("info", "agent.demo.run.finished", {
+      status: "SUCCEEDED",
+      durationMs: Date.now() - startedAt,
+      executionRuntime,
+      traceEventCount: traceEvents.length,
+    });
+    return {
+      jsonrpc: "2.0",
+      id: input.id,
+      result: {
+        message: {
+          messageId: randomUUID(),
+          role: "ROLE_AGENT",
+          parts: [
+            {
+              text: graphRun?.text ?? definition.response(prompt),
+            },
+          ],
+          metadata: {
+            demo: true,
+            simulatedBehavior: !graphRun,
+            agentId: definition.id,
+            protocol: "A2A 1.0",
+            framework: definition.framework ?? "A2A SDK",
+            executionRuntime,
+            trace: traceEvents
+              .filter((event) => event.status === "COMPLETED")
+              .map((event) => event.step),
+            traceEvents,
+            runtimeLogs,
+            ...(graphRun ? { data: graphRun.data } : {}),
           },
-        ],
-        metadata: {
-          demo: true,
-          agentId: definition.id,
-          protocol: "A2A 1.0",
-          framework: definition.framework ?? "A2A SDK",
-          trace: definition.trace,
         },
       },
-    },
-  };
+    };
+  } catch (error) {
+    emit("error", "agent.demo.run.failed", {
+      status: "FAILED",
+      durationMs: Date.now() - startedAt,
+      errorType: error instanceof Error ? error.name : "UnknownError",
+    });
+    throw error;
+  }
 }

@@ -15,24 +15,24 @@ describe("Instance list column preferences", () => {
   it("keeps supported columns once and in the product-defined order", () => {
     expect(
       parseHiddenInstanceColumns(
-        JSON.stringify(["updatedAt", "unknown", "createdAt", "updatedAt"]),
+        JSON.stringify(["updatedAt", "unknown", "version", "updatedAt"]),
       ),
-    ).toEqual(["createdAt", "updatedAt"]);
+    ).toEqual(["version", "updatedAt"]);
   });
 
   it("toggles a column without disturbing the stable column order", () => {
-    expect(toggleHiddenInstanceColumn(["updatedAt"], "createdAt")).toEqual([
-      "createdAt",
+    expect(toggleHiddenInstanceColumn(["updatedAt"], "version")).toEqual([
+      "version",
       "updatedAt",
     ]);
     expect(
-      toggleHiddenInstanceColumn(["createdAt", "updatedAt"], "createdAt"),
+      toggleHiddenInstanceColumn(["version", "updatedAt"], "version"),
     ).toEqual(["updatedAt"]);
   });
 
   it("removes hidden tracks while retaining the identity and actions tracks", () => {
     const visible = instanceListGridTemplate([]);
-    const hidden = instanceListGridTemplate(["createdAt", "updatedAt"]);
+    const hidden = instanceListGridTemplate(["version", "updatedAt"]);
 
     expect(visible).toContain("minmax(13rem,1.3fr)");
     expect(visible).toContain("minmax(7.5rem,.65fr)");

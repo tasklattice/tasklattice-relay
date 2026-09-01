@@ -7,15 +7,17 @@ import { agentPlatformPresentations, getAgentPlatformPresentation } from "@/lib/
 export function AgentSelect({
   id,
   onValueChange,
+  required = false,
   value,
 }: {
   id?: string;
   onValueChange: (value: AgentPlatformId) => void;
+  required?: boolean;
   value: AgentPlatformId;
 }) {
   const selected = getAgentPlatformPresentation(value);
   return (
-    <Select value={value} onValueChange={(next) => onValueChange(next as AgentPlatformId)}>
+    <Select required={required} value={value} onValueChange={(next) => onValueChange(next as AgentPlatformId)}>
       <SelectTrigger id={id} className="h-auto min-h-16 w-full py-2.5">
         <SelectValue>
           <AgentIdentity platform={selected} />

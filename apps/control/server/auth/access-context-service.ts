@@ -53,7 +53,9 @@ const projectRoleDescriptions: Record<ProjectMembershipRole, string> = {
 
 function projectRoleTarget(projectId: string, role: ProjectMembershipRole): string {
   const projectRoot = `/${encodeURIComponent(projectId)}`;
-  return role === "admin" ? projectRoot : `${projectRoot}/instances`;
+  return role === "admin" || role === "developer"
+    ? projectRoot
+    : `${projectRoot}/instances`;
 }
 
 const membershipByBuiltinRole = Object.fromEntries(

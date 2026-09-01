@@ -193,6 +193,7 @@ export class AgentGardenStore {
         kind: "A2A",
         catalogAgentId: parsed.agentId,
         ownerUserId,
+        createdByUserId: ownerUserId,
         payload: managedInstancePayload(parsed),
         createdAt: new Date(parsed.createdAt),
         updatedAt: new Date(parsed.updatedAt),
@@ -227,12 +228,21 @@ export class AgentGardenStore {
             },
           },
         },
+        creatorMembership: {
+          select: {
+            user: {
+              select: { id: true, displayName: true, username: true },
+            },
+          },
+        },
       },
     });
     return row
       ? a2aAgentInstanceSchema.parse({
           ...(row.payload as object),
-          createdBy: managedInstanceCreator(row.ownerMembership.user),
+          createdBy: managedInstanceCreator(
+            row.creatorMembership?.user ?? row.ownerMembership.user,
+          ),
         })
       : undefined;
   }
@@ -256,12 +266,21 @@ export class AgentGardenStore {
             },
           },
         },
+        creatorMembership: {
+          select: {
+            user: {
+              select: { id: true, displayName: true, username: true },
+            },
+          },
+        },
       },
     });
     return row
       ? a2aAgentInstanceSchema.parse({
           ...(row.payload as object),
-          createdBy: managedInstanceCreator(row.ownerMembership.user),
+          createdBy: managedInstanceCreator(
+            row.creatorMembership?.user ?? row.ownerMembership.user,
+          ),
         })
       : undefined;
   }
@@ -286,11 +305,20 @@ export class AgentGardenStore {
             },
           },
         },
+        creatorMembership: {
+          select: {
+            user: {
+              select: { id: true, displayName: true, username: true },
+            },
+          },
+        },
       },
     });
     return rows.map((row) => a2aAgentInstanceSchema.parse({
       ...(row.payload as object),
-      createdBy: managedInstanceCreator(row.ownerMembership.user),
+      createdBy: managedInstanceCreator(
+        row.creatorMembership?.user ?? row.ownerMembership.user,
+      ),
     }));
   }
 

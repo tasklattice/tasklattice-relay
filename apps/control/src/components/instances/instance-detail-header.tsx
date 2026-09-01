@@ -1,5 +1,8 @@
 import type {
   AgentInstanceCapabilityView,
+  AgentInstanceRole,
+  AgentProductForm,
+  AgentProtocolView,
   Instance as Agent,
 } from "@tali/contracts";
 import { Link } from "@tanstack/react-router";
@@ -55,15 +58,21 @@ export function InstanceHeader({
   agent,
   canDelete,
   capabilities,
+  form,
   onDelete,
   platform,
+  protocol,
+  role,
 }: {
   access: InstanceAccessState;
   agent: Agent;
   canDelete: boolean;
   capabilities: AgentInstanceCapabilityView;
+  form: AgentProductForm;
   onDelete: () => void;
   platform: AgentPlatformPresentation;
+  protocol?: AgentProtocolView;
+  role: AgentInstanceRole;
 }) {
   const projectId = useCurrentProjectId();
   return (
@@ -97,9 +106,12 @@ export function InstanceHeader({
               <InstanceStatusBadge status={agent.status} />
             </div>
             <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-              <span>{platform.name} Agent</span>
+              <span>{form === "INTERACTIVE" ? "Interactive Agent" : form === "SERVICE" ? "Service Agent" : "Hybrid Agent"}</span>
               <span aria-hidden="true">·</span>
-              <span>{platform.runtimeName}</span>
+              <span>{role === "SUPERVISOR" ? "Supervisor role" : role === "SPECIALIST" ? "Specialist role" : "Hybrid role"}</span>
+              {protocol ? <><span aria-hidden="true">·</span><span>A2A {protocol.direction.join(" + ")}</span></> : null}
+              <span aria-hidden="true">·</span>
+              <span>{platform.name} · {platform.runtimeName}</span>
               <span aria-hidden="true">·</span>
               <span>
                 Updated <RelativeTime value={agent.updatedAt} />

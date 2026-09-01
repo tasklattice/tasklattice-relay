@@ -77,6 +77,28 @@ print(json.dumps(document))
     expect(result.stdout).not.toContain("bank");
   });
 
+  it("persists only the validated Durable Memory endpoint in the managed environment", () => {
+    const program = `
+import importlib.util
+import sys
+spec = importlib.util.spec_from_file_location("tali_bootstrap", sys.argv[1])
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+endpoint = "http://runtime-bridge.project.svc.cluster.local:8080/v1/memory/coordinators/agent-a"
+module.validate_durable_memory_endpoint(endpoint)
+print(module.set_environment_value(b"HERMES_HOME=/sandbox/.hermes\\n", "TALI_DURABLE_MEMORY_ENDPOINT", endpoint).decode(), end="")
+`;
+    const result = spawnSync("python3", ["-c", program, bootstrap], {
+      encoding: "utf8",
+    });
+    expect(result.status, result.stderr).toBe(0);
+    expect(result.stdout).toContain("HERMES_HOME=/sandbox/.hermes");
+    expect(result.stdout).toContain(
+      "TALI_DURABLE_MEMORY_ENDPOINT=http://runtime-bridge.project.svc.cluster.local:8080/v1/memory/coordinators/agent-a",
+    );
+    expect(result.stdout).not.toContain("TOKEN=");
+  });
+
   it("enables the pinned Relay A2A plugin and Kanban for Bridge peers", () => {
     const program = `
 import importlib.util
@@ -223,6 +245,10 @@ custom_providers:
       "https://inference.local/v1",
       "--template-model",
       "deepseek-chat",
+      "--durable-memory-provider",
+      "tali_relay",
+      "--durable-memory-endpoint",
+      "http://runtime-bridge.project.svc.cluster.local:8080/v1/memory/coordinators/agent-a",
       "--mcp-digest-builder",
       builder,
       "--runtime-config-guard",
@@ -240,6 +266,13 @@ custom_providers:
     expect(document.providers.deepseek.api_key).toBe(managedCredentialPlaceholder);
     expect(document.custom_providers[0].api_key).toBe(managedCredentialPlaceholder);
     expect(document.plugins.enabled).toContain("tali-run-telemetry");
+    expect(document.memory.provider).toBe("tali_relay");
+    const migratedEnvironment = await readFile(environment, "utf8");
+    expect(migratedEnvironment).toContain(
+      "TALI_DURABLE_MEMORY_ENDPOINT=http://runtime-bridge.project.svc.cluster.local:8080/v1/memory/coordinators/agent-a",
+    );
+    expect(migratedEnvironment).not.toContain("TALI_DURABLE_MEMORY_TOKEN");
+    expect(migratedEnvironment).not.toContain("TALI_PROJECT_RUNTIME_BRIDGE_TOKEN");
 
     const rotatedPlaceholder =
       "openshell:resolve:env:v123457_OPENAI_API_KEY";
@@ -253,6 +286,7 @@ custom_providers:
     expect(rotated.model.api_key).toBe(rotatedPlaceholder);
     expect(rotated.providers.deepseek.api_key).toBe(rotatedPlaceholder);
     expect(rotated.custom_providers[0].api_key).toBe(rotatedPlaceholder);
+    expect(await readFile(environment, "utf8")).toBe(migratedEnvironment);
     expect(await readFile(anchor, "utf8")).toContain(
       `${digest(rerun)}  ${config}`,
     );

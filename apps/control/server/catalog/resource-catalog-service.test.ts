@@ -355,6 +355,21 @@ describe("ResourceCatalogService", () => {
     expect(refreshed.lastDiscoveredAt).toBe(created.lastDiscoveredAt);
   });
 
+  it("re-registers a Catalog MCP Server when LiteLLM lost its runtime state", async () => {
+    const updateMcpServer = vi.fn(async () => undefined);
+    const registerMcpServer = vi.fn(async () => undefined);
+    const { service } = serviceWithAdapter({ updateMcpServer, registerMcpServer });
+    const created = await service.createMcpServer(connection);
+    updateMcpServer.mockRejectedValueOnce(new Error("MCP server not found"));
+    registerMcpServer.mockClear();
+
+    const reconciled = await service.reconcileMcpServer(created.id);
+
+    expect(reconciled.status).toBe("HEALTHY");
+    expect(updateMcpServer).toHaveBeenCalledOnce();
+    expect(registerMcpServer).toHaveBeenCalledOnce();
+  });
+
   it("rejects arbitrary stdio commands before they reach the LiteLLM host", async () => {
     const { service, litellm } = serviceWithAdapter();
 

@@ -58,7 +58,7 @@ describe("AccessContextService", () => {
         level: "project",
         resourceId: "individual",
         roleId: "ROLE_AGENT_DEVELOPER",
-        target: "/individual/instances",
+        target: "/individual",
       }),
     ]));
   });

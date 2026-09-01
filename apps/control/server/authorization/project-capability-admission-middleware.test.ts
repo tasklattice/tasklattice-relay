@@ -45,6 +45,12 @@ const users = {
   },
 } as const satisfies Record<string, AuthUser>;
 
+const projectAgentIds = {
+  maintained: "00000000-0000-4000-8000-000000000002",
+  other: "00000000-0000-4000-8000-000000000003",
+  owned: "00000000-0000-4000-8000-000000000001",
+} as const;
+
 function authorizedRequest(
   user: AuthUser,
   path: string,
@@ -129,6 +135,77 @@ beforeEach(async () => {
       },
     ],
   });
+  await database.expertAgentRecord.createMany({
+    data: [
+      {
+        createdBy: users.developer.id,
+        description: "Owned Project Agent",
+        executionMode: "AGENTIC",
+        id: projectAgentIds.owned,
+        name: "Owned Project Agent",
+        projectId: "individual",
+        slug: "owned-project-agent",
+      },
+      {
+        createdBy: users.admin.id,
+        description: "Maintained Project Agent",
+        executionMode: "AGENTIC",
+        id: projectAgentIds.maintained,
+        name: "Maintained Project Agent",
+        projectId: "individual",
+        slug: "maintained-project-agent",
+      },
+      {
+        createdBy: users.admin.id,
+        description: "Other Project Agent",
+        executionMode: "AGENTIC",
+        id: projectAgentIds.other,
+        name: "Other Project Agent",
+        projectId: "individual",
+        slug: "other-project-agent",
+      },
+    ].map((agent) => ({
+      ...agent,
+      executionMode: agent.executionMode as "AGENTIC",
+      contentDigest: `sha256:${"0".repeat(64)}`,
+      productSpec: {},
+      policySpec: {},
+      delegationSpec: [],
+      acceptanceSpec: {},
+      safetySpec: {},
+      executionSpec: {},
+      resourceBindings: [],
+      updatedBy: agent.createdBy,
+    })),
+  });
+  await database.expertAgentMemberRecord.createMany({
+    data: [
+      {
+        agentId: projectAgentIds.owned,
+        projectId: "individual",
+        relation: "OWNER",
+        userId: users.developer.id,
+      },
+      {
+        agentId: projectAgentIds.maintained,
+        projectId: "individual",
+        relation: "OWNER",
+        userId: users.admin.id,
+      },
+      {
+        agentId: projectAgentIds.maintained,
+        projectId: "individual",
+        relation: "MAINTAINER",
+        userId: users.developer.id,
+      },
+      {
+        agentId: projectAgentIds.other,
+        projectId: "individual",
+        relation: "OWNER",
+        userId: users.admin.id,
+      },
+    ],
+  });
 });
 
 afterEach(async () => {
@@ -175,6 +252,49 @@ describe("Project Capability admission middleware", () => {
     expect(admissionEvidenceForRequest(request)[0]).toMatchObject({
       decision: "DENY",
       relation: "PROJECT_ANY",
+    });
+  });
+
+  it.each([
+    ["OWNER", projectAgentIds.owned],
+    ["MAINTAINER", projectAgentIds.maintained],
+  ] as const)(
+    "admits a Developer to a Project Agent Instance with the %s relation",
+    async (relation, instanceId) => {
+      const request = authorizedRequest(
+        users.developer,
+        `/api/v1/projects/individual/instances/${instanceId}`,
+      );
+
+      await expect((await middleware())({ context: {}, req: request }))
+        .resolves.toBeUndefined();
+      expect(isProjectAdmissionComplete(request)).toBe(true);
+      expect(admissionEvidenceForRequest(request)).toEqual([
+        expect.objectContaining({
+          capability: "CAP_AGENT_INSTANCE_CONFIG_VIEW",
+          decision: "ALLOW",
+          relation,
+          resourceId: instanceId,
+          roleId: "ROLE_AGENT_DEVELOPER",
+        }),
+      ]);
+    },
+  );
+
+  it("denies a Developer who has no Project Agent relation", async () => {
+    const request = authorizedRequest(
+      users.developer,
+      `/api/v1/projects/individual/instances/${projectAgentIds.other}`,
+    );
+
+    const response = await (await middleware())({ context: {}, req: request });
+    expect(response?.status).toBe(403);
+    await expect(response?.json()).resolves.toMatchObject({
+      authorization: {
+        capability: "CAP_AGENT_INSTANCE_CONFIG_VIEW",
+        decision: "DENY",
+        reason: "The grant does not cover resource relation PROJECT_ANY.",
+      },
     });
   });
 

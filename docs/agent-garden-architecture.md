@@ -71,23 +71,31 @@ Customer Service, Global KYC Agent, Nurse Handover, Deep Search, Cyber
 Guardian, Academic Research, Small Business Loans, Software Bug Assistant,
 Travel Concierge, Time Series Forecasting, LLM Auditor, and Personalized
 Shopping. It also contains GitHub Daily Triage, Pull Request Risk Scanner, and
-Release Notes Composer as A2A demos, plus Support Escalation Router as a
-LangGraph implementation that exposes the same A2A 1.0 contract.
+Release Notes Composer as A2A demos, plus Support Escalation Router as a real
+LangGraph `StateGraph` implementation that exposes the same A2A 1.0 contract.
 
 The examples support two separate interactions:
 
 - **Try demo** sends a real A2A 1.0 JSON-RPC `SendMessage` request to a lightweight
-  in-process endpoint and renders its execution trace and response;
+  in-process endpoint and renders its execution trace, structured runtime logs,
+  and response. Support Escalation Router executes the shared LangGraph graph;
+  the preview-only blueprints return explicitly marked deterministic samples;
 - **Create Instance** materializes the validated Agent Card in the Project
-  Instance Registry. GitHub Daily Triage and Pull Request Risk Scanner launch
+  Instance Registry. GitHub Daily Triage, Pull Request Risk Scanner, and
+  Support Escalation Router launch
   the shared `demo-test` image with different A2A startup arguments, creating
   a dedicated Deployment, Service, and Pod for each Project Instance. Other
   blueprint previews continue to reuse the lightweight Control endpoint.
 
-The outputs are deterministic sample data and have no external side effects.
-The cards are explicitly labeled **Blueprint** or **Demo** so the interaction
-prototype is not mistaken for a deployed ADK, GitHub, ticketing, medical, or
-LangGraph runtime.
+The outputs use deterministic sample data and have no external side effects.
+For Support Escalation Router the graph execution, conditional routing,
+approval branch, timeout boundary, and Trace are real; only its policy data and
+external ticket/account effects are simulated. The shared runtime supports
+bounded node retries, but this deterministic demo does not configure a retry.
+The cards are explicitly labeled **Blueprint** or **Demo** so deterministic
+policy data is not mistaken for a live ADK, GitHub, ticketing, or medical
+integration. The Support Escalation Router separately identifies its real
+LangGraph execution runtime and its simulated external effects.
 
 Discovery uses one catalog surface for platform definitions, blueprints,
 demos, and Project registrations. Built-in and Project-registered entries
@@ -245,6 +253,9 @@ sessions. Control verifies the Pod's Project, Agent, Instance, runtime-kind,
 and `agent` container metadata, then follows Kubernetes `pods/log` with a
 bounded tail. Output is streamed into the terminal renderer in read-only mode
 and conservative credential patterns are redacted before browser delivery.
+Managed demos and Project-developed Expert Agents emit one-line JSON events for
+run start, graph Trace steps, completion, failure, and duration. They record the
+prompt length but never the prompt body; the UI preview applies the same rule.
 The short-lived log token is minted only after
 `CAP_AGENT_INSTANCE_LOG_VIEW`; terminal execution continues to require
 `CAP_AGENT_INSTANCE_TERMINAL_EXEC`.

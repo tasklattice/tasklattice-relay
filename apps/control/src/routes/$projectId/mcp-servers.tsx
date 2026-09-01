@@ -50,6 +50,7 @@ const emptyDraft: CreateMcpServerDefinitionInput = {
   authReference: "",
   accessGroups: [],
   allowedTools: [],
+  readOnlyTools: [],
   extraHeaders: [],
   staticHeaders: [],
   internalNetworkOnly: false,
@@ -358,29 +359,29 @@ function McpServers() {
         <form id="mcp-server-form" className="space-y-7" onSubmit={(event) => { event.preventDefault(); save(); }}>
           <FormSection icon={ServerCog} title="Identity" description="How administrators and Agents recognize this integration.">
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Display name" id="mcp-name"><Input id="mcp-name" className="h-11" value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} placeholder="GitHub" autoFocus /></Field>
-              <Field label="Tool prefix / alias" id="mcp-alias"><Input id="mcp-alias" className="h-11 font-mono" value={draft.alias} onChange={(event) => setDraft({ ...draft, alias: event.target.value.replace(/[^a-zA-Z0-9_]/g, "_") })} placeholder="github" /></Field>
+              <Field label="Display name" id="mcp-name" required><Input id="mcp-name" className="h-11" required value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} placeholder="GitHub" autoFocus /></Field>
+              <Field label="Tool prefix / alias" id="mcp-alias" required><Input id="mcp-alias" className="h-11 font-mono" required value={draft.alias} onChange={(event) => setDraft({ ...draft, alias: event.target.value.replace(/[^a-zA-Z0-9_]/g, "_") })} placeholder="github" /></Field>
             </div>
-            <Field label="Description" id="mcp-description"><Textarea id="mcp-description" value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} /></Field>
+            <Field label="Description" id="mcp-description" required><Textarea id="mcp-description" required value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} /></Field>
           </FormSection>
 
           <FormSection icon={CircleGauge} title="Connection" description="LiteLLM supports Streamable HTTP, SSE, stdio, and OpenAPI-backed tools.">
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Transport" id="mcp-transport">
-                <select id="mcp-transport" className="flex h-11 w-full rounded-md border border-input bg-background px-3 text-sm" value={draft.transport} onChange={(event) => setDraft({ ...draft, transport: event.target.value as CreateMcpServerDefinitionInput["transport"] })}>
+              <Field label="Transport" id="mcp-transport" required>
+                <select id="mcp-transport" required className="flex h-11 w-full rounded-md border border-input bg-background px-3 text-sm" value={draft.transport} onChange={(event) => setDraft({ ...draft, transport: event.target.value as CreateMcpServerDefinitionInput["transport"] })}>
                   <option value="http">Streamable HTTP (recommended)</option>
                   <option value="sse">Server-Sent Events (SSE)</option>
                   <option value="stdio" disabled={!stdioAllowed}>Standard Input/Output (reviewed templates only)</option>
                   <option value="openapi">OpenAPI Spec</option>
                 </select>
               </Field>
-              <Field label="Category" id="mcp-category"><Input id="mcp-category" className="h-11" value={draft.category} onChange={(event) => setDraft({ ...draft, category: event.target.value })} /></Field>
+              <Field label="Category" id="mcp-category" required><Input id="mcp-category" className="h-11" required value={draft.category} onChange={(event) => setDraft({ ...draft, category: event.target.value })} /></Field>
             </div>
             {draft.transport === "stdio" ? (
               <>
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <Field label="Reviewed command" id="mcp-command"><Input id="mcp-command" className="h-11 font-mono" value={draft.command ?? ""} disabled /></Field>
-                  <Field label="Reviewed arguments" id="mcp-args"><Input id="mcp-args" className="h-11 font-mono" value={draft.args.join(" ")} disabled /></Field>
+                  <Field label="Reviewed command" id="mcp-command" required><Input id="mcp-command" className="h-11 font-mono" value={draft.command ?? ""} disabled /></Field>
+                  <Field label="Reviewed arguments" id="mcp-args" required><Input id="mcp-args" className="h-11 font-mono" value={draft.args.join(" ")} disabled /></Field>
                 </div>
                 <ReferenceRows
                   title="Environment variables"
@@ -390,16 +391,16 @@ function McpServers() {
                 />
               </>
             ) : draft.transport === "openapi" ? (
-              <Field label="OpenAPI spec path or URL" id="mcp-spec"><Input id="mcp-spec" className="h-11 font-mono" value={draft.specPath ?? ""} onChange={(event) => setDraft({ ...draft, specPath: event.target.value })} placeholder="https://api.example.com/openapi.json" /></Field>
+              <Field label="OpenAPI spec path or URL" id="mcp-spec" required><Input id="mcp-spec" className="h-11 font-mono" required value={draft.specPath ?? ""} onChange={(event) => setDraft({ ...draft, specPath: event.target.value })} placeholder="https://api.example.com/openapi.json" /></Field>
             ) : (
-              <Field label="MCP endpoint" id="mcp-endpoint"><Input id="mcp-endpoint" className="h-11 font-mono" value={draft.endpoint ?? ""} onChange={(event) => setDraft({ ...draft, endpoint: event.target.value })} placeholder="https://mcp.example.com/mcp" /></Field>
+              <Field label="MCP endpoint" id="mcp-endpoint" required><Input id="mcp-endpoint" className="h-11 font-mono" required value={draft.endpoint ?? ""} onChange={(event) => setDraft({ ...draft, endpoint: event.target.value })} placeholder="https://mcp.example.com/mcp" /></Field>
             )}
           </FormSection>
 
           <FormSection icon={LockKeyhole} title="Authentication" description="Only Secret references are persisted. Values are resolved on the server and never returned to the browser.">
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Authentication type" id="mcp-auth-type">
-                <select id="mcp-auth-type" className="flex h-11 w-full rounded-md border border-input bg-background px-3 text-sm" value={draft.authType} onChange={(event) => setDraft({ ...draft, authType: event.target.value as CreateMcpServerDefinitionInput["authType"] })}>
+              <Field label="Authentication type" id="mcp-auth-type" required>
+                <select id="mcp-auth-type" required className="flex h-11 w-full rounded-md border border-input bg-background px-3 text-sm" value={draft.authType} onChange={(event) => setDraft({ ...draft, authType: event.target.value as CreateMcpServerDefinitionInput["authType"] })}>
                   <option value="none">None</option>
                   <option value="bearer_token">Bearer token</option>
                   <option value="api_key">API key</option>
@@ -410,13 +411,13 @@ function McpServers() {
                 </select>
               </Field>
               {draft.authType !== "none" && draft.authType !== "oauth2" ? (
-                <Field label="Credential Secret reference" id="mcp-auth-reference"><Input id="mcp-auth-reference" className="h-11 font-mono" value={draft.authReference} onChange={(event) => setDraft({ ...draft, authReference: event.target.value })} placeholder="k8s://namespace/secret#TOKEN" /></Field>
+                <Field label="Credential Secret reference" id="mcp-auth-reference" required><Input id="mcp-auth-reference" className="h-11 font-mono" required value={draft.authReference} onChange={(event) => setDraft({ ...draft, authReference: event.target.value })} placeholder="k8s://namespace/secret#TOKEN" /></Field>
               ) : null}
             </div>
             {draft.authType === "oauth2" ? (
               <div className="grid gap-4 sm:grid-cols-2">
-                <Field label="OAuth flow" id="mcp-oauth-flow">
-                  <select id="mcp-oauth-flow" className="flex h-11 w-full rounded-md border border-input bg-background px-3 text-sm" value={draft.oauth?.flow ?? "authorization_code"} onChange={(event) => setDraft({ ...draft, oauth: { ...draft.oauth, flow: event.target.value as "authorization_code" | "client_credentials" } })}>
+                <Field label="OAuth flow" id="mcp-oauth-flow" required>
+                  <select id="mcp-oauth-flow" required className="flex h-11 w-full rounded-md border border-input bg-background px-3 text-sm" value={draft.oauth?.flow ?? "authorization_code"} onChange={(event) => setDraft({ ...draft, oauth: { ...draft.oauth, flow: event.target.value as "authorization_code" | "client_credentials" } })}>
                     <option value="authorization_code">Authorization code</option>
                     <option value="client_credentials">Client credentials</option>
                   </select>
@@ -441,6 +442,7 @@ function McpServers() {
             />
             <Field label="MCP Access Groups" id="mcp-groups"><Input id="mcp-groups" className="h-11" value={draft.accessGroups.join(", ")} onChange={(event) => setDraft({ ...draft, accessGroups: commaList(event.target.value) })} placeholder="engineering, production-read" /></Field>
             <Field label="Allowed tools" id="mcp-allowed-tools"><Input id="mcp-allowed-tools" className="h-11 font-mono" value={draft.allowedTools.join(", ")} onChange={(event) => setDraft({ ...draft, allowedTools: commaList(event.target.value) })} placeholder="Leave blank to allow all discovered tools" /></Field>
+            <Field label="Declared read-only tools" id="mcp-read-only-tools"><Input id="mcp-read-only-tools" className="h-11 font-mono" value={(draft.readOnlyTools ?? []).join(", ")} onChange={(event) => setDraft({ ...draft, readOnlyTools: commaList(event.target.value) })} placeholder="Project Admin attestation, e.g. list_commits" /></Field>
             <Field label="Forwarded request headers" id="mcp-extra-headers"><Input id="mcp-extra-headers" className="h-11 font-mono" value={draft.extraHeaders.join(", ")} onChange={(event) => setDraft({ ...draft, extraHeaders: commaList(event.target.value) })} placeholder="X-Request-ID, X-Tenant-ID" /></Field>
             <ReferenceRows title="Static headers" rows={draft.staticHeaders} namePlaceholder="Authorization" onChange={(staticHeaders) => setDraft({ ...draft, staticHeaders })} />
           </FormSection>
@@ -474,8 +476,8 @@ function FormSection({
   );
 }
 
-function Field({ children, id, label }: { children: ReactNode; id: string; label: string }) {
-  return <div className="space-y-2"><Label htmlFor={id}>{label}</Label>{children}</div>;
+function Field({ children, id, label, required = false }: { children: ReactNode; id: string; label: string; required?: boolean }) {
+  return <div className="space-y-2"><Label htmlFor={id} required={required}>{label}</Label>{children}</div>;
 }
 
 function ToggleRow({
@@ -510,11 +512,11 @@ function ReferenceRows({
 }) {
   return (
     <div className="space-y-2">
-      <div className="flex items-center justify-between gap-3"><Label>{title}</Label><Button type="button" size="sm" variant="ghost" onClick={() => onChange([...rows, { name: "", valueReference: "" }])}><Plus /> Add</Button></div>
+      <div className="flex items-center justify-between gap-3"><Label required={rows.length > 0}>{title}</Label><Button type="button" size="sm" variant="ghost" onClick={() => onChange([...rows, { name: "", valueReference: "" }])}><Plus /> Add</Button></div>
       {rows.map((row, index) => (
         <div key={index} className="grid gap-2 sm:grid-cols-[minmax(0,0.7fr)_minmax(0,1fr)_auto]">
-          <Input className="h-10 font-mono" aria-label={`${title} name ${index + 1}`} value={row.name} onChange={(event) => onChange(rows.map((item, itemIndex) => itemIndex === index ? { ...item, name: event.target.value } : item))} placeholder={namePlaceholder} />
-          <Input className="h-10 font-mono" aria-label={`${title} Secret reference ${index + 1}`} value={row.valueReference} onChange={(event) => onChange(rows.map((item, itemIndex) => itemIndex === index ? { ...item, valueReference: event.target.value } : item))} placeholder="k8s://namespace/secret#KEY" />
+          <Input className="h-10 font-mono" required aria-label={`${title} name ${index + 1}`} value={row.name} onChange={(event) => onChange(rows.map((item, itemIndex) => itemIndex === index ? { ...item, name: event.target.value } : item))} placeholder={namePlaceholder} />
+          <Input className="h-10 font-mono" required aria-label={`${title} Secret reference ${index + 1}`} value={row.valueReference} onChange={(event) => onChange(rows.map((item, itemIndex) => itemIndex === index ? { ...item, valueReference: event.target.value } : item))} placeholder="k8s://namespace/secret#KEY" />
           <Button type="button" variant="ghost" size="icon" aria-label={`Remove ${title} row ${index + 1}`} onClick={() => onChange(rows.filter((_, itemIndex) => itemIndex !== index))}><Trash2 /></Button>
         </div>
       ))}

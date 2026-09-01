@@ -42,6 +42,7 @@ import {
   CreationFlow,
   type CreationStep,
 } from "@/components/shared/creation-flow";
+import { StatusBadge } from "@/components/shared/status";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -54,7 +55,7 @@ import {
   DrawerTitle,
 } from "@/components/ui/drawer";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Label, RequiredMark } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -393,8 +394,8 @@ export function RegisterModelsDrawer({
 
               {credentialMode === "existing" ? (
                 <div className="space-y-2">
-                  <Label htmlFor="provider-credentials">Saved credentials</Label>
-                  <Select value={accountId} onValueChange={setAccountId}>
+                  <Label htmlFor="provider-credentials" required>Saved credentials</Label>
+                  <Select value={accountId} onValueChange={setAccountId} required>
                     <SelectTrigger id="provider-credentials">
                       <SelectValue placeholder="Choose credentials" />
                     </SelectTrigger>
@@ -434,8 +435,8 @@ export function RegisterModelsDrawer({
                         />
                         <div>
                           <div className="flex items-center gap-1.5">
-                            <h3 className="text-sm font-semibold">
-                              Compliance boundary
+                            <h3 className="flex items-center gap-1 text-sm font-semibold">
+                              Compliance boundary <RequiredMark />
                             </h3>
                             <Tooltip>
                               <TooltipTrigger asChild>
@@ -517,7 +518,7 @@ export function RegisterModelsDrawer({
                         )}
                       />
                       <div>
-                        <h3 className="text-sm font-semibold">Provider</h3>
+                        <h3 className="flex items-center gap-1 text-sm font-semibold">Provider <RequiredMark /></h3>
                         <p className="mt-1 text-xs leading-5 text-muted-foreground">
                           {complianceDomain
                             ? `${availableProviderCount} Provider configurations are available in ${selectedComplianceDomain?.label}.`
@@ -1106,7 +1107,7 @@ function SummaryStep({
                   {model.modelId}
                 </span>
               </span>
-              <Badge variant="secondary">Ready</Badge>
+              <StatusBadge label="Ready" tone="success" />
             </div>
           ))}
         </div>

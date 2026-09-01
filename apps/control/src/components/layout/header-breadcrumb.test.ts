@@ -14,6 +14,7 @@ const chineseT = createPlatformI18n("zh-CN").getFixedT(
 describe("getHeaderBreadcrumbItems", () => {
   it.each([
     ["instances", "Runtime Instances"],
+    ["agents", "Agents"],
     ["memory", "Memory"],
     ["agent-garden", "Agent Garden"],
     ["skills", "Skills"],
@@ -42,6 +43,21 @@ describe("getHeaderBreadcrumbItems", () => {
     expect(getHeaderBreadcrumbItems("/web3/instances/devops", englishT)).toEqual([
       { href: "/web3/instances", label: "Runtime Instances" },
       { href: "/web3/instances/devops", label: "Instance details" },
+    ]);
+  });
+
+  it("keeps Agent development and delivery routes in the Agent hierarchy", () => {
+    expect(getHeaderBreadcrumbItems("/web3/agents/agent-1", englishT)).toEqual([
+      { href: "/web3/agents", label: "Agents" },
+      { href: "/web3/agents/agent-1", label: "Agent details" },
+    ]);
+    expect(getHeaderBreadcrumbItems("/web3/agents/evaluations", englishT)).toEqual([
+      { href: "/web3/agents", label: "Agents" },
+      { href: "/web3/agents/evaluations", label: "Test & Evaluate" },
+    ]);
+    expect(getHeaderBreadcrumbItems("/web3/agents/releases", englishT)).toEqual([
+      { href: "/web3/agents", label: "Agents" },
+      { href: "/web3/agents/releases", label: "Release Requests" },
     ]);
   });
 

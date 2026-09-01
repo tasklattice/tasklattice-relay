@@ -5,10 +5,16 @@ import { describe, expect, it } from "vitest";
 import {
   conditionalInstanceCreateRequirements,
   conditionalRequestRequirements,
+  concreteRelation,
   projectRouteAdmissionPolicy,
 } from "./route-capabilities";
 
 describe("Project route capability declarations", () => {
+  it("preserves a resolved Project Agent relation for Instance admission", () => {
+    expect(concreteRelation("INSTANCE", false, undefined, "MAINTAINER"))
+      .toBe("MAINTAINER");
+  });
+
   it("fails closed when a new Project route has no CAP declaration", () => {
     const routeRoot = fileURLToPath(new URL(
       "../routes/api/v1/projects/[projectId]",
@@ -52,6 +58,16 @@ describe("Project route capability declarations", () => {
 
   it("guards the historically membership-only high-risk endpoints", () => {
     expect(projectRouteAdmissionPolicy(
+      "GET",
+      "/api/v1/projects/individual/runtime-inventory",
+    )).toEqual({
+      relation: "INSTANCE_COLLECTION",
+      requirements: [{
+        capability: "CAP_AGENT_INSTANCE_CONFIG_VIEW",
+        resourceType: "RuntimeInventory",
+      }],
+    });
+    expect(projectRouteAdmissionPolicy(
       "POST",
       "/api/v1/projects/individual/instances",
     )?.requirements).toContainEqual({
@@ -92,6 +108,52 @@ describe("Project route capability declarations", () => {
       "PATCH",
       "/api/v1/projects/individual/catalog/vector-databases/knowledge-1/documents/file-1",
     )?.requirements[0]?.capability).toBe("CAP_VECTOR_DATABASE_UPDATE");
+  });
+
+  it("treats Contract drafting as creation authority before an Agent relation exists", () => {
+    for (const path of ["contract-drafts", "draft-tries"]) {
+      expect(projectRouteAdmissionPolicy(
+        "POST",
+        `/api/v1/projects/individual/agents/${path}`,
+      )).toEqual({
+        relation: "NEW_OWNER",
+        requirements: [{
+          capability: "CAP_AGENT_REGISTRATION_CREATE",
+          resourceType: "ExpertAgent",
+        }],
+      });
+    }
+  });
+
+  it("uses Agent update authority for direct edits, Tests, and Releases", () => {
+    for (const [method, path] of [
+      ["PATCH", "/api/v1/projects/individual/agents/agent-1"],
+      ["POST", "/api/v1/projects/individual/agents/agent-1/test-runs"],
+      ["POST", "/api/v1/projects/individual/agents/agent-1/publications"],
+    ] as const) {
+      expect(projectRouteAdmissionPolicy(method, path)).toEqual({
+        relation: "EXPERT_AGENT",
+        resourceId: "agent-1",
+        requirements: [{
+          capability: "CAP_AGENT_REGISTRATION_UPDATE",
+          resourceType: "ExpertAgent",
+        }],
+      });
+    }
+  });
+
+  it("uses Agent delete authority for deleting a developed Agent", () => {
+    expect(projectRouteAdmissionPolicy(
+      "DELETE",
+      "/api/v1/projects/individual/agents/agent-1",
+    )).toEqual({
+      relation: "EXPERT_AGENT",
+      resourceId: "agent-1",
+      requirements: [{
+        capability: "CAP_AGENT_REGISTRATION_DELETE",
+        resourceType: "ExpertAgent",
+      }],
+    });
   });
 
   it("separates Durable Memory read, curation, export, and dangerous operations", () => {

@@ -5,8 +5,10 @@ import { loadPlatformRuntimeConfiguration } from "../platform/platform-runtime-c
 import {
   verifyProjectRuntimeBridgeToken,
   verifyProjectRuntimeCoordinatorToken,
+  verifyProjectRuntimeExpertAgentToken,
   type ProjectRuntimeBridgeIdentity,
   type ProjectRuntimeCoordinatorIdentity,
+  type ProjectRuntimeExpertAgentIdentity,
 } from "./project-runtime-bridge-token";
 
 export async function requireProjectRuntimeBridge(
@@ -55,4 +57,62 @@ export async function requireProjectRuntimeCoordinator(
     throw new Error("Project Runtime Coordinator access denied.");
   }
   return coordinator;
+}
+
+export async function requireProjectRuntimeExpertAgent(
+  request: Request,
+  bridge: ProjectRuntimeBridgeIdentity,
+  route: { agentId: string; versionId: string },
+  db: PrismaClient = prisma(),
+): Promise<ProjectRuntimeExpertAgentIdentity> {
+  const token = request.headers.get("x-tali-expert-agent-token") ?? "";
+  const identity = verifyProjectRuntimeExpertAgentToken(
+    token,
+    getControlConfig().auth.secret,
+  );
+  const headerIdentity = {
+    agentId: request.headers.get("x-tali-expert-agent-id") ?? "",
+    versionId: request.headers.get("x-tali-expert-agent-version-id") ?? "",
+    contentDigest: request.headers.get("x-tali-expert-agent-content-digest") ?? "",
+  };
+  if (
+    identity.projectId !== bridge.projectId
+    || identity.namespace !== bridge.namespace
+    || identity.agentId !== route.agentId
+    || identity.versionId !== route.versionId
+    || headerIdentity.agentId !== identity.agentId
+    || headerIdentity.versionId !== identity.versionId
+    || headerIdentity.contentDigest !== identity.contentDigest
+  ) {
+    throw new Error("Expert Agent Runtime access denied.");
+  }
+
+  const version = await db.expertAgentVersionRecord.findFirst({
+    where: {
+      projectId: bridge.projectId,
+      id: identity.versionId,
+      agentId: identity.agentId,
+      contentDigest: identity.contentDigest,
+      agent: { deletedAt: null },
+    },
+    select: { contentDigest: true },
+  });
+  if (!version || version.contentDigest !== identity.contentDigest) {
+    throw new Error("Expert Agent Runtime access denied.");
+  }
+
+  const instance = await db.agentRecord.findFirst({
+    where: {
+      projectId: bridge.projectId,
+      kind: "PROJECT_AGENT",
+      developedAgentId: identity.agentId,
+      agentVersionId: identity.versionId,
+      deletedAt: null,
+    },
+    select: { id: true },
+  });
+  if (!instance) {
+    throw new Error("Expert Agent Runtime Version has no materialized Instance.");
+  }
+  return identity;
 }

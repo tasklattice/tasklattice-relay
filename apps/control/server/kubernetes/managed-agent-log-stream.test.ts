@@ -92,4 +92,51 @@ describe("KubernetesManagedAgentLogStream", () => {
     )).rejects.toThrow("ownership metadata");
     expect(logs.log).not.toHaveBeenCalled();
   });
+
+  it("resolves and follows an Agent Developer runtime without weakening ownership checks", async () => {
+    const controller = new AbortController();
+    const core = {
+      listNamespacedPod: vi.fn(async () => ({
+        items: [{
+          metadata: {
+            name: "tali-expert-a1b2c3-7d9f",
+            annotations: {
+              "tali.io/project-id": "isolation-1",
+              "tali.io/agent-id": "6bf695e2-55c9-49d3-a54d-e5818eea6318",
+            },
+            labels: { "tali.io/runtime-kind": "expert-agent-a2a" },
+          },
+          spec: { containers: [{ name: "expert-agent" }] },
+          status: { phase: "Running" },
+        }],
+      })),
+    };
+    const logs = {
+      log: vi.fn(async () => controller),
+    };
+    const client = new KubernetesManagedAgentLogStream(core as never, logs as never);
+    const handle = await client.openProjectAgent(
+      "isolation-1",
+      {
+        agentId: "6bf695e2-55c9-49d3-a54d-e5818eea6318",
+        namespace: "tp-pcpaznt4ypgomhwn",
+        workloadName: "tali-expert-a1b2c3",
+      },
+      { tailLines: 100, timestamps: true, previous: false },
+      { onData: vi.fn(), onError: vi.fn(), onEnd: vi.fn() },
+    );
+
+    expect(core.listNamespacedPod).toHaveBeenCalledWith({
+      namespace: "tp-pcpaznt4ypgomhwn",
+      labelSelector: "app.kubernetes.io/instance=tali-expert-a1b2c3",
+    });
+    expect(logs.log).toHaveBeenCalledWith(
+      "tp-pcpaznt4ypgomhwn",
+      "tali-expert-a1b2c3-7d9f",
+      "expert-agent",
+      expect.anything(),
+      { follow: true, previous: false, tailLines: 100, timestamps: true },
+    );
+    handle.close();
+  });
 });

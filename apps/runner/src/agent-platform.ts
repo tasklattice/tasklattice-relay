@@ -234,7 +234,7 @@ const hermesBootstrapScript = (
     "utf8",
   ).toString("base64");
   const durableMemoryProviderArgument = durableMemoryEnabled
-    ? " \\\n  --durable-memory-provider tali_relay"
+    ? " \\\n  --durable-memory-provider tali_relay \\\n  --durable-memory-endpoint \"$TALI_DURABLE_MEMORY_ENDPOINT\""
     : "";
   return `#!/usr/bin/env bash
 set -euo pipefail
@@ -385,7 +385,8 @@ const agentPlatformRuntimeRegistry = {
   hermes: {
     id: "hermes",
     instructionsPath: "/sandbox/.hermes/SOUL.md",
-    terminalCommand: "exec hermes --tui",
+    terminalCommand:
+      'export TALI_DURABLE_MEMORY_TOKEN="${TALI_DURABLE_MEMORY_TOKEN:-${TALI_PROJECT_RUNTIME_BRIDGE_TOKEN:-}}"; exec hermes --tui',
     inferenceBinaries: [
       "/usr/local/bin/hermes",
       "/usr/local/bin/python",

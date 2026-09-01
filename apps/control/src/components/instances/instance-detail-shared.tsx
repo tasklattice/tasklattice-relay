@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { Check, Copy, ExternalLink } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/shared/status";
 import { Button } from "@/components/ui/button";
 import { CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -19,32 +19,7 @@ import type { Instance as Agent } from "@tali/contracts";
 
 export function InstanceStatusBadge({ status }: { status: Agent["status"] }) {
   const config = instanceStatusConfig[getInstanceDisplayStatus(status)];
-  return (
-    <Badge
-      variant="outline"
-      className={cn(
-        "gap-1.5 border-transparent px-2 capitalize",
-        config.tone === "success" &&
-          "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
-        config.tone === "info" && "bg-primary/10 text-primary",
-        config.tone === "warning" &&
-          "bg-amber-500/10 text-amber-800 dark:text-amber-200",
-        config.tone === "danger" && "bg-destructive/10 text-destructive",
-      )}
-    >
-      <span
-        aria-hidden="true"
-        className={cn(
-          "size-1.5 rounded-full",
-          config.tone === "success" && "bg-emerald-500",
-          config.tone === "info" && "bg-primary",
-          config.tone === "warning" && "bg-amber-500",
-          config.tone === "danger" && "bg-destructive",
-        )}
-      />
-      {config.label}
-    </Badge>
-  );
+  return <StatusBadge label={config.label} tone={config.tone} pulse={config.tone === "info"} />;
 }
 
 export function RelativeTime({ value }: { value: string }) {

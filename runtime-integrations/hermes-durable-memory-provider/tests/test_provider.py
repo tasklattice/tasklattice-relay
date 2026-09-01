@@ -100,6 +100,25 @@ class ProviderTest(unittest.TestCase):
         self.provider._endpoint = "http://127.0.0.1:1/v1/memory/coordinators/agent-a"
         self.assertEqual(self.provider.prefetch("query"), "")
 
+    def test_uses_openshell_runtime_bridge_token_when_dedicated_token_is_absent(self):
+        dedicated_token = os.environ.pop("TALI_DURABLE_MEMORY_TOKEN")
+        os.environ["TALI_PROJECT_RUNTIME_BRIDGE_TOKEN"] = "openshell-runtime-token"
+        provider = RelayMemoryProvider()
+        try:
+            self.assertTrue(provider.is_available())
+            provider.initialize("terminal-session", hermes_home="/tmp")
+            provider.sync_turn("Terminal user turn", "Terminal assistant turn")
+            provider.shutdown()
+            self.assertEqual(len(_Handler.requests), 1)
+            self.assertEqual(
+                _Handler.requests[0][2],
+                "Bearer openshell-runtime-token",
+            )
+        finally:
+            provider.shutdown()
+            os.environ["TALI_DURABLE_MEMORY_TOKEN"] = dedicated_token
+            os.environ.pop("TALI_PROJECT_RUNTIME_BRIDGE_TOKEN", None)
+
 
 if __name__ == "__main__":
     unittest.main()

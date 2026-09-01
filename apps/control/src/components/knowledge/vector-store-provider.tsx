@@ -75,17 +75,20 @@ export function VectorStoreProviderSelect({
   disabled,
   id,
   onValueChange,
+  required = false,
   value,
 }: {
   disabled?: boolean;
   id: string;
   onValueChange: (value: VectorStoreProvider) => void;
+  required?: boolean;
   value: VectorStoreProvider;
 }) {
   const selected = getVectorStoreProvider(value);
   return (
     <Select
       disabled={Boolean(disabled)}
+      required={required}
       value={value}
       onValueChange={(next) => onValueChange(next as VectorStoreProvider)}
     >

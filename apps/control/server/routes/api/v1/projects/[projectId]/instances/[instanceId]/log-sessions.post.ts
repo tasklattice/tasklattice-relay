@@ -18,11 +18,17 @@ export default defineHandler(async (event) => {
     const service = await getAgentInstanceDetailService(event.req);
     const detail = await service.get(instanceId);
     if (!detail) return problemResponse(404, "Instance not found.");
-    if (detail.kind !== "A2A" || !detail.capabilities.liveLogs) {
+    if (
+      (detail.kind !== "A2A" && detail.kind !== "PROJECT_AGENT")
+      || !detail.capabilities.liveLogs
+    ) {
       return problemResponse(409, "Live Pod logs are not available for this Agent runtime.");
     }
-    if (detail.status !== "READY" || !detail.instance.podName) {
-      return problemResponse(409, "Live logs are available only when the managed A2A Agent Pod is ready.");
+    if (
+      detail.status !== "READY"
+      || (!detail.instance.podName && !detail.runtimeView.workloadName)
+    ) {
+      return problemResponse(409, "Live logs are available only when the managed Agent runtime is ready.");
     }
     return jsonResponse(
       createAgentLogSession(service.garden.projectId, instanceId, input),

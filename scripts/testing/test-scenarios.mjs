@@ -161,6 +161,15 @@ export const testScenarios = [
     command: "npm run test:e2e:live",
     evidence: "Hermes TTY, independent authenticated Chat, tool journey, SINGLE Routing and LiteLLM model attribution",
   },
+  {
+    id: "expert-agent-release0",
+    module: "expert-agent-delivery",
+    layer: "L4 live E2E",
+    execution: "manual",
+    cost: "one bounded summary turn plus read-only GitHub and Knowledge calls",
+    command: "npm run test:e2e:expert-agents",
+    evidence: "Active immutable Versions over A2A; weekly Commit count and SHA set match an independent GitHub REST oracle; Customer Support returns exact approved Knowledge and safely refuses an unknown question",
+  },
 ];
 
 export function automaticIntegrationScenarios() {

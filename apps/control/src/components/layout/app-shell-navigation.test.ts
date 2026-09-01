@@ -1,36 +1,66 @@
 import { describe, expect, it } from "vitest";
 import { createPlatformI18n } from "@/i18n/create-i18n";
 import {
+  developerNavGroups,
   itemIsActive,
   navGroups,
   navigationItemAvailable,
   routeIsGlobal,
   routeUsesFullBleedLayout,
   routeUsesStandaloneContextSidebar,
+  routeUsesWorkspaceLayout,
 } from "./app-shell";
 
 describe("Project control-plane navigation", () => {
-  it("uses Home as a section label with Instances and Memory beneath it", () => {
+  it("uses one Agent Garden and one Capacities group across the Project shell", () => {
     expect(navGroups.map((group) => group.labelKey)).toEqual([
       "home",
-      "capabilityToolbox",
+      "capabilities",
       "governance",
       "evidence",
     ]);
     expect(navGroups.map((group) => group.items.map((item) => item.labelKey))).toEqual([
       ["instances", "memory"],
-      ["specialistAgents", "skills", "mcpConnections", "vectorDatabases"],
+      ["agentGarden", "skills", "mcpConnections", "vectorDatabases"],
       ["accessPolicies", "runtimePolicies"],
       ["traces", "auditLogs", "cost"],
     ]);
     expect(navGroups.flatMap((group) => group.items.map((item) => item.labelKey))).not.toContain("home");
   });
 
+  it("keeps Memory first-class for administrators and capability-scoped for developers", () => {
+    expect(navGroups[0]!.items.map((item) => item.labelKey)).toEqual([
+      "instances",
+      "memory",
+    ]);
+    expect(developerNavGroups.find((group) => group.labelKey === "capabilities")
+      ?.items.map((item) => item.labelKey)).toEqual([
+        "skills",
+        "mcpConnections",
+        "vectorDatabases",
+        "memory",
+      ]);
+  });
+
+  it("keeps Developer navigation to three task-oriented groups", () => {
+    expect(developerNavGroups.map((group) => group.labelKey)).toEqual([
+      "develop",
+      "runtime",
+      "capabilities",
+    ]);
+    expect(developerNavGroups.map((group) => group.items.map((item) => item.labelKey)))
+      .toEqual([
+        ["agents", "agentGarden"],
+        ["instances", "traces"],
+        ["skills", "mcpConnections", "vectorDatabases", "memory"],
+      ]);
+  });
+
   it("localizes every navigation group and item for Simplified Chinese", () => {
     const t = createPlatformI18n("zh-CN").getFixedT("zh-CN", "sidebar");
     expect(navGroups.map((group) => t(`navigation.groups.${group.labelKey}`))).toEqual([
       "主页",
-      "能力工具箱",
+      "能力",
       "治理",
       "运行记录",
     ]);
@@ -38,7 +68,7 @@ describe("Project control-plane navigation", () => {
       t(`navigation.items.${item.labelKey}`),
     ))).toEqual([
       ["实例", "记忆"],
-      ["Agent 目录", "技能", "MCP 连接", "向量数据库"],
+      ["Agent Garden", "技能", "MCP 连接", "向量数据库"],
       ["访问策略", "运行时策略"],
       ["追踪记录", "审计日志", "成本"],
     ]);
@@ -82,6 +112,13 @@ describe("Project control-plane navigation", () => {
     ).toBe(true);
   });
 
+  it("keeps Agent details under Agents while Garden stays independent", () => {
+    const agents = developerNavGroups[0]!.items[0]!;
+    expect(itemIsActive(agents, "/p-hr/agents/agent-1", "p-hr")).toBe(true);
+    expect(itemIsActive(agents, "/p-hr/agent-garden", "p-hr")).toBe(false);
+    expect(itemIsActive(agents, "/p-hr/instances", "p-hr")).toBe(false);
+  });
+
   it("gives routes with secondary navigation a full-bleed layout", () => {
     expect(routeUsesFullBleedLayout("/platform/settings")).toBe(true);
     expect(routeUsesFullBleedLayout("/platform/settings/")).toBe(true);
@@ -94,6 +131,14 @@ describe("Project control-plane navigation", () => {
     expect(routeUsesFullBleedLayout("/proj1/instances")).toBe(false);
     expect(routeUsesFullBleedLayout("/proj1/help/article")).toBe(false);
     expect(routeUsesFullBleedLayout("/proj1/setting/model-routings/routing-1")).toBe(false);
+  });
+
+  it("gives Vector Database details an edge-to-edge workspace without replacing global navigation", () => {
+    expect(routeUsesWorkspaceLayout("/proj1/vector-databases/db-1")).toBe(true);
+    expect(routeUsesWorkspaceLayout("/proj1/vector-databases/db-1/")).toBe(true);
+    expect(routeUsesWorkspaceLayout("/proj1/vector-databases")).toBe(false);
+    expect(routeUsesWorkspaceLayout("/proj1/vector-databases/db-1/activity")).toBe(false);
+    expect(routeUsesFullBleedLayout("/proj1/vector-databases/db-1")).toBe(false);
   });
 
   it("promotes Platform and Department settings to standalone sidebars", () => {

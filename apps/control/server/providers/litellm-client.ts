@@ -193,6 +193,15 @@ export interface LiteLLMVectorStoreInput {
   litellmParams: Record<string, unknown>;
 }
 
+export interface LiteLLMStructuredCompletionInput {
+  model: string;
+  system: string;
+  user: string;
+  responseJsonSchema: Record<string, unknown>;
+  temperature: number;
+  maxTokens?: number;
+}
+
 export interface LiteLLMAdminClient {
   readonly baseUrl: string;
   connectionBaseUrl?(): Promise<string>;
@@ -228,6 +237,11 @@ export interface LiteLLMAdminClient {
   updateMcpServer?(input: LiteLLMMcpServerInput): Promise<void>;
   deleteMcpServer?(serverId: string): Promise<void>;
   discoverMcpTools?(serverId: string): Promise<McpToolDefinition[]>;
+  callMcpTool?(
+    serverId: string,
+    toolName: string,
+    args: Record<string, unknown>,
+  ): Promise<unknown>;
   registerVectorStore?(input: LiteLLMVectorStoreInput): Promise<void>;
   updateVectorStore?(input: LiteLLMVectorStoreInput): Promise<void>;
   deleteVectorStore?(vectorStoreId: string): Promise<void>;
@@ -237,6 +251,9 @@ export interface LiteLLMAdminClient {
     input: string[],
     inputType?: "query" | "passage",
   ): Promise<number[][]>;
+  completeStructuredModel?(
+    input: LiteLLMStructuredCompletionInput,
+  ): Promise<unknown>;
   testConnection?(): Promise<{ ok: boolean; version?: string }>;
 }
 
@@ -274,6 +291,57 @@ export class LiteLLMClient implements LiteLLMAdminClient {
       `/v1/vector_stores/${encodeURIComponent(vectorStoreId)}/search`,
       { method: "POST", body: JSON.stringify(input) },
     );
+  }
+
+  async callMcpTool(
+    serverId: string,
+    toolName: string,
+    args: Record<string, unknown>,
+  ): Promise<unknown> {
+    return this.request("/mcp-rest/tools/call", {
+      method: "POST",
+      body: JSON.stringify({
+        server_id: serverId,
+        name: toolName,
+        arguments: args,
+      }),
+    });
+  }
+
+  async completeStructuredModel(
+    input: LiteLLMStructuredCompletionInput,
+  ): Promise<unknown> {
+    const response = await this.request<{
+      choices?: Array<{ message?: { content?: unknown } }>;
+    }>("/chat/completions", {
+      method: "POST",
+      body: JSON.stringify({
+        model: input.model,
+        messages: [
+          { role: "system", content: input.system },
+          { role: "user", content: input.user },
+        ],
+        temperature: input.temperature,
+        max_tokens: input.maxTokens ?? 2_000,
+        response_format: {
+          type: "json_schema",
+          json_schema: {
+            name: "expert_agent_response",
+            strict: true,
+            schema: input.responseJsonSchema,
+          },
+        },
+      }),
+    });
+    const content = response.choices?.[0]?.message?.content;
+    if (typeof content !== "string" || !content.trim()) {
+      throw new Error("LiteLLM returned an empty structured completion.");
+    }
+    try {
+      return JSON.parse(content);
+    } catch {
+      throw new Error("LiteLLM returned invalid JSON for a structured completion.");
+    }
   }
 
   async registerModel(input: {

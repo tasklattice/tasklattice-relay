@@ -371,6 +371,27 @@ function descriptor(method: string, path: string): AuditDescriptor | undefined {
       operation,
     };
   }
+  const agentRuntimeOperation = path.match(
+    /^\/api\/v1\/runtime-bridge\/agents\/([^/]+)\/versions\/([^/]+)\/(runs\/events|resources\/knowledge\/search|resources\/mcp\/call|resources\/models\/complete)$/,
+  );
+  if (agentRuntimeOperation && method === "POST") {
+    const operation = ({
+      "runs/events": ["run_event", "observe"],
+      "resources/knowledge/search": ["knowledge_search", "search"],
+      "resources/mcp/call": ["mcp_call", "execute"],
+      "resources/models/complete": ["model_complete", "execute"],
+    } as const)[agentRuntimeOperation[3] as
+      | "runs/events"
+      | "resources/knowledge/search"
+      | "resources/mcp/call"
+      | "resources/models/complete"];
+    return {
+      action: `agent_runtime.${operation[0]}`,
+      objectId: decodeURIComponent(agentRuntimeOperation[1]!),
+      objectType: "Agent Runtime",
+      operation: operation[1],
+    };
+  }
 
   const projectMatch = path.match(/^\/api\/v1\/projects\/([^/]+)(?:\/(.*))?$/);
   if (!projectMatch) return undefined;
@@ -410,6 +431,24 @@ function descriptor(method: string, path: string): AuditDescriptor | undefined {
       objectId: projectId,
       objectType: "Project Role",
       operation: "switch",
+      projectId,
+    };
+  }
+
+  if (tail[0] === "agents") {
+    const agentId = tail[1];
+    const operation = tail[2] === "test-runs"
+      ? "test"
+      : tail[2] === "publications"
+        ? "publish"
+        : method === "PATCH"
+          ? "update"
+          : "create";
+    return {
+      action: `agent.${operation}`,
+      ...(agentId ? { objectId: agentId } : {}),
+      objectType: "Agent",
+      operation,
       projectId,
     };
   }
@@ -539,7 +578,13 @@ export async function captureAuditRequest(
   if (requestDescriptor.projectId) parameters.projectId = requestDescriptor.projectId;
   return {
     ...(auth ? { auth } : {}),
-    ...(request.body ? { body: await captureBody(request) } : {}),
+    ...(request.body
+      ? {
+          body: requestDescriptor.action.startsWith("agent_runtime.")
+            ? { retained: false, reason: "agent_runtime_payload" }
+            : await captureBody(request),
+        }
+      : {}),
     descriptor: requestDescriptor,
     ipAddress:
       request.headers.get("x-forwarded-for")?.split(",")[0]?.trim()

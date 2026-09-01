@@ -13,6 +13,7 @@ import type {
   AgentGardenEntry,
   AgentGardenSnapshot,
   A2aAgentInstance,
+  ProjectAgentRuntimeInstance,
   CreateVectorDatabaseDefinitionInput,
   CreateVectorFolderInput,
   DepartmentInferenceAvailability,
@@ -92,6 +93,7 @@ import type {
   ProjectOverviewRange,
   ProjectOverviewResponse,
   RuntimeStatus,
+  RuntimeInventoryResponse,
   SandboxPolicy,
   SandboxPolicyCatalog,
   SandboxAuditEvent,
@@ -109,6 +111,18 @@ import type {
   UpsertVectorChunksInput,
 } from "@tali/contracts";
 import { projectIdFromPathname } from "./project-storage";
+import type {
+  AgentTestRun,
+  AgentVersion,
+  ExpertAgentContractDraft,
+  ExpertAgentContractDraftResult,
+  ExpertAgentDraftTryResult,
+  ExpertAgentDetail,
+  ExpertAgentAvailableResource,
+  ExpertAgentListItem,
+  ExpertAgentResourceRevision,
+  ExpertAgentDefinitionInput,
+} from "@/features/expert-agents/expert-agent-types";
 
 export class ApiError extends Error {
   constructor(message: string, readonly status: number) {
@@ -221,6 +235,62 @@ function browserIdempotencyKey(prefix: string): string {
 }
 
 export const api = {
+  listRuntimeInventory: () =>
+    request<RuntimeInventoryResponse>("/api/v1/runtime-inventory"),
+  listExpertAgents: async () =>
+    (await request<{ data: ExpertAgentListItem[] }>("/api/v1/agents")).data,
+  getExpertAgent: (agentId: string) =>
+    request<ExpertAgentDetail>(`/api/v1/agents/${encodeURIComponent(agentId)}`),
+  draftExpertAgentContract: (intention: string) =>
+    request<ExpertAgentContractDraftResult>("/api/v1/agents/contract-drafts", {
+      method: "POST",
+      body: JSON.stringify({ intention }),
+    }),
+  tryExpertAgentDraft: (input: {
+    contract: ExpertAgentContractDraft;
+    message: string;
+  }) => request<ExpertAgentDraftTryResult>("/api/v1/agents/draft-tries", {
+    method: "POST",
+    body: JSON.stringify(input),
+  }),
+  createExpertAgent: (input: {
+    slug: string;
+    executionMode: "AGENTIC" | "WORKFLOW";
+    definition: ExpertAgentDefinitionInput;
+  }) => request<{ id: string; revision: number }>("/api/v1/agents", {
+    method: "POST",
+    body: JSON.stringify(input),
+  }),
+  updateExpertAgent: (agentId: string, input: ExpertAgentDefinitionInput) =>
+    request<{ id: string; revision: number; updatedAt: string }>(
+      `/api/v1/agents/${encodeURIComponent(agentId)}`,
+      { method: "PATCH", body: JSON.stringify(input) },
+    ),
+  deleteExpertAgent: (agentId: string) =>
+    request<{ id: string; deleted: true }>(
+      `/api/v1/agents/${encodeURIComponent(agentId)}`,
+      { method: "DELETE" },
+    ),
+  testExpertAgent: (agentId: string) =>
+    request<AgentTestRun>(
+      `/api/v1/agents/${encodeURIComponent(agentId)}/test-runs`,
+      { method: "POST", body: "{}" },
+    ),
+  publishExpertAgent: (agentId: string, input: {
+    expectedRevision: number;
+    publicationNotes?: string | null;
+  }) => request<AgentVersion>(`/api/v1/agents/${encodeURIComponent(agentId)}/publications`, {
+      method: "POST",
+      body: JSON.stringify(input),
+  }),
+  getExpertAgentResourceRevisions: async (agentId: string) =>
+    (await request<{ data: ExpertAgentResourceRevision[] }>(
+      `/api/v1/agents/${encodeURIComponent(agentId)}/resource-revisions`,
+    )).data,
+  listExpertAgentAvailableResources: async (agentId: string) =>
+    (await request<{ data: ExpertAgentAvailableResource[] }>(
+      `/api/v1/agents/${encodeURIComponent(agentId)}/available-resources`,
+    )).data,
   getProjectOverview: (range: ProjectOverviewRange, timezone: string) =>
     request<ProjectOverviewResponse>(
       `/api/v1/overview?${new URLSearchParams({ range, timezone })}`,
@@ -295,10 +365,10 @@ export const api = {
         body: "{}",
       },
     ),
-  instantiateGardenAgent: (id: string) =>
-    request<A2aAgentInstance>(
+  instantiateGardenAgent: (id: string, versionId?: string) =>
+    request<A2aAgentInstance | ProjectAgentRuntimeInstance>(
       `/api/v1/agent-garden/agents/${encodeURIComponent(id)}/instances`,
-      { method: "POST", body: "{}" },
+      { method: "POST", body: JSON.stringify({ versionId }) },
     ),
   removeGardenInstance: (id: string) =>
     request<{ message: string }>(

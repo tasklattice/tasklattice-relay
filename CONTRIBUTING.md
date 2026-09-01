@@ -154,7 +154,7 @@ kubectl -n tali-sandboxes rollout status statefulset/tali-relay-openshell --time
 kubectl -n tali-sandboxes rollout status deployment/agent-sandbox-controller --timeout=300s
 ```
 
-On OrbStack, open `http://tali.localhost:38080` and sign in with `admin / admin`. The
+On OrbStack, open `http://localhost:38080` and sign in with `admin / admin`. The
 LiteLLM development UI uses `admin / tali-local-admin`.
 
 The development values disable OpenShell TLS and allow unauthenticated gateway

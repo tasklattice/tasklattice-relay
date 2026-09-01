@@ -20,17 +20,20 @@ marketing expression.
 ## Visual intent
 
 - Temperament: operational, precise, direct, and calm.
-- Brand signal: `#4339ff` is the action and navigation accent. The lattice logo
-  uses a restrained cyan signal node to preserve the orchestration identity
-  without turning every component into brand decoration.
-- Neutral system: the reference-derived `#fafafa` field, `#191a1b` ink,
-  `#f2f2f2` secondary planes, and low-opacity ink washes.
-- Typography: `Noto Serif SC` for display and section headings; `PingFang SC`,
-  `Noto Sans SC`, and `Hanken Grotesk` for interface text; `Chivo Mono` and
-  `JetBrains Mono` for identifiers and operational evidence.
-- Shape: one-pixel rules, square working surfaces, and zero-radius controls.
-  Hierarchy comes from serif display type, spacing, density, and section lines
-  rather than shadows or a wall of equal cards.
+- Brand signal: graphite primary actions keep the interface calm and legible.
+  A restrained cobalt marks navigation selection, focus, links, and
+  informational state. Green remains semantic success rather than ambient
+  brand decoration.
+- Neutral system: light mode uses a white working field, a `#fbfbfc` sidebar,
+  and cool near-white secondary planes around `#f5f6f8`. Dark mode uses a
+  `#1d1d1f` working field, a `#151517` sidebar, and `#27272a` raised surfaces.
+  Most hierarchy comes from whitespace, typography, and low-contrast rules.
+- Typography: `Inter` with `Noto Sans SC` / `Noto Sans TC` fallbacks for display
+  and interface text; `Chivo Mono` for identifiers and operational evidence.
+- Shape: one-pixel rules, 10-pixel functional controls, and 14-pixel grouped
+  panels. Compact state badges may be pill-shaped. Hierarchy comes from type,
+  spacing, density, and section lines rather than heavy shadows or a wall of
+  equal cards.
 - Motion: short state transitions only. Honor `prefers-reduced-motion`.
 
 ### Logo contract

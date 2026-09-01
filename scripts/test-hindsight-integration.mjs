@@ -40,7 +40,7 @@ function removeNetwork(name) {
 
 function embeddingFor(value) {
   const digest = createHash("sha256").update(String(value)).digest();
-  const vector = Array.from({ length: embeddingDimensions }, (_, index) => {
+  const vector = Array.from({ length:  Dimensions }, (_, index) => {
     const byte = digest[index % digest.length];
     return ((byte ?? 128) - 127.5) / 127.5;
   });

@@ -160,6 +160,7 @@ describe("builtin Project roles", () => {
       "CAP_AGENT_MEMORY_CONTENT_PURGE",
       "CAP_AGENT_MEMORY_EXPORT",
       "CAP_APPROVAL_REQUEST_SUBMIT",
+      "CAP_TRACE_VIEW",
     ]));
     expect(role.capabilities).not.toEqual(expect.arrayContaining([
       "CAP_PROJECT_MEMBER_INVITE",
@@ -178,6 +179,7 @@ describe("builtin Project roles", () => {
     );
     expect(grants.get("CAP_PROJECT_QUOTA_VIEW")).toEqual(["PROJECT_ANY"]);
     expect(grants.get("CAP_AGENT_INSTANCE_DELETE")).toEqual(["OWNER", "MAINTAINER"]);
+    expect(grants.get("CAP_TRACE_VIEW")).toEqual(["OWNER", "MAINTAINER"]);
     expect(grants.get("CAP_AGENT_SESSION_MESSAGE_SEND")).toEqual([
       "SESSION_PARTICIPANT",
     ]);

@@ -6,7 +6,6 @@ import type {
 import {
   ChevronDown,
   Database,
-  FileText,
   Folder,
   Move,
   Pencil,
@@ -23,6 +22,7 @@ import {
 import { formatPlatformDateTime } from "@/lib/platform-preferences";
 import { cn } from "@/lib/utils";
 import { filePath, formatBytes } from "./file-browser-utils";
+import { VectorFileIcon, vectorIndexStatusLabel } from "./vector-file-visuals";
 
 export function VectorDatabaseProperties({
   canManage,
@@ -68,7 +68,7 @@ export function VectorDatabaseProperties({
 
   if (document) {
     return (
-      <PropertiesShell icon={<FileText />} title={document.filename} description={document.mediaType}>
+      <PropertiesShell icon={<VectorFileIcon filename={document.filename} mediaType={document.mediaType} size="sm" />} title={document.filename} description={document.mediaType}>
         <PropertiesList items={[
           ["Path", filePath(document)],
           ["Size", formatBytes(document.byteSize)],
@@ -193,9 +193,4 @@ function parentPath(path: string): string {
   return segments.length <= 1 ? "/" : `/${segments.slice(0, -1).join("/")}`;
 }
 
-function statusLabel(status: VectorDocument["status"]): string {
-  if (status === "READY") return "Indexed";
-  if (status === "FAILED") return "Failed";
-  if (status === "QUEUED") return "Uploading";
-  return "Processing";
-}
+const statusLabel = vectorIndexStatusLabel;

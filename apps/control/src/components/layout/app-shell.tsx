@@ -19,6 +19,7 @@ import {
 import { useTranslation } from "react-i18next";
 import type { AuthUser } from "@/components/auth/auth-provider";
 import { useAuth } from "@/components/auth/auth-provider";
+import { useAccessContext } from "@/components/auth/access-context-provider";
 import {
   AppSidebarBrandLink,
   AppSidebarUtilityFooter,
@@ -75,14 +76,15 @@ type ProjectRoute =
   | "/$projectId/memory"
   | "/$projectId/mcp-servers"
   | "/$projectId/skills"
-  | "/$projectId/requests";
+  | "/$projectId/requests"
+  | "/$projectId/agents";
 
 type NavItemDefinition = {
   icon: LucideIcon;
   labelKey:
     | "instances"
     | "memory"
-    | "specialistAgents"
+    | "agentGarden"
     | "skills"
     | "mcpConnections"
     | "vectorDatabases"
@@ -90,13 +92,15 @@ type NavItemDefinition = {
     | "runtimePolicies"
     | "traces"
     | "auditLogs"
-    | "cost";
+    | "cost"
+    | "agents";
   to: ProjectRoute;
+  exact?: boolean;
 };
 
 type NavGroupDefinition = {
   items: NavItemDefinition[];
-  labelKey: "home" | "capabilityToolbox" | "governance" | "evidence";
+  labelKey: "home" | "capabilities" | "governance" | "evidence" | "develop" | "runtime";
 };
 
 export const navGroups: NavGroupDefinition[] = [
@@ -108,9 +112,9 @@ export const navGroups: NavGroupDefinition[] = [
     ],
   },
   {
-    labelKey: "capabilityToolbox",
+    labelKey: "capabilities",
     items: [
-      { icon: Bot, labelKey: "specialistAgents", to: "/$projectId/agent-garden" },
+      { icon: Bot, labelKey: "agentGarden", to: "/$projectId/agent-garden" },
       { icon: Sparkles, labelKey: "skills", to: "/$projectId/skills" },
       { icon: ServerCog, labelKey: "mcpConnections", to: "/$projectId/mcp-servers" },
       { icon: Network, labelKey: "vectorDatabases", to: "/$projectId/vector-databases" },
@@ -137,11 +141,44 @@ export const navGroups: NavGroupDefinition[] = [
   },
 ];
 
+export const developerNavGroups: NavGroupDefinition[] = [
+  {
+    labelKey: "develop",
+    items: [
+      { icon: Bot, labelKey: "agents", to: "/$projectId/agents", exact: true },
+      { icon: Bot, labelKey: "agentGarden", to: "/$projectId/agent-garden" },
+    ],
+  },
+  {
+    labelKey: "runtime",
+    items: [
+      { icon: Boxes, labelKey: "instances", to: "/$projectId/instances" },
+      { icon: Waypoints, labelKey: "traces", to: "/$projectId/traces" },
+    ],
+  },
+  {
+    labelKey: "capabilities",
+    items: [
+      { icon: Sparkles, labelKey: "skills", to: "/$projectId/skills" },
+      { icon: ServerCog, labelKey: "mcpConnections", to: "/$projectId/mcp-servers" },
+      { icon: Network, labelKey: "vectorDatabases", to: "/$projectId/vector-databases" },
+      { icon: BrainCircuit, labelKey: "memory", to: "/$projectId/memory" },
+    ],
+  },
+];
+
 export function itemIsActive(item: NavItemDefinition, pathname: string, projectId: string) {
   const target = item.to.replace("$projectId", encodeURIComponent(projectId));
   const normalizedPathname = pathname.replace(/\/$/, "");
   const normalizedTarget = target.replace(/\/$/, "");
   if (normalizedPathname === normalizedTarget) return true;
+  if (item.to === "/$projectId/agents") {
+    const child = normalizedPathname.startsWith(`${normalizedTarget}/`)
+      ? normalizedPathname.slice(normalizedTarget.length + 1).split("/")[0]
+      : "";
+    return Boolean(child);
+  }
+  if (item.exact) return false;
   return normalizedPathname.startsWith(`${normalizedTarget}/`);
 }
 
@@ -159,6 +196,11 @@ export function routeUsesFullBleedLayout(pathname: string): boolean {
     || /^\/departments\/[^/]+$/.test(normalizedPathname)
     || /^\/[^/]+\/setting$/.test(normalizedPathname)
     || /^\/[^/]+\/help$/.test(normalizedPathname);
+}
+
+export function routeUsesWorkspaceLayout(pathname: string): boolean {
+  const normalizedPathname = pathname.replace(/\/$/, "");
+  return /^\/[^/]+\/vector-databases\/[^/]+$/.test(normalizedPathname);
 }
 
 export function routeUsesStandaloneContextSidebar(pathname: string): boolean {
@@ -219,6 +261,14 @@ function ProjectSidebar({ createProjectOpen, logout, onCreateProjectOpenChange, 
   const [toastProject, setToastProject] = useState("");
   const projectId = currentProject?.id ?? "proj1";
   const permissions = useProjectPermissions();
+  const { active: activeAccess } = useAccessContext();
+  const activeDeveloperContext = activeAccess?.level === "project"
+    && activeAccess.resourceId === currentProject?.id
+    ? activeAccess.roleId === "ROLE_AGENT_DEVELOPER"
+    : currentProject?.activeRole === "developer";
+  const visibleNavGroups = activeDeveloperContext
+    ? developerNavGroups
+    : navGroups;
   return (
     <ToastProvider duration={3_000} swipeDirection="right">
       <Sidebar
@@ -226,7 +276,7 @@ function ProjectSidebar({ createProjectOpen, logout, onCreateProjectOpenChange, 
         mobileDescription={t("navigation.description")}
         mobileTitle={t("navigation.title")}
       >
-        <SidebarHeader className="gap-1.5 border-b border-sidebar-border p-2">
+        <SidebarHeader className="gap-2 border-b border-sidebar-border px-3 pb-3 pt-2.5">
           <AppSidebarBrandLink
             compact={!isMobile && state === "collapsed"}
             projectId={projectId}
@@ -241,8 +291,11 @@ function ProjectSidebar({ createProjectOpen, logout, onCreateProjectOpenChange, 
           />
         </SidebarHeader>
         <SidebarContent>
-          <nav aria-label={t("navigation.title")} className="flex flex-col py-1">
-            {currentProject ? navGroups.map((group) => (
+          <nav
+            aria-label={t("navigation.title")}
+            className="flex flex-col gap-5 py-4 group-data-[collapsible=icon]:gap-1 group-data-[collapsible=icon]:py-2"
+          >
+            {currentProject ? visibleNavGroups.map((group) => (
               <SidebarGroup key={group.labelKey}>
                 <SidebarGroupLabel>
                   {t(`navigation.groups.${group.labelKey}`)}
@@ -335,6 +388,7 @@ export function AppShell() {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const globalRoute = routeIsGlobal(pathname);
   const fullBleedRoute = routeUsesFullBleedLayout(pathname);
+  const workspaceRoute = routeUsesWorkspaceLayout(pathname);
   const standaloneContextSidebar = routeUsesStandaloneContextSidebar(pathname);
   const [createProjectOpen, setCreateProjectOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -395,8 +449,11 @@ export function AppShell() {
             id="main-content"
             className={cn(
               "min-w-0 w-full",
-              fullBleedRoute ? "flex-1" : "mx-auto p-5 sm:p-6 lg:py-6",
-              !fullBleedRoute && (sidebarOpen ? "max-w-[1600px]" : "max-w-none"),
+              fullBleedRoute
+                ? "flex-1"
+                : workspaceRoute
+                  ? "flex-1"
+                  : "mx-auto max-w-[1600px] px-5 py-6 sm:px-6 lg:px-8 lg:py-8",
             )}
           >
             {!globalRoute && projectError ? (

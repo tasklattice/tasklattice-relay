@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { runLangGraphSupportDemo } from "@tali/expert-agent-runtime/library";
 import express, { type Request, type Response } from "express";
 import { z } from "zod";
 
@@ -93,6 +94,34 @@ const demoA2aAgents: DemoA2aAgent[] = [
       "This preview uses sample evidence and does not inspect a real repository.",
     ].join("\n"),
   },
+  {
+    id: "langgraph-support-escalation-router",
+    name: "Support Escalation Router",
+    description:
+      "Routes a support case through classification, policy checks, an approval gate, and a response handoff.",
+    skills: [
+      {
+        id: "route-support-escalation",
+        name: "Route support escalation",
+        description:
+          "Classifies a case, selects the responsible team, and records why escalation is required.",
+        tags: ["Support", "Routing"],
+      },
+      {
+        id: "prepare-approved-response",
+        name: "Prepare approved response",
+        description:
+          "Drafts the next response after policy and human-approval checkpoints.",
+        tags: ["Approval", "Response"],
+      },
+    ],
+    examples: [
+      "Route a billing dispute from an enterprise customer with a production outage.",
+      "Classify this support case and show where human approval is required.",
+    ],
+    trace: ["normalize-input", "classify-case", "policy-check", "approval-gate", "response-handoff", "end"],
+    response: () => "The LangGraph support runtime did not produce a response.",
+  },
 ];
 
 const sendMessageSchema = z.object({
@@ -144,31 +173,107 @@ export function createDemoAgentCard(id: string, baseUrl: string) {
   };
 }
 
-export function runDemoA2aMessage(id: string, rawInput: unknown) {
+export async function runDemoA2aMessage(
+  id: string,
+  rawInput: unknown,
+  logSink: (line: string) => void = () => undefined,
+) {
   const agent = getDemoA2aAgent(id);
   const input = sendMessageSchema.parse(rawInput);
   const prompt = input.params.message.parts
     .map((part) => part.text)
     .join("\n")
     .trim();
-  return {
-    jsonrpc: "2.0",
-    id: input.id,
-    result: {
-      message: {
-        messageId: randomUUID(),
-        role: "ROLE_AGENT",
-        parts: [{ text: agent.response(prompt) }],
-        metadata: {
-          demo: true,
-          agentId: agent.id,
-          protocol: "A2A 1.0",
-          framework: "A2A SDK",
-          trace: agent.trace,
+  const startedAt = Date.now();
+  const runId = typeof input.id === "string" || typeof input.id === "number"
+    ? String(input.id)
+    : randomUUID();
+  const runtimeLogs: string[] = [];
+  const emit = (
+    level: "info" | "warn" | "error",
+    event: string,
+    fields: Record<string, boolean | number | string | null> = {},
+  ) => {
+    const line = JSON.stringify({
+      timestamp: new Date().toISOString(),
+      level,
+      event,
+      component: "demo-test-a2a",
+      agentId: agent.id,
+      runId,
+      messageId: input.params.message.messageId,
+      ...fields,
+    });
+    runtimeLogs.push(line);
+    logSink(line);
+  };
+  emit("info", "agent.demo.run.started", { promptLength: prompt.length });
+  try {
+    const graphRun = agent.id === "langgraph-support-escalation-router"
+      ? await runLangGraphSupportDemo(prompt)
+      : undefined;
+    const traceEvents = graphRun?.traceEvents ?? agent.trace.map((step) => ({
+      step,
+      status: "COMPLETED" as const,
+      attributes: { simulated: true },
+    }));
+    for (const traceEvent of traceEvents) {
+      const attributes: Record<string, boolean | number | string | null> =
+        traceEvent.attributes;
+      emit(traceEvent.status === "FAILED" ? "error" : "info", "agent.demo.trace", {
+        step: traceEvent.step,
+        status: traceEvent.status,
+        simulated: !graphRun,
+        ...(typeof attributes.attempt === "number"
+          ? { attempt: attributes.attempt }
+          : {}),
+        ...(typeof attributes.outcome === "string"
+          ? { outcome: attributes.outcome }
+          : {}),
+      });
+    }
+    const executionRuntime = graphRun
+      ? "LANGGRAPH_STATE_GRAPH"
+      : "DETERMINISTIC_SAMPLE";
+    emit("info", "agent.demo.run.finished", {
+      status: "SUCCEEDED",
+      durationMs: Date.now() - startedAt,
+      executionRuntime,
+      traceEventCount: traceEvents.length,
+    });
+    return {
+      jsonrpc: "2.0",
+      id: input.id,
+      result: {
+        message: {
+          messageId: randomUUID(),
+          role: "ROLE_AGENT",
+          parts: [{ text: graphRun?.text ?? agent.response(prompt) }],
+          metadata: {
+            demo: true,
+            agentId: agent.id,
+            protocol: "A2A 1.0",
+            framework: graphRun ? "LangGraph" : "A2A SDK",
+            executionRuntime,
+            simulatedBehavior: !graphRun,
+            trace: traceEvents
+              .filter((event) => event.status === "COMPLETED")
+              .map((event) => event.step),
+            traceEvents,
+            runtimeLogs,
+            ...(graphRun ? { data: graphRun.data } : {}),
+          },
         },
       },
-    },
-  };
+    };
+  } catch (error) {
+    emit("error", "agent.demo.run.failed", {
+      status: "FAILED",
+      durationMs: Date.now() - startedAt,
+      errorType: error instanceof Error ? error.name : "UnknownError",
+    });
+    throw error;
+  }
 }
 
 export function startA2aServer(agentId: string): void {
@@ -189,9 +294,17 @@ export function startA2aServer(agentId: string): void {
   };
   app.get("/.well-known/agent-card.json", serveCard);
   app.get("/agent-card", serveCard);
-  app.post(["/", "/a2a"], (request, response) => {
+  app.post(["/", "/a2a"], async (request, response) => {
     const parsed = sendMessageSchema.safeParse(request.body);
     if (!parsed.success) {
+      console.warn(JSON.stringify({
+        timestamp: new Date().toISOString(),
+        level: "warn",
+        event: "agent.demo.request.rejected",
+        component: "demo-test-a2a",
+        agentId,
+        errorType: "INVALID_A2A_REQUEST",
+      }));
       response.status(400).json({
         jsonrpc: "2.0",
         id: request.body?.id ?? null,
@@ -202,23 +315,46 @@ export function startA2aServer(agentId: string): void {
       });
       return;
     }
-    response.status(200).json(runDemoA2aMessage(agentId, parsed.data));
+    response.status(200).json(await runDemoA2aMessage(
+      agentId,
+      parsed.data,
+      (line) => console.log(line),
+    ));
   });
 
   const httpServer = app.listen(port, host, () => {
-    console.log(
-      `TaskLattice demo-test A2A Agent ${agent.name} listening on http://${host}:${port}`,
-    );
+    console.log(JSON.stringify({
+      timestamp: new Date().toISOString(),
+      level: "info",
+      event: "agent.demo.server.listening",
+      component: "demo-test-a2a",
+      agentId,
+      agentName: agent.name,
+      host,
+      port,
+    }));
   });
   installShutdownHandlers(httpServer);
 }
 
 function installShutdownHandlers(httpServer: ReturnType<express.Express["listen"]>): void {
   const shutdown = (signal: string) => {
-    console.log(`Received ${signal}; shutting down.`);
+    console.log(JSON.stringify({
+      timestamp: new Date().toISOString(),
+      level: "info",
+      event: "agent.demo.server.stopping",
+      component: "demo-test-a2a",
+      signal,
+    }));
     httpServer.close((error) => {
       if (error) {
-        console.error("Failed to stop A2A server cleanly.", error);
+        console.error(JSON.stringify({
+          timestamp: new Date().toISOString(),
+          level: "error",
+          event: "agent.demo.server.stop_failed",
+          component: "demo-test-a2a",
+          errorType: error.name,
+        }));
         process.exitCode = 1;
       }
     });

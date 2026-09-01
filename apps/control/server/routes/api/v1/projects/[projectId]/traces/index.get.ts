@@ -1,10 +1,7 @@
 import { defineHandler } from "nitro";
 import { requireAuth, unauthorizedResponse } from "../../../../../../auth/auth";
 import { errorResponse, jsonResponse } from "../../../../../../http/responses";
-import { requireProjectRole } from "../../../../../../services";
-import { FixtureTraceRepository } from "../../../../../../traces/fixture-trace-repository";
-
-const repository = new FixtureTraceRepository();
+import { ExpertAgentTraceRepository } from "../../../../../../traces/expert-agent-trace-repository";
 
 export default defineHandler(async (event) => {
   try {
@@ -14,8 +11,16 @@ export default defineHandler(async (event) => {
   }
 
   try {
-    await requireProjectRole(event.req, ["admin", "user"]);
-    return jsonResponse({ data: await repository.list(), source: "fixture" });
+    const auth = await requireAuth(event.req);
+    const projectId = decodeURIComponent(event.context.params?.projectId ?? "");
+    const relationScoped = auth.accessContext?.roleId === "ROLE_AGENT_DEVELOPER";
+    const repository = new ExpertAgentTraceRepository(
+      projectId,
+      auth.user.id,
+      undefined,
+      relationScoped,
+    );
+    return jsonResponse({ data: await repository.list(), source: "otel" });
   } catch (error) {
     return errorResponse(error);
   }

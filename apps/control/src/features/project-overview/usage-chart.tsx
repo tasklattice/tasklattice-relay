@@ -139,7 +139,7 @@ export function UsageChart({
         }}
         axisRight={null}
         axisTop={null}
-        colors={["var(--cost-series-1)"]}
+        colors={["var(--overview-series-1)"]}
         curve="linear"
         lineWidth={2}
         enableArea

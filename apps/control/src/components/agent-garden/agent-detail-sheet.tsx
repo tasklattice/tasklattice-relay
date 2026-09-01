@@ -75,7 +75,9 @@ export function AgentDetailSheet({
           ? `${previewAgentLabel(agent)} Agent`
           : agent?.source === "BUILT_IN"
           ? "Built-in Agent"
-          : "Project-registered Agent"
+          : agent?.source === "PROJECT_DEVELOPED"
+            ? "Project-developed Agent"
+            : "Project-registered Agent"
       }
       title={agent?.name ?? "Agent details"}
       description="Usage capabilities, discovery evidence, and runtime availability."
@@ -269,14 +271,14 @@ export function AgentDetailSheet({
                       label: "Runtime Namespace",
                       value:
                         agent.configuration.runtimeNamespace
-                        ?? "Pending deployment",
+                        ?? "Pending workload",
                       mono: true,
                     },
                     {
-                      label: "Deployment",
+                      label: "Workload",
                       value:
                         agent.configuration.deploymentName
-                        ?? "Pending deployment",
+                        ?? "Pending workload",
                       mono: true,
                     },
                     {

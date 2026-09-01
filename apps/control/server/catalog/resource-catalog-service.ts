@@ -229,6 +229,27 @@ export class ResourceCatalogService {
     }
   }
 
+  async reconcileMcpServer(id: string): Promise<McpServerDefinition> {
+    const current = await this.store.getMcpServerDefinition(id);
+    if (!current) throw new Error("MCP server was not found.");
+    const attemptedAt = new Date().toISOString();
+    try {
+      const input = await this.liteLLMInput(current);
+      await this.requireAdapter("updateMcpServer")(input).catch(async (error) => {
+        if (!isRemoteNotFound(error)) throw error;
+        await this.requireAdapter("registerMcpServer")(input);
+      });
+      await this.syncProjectObjectPermissions();
+      return this.discoverMcpServer(id);
+    } catch (error) {
+      return this.store.saveMcpDiscovery(id, {
+        status: this.failureStatus(error),
+        attemptedAt,
+        error: safeError(error),
+      });
+    }
+  }
+
   async createKnowledgeSource(input: CreateKnowledgeSourceDefinitionInput): Promise<KnowledgeSourceDefinition> {
     await this.assertEmbeddingModelAvailable();
     await this.quotas.assertCanCreate("knowledge-base");

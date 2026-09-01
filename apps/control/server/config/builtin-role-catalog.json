@@ -1,5 +1,5 @@
 {
-  "revision": 3,
+  "revision": 4,
   "roles": [
     {
       "id": "ROLE_PLATFORM_ADMIN",
@@ -1621,6 +1621,13 @@
         },
         {
           "capability": "CAP_RUNTIME_LOG_VIEW",
+          "relations": [
+            "OWNER",
+            "MAINTAINER"
+          ]
+        },
+        {
+          "capability": "CAP_TRACE_VIEW",
           "relations": [
             "OWNER",
             "MAINTAINER"

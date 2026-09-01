@@ -156,7 +156,7 @@ function AgentGarden() {
     const unavailableAgents: AgentGardenEntry[] = [];
 
     for (const agent of visibleAgents) {
-      if (agent.source === "PROJECT_REGISTERED") {
+      if (agent.source === "PROJECT_REGISTERED" || agent.source === "PROJECT_DEVELOPED") {
         projectAgents.push(agent);
       } else if (agent.status !== "READY") {
         unavailableAgents.push(agent);
@@ -230,7 +230,7 @@ function AgentGarden() {
     },
   });
   const instantiate = useMutation({
-    mutationFn: api.instantiateGardenAgent,
+    mutationFn: (id: string) => api.instantiateGardenAgent(id),
     onSuccess: async (instance) => {
       await queryClient.invalidateQueries({
         queryKey: scope.key("agent-garden"),
@@ -279,6 +279,13 @@ function AgentGarden() {
   };
 
   const openDetails = (agent: AgentGardenEntry) => {
+    if (agent.source === "PROJECT_DEVELOPED") {
+      void navigate({
+        to: "/$projectId/agents/$agentId",
+        params: { projectId, agentId: agent.id },
+      });
+      return;
+    }
     if (agent.source === "PROJECT_REGISTERED") {
       setDetailId(agent.id);
       return;

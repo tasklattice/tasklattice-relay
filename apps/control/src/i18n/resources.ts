@@ -12,6 +12,80 @@ const enUS = {
       traditionalChinese: "繁體中文",
     },
   },
+  access: {
+    actions: {
+      continue: "Continue",
+      retry: "Try again",
+      signOut: "Sign out",
+      useAccess: "Use access",
+    },
+    current: "Current",
+    description:
+      "Select one assigned role and scope for this session. You can switch access later from the Account menu.",
+    empty: {
+      description:
+        "Your Account is active, but it has no Platform, Department, or Project role. Contact an administrator to request access.",
+      title: "No access assigned",
+    },
+    error: {
+      selectionFallback: "Unable to select access.",
+      title: "Access selection failed",
+    },
+    groups: {
+      department: {
+        description: "Department-scoped administration",
+        title: "Departments",
+      },
+      platform: {
+        description: "Platform-wide administration",
+        title: "Platform",
+      },
+      project: {
+        description: "Project business and operational work",
+        title: "Projects",
+      },
+    },
+    kicker: "Account access",
+    loading: "Loading assigned access…",
+    roles: {
+      agentDeveloper: {
+        description: "Build and operate Agents and Project resources.",
+        label: "Agent Developer",
+      },
+      auditor: {
+        description: "Review audit evidence and operational records.",
+        label: "Auditor",
+      },
+      departmentAdministrator: {
+        description:
+          "Manage Department projects, people, inference policy, and resource boundaries.",
+        label: "Department Administrator",
+      },
+      platformAdministrator: {
+        description:
+          "Manage platform-wide identity, infrastructure, runtime, and integrations.",
+        label: "Platform Administrator",
+      },
+      projectAdministrator: {
+        description: "Manage Project configuration, members, policies, and resources.",
+        label: "Project Administrator",
+      },
+      reviewer: {
+        description: "Review Project changes and governed activity.",
+        label: "Reviewer",
+      },
+      user: {
+        description: "Use the Project within its assigned permissions.",
+        label: "User",
+      },
+    },
+    search: {
+      label: "Search assigned access",
+      noMatches: "No assigned access matches “{{query}}”.",
+      placeholder: "Search Departments, Projects, or roles",
+    },
+    title: "Choose how to enter",
+  },
   login: {
     developmentAccount: {
       after:
@@ -77,22 +151,35 @@ const enUS = {
     navigation: {
       description: "Navigate TaskLattice Relay resources.",
       groups: {
+        build: "Build",
+        capabilities: "Capacities",
         capabilityToolbox: "Capability toolbox",
+        develop: "Develop",
+        deliver: "Deliver",
         evidence: "Evidence",
         governance: "Governance",
         home: "Home",
+        observe: "Observe",
+        runtime: "Runtime",
       },
       items: {
         accessPolicies: "Access Policies",
+        agentCatalog: "Agent Catalog",
+        agentGarden: "Agent Garden",
+        agents: "Agents",
         auditLogs: "Audit Logs",
         cost: "Cost",
+        deployments: "Deployments",
         instances: "Instances",
         vectorDatabases: "Vector Databases",
         mcpConnections: "MCP Connections",
         memory: "Memory",
+        myAgents: "My Agents",
+        releaseRequests: "Release Requests",
         runtimePolicies: "Runtime Policies",
         skills: "Skills",
         specialistAgents: "Agent Garden",
+        testEvaluate: "Test & Evaluate",
         traces: "Traces",
       },
       title: "Project navigation",
@@ -125,13 +212,13 @@ const enUS = {
   createInstance: {
     agentFoundation: {
       description:
-        "Name the deployed Instance, choose its reusable Agent definition, and configure Memory continuity.",
-      stepDescription: "Set Instance name, Agent definition, and Memory",
-      title: "Agent Definition",
+        "Name the Supervisor, select its reusable Agent definition, and configure Memory continuity.",
+      stepDescription: "Set Supervisor name, Agent definition, and Memory",
+      title: "Supervisor Definition",
     },
-    progressLabel: "Create Instance progress",
+    progressLabel: "Create Supervisor progress",
     review: {
-      stepDescription: "Confirm and create",
+      stepDescription: "Confirm and create the Supervisor",
       title: "Review & Create",
     },
     securityBoundaries: {
@@ -155,6 +242,7 @@ const enUS = {
     details: {
       accessPolicies: "Policy details",
       agentGarden: "Agent details",
+      agents: "Agent details",
       instances: "Instance details",
       vectorDatabases: "Vector Database",
       modelRoutings: "Routing details",
@@ -162,6 +250,9 @@ const enUS = {
     routes: {
       accessPolicies: "Access Policies",
       agentGarden: "Agent Garden",
+      agentEvaluations: "Test & Evaluate",
+      agentReleases: "Release Requests",
+      agents: "Agents",
       auditLogs: "Audit Logs",
       cost: "Cost",
       help: "Help & documentation",
@@ -220,6 +311,78 @@ const zhCN = {
       simplifiedChinese: "简体中文",
       traditionalChinese: "繁體中文",
     },
+  },
+  access: {
+    actions: {
+      continue: "继续",
+      retry: "重试",
+      signOut: "退出登录",
+      useAccess: "使用此身份",
+    },
+    current: "当前",
+    description:
+      "为本次会话选择一个已分配的角色与作用域。之后可在账户菜单中切换访问身份。",
+    empty: {
+      description:
+        "你的账户已激活，但尚未分配平台、部门或项目角色。请联系管理员申请访问权限。",
+      title: "尚未分配访问权限",
+    },
+    error: {
+      selectionFallback: "无法选择访问身份。",
+      title: "访问身份选择失败",
+    },
+    groups: {
+      department: {
+        description: "部门范围管理",
+        title: "部门",
+      },
+      platform: {
+        description: "平台级管理",
+        title: "平台",
+      },
+      project: {
+        description: "项目业务与运维工作",
+        title: "项目",
+      },
+    },
+    kicker: "账户访问",
+    loading: "正在加载已分配的访问身份…",
+    roles: {
+      agentDeveloper: {
+        description: "构建并运行 Agent 和项目资源。",
+        label: "Agent 开发者",
+      },
+      auditor: {
+        description: "查看审计证据和运行记录。",
+        label: "审计员",
+      },
+      departmentAdministrator: {
+        description: "管理部门项目、人员、推理策略和资源边界。",
+        label: "部门管理员",
+      },
+      platformAdministrator: {
+        description: "管理全平台身份、基础设施、运行时和集成。",
+        label: "平台管理员",
+      },
+      projectAdministrator: {
+        description: "管理项目配置、成员、策略和资源。",
+        label: "项目管理员",
+      },
+      reviewer: {
+        description: "审查项目变更和受治理的活动。",
+        label: "审批者",
+      },
+      user: {
+        description: "在已分配的权限内使用项目。",
+        label: "项目用户",
+      },
+    },
+    search: {
+      label: "搜索已分配的访问身份",
+      noMatches: "没有与“{{query}}”匹配的已分配访问身份。",
+      placeholder: "搜索部门、项目或角色",
+    },
+    title: "选择进入方式",
   },
   login: {
     developmentAccount: {
@@ -284,22 +447,35 @@ const zhCN = {
     navigation: {
       description: "浏览 TaskLattice Relay 资源。",
       groups: {
+        build: "构建",
+        capabilities: "能力",
         capabilityToolbox: "能力工具箱",
+        develop: "开发",
+        deliver: "交付",
         evidence: "运行记录",
         governance: "治理",
         home: "主页",
+        observe: "可观测性",
+        runtime: "运行",
       },
       items: {
         accessPolicies: "访问策略",
+        agentCatalog: "Agent 目录",
+        agentGarden: "Agent Garden",
+        agents: "Agents",
         auditLogs: "审计日志",
         cost: "成本",
+        deployments: "部署",
         instances: "实例",
         vectorDatabases: "向量数据库",
         mcpConnections: "MCP 连接",
         memory: "记忆",
+        myAgents: "我的 Agents",
+        releaseRequests: "发布请求",
         runtimePolicies: "运行时策略",
         skills: "技能",
         specialistAgents: "Agent 目录",
+        testEvaluate: "测试与评估",
         traces: "追踪记录",
       },
       title: "项目导航",
@@ -332,13 +508,13 @@ const zhCN = {
   createInstance: {
     agentFoundation: {
       description:
-        "为部署实例命名、选择可复用的 Agent 定义，并配置 Memory 连续性。",
-      stepDescription: "设置实例名称、Agent 定义与 Memory",
-      title: "Agent 定义",
+        "为 Supervisor 命名、选择可复用的 Agent 定义，并配置 Memory 连续性。",
+      stepDescription: "设置 Supervisor 名称、Agent 定义与 Memory",
+      title: "Supervisor 定义",
     },
-    progressLabel: "创建实例进度",
+    progressLabel: "创建 Supervisor 进度",
     review: {
-      stepDescription: "确认并创建",
+      stepDescription: "确认并创建 Supervisor",
       title: "检查并创建",
     },
     securityBoundaries: {
@@ -361,6 +537,7 @@ const zhCN = {
     details: {
       accessPolicies: "策略详情",
       agentGarden: "Agent 详情",
+      agents: "Agent 详情",
       instances: "实例详情",
       vectorDatabases: "向量数据库",
       modelRoutings: "路由详情",
@@ -368,6 +545,9 @@ const zhCN = {
     routes: {
       accessPolicies: "访问策略",
       agentGarden: "Agent 广场",
+      agentEvaluations: "测试与评估",
+      agentReleases: "发布请求",
+      agents: "Agents",
       auditLogs: "审计日志",
       cost: "成本",
       help: "帮助与文档",
@@ -425,6 +605,78 @@ const zhTW = {
       simplifiedChinese: "简体中文",
       traditionalChinese: "繁體中文",
     },
+  },
+  access: {
+    actions: {
+      continue: "繼續",
+      retry: "重試",
+      signOut: "登出",
+      useAccess: "使用此身分",
+    },
+    current: "目前",
+    description:
+      "為本次工作階段選擇一個已指派的角色與範圍。之後可在帳戶選單中切換存取身分。",
+    empty: {
+      description:
+        "你的帳戶已啟用，但尚未指派平台、部門或專案角色。請聯絡管理員申請存取權限。",
+      title: "尚未指派存取權限",
+    },
+    error: {
+      selectionFallback: "無法選擇存取身分。",
+      title: "存取身分選擇失敗",
+    },
+    groups: {
+      department: {
+        description: "部門範圍管理",
+        title: "部門",
+      },
+      platform: {
+        description: "平台層級管理",
+        title: "平台",
+      },
+      project: {
+        description: "專案業務與維運工作",
+        title: "專案",
+      },
+    },
+    kicker: "帳戶存取",
+    loading: "正在載入已指派的存取身分…",
+    roles: {
+      agentDeveloper: {
+        description: "建置並執行 Agent 與專案資源。",
+        label: "Agent 開發人員",
+      },
+      auditor: {
+        description: "檢視稽核證據與執行記錄。",
+        label: "稽核員",
+      },
+      departmentAdministrator: {
+        description: "管理部門專案、人員、推論原則與資源邊界。",
+        label: "部門管理員",
+      },
+      platformAdministrator: {
+        description: "管理全平台身分、基礎設施、執行階段與整合。",
+        label: "平台管理員",
+      },
+      projectAdministrator: {
+        description: "管理專案設定、成員、原則與資源。",
+        label: "專案管理員",
+      },
+      reviewer: {
+        description: "檢視專案變更與受治理的活動。",
+        label: "核准者",
+      },
+      user: {
+        description: "在已指派的權限內使用專案。",
+        label: "專案使用者",
+      },
+    },
+    search: {
+      label: "搜尋已指派的存取身分",
+      noMatches: "沒有與「{{query}}」相符的已指派存取身分。",
+      placeholder: "搜尋部門、專案或角色",
+    },
+    title: "選擇進入方式",
   },
   login: {
     developmentAccount: {
@@ -489,22 +741,35 @@ const zhTW = {
     navigation: {
       description: "瀏覽 TaskLattice Relay 資源。",
       groups: {
+        build: "建置",
+        capabilities: "能力",
         capabilityToolbox: "能力工具箱",
+        develop: "開發",
+        deliver: "交付",
         evidence: "執行記錄",
         governance: "治理",
         home: "首頁",
+        observe: "可觀測性",
+        runtime: "執行",
       },
       items: {
         accessPolicies: "存取原則",
+        agentCatalog: "Agent 目錄",
+        agentGarden: "Agent Garden",
+        agents: "Agents",
         auditLogs: "稽核日誌",
         cost: "成本",
+        deployments: "部署",
         instances: "執行個體",
         vectorDatabases: "向量資料庫",
         mcpConnections: "MCP 連線",
         memory: "記憶",
+        myAgents: "我的 Agents",
+        releaseRequests: "發布請求",
         runtimePolicies: "執行階段原則",
         skills: "技能",
         specialistAgents: "Agent 目錄",
+        testEvaluate: "測試與評估",
         traces: "追蹤記錄",
       },
       title: "專案導覽",
@@ -537,13 +802,13 @@ const zhTW = {
   createInstance: {
     agentFoundation: {
       description:
-        "為部署執行個體命名、選擇可重用的 Agent 定義，並設定 Memory 連續性。",
-      stepDescription: "設定執行個體名稱、Agent 定義與 Memory",
-      title: "Agent 定義",
+        "為 Supervisor 命名、選擇可重用的 Agent 定義，並設定 Memory 連續性。",
+      stepDescription: "設定 Supervisor 名稱、Agent 定義與 Memory",
+      title: "Supervisor 定義",
     },
-    progressLabel: "建立執行個體進度",
+    progressLabel: "建立 Supervisor 進度",
     review: {
-      stepDescription: "確認並建立",
+      stepDescription: "確認並建立 Supervisor",
       title: "檢查並建立",
     },
     securityBoundaries: {
@@ -566,6 +831,7 @@ const zhTW = {
     details: {
       accessPolicies: "原則詳細資料",
       agentGarden: "Agent 詳細資料",
+      agents: "Agent 詳細資料",
       instances: "執行個體詳細資料",
       vectorDatabases: "向量資料庫",
       modelRoutings: "路由詳細資料",
@@ -573,6 +839,9 @@ const zhTW = {
     routes: {
       accessPolicies: "存取原則",
       agentGarden: "Agent 廣場",
+      agentEvaluations: "測試與評估",
+      agentReleases: "發布請求",
+      agents: "Agents",
       auditLogs: "稽核日誌",
       cost: "成本",
       help: "說明與文件",

@@ -1,6 +1,11 @@
 import { useEffect, useState } from "react";
 import { complianceDomainCatalog } from "@tali/contracts";
-import type { Instance as Agent } from "@tali/contracts";
+import type {
+  AgentInstanceRole,
+  AgentProductForm,
+  AgentProtocolView,
+  Instance as Agent,
+} from "@tali/contracts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { Eye, ShieldCheck } from "lucide-react";
@@ -20,10 +25,16 @@ import { InstanceInstructionsDialog } from "./instance-instructions-dialog";
 
 export function InstanceConfigurationTab({
   agent,
+  form,
   platform,
+  protocol,
+  role: collaborationRole,
 }: {
   agent: Agent;
+  form: AgentProductForm;
   platform: AgentPlatformPresentation;
+  protocol?: AgentProtocolView;
+  role: AgentInstanceRole;
 }) {
   const projectId = useCurrentProjectId();
   const [instructionsOpen, setInstructionsOpen] = useState(false);
@@ -105,6 +116,10 @@ export function InstanceConfigurationTab({
             items={[
               { label: "Agent name", value: agent.name },
               { label: "Description", value: agent.description || "—" },
+              { label: "Product form", value: form === "INTERACTIVE" ? "Interactive Agent" : form === "SERVICE" ? "Service Agent" : "Hybrid Agent" },
+              { label: "Collaboration role", value: collaborationRole === "SUPERVISOR" ? "Supervisor" : collaborationRole === "SPECIALIST" ? "Specialist" : "Hybrid" },
+              { label: "Execution strategy", value: "Runtime-defined" },
+              { label: "A2A role", value: protocol?.direction.join(" + ") ?? "Not exposed" },
               { label: "Work profile", value: managedBy },
             ]}
           />

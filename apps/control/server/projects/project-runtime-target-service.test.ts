@@ -185,7 +185,7 @@ describe("ProjectRuntimeTargetService", () => {
       namespace: projectRuntimeNamespace("individual"),
       projectId: "individual",
       projectName: "admin",
-      controlUrl: "http://127.0.0.1:8080",
+      controlUrl: "http://localhost:5173",
       token: expect.stringMatching(/^tali_prb_v1\./),
     });
     await expect(db.projectRuntimeTarget.findUnique({

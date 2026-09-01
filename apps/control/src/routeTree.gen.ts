@@ -28,6 +28,8 @@ import { Route as ProjectIdAccessPoliciesIndexRouteImport } from './routes/$proj
 import { Route as ProjectIdAccessPoliciesPolicyIdRouteImport } from './routes/$projectId/access-policies/$policyId'
 import { Route as ProjectIdAgentGardenIndexRouteImport } from './routes/$projectId/agent-garden/index'
 import { Route as ProjectIdAgentGardenAgentIdRouteImport } from './routes/$projectId/agent-garden/$agentId'
+import { Route as ProjectIdAgentsIndexRouteImport } from './routes/$projectId/agents/index'
+import { Route as ProjectIdAgentsAgentIdRouteImport } from './routes/$projectId/agents/$agentId'
 import { Route as ProjectIdAuditLogsIndexRouteImport } from './routes/$projectId/audit-logs/index'
 import { Route as ProjectIdInstancesIndexRouteImport } from './routes/$projectId/instances/index'
 import { Route as ProjectIdInstancesInstanceIdRouteImport } from './routes/$projectId/instances/$instanceId'
@@ -140,6 +142,16 @@ const ProjectIdAgentGardenAgentIdRoute =
     path: '/$projectId/agent-garden/$agentId',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ProjectIdAgentsIndexRoute = ProjectIdAgentsIndexRouteImport.update({
+  id: '/$projectId/agents/',
+  path: '/$projectId/agents/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProjectIdAgentsAgentIdRoute = ProjectIdAgentsAgentIdRouteImport.update({
+  id: '/$projectId/agents/$agentId',
+  path: '/$projectId/agents/$agentId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProjectIdAuditLogsIndexRoute = ProjectIdAuditLogsIndexRouteImport.update({
   id: '/$projectId/audit-logs/',
   path: '/$projectId/audit-logs/',
@@ -218,12 +230,14 @@ export interface FileRoutesByFullPath {
   '/$projectId/': typeof ProjectIdIndexRoute
   '/$projectId/access-policies/$policyId': typeof ProjectIdAccessPoliciesPolicyIdRoute
   '/$projectId/agent-garden/$agentId': typeof ProjectIdAgentGardenAgentIdRoute
+  '/$projectId/agents/$agentId': typeof ProjectIdAgentsAgentIdRoute
   '/$projectId/instances/$instanceId': typeof ProjectIdInstancesInstanceIdRoute
   '/$projectId/memory/$memoryId': typeof ProjectIdMemoryMemoryIdRoute
   '/$projectId/requests/new': typeof ProjectIdRequestsNewRoute
   '/$projectId/vector-databases/$databaseId': typeof ProjectIdVectorDatabasesDatabaseIdRoute
   '/$projectId/access-policies/': typeof ProjectIdAccessPoliciesIndexRoute
   '/$projectId/agent-garden/': typeof ProjectIdAgentGardenIndexRoute
+  '/$projectId/agents/': typeof ProjectIdAgentsIndexRoute
   '/$projectId/audit-logs/': typeof ProjectIdAuditLogsIndexRoute
   '/$projectId/instances/': typeof ProjectIdInstancesIndexRoute
   '/$projectId/memory/': typeof ProjectIdMemoryIndexRoute
@@ -250,12 +264,14 @@ export interface FileRoutesByTo {
   '/$projectId': typeof ProjectIdIndexRoute
   '/$projectId/access-policies/$policyId': typeof ProjectIdAccessPoliciesPolicyIdRoute
   '/$projectId/agent-garden/$agentId': typeof ProjectIdAgentGardenAgentIdRoute
+  '/$projectId/agents/$agentId': typeof ProjectIdAgentsAgentIdRoute
   '/$projectId/instances/$instanceId': typeof ProjectIdInstancesInstanceIdRoute
   '/$projectId/memory/$memoryId': typeof ProjectIdMemoryMemoryIdRoute
   '/$projectId/requests/new': typeof ProjectIdRequestsNewRoute
   '/$projectId/vector-databases/$databaseId': typeof ProjectIdVectorDatabasesDatabaseIdRoute
   '/$projectId/access-policies': typeof ProjectIdAccessPoliciesIndexRoute
   '/$projectId/agent-garden': typeof ProjectIdAgentGardenIndexRoute
+  '/$projectId/agents': typeof ProjectIdAgentsIndexRoute
   '/$projectId/audit-logs': typeof ProjectIdAuditLogsIndexRoute
   '/$projectId/instances': typeof ProjectIdInstancesIndexRoute
   '/$projectId/memory': typeof ProjectIdMemoryIndexRoute
@@ -283,12 +299,14 @@ export interface FileRoutesById {
   '/$projectId/': typeof ProjectIdIndexRoute
   '/$projectId/access-policies/$policyId': typeof ProjectIdAccessPoliciesPolicyIdRoute
   '/$projectId/agent-garden/$agentId': typeof ProjectIdAgentGardenAgentIdRoute
+  '/$projectId/agents/$agentId': typeof ProjectIdAgentsAgentIdRoute
   '/$projectId/instances/$instanceId': typeof ProjectIdInstancesInstanceIdRoute
   '/$projectId/memory/$memoryId': typeof ProjectIdMemoryMemoryIdRoute
   '/$projectId/requests/new': typeof ProjectIdRequestsNewRoute
   '/$projectId/vector-databases/$databaseId': typeof ProjectIdVectorDatabasesDatabaseIdRoute
   '/$projectId/access-policies/': typeof ProjectIdAccessPoliciesIndexRoute
   '/$projectId/agent-garden/': typeof ProjectIdAgentGardenIndexRoute
+  '/$projectId/agents/': typeof ProjectIdAgentsIndexRoute
   '/$projectId/audit-logs/': typeof ProjectIdAuditLogsIndexRoute
   '/$projectId/instances/': typeof ProjectIdInstancesIndexRoute
   '/$projectId/memory/': typeof ProjectIdMemoryIndexRoute
@@ -317,12 +335,14 @@ export interface FileRouteTypes {
     | '/$projectId/'
     | '/$projectId/access-policies/$policyId'
     | '/$projectId/agent-garden/$agentId'
+    | '/$projectId/agents/$agentId'
     | '/$projectId/instances/$instanceId'
     | '/$projectId/memory/$memoryId'
     | '/$projectId/requests/new'
     | '/$projectId/vector-databases/$databaseId'
     | '/$projectId/access-policies/'
     | '/$projectId/agent-garden/'
+    | '/$projectId/agents/'
     | '/$projectId/audit-logs/'
     | '/$projectId/instances/'
     | '/$projectId/memory/'
@@ -349,12 +369,14 @@ export interface FileRouteTypes {
     | '/$projectId'
     | '/$projectId/access-policies/$policyId'
     | '/$projectId/agent-garden/$agentId'
+    | '/$projectId/agents/$agentId'
     | '/$projectId/instances/$instanceId'
     | '/$projectId/memory/$memoryId'
     | '/$projectId/requests/new'
     | '/$projectId/vector-databases/$databaseId'
     | '/$projectId/access-policies'
     | '/$projectId/agent-garden'
+    | '/$projectId/agents'
     | '/$projectId/audit-logs'
     | '/$projectId/instances'
     | '/$projectId/memory'
@@ -381,12 +403,14 @@ export interface FileRouteTypes {
     | '/$projectId/'
     | '/$projectId/access-policies/$policyId'
     | '/$projectId/agent-garden/$agentId'
+    | '/$projectId/agents/$agentId'
     | '/$projectId/instances/$instanceId'
     | '/$projectId/memory/$memoryId'
     | '/$projectId/requests/new'
     | '/$projectId/vector-databases/$databaseId'
     | '/$projectId/access-policies/'
     | '/$projectId/agent-garden/'
+    | '/$projectId/agents/'
     | '/$projectId/audit-logs/'
     | '/$projectId/instances/'
     | '/$projectId/memory/'
@@ -414,12 +438,14 @@ export interface RootRouteChildren {
   ProjectIdIndexRoute: typeof ProjectIdIndexRoute
   ProjectIdAccessPoliciesPolicyIdRoute: typeof ProjectIdAccessPoliciesPolicyIdRoute
   ProjectIdAgentGardenAgentIdRoute: typeof ProjectIdAgentGardenAgentIdRoute
+  ProjectIdAgentsAgentIdRoute: typeof ProjectIdAgentsAgentIdRoute
   ProjectIdInstancesInstanceIdRoute: typeof ProjectIdInstancesInstanceIdRoute
   ProjectIdMemoryMemoryIdRoute: typeof ProjectIdMemoryMemoryIdRoute
   ProjectIdRequestsNewRoute: typeof ProjectIdRequestsNewRoute
   ProjectIdVectorDatabasesDatabaseIdRoute: typeof ProjectIdVectorDatabasesDatabaseIdRoute
   ProjectIdAccessPoliciesIndexRoute: typeof ProjectIdAccessPoliciesIndexRoute
   ProjectIdAgentGardenIndexRoute: typeof ProjectIdAgentGardenIndexRoute
+  ProjectIdAgentsIndexRoute: typeof ProjectIdAgentsIndexRoute
   ProjectIdAuditLogsIndexRoute: typeof ProjectIdAuditLogsIndexRoute
   ProjectIdInstancesIndexRoute: typeof ProjectIdInstancesIndexRoute
   ProjectIdMemoryIndexRoute: typeof ProjectIdMemoryIndexRoute
@@ -564,6 +590,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProjectIdAgentGardenAgentIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/$projectId/agents/': {
+      id: '/$projectId/agents/'
+      path: '/$projectId/agents'
+      fullPath: '/$projectId/agents/'
+      preLoaderRoute: typeof ProjectIdAgentsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/$projectId/agents/$agentId': {
+      id: '/$projectId/agents/$agentId'
+      path: '/$projectId/agents/$agentId'
+      fullPath: '/$projectId/agents/$agentId'
+      preLoaderRoute: typeof ProjectIdAgentsAgentIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/$projectId/audit-logs/': {
       id: '/$projectId/audit-logs/'
       path: '/$projectId/audit-logs'
@@ -662,6 +702,7 @@ const rootRouteChildren: RootRouteChildren = {
   ProjectIdIndexRoute: ProjectIdIndexRoute,
   ProjectIdAccessPoliciesPolicyIdRoute: ProjectIdAccessPoliciesPolicyIdRoute,
   ProjectIdAgentGardenAgentIdRoute: ProjectIdAgentGardenAgentIdRoute,
+  ProjectIdAgentsAgentIdRoute: ProjectIdAgentsAgentIdRoute,
   ProjectIdInstancesInstanceIdRoute: ProjectIdInstancesInstanceIdRoute,
   ProjectIdMemoryMemoryIdRoute: ProjectIdMemoryMemoryIdRoute,
   ProjectIdRequestsNewRoute: ProjectIdRequestsNewRoute,
@@ -669,6 +710,7 @@ const rootRouteChildren: RootRouteChildren = {
     ProjectIdVectorDatabasesDatabaseIdRoute,
   ProjectIdAccessPoliciesIndexRoute: ProjectIdAccessPoliciesIndexRoute,
   ProjectIdAgentGardenIndexRoute: ProjectIdAgentGardenIndexRoute,
+  ProjectIdAgentsIndexRoute: ProjectIdAgentsIndexRoute,
   ProjectIdAuditLogsIndexRoute: ProjectIdAuditLogsIndexRoute,
   ProjectIdInstancesIndexRoute: ProjectIdInstancesIndexRoute,
   ProjectIdMemoryIndexRoute: ProjectIdMemoryIndexRoute,

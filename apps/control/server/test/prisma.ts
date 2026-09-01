@@ -60,6 +60,13 @@ import vectorDocumentMetadataMigration from "../../prisma/migrations/20260827200
 import projectDurableMemoryMigration from "../../prisma/migrations/20260828000000_project_durable_memory/migration.sql?raw";
 import memoryAgentIdempotencyMigration from "../../prisma/migrations/20260828010000_memory_agent_idempotency/migration.sql?raw";
 import instanceLifecycleOperationsMigration from "../../prisma/migrations/20260828030000_instance_lifecycle_operations/migration.sql?raw";
+import expertAgentDeliveryLifecycleMigration from "../../prisma/migrations/20260830000000_expert_agent_delivery_lifecycle/migration.sql?raw";
+import expertAgentContractPolicyMigration from "../../prisma/migrations/20260830010000_expert_agent_contract_policy/migration.sql?raw";
+import expertAgentDelegationTopologyMigration from "../../prisma/migrations/20260830020000_expert_agent_delegation_topology/migration.sql?raw";
+import expertAgentEvaluationTracesMigration from "../../prisma/migrations/20260830030000_expert_agent_evaluation_traces/migration.sql?raw";
+import expertAgentWorkingCopyEvaluationsMigration from "../../prisma/migrations/20260830040000_expert_agent_working_copy_evaluations/migration.sql?raw";
+import runtimeInventoryOwnershipMigration from "../../prisma/migrations/20260830050000_runtime_inventory_ownership/migration.sql?raw";
+import agentVersionArtifactsMigration from "../../prisma/migrations/20260831000000_agent_version_artifacts/migration.sql?raw";
 import { developmentResourceCatalog } from "../catalog/development-resource-catalog";
 import { PrismaClient } from "../generated/prisma/client";
 
@@ -589,6 +596,67 @@ export function createTestPrisma(): PrismaClient {
     throw new Error("Instance lifecycle operation migration structure is incomplete.");
   }
   memory.public.none(instanceLifecycleSchema);
+  const expertAgentDeliverySchema = expertAgentDeliveryLifecycleMigration
+    // pg-mem does not implement PL/pgSQL trigger functions. Service tests still
+    // apply every table, FK, CHECK, and index; PostgreSQL trigger behavior is
+    // covered by the production migration itself.
+    .split("CREATE FUNCTION tasklattice.validate_expert_agent_reference()")[0]!
+    .replaceAll(" DEFAULT gen_random_uuid()", "")
+    // pg-mem does not implement PostgreSQL's text regex operator. Zod and the
+    // production database both retain these format checks.
+    .replace(
+      /,\n  (?:ADD )?CONSTRAINT [^\n]+\n    CHECK \([^\n]+ ~ '[^']+'\)/g,
+      "",
+    );
+  if (
+    !expertAgentDeliverySchema.includes("expert_agent_candidates")
+    || !expertAgentDeliverySchema.includes("expert_agent_versions")
+    || !expertAgentDeliveryLifecycleMigration.includes(
+      "reject_expert_agent_immutable_update",
+    )
+  ) {
+    throw new Error("Expert Agent delivery lifecycle migration is incomplete.");
+  }
+  memory.public.none(expertAgentDeliverySchema);
+  memory.public.none(expertAgentContractPolicyMigration);
+  memory.public.none(expertAgentDelegationTopologyMigration);
+  memory.public.none(expertAgentEvaluationTracesMigration);
+  memory.public.none(
+    expertAgentWorkingCopyEvaluationsMigration.replaceAll(
+      " DEFAULT gen_random_uuid()",
+      "",
+    ),
+  );
+  memory.public.none(runtimeInventoryOwnershipMigration);
+  const agentVersionArtifactsSchema = agentVersionArtifactsMigration
+    // The test database starts without Agent delivery records. Remove the
+    // production data reset and apply only the replacement schema.
+    .replace(/UPDATE tasklattice\.project_runs[\s\S]*?WHERE expert_agent_id IS NOT NULL;\s*/, "")
+    .replace(/DELETE FROM tasklattice\.agents WHERE kind = 'PROJECT_AGENT';\s*/, "")
+    .replace(/DROP FUNCTION IF EXISTS tasklattice\.[^;]+;\s*/g, "")
+    .replace(
+      /TRUNCATE TABLE tasklattice\.expert_agents CASCADE;/,
+      "DELETE FROM tasklattice.expert_agents;",
+    )
+    // pg-mem does not implement PL/pgSQL trigger functions. Service tests
+    // retain all tables, FKs, indexes, and non-regex CHECK constraints.
+    .split("CREATE FUNCTION tasklattice.validate_agent_release_reference()")[0]!
+    .replaceAll(" DEFAULT gen_random_uuid()", "")
+    // pg-mem keeps dropped primary-key relation names in its schema catalog.
+    // Test-only names avoid colliding with the replaced Version table.
+    .replaceAll("expert_agent_versions_", "agent_versions_v2_")
+    .replace(
+      /,\n  (?:ADD )?CONSTRAINT [^\n]+\n    CHECK \([^\n]+ ~ '[^']+'\)/g,
+      "",
+    );
+  if (
+    !agentVersionArtifactsSchema.includes("expert_agent_test_runs")
+    || !agentVersionArtifactsSchema.includes("expert_agent_version_artifacts")
+    || !agentVersionArtifactsMigration.includes("reject_agent_version_update")
+  ) {
+    throw new Error("Agent Version and Artifact migration is incomplete.");
+  }
+  memory.public.none(agentVersionArtifactsSchema);
   const pg = memory.adapters.createPg();
   const query = pg.Client.prototype.query;
   pg.Client.prototype.query = function (

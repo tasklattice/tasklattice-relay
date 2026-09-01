@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import type { VectorIngestionJob, VectorMetadataField, VectorMetadataType } from "@tali/contracts";
-import { FileText, Filter, FlaskConical, LoaderCircle, Plus, X } from "lucide-react";
+import { Filter, FlaskConical, LoaderCircle, Plus, X } from "lucide-react";
 import { StatusDot } from "@/components/shared/status-dot";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,16 +11,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api";
+import { VectorFileIcon } from "./vector-file-visuals";
 import { formatPlatformDateTime } from "@/lib/platform-preferences";
 
-export function SearchVectorsSheet({
+export function VectorRetrievalWorkbench({
   canViewContent,
   currentFolderId,
   currentFolderPath,
   databaseId,
   metadataSchema,
-  open,
-  onOpenChange,
+  unavailableMessage,
   onViewSource,
 }: {
   canViewContent: boolean;
@@ -28,8 +28,7 @@ export function SearchVectorsSheet({
   currentFolderPath: string;
   databaseId: string;
   metadataSchema: VectorMetadataField[];
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
+  unavailableMessage?: string | undefined;
   onViewSource: (source: { chunkId: string; documentId: string }) => void;
 }) {
   const [query, setQuery] = useState("");
@@ -60,55 +59,60 @@ export function SearchVectorsSheet({
     }]);
   };
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="!w-full gap-0 overflow-hidden bg-background sm:!w-[min(96vw,58rem)] sm:!max-w-[58rem] [&>button]:size-11">
-        <SheetHeader className="shrink-0 border-b px-5 py-5 pr-14 sm:px-6 sm:pr-14">
-          <SheetTitle>Test retrieval</SheetTitle>
-          <SheetDescription>Run the real retrieval API used by Agents against the selected scope and typed metadata filters.</SheetDescription>
-        </SheetHeader>
-        <div className="min-h-0 flex-1 space-y-6 overflow-x-hidden overflow-y-auto overscroll-contain px-5 py-5 sm:px-6">
-          {!canViewContent ? (
-            <p className="border-l-2 border-destructive bg-destructive/5 px-4 py-3 text-sm">CAP_VECTOR_DATABASE_CONTENT_VIEW is required to search indexed content.</p>
-          ) : (
-            <>
-              <form className="space-y-5 rounded-sm border p-4 sm:p-5" onSubmit={(event) => { event.preventDefault(); if (!parsedFilters.error) search.mutate(); }}>
-                <div className="space-y-2"><Label htmlFor="retrieval-query">Query</Label><Textarea id="retrieval-query" rows={4} value={query} onChange={(event) => { setQuery(event.target.value); search.reset(); }} placeholder="What do the indexed files say about…" /></div>
-                <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_7rem]">
-                  <div className="space-y-2"><Label>Scope</Label><Select value={scope} onValueChange={(value) => { setScope(value as "database" | "folder"); search.reset(); }}><SelectTrigger className="h-11 w-full" aria-label="Retrieval scope"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="database">Entire Vector Database</SelectItem><SelectItem value="folder">Current folder · {currentFolderPath}</SelectItem></SelectContent></Select></div>
-                  <div className="space-y-2"><Label htmlFor="retrieval-top-k">Top K</Label><Input id="retrieval-top-k" className="h-11" type="number" min={1} max={50} value={topK} onChange={(event) => { setTopK(Math.min(50, Math.max(1, Number(event.target.value) || 1))); search.reset(); }} /></div>
-                </div>
-                <section className="border-t pt-4">
-                  <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="flex items-center gap-2 text-sm font-semibold"><Filter className="size-4" />Metadata filters</h3><p className="mt-1 text-xs text-muted-foreground">Keys come from the persisted metadata schema for this Vector Database.</p></div><Button type="button" variant="outline" size="sm" disabled={!metadataSchema.length || filters.length >= 8} onClick={addFilter}><Plus />Add filter</Button></div>
-                  {filters.length ? <div className="mt-4 space-y-3">{filters.map((filter, index) => <MetadataFilterRow key={filter.id} field={metadataSchema.find((candidate) => candidate.key === filter.key)} filter={filter} index={index} schema={metadataSchema} onChange={(patch) => updateFilter(filter.id, patch)} onRemove={() => { setFilters((current) => current.filter((item) => item.id !== filter.id)); search.reset(); }} />)}</div> : <p className="mt-4 rounded-sm bg-muted/25 px-4 py-3 text-xs text-muted-foreground">{metadataSchema.length ? "No metadata filters. Retrieval searches every indexed record in the selected scope." : "No custom metadata fields are defined yet. Add metadata from a file’s Metadata tab to enable filtering."}</p>}
-                  {parsedFilters.error ? <p role="alert" className="mt-3 text-xs text-destructive">{parsedFilters.error}</p> : null}
-                </section>
-                <div className="flex justify-end border-t pt-4"><Button className="h-11" disabled={!query.trim() || Boolean(parsedFilters.error) || search.isPending} type="submit">{search.isPending ? <LoaderCircle className="animate-spin motion-reduce:animate-none" /> : <FlaskConical />}{search.isPending ? "Testing…" : "Test retrieval"}</Button></div>
-              </form>
-              {search.error ? <p role="alert" className="border-l-2 border-destructive bg-destructive/5 px-4 py-3 text-sm text-destructive">{search.error.message}</p> : null}
-              {search.data ? (
-                <section>
-                  <div className="flex items-end justify-between gap-4 border-b pb-3"><div><h3 className="text-sm font-semibold">Results</h3><p className="mt-1 text-xs text-muted-foreground">{search.data.results.length} matches in {search.data.durationMs} ms</p></div></div>
-                  <div className="divide-y">
-                    {search.data.results.map((result, index) => (
-                      <article key={`${result.chunkId}:${index}`} className="py-5">
-                        <div className="flex flex-wrap items-start justify-between gap-3">
-                          <div className="flex min-w-0 items-start gap-3"><span className="grid size-9 shrink-0 place-items-center rounded-sm bg-muted text-muted-foreground"><FileText className="size-4" /></span><span className="min-w-0"><strong className="block truncate text-sm">{result.filename}</strong><span className="mt-1 block break-all text-xs text-muted-foreground">{result.directoryPath}</span></span></div>
-                          <span className="font-mono text-xs font-medium">Score {result.score.toFixed(4)}</span>
-                        </div>
-                        <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground"><span>{result.pageNumber ? `Page ${result.pageNumber}` : "No page"}</span><span>{result.chunkIndex === null ? "Chunk —" : `Chunk ${result.chunkIndex + 1}`}</span><span className="break-all font-mono">{result.chunkId}</span></div>
-                        <p className="mt-3 line-clamp-4 whitespace-pre-wrap text-sm leading-6">{result.content}</p>
-                        <div className="mt-3"><Button variant="outline" size="sm" disabled={!result.documentId} onClick={() => { if (result.documentId) onViewSource({ chunkId: result.chunkId, documentId: result.documentId }); }}>View source</Button></div>
-                      </article>
-                    ))}
-                    {!search.data.results.length ? <p className="py-12 text-center text-sm text-muted-foreground">No Vector Records matched this query.</p> : null}
-                  </div>
-                </section>
-              ) : null}
-            </>
-          )}
+    <section aria-labelledby="retrieval-workbench-title" className="min-h-full bg-background/45">
+      <header className="border-b bg-card px-4 py-5 sm:px-5">
+        <h2 id="retrieval-workbench-title" className="text-xl font-semibold tracking-[-0.02em]">Test retrieval</h2>
+        <p className="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">Run the same retrieval API used by Agents, then inspect ranked chunks and their sources without leaving this Vector Database.</p>
+      </header>
+      {!canViewContent ? (
+        <div className="px-4 py-5 sm:px-5">
+          <p role="alert" className="border-l-2 border-destructive bg-destructive/5 px-4 py-3 text-sm text-destructive">{unavailableMessage ?? "CAP_VECTOR_DATABASE_CONTENT_VIEW is required to search indexed content."}</p>
         </div>
-      </SheetContent>
-    </Sheet>
+      ) : (
+        <div className="grid items-start gap-6 px-4 py-5 sm:px-5 sm:py-6 2xl:grid-cols-[minmax(20rem,0.78fr)_minmax(0,1.22fr)]">
+          <form className="space-y-5 border bg-card p-4 sm:p-5" onSubmit={(event) => { event.preventDefault(); if (!parsedFilters.error) search.mutate(); }}>
+            <div className="space-y-2"><Label htmlFor="retrieval-query">Query</Label><Textarea id="retrieval-query" rows={4} value={query} onChange={(event) => { setQuery(event.target.value); search.reset(); }} placeholder="What do the indexed files say about…" /></div>
+            <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_7rem]">
+              <div className="space-y-2"><Label>Scope</Label><Select value={scope} onValueChange={(value) => { setScope(value as "database" | "folder"); search.reset(); }}><SelectTrigger className="h-11 w-full" aria-label="Retrieval scope"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="database">Entire Vector Database</SelectItem><SelectItem value="folder">Current folder · {currentFolderPath}</SelectItem></SelectContent></Select></div>
+              <div className="space-y-2"><Label htmlFor="retrieval-top-k">Top K</Label><Input id="retrieval-top-k" className="h-11" type="number" min={1} max={50} value={topK} onChange={(event) => { setTopK(Math.min(50, Math.max(1, Number(event.target.value) || 1))); search.reset(); }} /></div>
+            </div>
+            <section className="border-t pt-4">
+              <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="flex items-center gap-2 text-sm font-semibold"><Filter className="size-4" />Metadata filters</h3><p className="mt-1 text-xs text-muted-foreground">Filter with fields persisted on indexed files.</p></div><Button type="button" variant="outline" size="sm" disabled={!metadataSchema.length || filters.length >= 8} title={!metadataSchema.length ? "Add metadata to a file before creating filters" : filters.length >= 8 ? "A maximum of eight filters is supported" : undefined} onClick={addFilter}><Plus />Add filter</Button></div>
+              {filters.length ? <div className="mt-4 space-y-3">{filters.map((filter, index) => <MetadataFilterRow key={filter.id} field={metadataSchema.find((candidate) => candidate.key === filter.key)} filter={filter} index={index} schema={metadataSchema} onChange={(patch) => updateFilter(filter.id, patch)} onRemove={() => { setFilters((current) => current.filter((item) => item.id !== filter.id)); search.reset(); }} />)}</div> : <p className="mt-4 bg-muted/25 px-4 py-3 text-xs leading-5 text-muted-foreground">{metadataSchema.length ? "No metadata filters. Retrieval searches every indexed record in the selected scope." : "No custom metadata fields are defined yet. Add metadata from a file’s Metadata tab to enable filtering."}</p>}
+              {parsedFilters.error ? <p role="alert" className="mt-3 text-xs text-destructive">{parsedFilters.error}</p> : null}
+            </section>
+            <div className="flex justify-end border-t pt-4"><Button className="h-11" disabled={!query.trim() || Boolean(parsedFilters.error) || search.isPending} type="submit">{search.isPending ? <LoaderCircle className="animate-spin motion-reduce:animate-none" /> : <FlaskConical />}{search.isPending ? "Testing…" : "Test retrieval"}</Button></div>
+          </form>
+
+          <section aria-live="polite" aria-label="Retrieval results" className="min-w-0 border bg-card">
+            <div className="flex min-h-16 items-end justify-between gap-4 border-b px-4 py-3 sm:px-5">
+              <div><h3 className="text-sm font-semibold">Results</h3><p className="mt-1 text-xs text-muted-foreground">{search.data ? `${search.data.results.length} matches in ${search.data.durationMs} ms` : "Ranked Vector Records will appear here."}</p></div>
+            </div>
+            {search.error ? <p role="alert" className="m-4 border-l-2 border-destructive bg-destructive/5 px-4 py-3 text-sm text-destructive">{search.error.message}</p> : null}
+            {search.data ? (
+              <div className="divide-y px-4 sm:px-5">
+                {search.data.results.map((result, index) => (
+                  <article key={`${result.chunkId}:${index}`} className="py-5">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="flex min-w-0 items-start gap-3"><VectorFileIcon filename={result.filename} /><span className="min-w-0"><strong className="block truncate text-sm">{result.filename}</strong><span className="mt-1 block break-all text-xs text-muted-foreground">{result.directoryPath}</span></span></div>
+                      <span className="font-mono text-xs font-medium">Score {result.score.toFixed(4)}</span>
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground"><span>{result.pageNumber ? `Page ${result.pageNumber}` : "No page"}</span><span>{result.chunkIndex === null ? "Chunk —" : `Chunk ${result.chunkIndex + 1}`}</span><span className="break-all font-mono">{result.chunkId}</span></div>
+                    <p className="mt-3 line-clamp-4 whitespace-pre-wrap text-sm leading-6">{result.content}</p>
+                    <div className="mt-3"><Button variant="outline" size="sm" disabled={!result.documentId} onClick={() => { if (result.documentId) onViewSource({ chunkId: result.chunkId, documentId: result.documentId }); }}>View source</Button></div>
+                  </article>
+                ))}
+                {!search.data.results.length ? <p className="py-12 text-center text-sm text-muted-foreground">No Vector Records matched this query. Try a broader query or remove filters.</p> : null}
+              </div>
+            ) : !search.error ? (
+              <div className="grid min-h-72 place-items-center px-6 py-12 text-center">
+                <div><FlaskConical className="mx-auto size-7 text-knowledge-accent-foreground" /><p className="mt-3 text-sm font-medium">Ready to test indexed knowledge</p><p className="mt-1 max-w-sm text-xs leading-5 text-muted-foreground">Enter a natural-language query and run retrieval to compare ranked chunks.</p></div>
+              </div>
+            ) : null}
+          </section>
+        </div>
+      )}
+    </section>
   );
 }
 

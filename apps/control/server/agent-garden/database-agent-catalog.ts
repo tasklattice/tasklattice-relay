@@ -11,7 +11,7 @@ import {
 } from "./demo-agent-runtime";
 import { marketplaceMetadataFor } from "./marketplace-agent-metadata";
 
-export const agentCatalogSeedVersion = "2026-08-27.1";
+export const agentCatalogSeedVersion = "2026-08-31.1";
 const seededAt = "2026-08-23T00:00:00.000Z";
 const managedDemoAgentIds = new Set<string>(hermesMvpA2aAgentIds);
 

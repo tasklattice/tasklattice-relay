@@ -124,7 +124,7 @@ declare global {
 const developmentConfig: ControlConfig = {
   schema_version: 1,
   server: {
-    public_url: "http://127.0.0.1:8080",
+    public_url: "http://localhost:5173",
   },
   database: {
     url: "postgresql://tali:development@127.0.0.1:5432/tali",

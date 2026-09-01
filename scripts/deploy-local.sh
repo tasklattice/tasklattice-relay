@@ -114,6 +114,7 @@ fi
 images=(
   "$image_registry/tali-control:$image_tag"
   "$image_registry/tali-openshell-runner:$image_tag"
+  "$image_registry/tali-expert-agent-runtime:$image_tag"
   "$image_registry/tali-litellm:$image_tag"
   "$image_registry/demo-test:$image_tag"
   "$image_registry/tali-nemoclaw-sandbox:$image_tag"
@@ -162,7 +163,6 @@ if [[ "$enable_keycloak" == "true" ]]; then
       echo "Unable to find an IPv4 InternalIP for the OrbStack Kubernetes node." >&2
       exit 1
     fi
-    control_public_url="${CONTROL_PUBLIC_URL:-http://tali.localhost:${control_service_port}}"
     keycloak_public_url="${KEYCLOAK_PUBLIC_URL:-http://keycloak.localhost:${keycloak_service_port}}"
     keycloak_helm_args+=(
       --set-string "control.hostAliases[0].ip=$node_ip"

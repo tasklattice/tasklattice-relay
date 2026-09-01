@@ -21,15 +21,24 @@ import {
   getAgentPlatformDefinition,
   type AgentPlatformId,
 } from "./agent-platforms.js";
+import type {
+  AgentCollaborationRole,
+  AgentExecutionStrategy,
+  AgentProductForm,
+} from "./agent-domain.js";
 
 export * from "./traces.js";
 export * from "./authorization.js";
 export * from "./agent-platforms.js";
+export * from "./agent-domain.js";
 export * from "./project-overview.js";
 export * from "./organization.js";
 export * from "./department-settings.js";
 export * from "./memory.js";
 export * from "./model-readiness.js";
+export * from "./expert-agents.js";
+export * from "./answer-documents.js";
+export * from "./runtime-inventory.js";
 
 export const instanceStatuses = [
   "PROVISIONING",
@@ -1268,6 +1277,7 @@ const mcpServerConnectionFields = {
   oauth: mcpOauthConfigurationSchema.optional(),
   accessGroups: z.array(z.string().trim().min(1).max(120)).max(64).default([]),
   allowedTools: z.array(z.string().trim().min(1).max(200)).max(10_000).default([]),
+  readOnlyTools: z.array(z.string().trim().min(1).max(200)).max(10_000).optional(),
   extraHeaders: z.array(z.string().trim().min(1).max(120)).max(64).default([]),
   staticHeaders: z.array(mcpStaticHeaderSchema).max(64).default([]),
   internalNetworkOnly: z.boolean().default(false),
@@ -1291,6 +1301,19 @@ function validateMcpServerConnection(
   }
   if (value.authType === "oauth2" && !value.oauth) {
     context.addIssue({ code: "custom", path: ["oauth"], message: "OAuth configuration is required." });
+  }
+  const allowedTools = Array.isArray(value.allowedTools) ? value.allowedTools : [];
+  const readOnlyTools = Array.isArray(value.readOnlyTools) ? value.readOnlyTools : [];
+  if (allowedTools.length) {
+    readOnlyTools.forEach((tool, index) => {
+      if (!allowedTools.includes(tool)) {
+        context.addIssue({
+          code: "custom",
+          path: ["readOnlyTools", index],
+          message: "A declared read-only tool must also be allowlisted.",
+        });
+      }
+    });
   }
 }
 
@@ -1781,11 +1804,26 @@ export const agentGardenA2aProfileSchema = z.object({
   defaultOutputModes: z.array(z.string().trim().min(1).max(200)).max(64),
 }).strict();
 
+export const agentGardenVersionBundleSchema = z.object({
+  type: z.literal("VERSION_BUNDLE"),
+  agentId: z.string().uuid(),
+  defaultVersionId: z.string().uuid(),
+  versions: z.array(z.object({
+    id: z.string().uuid(),
+    versionNumber: z.number().int().positive(),
+    contentDigest: z.string().regex(/^sha256:[a-f0-9]{64}$/),
+    manifestDigest: z.string().regex(/^sha256:[a-f0-9]{64}$/),
+    artifactSetDigest: z.string().regex(/^sha256:[a-f0-9]{64}$/),
+    publishedAt: z.string().datetime(),
+    instanceCount: z.number().int().nonnegative(),
+  }).strict()).min(1),
+}).strict();
+
 export const agentGardenEntrySchema = z.object({
   id: z.string().trim().min(1).max(160),
   name: z.string().trim().min(2).max(160),
   description: z.string().trim().min(10).max(2_000),
-  source: z.enum(["BUILT_IN", "PROJECT_REGISTERED"]),
+  source: z.enum(["BUILT_IN", "PROJECT_DEVELOPED", "PROJECT_REGISTERED"]),
   integrationType: z.enum(agentGardenIntegrationTypeIds),
   platformLabel: z.string().trim().min(1).max(120),
   category: z.string().trim().min(2).max(80),
@@ -1800,6 +1838,7 @@ export const agentGardenEntrySchema = z.object({
   authType: z.enum(["none", "bearer_token", "api_key"]),
   authReference: optionalMcpSecretReferenceSchema,
   internalNetworkOnly: z.boolean(),
+  distribution: agentGardenVersionBundleSchema.nullable().default(null),
   configuration: z.record(z.string(), z.string()),
   skills: z.array(agentGardenSkillSchema).max(1_000),
   specializationId: z.string().trim().min(1).max(64).nullable(),
@@ -1962,6 +2001,17 @@ export const a2aAgentInstanceSchema = z.object({
   logs: z.array(z.string().max(4_000)).max(1_000),
   error: z.string().max(4_000).nullable(),
 }).strict();
+
+export const projectAgentRuntimeInstanceSchema = a2aAgentInstanceSchema
+  .omit({ kind: true })
+  .extend({
+    kind: z.literal("PROJECT_AGENT"),
+    developedAgentId: z.string().uuid(),
+    versionId: z.string().uuid(),
+    versionNumber: z.number().int().positive(),
+    contentDigest: z.string().regex(/^sha256:[a-f0-9]{64}$/),
+  })
+  .strict();
 
 /** @deprecated Use a2aAgentInstanceSchema. */
 export const managedA2aInstanceSchema = a2aAgentInstanceSchema;
@@ -2990,7 +3040,7 @@ export interface Instance extends Omit<CreateInstanceInput, "policyId"> {
   error?: string;
 }
 
-export type AgentInstanceRole = "SUPERVISOR" | "SPECIALIST" | "HYBRID";
+export type AgentInstanceRole = AgentCollaborationRole;
 export type AgentInstanceRuntimeType = "OPENSHELL" | "KUBERNETES" | "EXTERNAL";
 
 export interface AgentInstanceRuntimeView {
@@ -3048,7 +3098,9 @@ interface AgentInstanceDetailBase {
   id: string;
   name: string;
   description: string;
+  form: AgentProductForm;
   role: AgentInstanceRole;
+  executionStrategy: AgentExecutionStrategy | null;
   status: InstanceStatus;
   platform: { id: string; name: string };
   runtimeView: AgentInstanceRuntimeView;
@@ -3072,9 +3124,30 @@ export interface A2aStandardAgentInstanceDetail extends AgentInstanceDetailBase 
   definition: AgentGardenEntry;
 }
 
+export type ProjectAgentRuntimeInstance = z.infer<
+  typeof projectAgentRuntimeInstanceSchema
+>;
+
+export interface ProjectAgentInstanceDetail extends AgentInstanceDetailBase {
+  kind: "PROJECT_AGENT";
+  instance: ProjectAgentRuntimeInstance;
+  definition: {
+    id: string;
+    slug: string;
+    source: "AGENT_DEVELOPER";
+    executionStrategy: AgentExecutionStrategy;
+    activeVersion: {
+      id: string;
+      versionNumber: number;
+      contentDigest: string;
+    } | null;
+  };
+}
+
 export type AgentInstanceDetail =
   | SupervisorAgentInstanceDetail
-  | A2aStandardAgentInstanceDetail;
+  | A2aStandardAgentInstanceDetail
+  | ProjectAgentInstanceDetail;
 
 export interface AgentInstanceActivityEvent {
   id: string;

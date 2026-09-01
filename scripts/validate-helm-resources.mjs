@@ -890,10 +890,25 @@ if (
       resources: ["namespaces"],
       verbs: ["get", "create", "patch", "delete"],
     },
+    {
+      apiGroups: [""],
+      resources: ["configmaps", "secrets", "services"],
+      verbs: ["get", "create", "patch", "delete"],
+    },
+    {
+      apiGroups: ["apps"],
+      resources: ["deployments"],
+      verbs: ["get", "create", "patch", "delete"],
+    },
+    {
+      apiGroups: ["networking.k8s.io"],
+      resources: ["networkpolicies"],
+      verbs: ["get", "create", "patch", "delete"],
+    },
   ])
 ) {
   throw new Error(
-    "The Control Worker identity must be limited to reconciling and deleting Project Namespaces.",
+    "The Control Worker identity must be limited to Project Namespaces and version-pinned Expert Agent Runtime resources.",
   );
 }
 

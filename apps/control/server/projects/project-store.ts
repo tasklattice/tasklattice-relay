@@ -531,6 +531,7 @@ export class ProjectStore {
           ...create,
           kind: "SUPERVISOR",
           ownerUserId,
+          createdByUserId: ownerUserId,
         },
         update: {
           payload: agentPayload(agent),
@@ -570,6 +571,13 @@ export class ProjectStore {
             },
           },
         },
+        creatorMembership: {
+          select: {
+            user: {
+              select: { id: true, displayName: true, username: true },
+            },
+          },
+        },
         accessPolicyBindings: {
           orderBy: { accessPolicyId: "asc" },
           select: { accessPolicyId: true },
@@ -580,7 +588,9 @@ export class ProjectStore {
       ? parseCurrentAgent(
           row.payload,
           row.accessPolicyBindings.map((binding) => binding.accessPolicyId),
-          agentCreator(row.ownerMembership.user),
+          agentCreator(
+            row.creatorMembership?.user ?? row.ownerMembership.user,
+          ),
         )
       : undefined;
   }
@@ -633,6 +643,13 @@ export class ProjectStore {
             },
           },
         },
+        creatorMembership: {
+          select: {
+            user: {
+              select: { id: true, displayName: true, username: true },
+            },
+          },
+        },
         accessPolicyBindings: {
           orderBy: { accessPolicyId: "asc" },
           select: { accessPolicyId: true },
@@ -643,7 +660,9 @@ export class ProjectStore {
       const agent = parseCurrentAgent(
         row.payload,
         row.accessPolicyBindings.map((binding) => binding.accessPolicyId),
-        agentCreator(row.ownerMembership.user),
+        agentCreator(
+          row.creatorMembership?.user ?? row.ownerMembership.user,
+        ),
       );
       return agent ? [agent] : [];
     });
@@ -710,6 +729,13 @@ export class ProjectStore {
               },
             },
           },
+          creatorMembership: {
+            select: {
+              user: {
+                select: { id: true, displayName: true, username: true },
+              },
+            },
+          },
           accessPolicyBindings: {
             orderBy: { accessPolicyId: "asc" },
             select: { accessPolicyId: true },
@@ -719,7 +745,9 @@ export class ProjectStore {
       return parseAgent(
         updated.payload,
         updated.accessPolicyBindings.map((binding) => binding.accessPolicyId),
-        agentCreator(updated.ownerMembership.user),
+        agentCreator(
+          updated.creatorMembership?.user ?? updated.ownerMembership.user,
+        ),
       );
     });
   }

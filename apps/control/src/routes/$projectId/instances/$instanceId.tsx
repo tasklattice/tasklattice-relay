@@ -22,6 +22,7 @@ import {
   type InstanceDetailTab,
 } from "@/components/instances/instance-detail-model";
 import {
+  InstanceAccessDeniedState,
   InstanceDetailErrorState,
   InstanceDetailSkeleton,
   InstanceNotFoundState,
@@ -125,6 +126,8 @@ function AgentDetail() {
   ]);
 
   if (detail.isPending) return <InstanceDetailSkeleton />;
+  if (detail.error instanceof ApiError && detail.error.status === 403)
+    return <InstanceAccessDeniedState />;
   if (detail.error instanceof ApiError && detail.error.status === 404)
     return <InstanceNotFoundState />;
   if (detail.isError || !detail.data)
@@ -139,7 +142,7 @@ function AgentDetail() {
       />
     );
   }
-  if (detail.data.kind === "A2A") {
+  if (detail.data.kind === "A2A" || detail.data.kind === "PROJECT_AGENT") {
     return (
       <A2aInstanceDetail
         activeTab={activeTab}
@@ -305,7 +308,10 @@ function SupervisorInstanceDetail({
         agent={visibleAgent}
         canDelete={permissions.canDeleteAgents}
         capabilities={detail.capabilities}
+        form={detail.form}
         platform={platform}
+        {...(detail.protocols[0] ? { protocol: detail.protocols[0] } : {})}
+        role={detail.role}
         onDelete={() => setDeleteOpen(true)}
       />
       <InstanceTabs
@@ -333,7 +339,13 @@ function SupervisorInstanceDetail({
         />
       ) : null}
       {renderedTab === "configuration" ? (
-        <InstanceConfigurationTab agent={visibleAgent} platform={platform} />
+        <InstanceConfigurationTab
+          agent={visibleAgent}
+          form={detail.form}
+          platform={platform}
+          {...(detail.protocols[0] ? { protocol: detail.protocols[0] } : {})}
+          role={detail.role}
+        />
       ) : null}
       {renderedTab === "capabilities" ? (
         <InstanceCapabilitiesTab

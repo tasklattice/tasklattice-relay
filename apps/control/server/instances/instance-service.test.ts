@@ -486,6 +486,7 @@ describe("Instance Access Policy lifecycle", () => {
       "a2a-release-notes-composer",
       "local-admin",
     );
+    if (release.kind !== "A2A") throw new Error("Expected an A2A catalog Instance.");
     await garden.store.saveManagedInstance({
       ...release,
       status: "FAILED",

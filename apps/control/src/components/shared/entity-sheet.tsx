@@ -14,6 +14,7 @@ const widthClasses = {
   md: "!w-full sm:!w-[min(96vw,40rem)] sm:!max-w-[40rem]",
   lg: "!w-full sm:!w-[min(96vw,48rem)] sm:!max-w-[48rem]",
   xl: "!w-full sm:!w-[min(96vw,56rem)] sm:!max-w-[56rem]",
+  workspace: "!w-full sm:!w-[min(96vw,72rem)] sm:!max-w-[72rem]",
 } as const;
 
 export function EntityDetailList({

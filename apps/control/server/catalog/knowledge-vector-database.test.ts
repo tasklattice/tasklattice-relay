@@ -66,6 +66,8 @@ describe("KnowledgeVectorDatabase", () => {
       "query",
     );
     expect(query).toHaveBeenCalledOnce();
+    const sql = query.mock.calls[0]?.[0] as { strings?: readonly string[] } | undefined;
+    expect(sql?.strings?.join(" ")).toContain("AS attributes");
     expect(result).toEqual({
       object: "vector_store.search_results.page",
       search_query: "How do I rotate credentials?",

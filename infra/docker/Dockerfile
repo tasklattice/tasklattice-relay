@@ -31,6 +31,7 @@ RUN apt-get update \
 COPY package.json package-lock.json ./
 COPY apps/control/package.json apps/control/package.json
 COPY apps/example-mcp-server/package.json apps/example-mcp-server/package.json
+COPY apps/expert-agent-runtime/package.json apps/expert-agent-runtime/package.json
 COPY apps/runner/package.json apps/runner/package.json
 COPY packages/contracts/package.json packages/contracts/package.json
 RUN --mount=type=cache,target=/root/.npm \
@@ -46,6 +47,7 @@ COPY docs ./docs
 COPY packages ./packages
 COPY scripts/validate-prisma-migrations.mjs ./scripts/validate-prisma-migrations.mjs
 RUN npm run build --workspace @tali/contracts \
+    && npm run build --workspace @tali/expert-agent-runtime \
     && npm run build --workspace @tali/control \
     && npm run build --workspace @tali/runner \
     && npm run build --workspace @tali/example-mcp-server
@@ -88,7 +90,11 @@ WORKDIR /app
 COPY --from=production-dependencies /app/node_modules ./node_modules
 COPY package.json package-lock.json ./
 COPY apps/example-mcp-server/package.json apps/example-mcp-server/package.json
+COPY apps/expert-agent-runtime/package.json apps/expert-agent-runtime/package.json
+COPY packages/contracts/package.json packages/contracts/package.json
 COPY --from=build /app/apps/example-mcp-server/dist ./apps/example-mcp-server/dist
+COPY --from=build /app/apps/expert-agent-runtime/dist ./apps/expert-agent-runtime/dist
+COPY --from=build /app/packages/contracts/dist ./packages/contracts/dist
 USER node
 EXPOSE 3000
 ENTRYPOINT ["node", "apps/example-mcp-server/dist/index.js"]
@@ -112,3 +118,17 @@ COPY apps/runner/package.json ./apps/runner/package.json
 USER node
 EXPOSE 9090
 CMD ["node", "apps/runner/dist/index.js"]
+
+FROM node:22-bookworm-slim AS expert-agent-runtime
+ENV NODE_ENV=production \
+    HOST=0.0.0.0 \
+    PORT=8080
+WORKDIR /app
+COPY --from=production-dependencies /app/node_modules ./node_modules
+COPY packages/contracts/package.json ./packages/contracts/package.json
+COPY --from=build /app/packages/contracts/dist ./packages/contracts/dist
+COPY apps/expert-agent-runtime/package.json ./apps/expert-agent-runtime/package.json
+COPY --from=build /app/apps/expert-agent-runtime/dist ./apps/expert-agent-runtime/dist
+USER node
+EXPOSE 8080
+CMD ["node", "apps/expert-agent-runtime/dist/server.js"]

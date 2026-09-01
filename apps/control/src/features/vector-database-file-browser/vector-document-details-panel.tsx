@@ -1,7 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import type { VectorCustomMetadata, VectorDocument } from "@tali/contracts";
 import {
-  FileText,
   MoreHorizontal,
   Move,
   Pencil,
@@ -10,7 +9,6 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -23,6 +21,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useProjectQueryScope } from "@/hooks/use-project-query-scope";
 import { api } from "@/lib/api";
 import { filePath, formatBytes } from "./file-browser-utils";
+import {
+  VectorFileIcon,
+  VectorIndexStatus,
+  vectorFileTypeLabel,
+  vectorIndexStatusLabel,
+} from "./vector-file-visuals";
 
 const PREVIEW_LENGTH = 360;
 
@@ -68,9 +72,7 @@ export function VectorDocumentDetailsPanel({
     <div className="flex h-full min-h-0 flex-col bg-card">
       <header className="shrink-0 border-b px-5 py-5 sm:px-6">
         <div className="flex items-start gap-3.5">
-          <span className="grid size-10 shrink-0 place-items-center rounded-md bg-muted text-muted-foreground">
-            <FileText className="size-5" />
-          </span>
+          <VectorFileIcon filename={document.filename} mediaType={document.mediaType} size="lg" />
           <div className="min-w-0 flex-1">
             <h2 className="break-words text-lg font-semibold leading-6 tracking-[-0.01em]">{document.filename}</h2>
             <p className="mt-1 truncate text-xs text-muted-foreground" title={filePath(document)}>
@@ -102,7 +104,7 @@ export function VectorDocumentDetailsPanel({
       <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain">
         <section className="border-b bg-muted/20 px-5 py-4 sm:px-6" aria-label="File indexing summary">
           <div className="flex flex-wrap items-center gap-2.5 text-sm">
-            <StatusBadge status={document.status} />
+            <VectorIndexStatus status={document.status} />
             <span aria-hidden="true" className="text-muted-foreground/60">·</span>
             <span>{document.chunkCount} chunks</span>
             <span aria-hidden="true" className="text-muted-foreground/60">·</span>
@@ -136,8 +138,10 @@ export function VectorDocumentDetailsPanel({
         <section className="border-b px-5 py-5 sm:px-6" aria-labelledby="file-properties-title">
           <h3 id="file-properties-title" className="text-base font-semibold">File properties</h3>
           <dl className="mt-4 space-y-3 text-sm">
-            <Property label="Type" value={mediaTypeLabel(document)} />
-            <Property label="Status" value={statusLabel(document.status)} />
+            <Property label="Type" value={vectorFileTypeLabel(document.filename, document.mediaType)} />
+            <Property label="Status" value={vectorIndexStatusLabel(document.status)} />
+            {document.pageCount ? <Property label="Pages" value={String(document.pageCount)} /> : null}
+            {document.ocrPageCount ? <Property label="OCR pages" value={String(document.ocrPageCount)} /> : null}
             <Property label="Chunks" value={String(document.chunkCount)} />
             <Property label="Size" value={formatBytes(document.byteSize)} />
           </dl>
@@ -183,21 +187,6 @@ export function VectorDocumentDetailsPanel({
   );
 }
 
-function StatusBadge({ status }: { status: VectorDocument["status"] }) {
-  return (
-    <Badge
-      variant="outline"
-      className={status === "READY"
-        ? "border-transparent bg-primary/10 text-primary"
-        : status === "FAILED"
-          ? "border-transparent bg-destructive/10 text-destructive"
-          : "border-transparent bg-amber-500/10 text-amber-700 dark:text-amber-300"}
-    >
-      {statusLabel(status)}
-    </Badge>
-  );
-}
-
 function Property({ label, value }: { label: string; value: string }) {
   return (
     <div className="grid grid-cols-[8rem_minmax(0,1fr)] gap-4">
@@ -220,27 +209,6 @@ function PreviewSkeleton() {
 
 function PanelMessage({ children, tone = "neutral" }: { children: React.ReactNode; tone?: "danger" | "neutral" }) {
   return <p className={tone === "danger" ? "text-sm leading-6 text-destructive" : "text-sm leading-6 text-muted-foreground"}>{children}</p>;
-}
-
-function mediaTypeLabel(document: VectorDocument): string {
-  const extension = document.filename.split(".").pop()?.toLowerCase();
-  if (document.mediaType === "application/pdf" || extension === "pdf") return "PDF document";
-  if (extension === "docx") return "Word document";
-  if (extension === "pptx") return "PowerPoint presentation";
-  if (extension === "xlsx") return "Excel workbook";
-  if (extension === "md") return "Markdown document";
-  if (extension === "txt") return "Text document";
-  if (document.mediaType.startsWith("image/")) return "Image";
-  if (document.mediaType === "text/html") return "HTML document";
-  return document.mediaType;
-}
-
-function statusLabel(status: VectorDocument["status"]): string {
-  if (status === "READY") return "Indexed";
-  if (status === "FAILED") return "Failed";
-  if (status === "QUEUED") return "Uploading";
-  if (status === "PARSING") return "Parsing";
-  return "Embedding";
 }
 
 function previewUnavailableMessage(document: VectorDocument): string {

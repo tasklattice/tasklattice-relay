@@ -9,7 +9,7 @@ export default defineHandler(async (event) => {
   try {
     const id = decodeURIComponent(event.context.params?.id ?? "");
     return jsonResponse(
-      runDemoAgentMessage(id, await event.req.json()),
+      await runDemoAgentMessage(id, await event.req.json()),
     );
   } catch (error) {
     return errorResponse(error);

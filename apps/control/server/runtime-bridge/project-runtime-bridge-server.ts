@@ -39,6 +39,14 @@ function memoryControlPath(
   return `/api/v1/runtime-bridge/coordinators/${encodeURIComponent(coordinatorInstanceId)}/memory/${operation}`;
 }
 
+function expertAgentResourceControlPath(
+  agentId: string,
+  versionId: string,
+  resourcePath: string,
+): string {
+  return `/api/v1/runtime-bridge/agents/${encodeURIComponent(agentId)}/versions/${encodeURIComponent(versionId)}/resources/${resourcePath}`;
+}
+
 async function controlRequest(
   path: string,
   coordinatorToken: string,
@@ -55,7 +63,32 @@ async function controlRequest(
   });
 }
 
+async function expertAgentControlRequest(
+  path: string,
+  expertAgentToken: string,
+  identityHeaders: {
+    agentId: string;
+    versionId: string;
+    contentDigest: string;
+  },
+  init: RequestInit = {},
+): Promise<Response> {
+  const headers = new Headers(init.headers);
+  headers.set("authorization", `Bearer ${configuration.projectToken}`);
+  headers.set("x-tali-expert-agent-token", expertAgentToken);
+  headers.set("x-tali-expert-agent-id", identityHeaders.agentId);
+  headers.set("x-tali-expert-agent-version-id", identityHeaders.versionId);
+  headers.set("x-tali-expert-agent-content-digest", identityHeaders.contentDigest);
+  return fetch(`${configuration.controlUrl.replace(/\/$/, "")}${path}`, {
+    ...init,
+    headers,
+    redirect: "error",
+    signal: AbortSignal.timeout(125_000),
+  });
+}
+
 class CoordinatorAuthenticationError extends Error {}
+class ExpertAgentAuthenticationError extends Error {}
 
 function coordinatorToken(request: express.Request): string {
   const authorization = request.get("authorization") ?? "";
@@ -65,6 +98,35 @@ function coordinatorToken(request: express.Request): string {
     );
   }
   return authorization.slice("Bearer ".length);
+}
+
+function expertAgentRequestIdentity(request: express.Request): {
+  token: string;
+  agentId: string;
+  versionId: string;
+  contentDigest: string;
+} {
+  const authorization = request.get("authorization") ?? "";
+  const agentId = request.get("x-tali-expert-agent-id") ?? "";
+  const versionId = request.get("x-tali-expert-agent-version-id") ?? "";
+  const contentDigest = request.get("x-tali-expert-agent-content-digest") ?? "";
+  if (
+    !authorization.startsWith("Bearer ")
+    || authorization.length <= 7
+    || !agentId
+    || !versionId
+    || !/^sha256:[a-f0-9]{64}$/.test(contentDigest)
+  ) {
+    throw new ExpertAgentAuthenticationError(
+      "Expert Agent Runtime authentication is required.",
+    );
+  }
+  return {
+    token: authorization.slice("Bearer ".length),
+    agentId,
+    versionId,
+    contentDigest,
+  };
 }
 
 async function relay(response: Response, target: express.Response): Promise<void> {
@@ -98,8 +160,71 @@ function bridgeVectorDatabaseSearchUrl(
 app.get("/healthz", (_request, response) => response.json({
   ok: true,
   projectId: configuration.projectId,
-  capabilityKinds: ["A2A_AGENT", "VECTOR_DATABASE", "DURABLE_MEMORY"],
+  capabilityKinds: [
+    "A2A_AGENT",
+    "VECTOR_DATABASE",
+    "DURABLE_MEMORY",
+    "EXPERT_AGENT_RESOURCE",
+  ],
 }));
+
+for (const resource of [
+  { route: "mcp/call", control: "mcp/call" },
+  { route: "knowledge/search", control: "knowledge/search" },
+  { route: "models/complete", control: "models/complete" },
+] as const) {
+  app.post(
+    `/v1/expert-agent-runtime/resources/${resource.route}`,
+    async (request, response, next) => {
+      try {
+        const identity = expertAgentRequestIdentity(request);
+        await relay(
+          await expertAgentControlRequest(
+            expertAgentResourceControlPath(
+              identity.agentId,
+              identity.versionId,
+              resource.control,
+            ),
+            identity.token,
+            identity,
+            {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify(request.body),
+            },
+          ),
+          response,
+        );
+      } catch (error) {
+        next(error);
+      }
+    },
+  );
+}
+
+app.post(
+  "/v1/expert-agent-runtime/runs/events",
+  async (request, response, next) => {
+    try {
+      const identity = expertAgentRequestIdentity(request);
+      await relay(
+        await expertAgentControlRequest(
+          `/api/v1/runtime-bridge/agents/${encodeURIComponent(identity.agentId)}/versions/${encodeURIComponent(identity.versionId)}/runs/events`,
+          identity.token,
+          identity,
+          {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify(request.body),
+          },
+        ),
+        response,
+      );
+    } catch (error) {
+      next(error);
+    }
+  },
+);
 
 for (const operation of ["recall", "retain"] as const) {
   app.post(
@@ -294,6 +419,7 @@ app.use((error: unknown, _request: express.Request, response: express.Response, 
   console.error(error);
   response.status(
     error instanceof CoordinatorAuthenticationError
+      || error instanceof ExpertAgentAuthenticationError
       ? 401
       : error instanceof z.ZodError
         ? 400

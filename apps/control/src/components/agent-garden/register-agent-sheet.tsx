@@ -371,18 +371,18 @@ function SourceStep({
 
       <TabsContent value="container-image" className="mt-4 space-y-6">
         <p className="border-l-2 border-primary bg-primary/5 px-4 py-3 text-sm leading-6">
-          Relay creates a Deployment and internal Service, pins the running image digest, then reads the Agent Card and validates a supported A2A 1.0 interface.
+          Relay creates a managed runtime workload and internal Service, pins the running image digest, then reads the Agent Card and validates a supported A2A 1.0 interface.
         </p>
         <FormSection icon={Box} title="A2A container image" description="Use the image ENTRYPOINT and CMD by default. The registry must be reachable from the cluster.">
-          <Field id="onboard-image" label="OCI image reference">
-            <Input id="onboard-image" className="h-11 font-mono" value={image.image} onChange={(event) => setImage({ ...image, image: event.target.value })} placeholder="ghcr.io/acme/research-agent:v1.4.0" />
+          <Field id="onboard-image" label="OCI image reference" required>
+            <Input id="onboard-image" className="h-11 font-mono" required value={image.image} onChange={(event) => setImage({ ...image, image: event.target.value })} placeholder="ghcr.io/acme/research-agent:v1.4.0" />
           </Field>
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field id="onboard-port" label="Container port">
-              <Input id="onboard-port" className="h-11 font-mono" type="number" min={1} max={65_535} value={image.containerPort} onChange={(event) => setImage({ ...image, containerPort: Number(event.target.value) })} />
+            <Field id="onboard-port" label="Container port" required>
+              <Input id="onboard-port" className="h-11 font-mono" type="number" min={1} max={65_535} required value={image.containerPort} onChange={(event) => setImage({ ...image, containerPort: Number(event.target.value) })} />
             </Field>
-            <Field id="onboard-card-path" label="A2A Agent Card path">
-              <Input id="onboard-card-path" className="h-11 font-mono" value={image.agentCardPath} onChange={(event) => setImage({ ...image, agentCardPath: event.target.value })} />
+            <Field id="onboard-card-path" label="A2A Agent Card path" required>
+              <Input id="onboard-card-path" className="h-11 font-mono" required value={image.agentCardPath} onChange={(event) => setImage({ ...image, agentCardPath: event.target.value })} />
             </Field>
           </div>
           <details className="min-w-0 max-w-full border px-4 py-3">
@@ -403,15 +403,15 @@ function SourceStep({
           Repository builds are the next delivery phase. The form documents the contract, but Relay will not accept this source until the isolated build and provenance pipeline is enabled.
         </p>
         <FormSection icon={GitBranch} title="Repository build" description="The future flow will build an immutable OCI image, then use the same runtime path as Container Image.">
-          <Field id="onboard-repository" label="Git repository URL">
-            <Input id="onboard-repository" className="h-11 font-mono" value={repository.repositoryUrl} onChange={(event) => setRepository({ ...repository, repositoryUrl: event.target.value })} placeholder="https://github.com/acme/research-agent" />
+          <Field id="onboard-repository" label="Git repository URL" required>
+            <Input id="onboard-repository" className="h-11 font-mono" required value={repository.repositoryUrl} onChange={(event) => setRepository({ ...repository, repositoryUrl: event.target.value })} placeholder="https://github.com/acme/research-agent" />
           </Field>
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field id="onboard-revision" label="Revision">
-              <Input id="onboard-revision" className="h-11 font-mono" value={repository.revision} onChange={(event) => setRepository({ ...repository, revision: event.target.value })} />
+            <Field id="onboard-revision" label="Revision" required>
+              <Input id="onboard-revision" className="h-11 font-mono" required value={repository.revision} onChange={(event) => setRepository({ ...repository, revision: event.target.value })} />
             </Field>
-            <Field id="onboard-dockerfile" label="Dockerfile">
-              <Input id="onboard-dockerfile" className="h-11 font-mono" value={repository.dockerfile} onChange={(event) => setRepository({ ...repository, dockerfile: event.target.value })} />
+            <Field id="onboard-dockerfile" label="Dockerfile" required>
+              <Input id="onboard-dockerfile" className="h-11 font-mono" required value={repository.dockerfile} onChange={(event) => setRepository({ ...repository, dockerfile: event.target.value })} />
             </Field>
           </div>
           <Button type="button" variant="outline" onClick={() => onSourceChange("container-image")}>
@@ -425,8 +425,8 @@ function SourceStep({
           Register an Agent that already runs elsewhere. Relay discovers its callable endpoint and skills from the published Agent Card.
         </p>
         <FormSection icon={Network} title="Published Agent Card" description="Provide the canonical card URL; the implementation framework does not change the onboarding contract.">
-          <Field id="onboard-existing-card" label="A2A Agent Card URL">
-            <Input id="onboard-existing-card" className="h-11 font-mono" value={existing.agentCardUrl} onChange={(event) => setExisting({ ...existing, agentCardUrl: event.target.value })} placeholder="https://agents.example.com/.well-known/agent-card.json" />
+          <Field id="onboard-existing-card" label="A2A Agent Card URL" required>
+            <Input id="onboard-existing-card" className="h-11 font-mono" required value={existing.agentCardUrl} onChange={(event) => setExisting({ ...existing, agentCardUrl: event.target.value })} placeholder="https://agents.example.com/.well-known/agent-card.json" />
             <p className="text-xs leading-5 text-muted-foreground">
               Relay selects an A2A 1.0 JSON-RPC or HTTP+JSON interface from the card. Health-only endpoints are not accepted.
             </p>
@@ -456,19 +456,19 @@ function DetailsStep({
     <form className="space-y-7" onSubmit={(event) => event.preventDefault()}>
       <FormSection icon={ServerCog} title="Identity" description="How operators and Coordinators recognize this Agent.">
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field id="onboard-name" label="Display name">
-            <Input id="onboard-name" className="h-11" value={identity.name} onChange={(event) => setIdentity({ ...identity, name: event.target.value })} placeholder="Research Operations Agent" autoFocus />
+          <Field id="onboard-name" label="Display name" required>
+            <Input id="onboard-name" className="h-11" required value={identity.name} onChange={(event) => setIdentity({ ...identity, name: event.target.value })} placeholder="Research Operations Agent" autoFocus />
           </Field>
-          <Field id="onboard-owner" label="Owner">
-            <Input id="onboard-owner" className="h-11" value={identity.owner} onChange={(event) => setIdentity({ ...identity, owner: event.target.value })} placeholder="Developer Experience" />
+          <Field id="onboard-owner" label="Owner" required>
+            <Input id="onboard-owner" className="h-11" required value={identity.owner} onChange={(event) => setIdentity({ ...identity, owner: event.target.value })} placeholder="Developer Experience" />
           </Field>
         </div>
-        <Field id="onboard-description" label="Description">
-          <Textarea id="onboard-description" value={identity.description} onChange={(event) => setIdentity({ ...identity, description: event.target.value })} placeholder="Handles research synthesis, source validation, and delegated analysis tasks." />
+        <Field id="onboard-description" label="Description" required>
+          <Textarea id="onboard-description" required value={identity.description} onChange={(event) => setIdentity({ ...identity, description: event.target.value })} placeholder="Handles research synthesis, source validation, and delegated analysis tasks." />
         </Field>
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field id="onboard-category" label="Category">
-            <Input id="onboard-category" className="h-11" value={identity.category} onChange={(event) => setIdentity({ ...identity, category: event.target.value })} />
+          <Field id="onboard-category" label="Category" required>
+            <Input id="onboard-category" className="h-11" required value={identity.category} onChange={(event) => setIdentity({ ...identity, category: event.target.value })} />
           </Field>
           <Field id="onboard-tags" label="Capability tags">
             <Input id="onboard-tags" className="h-11" value={identity.tags.join(", ")} onChange={(event) => setIdentity({ ...identity, tags: commaList(event.target.value) })} placeholder="Research, Sources, Analysis" />
@@ -491,16 +491,16 @@ function DetailsStep({
         <>
           <FormSection icon={LockKeyhole} title="Authentication" description="Only Secret references are persisted. Credential values never return to the browser.">
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field id="onboard-auth-type" label="Authentication type">
-                <select id="onboard-auth-type" className="flex h-11 w-full rounded-md border border-input bg-background px-3 text-sm" value={existing.authType} onChange={(event) => setExisting({ ...existing, authType: event.target.value as ExistingDraft["authType"] })}>
+              <Field id="onboard-auth-type" label="Authentication type" required>
+                <select id="onboard-auth-type" required className="flex h-11 w-full rounded-md border border-input bg-background px-3 text-sm" value={existing.authType} onChange={(event) => setExisting({ ...existing, authType: event.target.value as ExistingDraft["authType"] })}>
                   <option value="none">None</option>
                   <option value="bearer_token">Bearer token</option>
                   <option value="api_key">API key</option>
                 </select>
               </Field>
               {existing.authType !== "none" ? (
-                <Field id="onboard-auth-reference" label="Credential Secret reference">
-                  <Input id="onboard-auth-reference" className="h-11 font-mono" value={existing.authReference} onChange={(event) => setExisting({ ...existing, authReference: event.target.value })} placeholder="k8s://namespace/secret#A2A_TOKEN" />
+                <Field id="onboard-auth-reference" label="Credential Secret reference" required>
+                  <Input id="onboard-auth-reference" className="h-11 font-mono" required value={existing.authReference} onChange={(event) => setExisting({ ...existing, authReference: event.target.value })} placeholder="k8s://namespace/secret#A2A_TOKEN" />
                 </Field>
               ) : null}
             </div>
@@ -603,8 +603,8 @@ function FormSection({ children, description, icon: Icon, title }: { children: R
   );
 }
 
-function Field({ children, id, label }: { children: ReactNode; id: string; label: string }) {
-  return <div className="min-w-0 space-y-2"><Label htmlFor={id}>{label}</Label>{children}</div>;
+function Field({ children, id, label, required = false }: { children: ReactNode; id: string; label: string; required?: boolean }) {
+  return <div className="min-w-0 space-y-2"><Label htmlFor={id} required={required}>{label}</Label>{children}</div>;
 }
 
 function PolicyRow({ label, value }: { label: string; value: string }) {

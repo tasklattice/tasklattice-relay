@@ -73,7 +73,7 @@ export function AccountMenu({
           type="button"
           aria-label={t("account.openMenu", { displayName })}
           className={cn(
-            "group flex items-center rounded-md text-sidebar-foreground outline-none transition-colors hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-ring/55 data-[state=open]:bg-sidebar-accent",
+            "group flex items-center rounded-md text-sidebar-foreground outline-none transition-colors hover:bg-[var(--sidebar-hover)] focus-visible:ring-2 focus-visible:ring-sidebar-ring/60 focus-visible:ring-offset-1 focus-visible:ring-offset-sidebar data-[state=open]:bg-[var(--sidebar-hover)]",
             collapsed
               ? "mx-auto size-11 justify-center"
               : "h-9 w-full gap-2.5 px-3",

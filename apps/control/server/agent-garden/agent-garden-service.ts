@@ -2,15 +2,26 @@ import { randomUUID } from "node:crypto";
 import {
   agentGardenEntrySchema,
   a2aAgentInstanceSchema,
+  expertAgentRuntimeEnvelopeSchema,
+  expertAgentVersionManifestSchema,
+  expertAgentVersionSnapshotSchema,
   onboardAgentSchema,
   onboardContainerImageAgentSchema,
+  projectAgentRuntimeInstanceSchema,
   type A2aAgentInstance,
   type AgentGardenEntry,
   type AgentGardenSnapshot,
   type OnboardAgentInput,
   type OnboardContainerImageAgentInput,
   type OnboardExistingAgentInput,
+  type ProjectAgentRuntimeInstance,
 } from "@tali/contracts";
+import { getControlConfig } from "../config/control-config";
+import { Prisma } from "../generated/prisma/client";
+import {
+  createExpertAgentRuntimeClient,
+  type ExpertAgentRuntimeClient,
+} from "../kubernetes/expert-agent-runtime-client";
 import {
   createManagedAgentRuntimeClient,
   managedAgentResourceName,
@@ -18,6 +29,10 @@ import {
   type ManagedAgentRuntimeResult,
 } from "../kubernetes/managed-agent-runtime-client";
 import { ProjectStore } from "../projects/project-store";
+import {
+  deriveProjectRuntimeExpertAgentA2aToken,
+  signProjectRuntimeExpertAgentToken,
+} from "../runtime-bridge/project-runtime-bridge-token";
 import { createSecretStore, type SecretStore } from "../secrets/secret-store";
 import {
   HttpAgentDiscoveryClient,
@@ -51,6 +66,11 @@ function usageCapabilities(
     canDelegate: false,
     acceptsDelegation: mode !== "INTERACTIVE",
   };
+}
+
+function developedSkillId(value: string, index: number): string {
+  const slug = value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 120);
+  return slug || `capability-${index + 1}`;
 }
 
 const CONTAINER_IMAGE_SOURCE = "CONTAINER_IMAGE";
@@ -240,12 +260,14 @@ export class AgentGardenService {
     readonly discovery: AgentDiscoveryClient = new HttpAgentDiscoveryClient(),
     readonly secrets: SecretStore = createSecretStore(),
     readonly runtime: ManagedAgentRuntimeClient = createManagedAgentRuntimeClient(),
+    readonly expertRuntime: ExpertAgentRuntimeClient = createExpertAgentRuntimeClient(),
   ) {}
 
   async snapshot(ownerUserId?: string): Promise<AgentGardenSnapshot> {
-    const [, instances] = await Promise.all([
+    const [, instances, developedAgents] = await Promise.all([
       this.store.ensureAgents(databaseAgentCatalog),
       this.store.listManagedInstances(ownerUserId),
+      this.developedAgents(ownerUserId),
     ]);
     const persistedAgents = await this.store.listAgents(ownerUserId);
     const builtInIds = new Set(
@@ -268,9 +290,262 @@ export class AgentGardenService {
             !builtInIds.has(agent.id) &&
             !databaseIds.has(agent.id),
         ),
+        ...developedAgents,
       ],
       instances,
     };
+  }
+
+  private async developedAgents(_ownerUserId?: string): Promise<AgentGardenEntry[]> {
+    const database = this.store.database();
+    const agents = await database.expertAgentRecord.findMany({
+      where: {
+        projectId: this.store.projectId,
+        deletedAt: null,
+        latestReleasedVersionId: { not: null },
+      },
+      orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
+      include: {
+        creator: { include: { user: { select: { displayName: true } } } },
+        latestReleasedVersion: true,
+        versions: {
+          where: { gardenStatus: "PUBLISHED" },
+          orderBy: { versionNumber: "desc" },
+          include: { _count: { select: { runtimeInstances: true } } },
+        },
+      },
+    });
+
+    return agents.flatMap((agent) => {
+      const latest = agent.latestReleasedVersion;
+      if (!latest || latest.gardenStatus !== "PUBLISHED" || !agent.versions.length) return [];
+      const product = expertAgentVersionSnapshotSchema.parse(latest.snapshot).product;
+      return agentGardenEntrySchema.parse({
+        id: agent.id,
+        name: agent.name,
+        description: agent.description,
+        source: "PROJECT_DEVELOPED",
+        integrationType: "a2a",
+        platformLabel: "A2A Agent",
+        category: "Developed Agent",
+        owner: agent.creator.user.displayName,
+        tags: ["A2A", "Developed", agent.executionMode],
+        status: "READY",
+        usageMode: "CALLABLE",
+        usageCapabilities: {
+          interactive: false,
+          canDelegate: false,
+          acceptsDelegation: true,
+        },
+        endpoint: null,
+        agentCardUrl: null,
+        a2a: null,
+        authType: "none",
+        authReference: "",
+        internalNetworkOnly: true,
+        distribution: {
+          type: "VERSION_BUNDLE",
+          agentId: agent.id,
+          defaultVersionId: latest.id,
+          versions: agent.versions.map((version) => ({
+            id: version.id,
+            versionNumber: version.versionNumber,
+            contentDigest: version.contentDigest,
+            manifestDigest: version.manifestDigest,
+            artifactSetDigest: version.artifactSetDigest,
+            publishedAt: version.publishedAt.toISOString(),
+            instanceCount: version._count.runtimeInstances,
+          })),
+        },
+        configuration: {
+          lifecycle: "PUBLISHED",
+          currentVersion: `v${latest.versionNumber}`,
+          executionMode: agent.executionMode,
+        },
+        skills: product.capabilities.map((capability, index) => ({
+          id: developedSkillId(capability, index),
+          name: capability,
+          description: "Declared by the Agent product contract.",
+          tags: [],
+        })),
+        specializationId: null,
+        createdAt: agent.createdAt.toISOString(),
+        updatedAt: agent.updatedAt.toISOString(),
+        lastDiscoveredAt: null,
+        lastDiscoveryError: null,
+      });
+    });
+  }
+
+  private async instantiateDevelopedAgent(
+    gardenAgent: AgentGardenEntry,
+    ownerUserId: string,
+    requestedVersionId?: string,
+  ): Promise<ProjectAgentRuntimeInstance> {
+    const bundle = gardenAgent.distribution;
+    if (!bundle || bundle.type !== "VERSION_BUNDLE") {
+      throw new Error("The Agent Garden entry has no releasable Version bundle.");
+    }
+    const versionId = requestedVersionId ?? bundle.defaultVersionId;
+    if (!bundle.versions.some((version) => version.id === versionId)) {
+      throw new Error("The selected Version is not published in Agent Garden.");
+    }
+    const database = this.store.database();
+    const [version, target, project, creator] = await Promise.all([
+      database.expertAgentVersionRecord.findFirst({
+        where: {
+          projectId: this.store.projectId,
+          id: versionId,
+          agentId: bundle.agentId,
+          gardenStatus: "PUBLISHED",
+          agent: { deletedAt: null },
+        },
+        include: { agent: true },
+      }),
+      this.requireRuntimeTarget(),
+      database.project.findUnique({
+        where: { id: this.store.projectId },
+        select: { name: true },
+      }),
+      database.user.findUnique({
+        where: { id: ownerUserId },
+        select: { id: true, displayName: true, username: true },
+      }),
+    ]);
+    if (!version || !project || !creator) {
+      throw new Error("The selected Agent Version cannot be materialized.");
+    }
+
+    const snapshot = expertAgentVersionSnapshotSchema.parse(version.snapshot);
+    const manifest = expertAgentVersionManifestSchema.parse(version.manifest);
+    const envelope = expertAgentRuntimeEnvelopeSchema.parse({
+      versionId: version.id,
+      versionNumber: version.versionNumber,
+      contentDigest: version.contentDigest,
+      snapshot,
+      manifest,
+    });
+    const instanceId = randomUUID();
+    const now = new Date().toISOString();
+    const createdBy = {
+      id: creator.id,
+      displayName: creator.displayName,
+      username: creator.username ?? creator.displayName,
+    };
+    const base = projectAgentRuntimeInstanceSchema.parse({
+      id: instanceId,
+      agentId: version.agentId,
+      developedAgentId: version.agentId,
+      versionId: version.id,
+      versionNumber: version.versionNumber,
+      contentDigest: version.contentDigest,
+      kind: "PROJECT_AGENT",
+      name: snapshot.product.name,
+      description: snapshot.product.purpose,
+      runtime: "kubernetes",
+      status: "PROVISIONING",
+      provisioningStage: "RUNTIME",
+      runtimeNamespace: target.namespace,
+      deploymentName: null,
+      serviceName: null,
+      podName: null,
+      labelSelector: null,
+      imageReference: null,
+      imageDigest: null,
+      endpoint: null,
+      agentCardUrl: null,
+      a2a: null,
+      skills: gardenAgent.skills,
+      createdBy,
+      createdAt: now,
+      updatedAt: now,
+      logs: [`Creating Instance from v${version.versionNumber}.`],
+      error: null,
+    });
+    const payload = (value: ProjectAgentRuntimeInstance): Prisma.InputJsonValue => {
+      const { createdBy: _createdBy, ...stored } = value;
+      return JSON.parse(JSON.stringify(stored)) as Prisma.InputJsonValue;
+    };
+    await database.agentRecord.create({
+      data: {
+        projectId: this.store.projectId,
+        id: instanceId,
+        kind: "PROJECT_AGENT",
+        developedAgentId: version.agentId,
+        agentVersionId: version.id,
+        ownerUserId,
+        createdByUserId: ownerUserId,
+        payload: payload(base),
+        createdAt: new Date(now),
+        updatedAt: new Date(now),
+      },
+    });
+
+    const identity = {
+      projectId: this.store.projectId,
+      namespace: target.namespace,
+      agentId: version.agentId,
+      versionId: version.id,
+      contentDigest: version.contentDigest,
+    };
+    try {
+      const secret = getControlConfig().auth.secret;
+      const runtime = await this.expertRuntime.activate({
+        projectId: this.store.projectId,
+        projectName: project.name,
+        namespace: target.namespace,
+        instanceId,
+        agentId: version.agentId,
+        agentName: snapshot.product.name,
+        envelope,
+        runtimeToken: signProjectRuntimeExpertAgentToken({
+          ...identity,
+          expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1_000).toISOString(),
+        }, secret),
+        a2aBearerToken: deriveProjectRuntimeExpertAgentA2aToken(identity, secret),
+      });
+      const endpointRoot = runtime.endpoint.replace(/\/a2a\/?$/, "");
+      const ready = projectAgentRuntimeInstanceSchema.parse({
+        ...base,
+        status: "READY",
+        provisioningStage: "READY",
+        deploymentName: runtime.resourceName,
+        serviceName: runtime.resourceName,
+        labelSelector: `app.kubernetes.io/instance=${runtime.resourceName}`,
+        endpoint: runtime.endpoint,
+        agentCardUrl: `${endpointRoot}/.well-known/agent-card.json`,
+        a2a: {
+          protocolBinding: "JSONRPC",
+          protocolVersion: "1.0",
+          tenant: this.store.projectId,
+          streaming: false,
+          pushNotifications: false,
+          extendedAgentCard: false,
+          defaultInputModes: ["text/plain", "application/json"],
+          defaultOutputModes: ["text/plain", "application/json"],
+        },
+        updatedAt: new Date().toISOString(),
+        logs: [...base.logs, `Instance is ready on v${version.versionNumber}.`],
+      });
+      await database.agentRecord.update({
+        where: { projectId_id: { projectId: this.store.projectId, id: instanceId } },
+        data: { payload: payload(ready) },
+      });
+      return ready;
+    } catch (error) {
+      const failed = projectAgentRuntimeInstanceSchema.parse({
+        ...base,
+        status: "FAILED",
+        updatedAt: new Date().toISOString(),
+        logs: [...base.logs, "Instance creation failed."],
+        error: safeError(error),
+      });
+      await database.agentRecord.update({
+        where: { projectId_id: { projectId: this.store.projectId, id: instanceId } },
+        data: { payload: payload(failed) },
+      });
+      return failed;
+    }
   }
 
   private async onboardExisting(
@@ -312,7 +587,8 @@ export class AgentGardenService {
   async instantiate(
     id: string,
     ownerUserId?: string,
-  ): Promise<A2aAgentInstance> {
+    versionId?: string,
+  ): Promise<A2aAgentInstance | ProjectAgentRuntimeInstance> {
     if (!ownerUserId) {
       throw new Error("An owner user is required when creating an A2A Instance.");
     }
@@ -322,6 +598,9 @@ export class AgentGardenService {
     }
     if (!agent.usageCapabilities.acceptsDelegation) {
       throw new Error("This Agent does not accept delegated tasks.");
+    }
+    if (agent.source === "PROJECT_DEVELOPED") {
+      return this.instantiateDevelopedAgent(agent, ownerUserId, versionId);
     }
     if (!agent.endpoint || !agent.agentCardUrl || !agent.a2a) {
       throw new Error("A validated A2A Agent Card is required before creating an Instance.");
@@ -563,7 +842,49 @@ export class AgentGardenService {
 
   async removeInstance(id: string): Promise<boolean> {
     const instance = await this.store.getManagedInstance(id);
-    if (!instance) return false;
+    if (!instance) {
+      const database = this.store.database();
+      const projectAgent = await database.agentRecord.findFirst({
+        where: {
+          projectId: this.store.projectId,
+          id,
+          kind: "PROJECT_AGENT",
+          deletedAt: null,
+        },
+        select: { payload: true },
+      });
+      if (!projectAgent) return false;
+      const stored = projectAgent.payload as Record<string, unknown>;
+      const namespace = typeof stored.runtimeNamespace === "string"
+        ? stored.runtimeNamespace
+        : null;
+      if (namespace) {
+        await this.expertRuntime.deactivate({ namespace, instanceId: id });
+      }
+      const removedAt = new Date();
+      const logs = Array.isArray(stored.logs)
+        ? stored.logs.filter((item): item is string => typeof item === "string")
+        : [];
+      const removed = await database.agentRecord.updateMany({
+        where: {
+          projectId: this.store.projectId,
+          id,
+          kind: "PROJECT_AGENT",
+          deletedAt: null,
+        },
+        data: {
+          deletedAt: removedAt,
+          updatedAt: removedAt,
+          payload: {
+            ...stored,
+            status: "DESTROYING",
+            updatedAt: removedAt.toISOString(),
+            logs: [...logs, "Instance runtime removed."].slice(-100),
+          } as Prisma.InputJsonValue,
+        },
+      });
+      return removed.count === 1;
+    }
     if (instance.runtime !== "external") {
       const agent = await this.store.getAgent(instance.agentId);
       if (agent?.source !== "BUILT_IN") {
@@ -700,6 +1021,8 @@ export class AgentGardenService {
   private async requireCallableAgent(id: string): Promise<AgentGardenEntry> {
     const existing = await this.store.getAgent(id);
     if (existing) return existing;
+    const developed = (await this.developedAgents()).find((agent) => agent.id === id);
+    if (developed) return developed;
     const seeded = databaseAgentCatalog.find((candidate) => candidate.id === id);
     if (!seeded) throw new Error("Agent Garden entry was not found.");
     return this.store.saveAgent(seeded);

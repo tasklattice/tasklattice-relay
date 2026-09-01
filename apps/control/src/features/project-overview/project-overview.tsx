@@ -9,25 +9,26 @@ import {
   ArrowDownRight,
   ArrowRight,
   ArrowUpRight,
-  BrainCircuit,
-  CheckCircle2,
   ChevronDown,
   CircleAlert,
-  ServerCog,
-  ShieldCheck,
-  Sparkles,
+  Clock3,
+  RefreshCw,
   TriangleAlert,
 } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
+import { SectionHeader } from "@/components/layout/section-header";
+import {
+  SurfacePanel,
+  SurfacePanelContent,
+  SurfacePanelDescription,
+  SurfacePanelFooter,
+  SurfacePanelHeader,
+  SurfacePanelTitle,
+} from "@/components/layout/surface-panel";
+import { MetricStrip, MetricStripItem } from "@/components/shared/metric-strip";
+import { StatusBadge, StatusIcon, type StatusTone } from "@/components/shared/status";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -52,6 +53,8 @@ const metricLabels: Record<UsageMetric, string> = {
   runs: "Runs",
   cost: "Cost",
 };
+
+const BUDGET_WARNING_THRESHOLD_PERCENT = 80;
 
 function number(value: number): string {
   return new Intl.NumberFormat("en-US").format(value);
@@ -96,17 +99,23 @@ function Trend({
 }
 
 export function ProjectOverviewHeader({
+  generatedAt,
+  isRefreshing,
+  onRefresh,
   projectName,
   range,
   onRangeChange,
 }: {
+  generatedAt?: string;
+  isRefreshing?: boolean;
+  onRefresh?: () => void;
   projectName: string | undefined;
   range: ProjectOverviewRange;
   onRangeChange: (range: ProjectOverviewRange) => void;
 }) {
   return (
     <PageHeader
-      title="Project overview"
+      title="Project Overview"
       description={
         <>
           Operational risk, usage, runtime health, and budget for{" "}
@@ -114,99 +123,140 @@ export function ProjectOverviewHeader({
         </>
       }
       actions={
-        <ToggleGroup
-          aria-label="Overview time range"
-          type="single"
-          variant="outline"
-          spacing={0}
-          size="lg"
-          value={range}
-          onValueChange={(value) => {
-            if (value) onRangeChange(value as ProjectOverviewRange);
-          }}
-        >
-          {(Object.keys(rangeLabels) as ProjectOverviewRange[]).map((value) => (
-            <ToggleGroupItem key={value} value={value}>
-              {rangeLabels[value]}
-            </ToggleGroupItem>
-          ))}
-        </ToggleGroup>
+        <div className="flex flex-col gap-2 sm:items-end">
+          <div className="flex items-center justify-end gap-2 text-xs text-muted-foreground">
+            <Clock3 className="size-3.5" aria-hidden />
+            <span>
+              {isRefreshing
+                ? "Refreshing overview…"
+                : generatedAt
+                  ? `Updated ${new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(new Date(generatedAt))}`
+                  : "Auto-refresh every 30 seconds"}
+            </span>
+            {onRefresh ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                className="size-11"
+                onClick={onRefresh}
+                disabled={isRefreshing}
+                aria-label="Refresh Project overview"
+              >
+                <RefreshCw className={cn("size-3.5", isRefreshing && "animate-spin motion-reduce:animate-none")} />
+              </Button>
+            ) : null}
+          </div>
+          <ToggleGroup
+            aria-label="Overview time range"
+            type="single"
+            variant="outline"
+            spacing={0}
+            size="lg"
+            value={range}
+            onValueChange={(value) => {
+              if (value) onRangeChange(value as ProjectOverviewRange);
+            }}
+          >
+            {(Object.keys(rangeLabels) as ProjectOverviewRange[]).map((value) => (
+              <ToggleGroupItem key={value} value={value} className="min-h-11">
+                {rangeLabels[value]}
+              </ToggleGroupItem>
+            ))}
+          </ToggleGroup>
+        </div>
       }
     />
   );
 }
 
-export function OverviewKpiGrid({ data }: { data: ProjectOverviewResponse }) {
-  const cards = [
-    {
-      label: "Runs",
-      value: number(data.kpis.runs),
-      detail: <Trend value={data.kpis.runsChangePercent} />,
-    },
-    {
-      label: "Success rate",
-      value: data.kpis.successRate === null
-        ? "—"
-        : `${(data.kpis.successRate * 100).toFixed(1)}%`,
-      detail: data.kpis.successRate === null
-        ? <span className="text-xs text-muted-foreground">No completed Runs in this period</span>
-        : <Trend value={data.kpis.successRateChangePoints} unit="points" />,
-    },
-    {
-      label: "Runtime",
-      value: `${data.kpis.readyInstances} / ${data.kpis.totalInstances}`,
-      detail: (
-        <span className={cn(
-          "text-xs",
-          data.runtime.failed > 0 ? "text-destructive" : "text-muted-foreground",
-        )}>
-          {data.runtime.failed > 0
-            ? `${data.runtime.failed} require attention`
-            : data.kpis.totalInstances > 0
-              ? "No failed Instances"
-              : "No Runtime Instances"}
-        </span>
-      ),
-    },
-    {
-      label: "Spend",
-      value: money(data.kpis.spendUsd),
-      detail: data.budget.configured && data.budget.usedPercent !== null
-        ? (
-            <span className="text-xs text-muted-foreground">
-              {(data.budget.usedPercent * 100).toFixed(1)}% of current budget
-            </span>
-          )
-        : <Trend value={data.kpis.spendChangePercent} />,
-    },
-  ];
+export function getRuntimeSummary(
+  data: ProjectOverviewResponse["runtime"],
+): {
+  description: string;
+  label: string;
+  tone: StatusTone;
+} {
+  if (data.failed > 0) {
+    return {
+      description: `${data.failed} Instance${data.failed === 1 ? "" : "s"} failed and require diagnosis.`,
+      label: "Needs attention",
+      tone: "danger",
+    };
+  }
 
+  if (data.provisioning > 0 || data.destroying > 0) {
+    const changing = data.provisioning + data.destroying;
+    return {
+      description: `${changing} Instance${changing === 1 ? " is" : "s are"} changing lifecycle state.`,
+      label: "Changing",
+      tone: "warning",
+    };
+  }
+
+  if (data.total > 0 && data.ready === data.total) {
+    return {
+      description: "Every persisted Instance is ready; no runtime failure is active.",
+      label: "Healthy",
+      tone: "success",
+    };
+  }
+
+  return {
+    description: "Create a Supervisor or publish an Agent Version to establish runtime health signals.",
+    label: "No runtime",
+    tone: "neutral",
+  };
+}
+
+export function OverviewKpiGrid({ data }: { data: ProjectOverviewResponse }) {
+  const runtimeSummary = getRuntimeSummary(data.runtime);
   return (
-    <section aria-label="Project overview metrics" className="grid overflow-hidden rounded-lg border border-border/65 bg-card sm:grid-cols-2 xl:grid-cols-4">
-      {cards.map((card) => (
-        <article
-          key={card.label}
-          className="min-h-32 border-b p-4 last:border-b-0 sm:odd:border-r sm:[&:nth-child(3)]:border-b-0 xl:border-b-0 xl:border-r xl:odd:border-r xl:last:border-r-0"
-        >
-          <p className="text-xs font-medium text-muted-foreground">{card.label}</p>
-          <p className="mt-3 font-sans text-3xl font-medium tabular-nums tracking-tight">{card.value}</p>
-          <div className="mt-3">{card.detail}</div>
-        </article>
-      ))}
-    </section>
+    <MetricStrip aria-label="Project overview metrics">
+      <MetricStripItem
+        label="Runs"
+        value={number(data.kpis.runs)}
+        context={<Trend value={data.kpis.runsChangePercent} />}
+      />
+      <MetricStripItem
+        label="Success rate"
+        value={data.kpis.successRate === null
+          ? "—"
+          : `${(data.kpis.successRate * 100).toFixed(1)}%`}
+        context={data.kpis.successRate === null
+          ? "No completed Runs in this period"
+          : <Trend value={data.kpis.successRateChangePoints} unit="points" />}
+      />
+      <MetricStripItem
+        label="Runtime health"
+        value={`${data.kpis.readyInstances} / ${data.kpis.totalInstances}`}
+        context={(
+          <span className="flex items-center gap-2">
+            <StatusBadge label={runtimeSummary.label} tone={runtimeSummary.tone} />
+          </span>
+        )}
+      />
+      <MetricStripItem
+        label="Spend / budget"
+        value={money(data.kpis.spendUsd)}
+        context={data.budget.configured && data.budget.usedPercent !== null
+          ? `${(data.budget.usedPercent * 100).toFixed(1)}% of current budget`
+          : <Trend value={data.kpis.spendChangePercent} />}
+      />
+    </MetricStrip>
   );
 }
 
 export function UsageChartCard({ data }: { data: ProjectOverviewResponse }) {
   const [metric, setMetric] = useState<UsageMetric>("tokens");
   return (
-    <Card className="gap-0 py-0 shadow-none">
-      <CardHeader className="flex min-h-16 flex-col items-stretch justify-between gap-3 border-b px-4 py-3 sm:flex-row sm:items-center">
+    <SurfacePanel>
+      <SurfacePanelHeader className="flex-col items-stretch sm:flex-row sm:items-center">
         <div>
-          <CardTitle className="font-sans text-sm font-semibold">Usage trend</CardTitle>
-          <p className="mt-0.5 text-xs text-muted-foreground">
+          <SurfacePanelTitle>Usage trend</SurfacePanelTitle>
+          <SurfacePanelDescription>
             Attributed tokens, Agent Runs, and spend over the selected period.
-          </p>
+          </SurfacePanelDescription>
         </div>
         <ToggleGroup
           aria-label="Usage metric"
@@ -219,20 +269,20 @@ export function UsageChartCard({ data }: { data: ProjectOverviewResponse }) {
           }}
         >
           {(Object.keys(metricLabels) as UsageMetric[]).map((value) => (
-            <ToggleGroupItem key={value} value={value}>
+            <ToggleGroupItem key={value} value={value} className="min-h-11">
               {metricLabels[value]}
             </ToggleGroupItem>
           ))}
         </ToggleGroup>
-      </CardHeader>
-      <CardContent className="px-2 pb-2 pt-1 sm:px-4">
+      </SurfacePanelHeader>
+      <SurfacePanelContent className="px-2 pb-2 pt-1 sm:px-4">
         <ClientOnly fallback={<UsageChartSkeleton />}>
           <Suspense fallback={<UsageChartSkeleton />}>
             <UsageChart metric={metric} points={data.usage} range={data.range} />
           </Suspense>
         </ClientOnly>
-      </CardContent>
-    </Card>
+      </SurfacePanelContent>
+    </SurfacePanel>
   );
 }
 
@@ -265,53 +315,72 @@ export function BudgetCard({
 }) {
   if (!budget.configured || budget.limitUsd === null) {
     return (
-      <Card className="h-full">
-        <CardHeader className="border-b">
-          <CardTitle className="font-sans text-sm font-semibold">Budget forecast</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-1 flex-col justify-center py-8">
+      <SurfacePanel className="flex h-full flex-col">
+        <SurfacePanelHeader>
+          <SurfacePanelTitle>Budget forecast</SurfacePanelTitle>
+        </SurfacePanelHeader>
+        <SurfacePanelContent className="flex flex-1 flex-col justify-center py-8">
           <p className="text-sm font-medium">No budget configured</p>
           <p className="mt-1 max-w-sm text-xs leading-5 text-muted-foreground">
             Spend is still tracked. Set a budget to add utilization and forecast signals.
           </p>
-        </CardContent>
-        <CardFooter className="justify-end">
+        </SurfacePanelContent>
+        <SurfacePanelFooter className="justify-end">
           <Button asChild variant="ghost" size="sm">
             <Link to="/$projectId/setting" params={{ projectId }} search={{ section: "quota" }}>
               Configure budget <ArrowRight />
             </Link>
           </Button>
-        </CardFooter>
-      </Card>
+        </SurfacePanelFooter>
+      </SurfacePanel>
     );
   }
   const usedPercent = (budget.usedPercent ?? 0) * 100;
   const remaining = remainingTime(budget.resetsAt, generatedAt);
   const forecastOver = budget.forecastUsd !== null && budget.forecastUsd > budget.limitUsd;
+  const budgetWarning = usedPercent >= BUDGET_WARNING_THRESHOLD_PERCENT;
   return (
-    <Card className="h-full">
-      <CardHeader className="border-b">
-        <div className="flex items-start justify-between gap-3">
+    <SurfacePanel className="flex h-full flex-col">
+      <SurfacePanelHeader>
+        <div className="flex w-full items-start justify-between gap-3">
           <div>
-            <CardTitle className="font-sans text-sm font-semibold">Budget forecast</CardTitle>
-            <p className="mt-0.5 text-xs text-muted-foreground">
+            <SurfacePanelTitle>Budget forecast</SurfacePanelTitle>
+            <SurfacePanelDescription>
               {budget.duration === "30d" ? "30-day" : budget.duration} budget window
-            </p>
+            </SurfacePanelDescription>
           </div>
           <Badge variant={usedPercent >= 100 ? "destructive" : "outline"}>
             {usedPercent.toFixed(1)}%
           </Badge>
         </div>
-      </CardHeader>
-      <CardContent className="flex flex-1 flex-col justify-center py-6">
+      </SurfacePanelHeader>
+      <SurfacePanelContent className="flex flex-1 flex-col justify-center py-6">
         <p className="font-sans text-3xl font-medium tabular-nums tracking-tight">
           {money(budget.usedUsd)} <span className="text-base text-muted-foreground">/ {money(budget.limitUsd)}</span>
         </p>
-        <Progress
-          aria-label={`${usedPercent.toFixed(1)} percent of budget used`}
-          value={Math.min(100, Math.max(0, usedPercent))}
-          className={cn("mt-5 h-1.5", usedPercent >= 100 && "[&_[data-slot=progress-indicator]]:bg-destructive")}
-        />
+        <div className="mt-5">
+          <div className="mb-2 flex items-center justify-between gap-3 text-[11px] leading-4">
+            <span className="text-muted-foreground">Budget used</span>
+            <span className="font-medium text-warning-foreground">
+              Warning at {BUDGET_WARNING_THRESHOLD_PERCENT}%
+            </span>
+          </div>
+          <div className="relative">
+            <Progress
+              aria-label={`${usedPercent.toFixed(1)} percent of budget used; warning threshold at ${BUDGET_WARNING_THRESHOLD_PERCENT} percent`}
+              value={Math.min(100, Math.max(0, usedPercent))}
+              className={cn(
+                "h-2",
+                budgetWarning && "[&_[data-slot=progress-indicator]]:bg-warning",
+                usedPercent >= 100 && "[&_[data-slot=progress-indicator]]:bg-destructive",
+              )}
+            />
+            <span
+              aria-hidden
+              className="pointer-events-none absolute -bottom-1 -top-1 left-[80%] w-0.5 -translate-x-1/2 rounded-full bg-warning-foreground ring-2 ring-[var(--surface-panel)]"
+            />
+          </div>
+        </div>
         <dl className="mt-6 divide-y border-y text-xs">
           <div className="flex min-h-11 items-center justify-between gap-3">
             <dt className="text-muted-foreground">Forecast</dt>
@@ -328,21 +397,21 @@ export function BudgetCard({
             <dd className="font-medium">{remaining ?? "Reset unavailable"}</dd>
           </div>
         </dl>
-      </CardContent>
-      <CardFooter className="justify-end">
+      </SurfacePanelContent>
+      <SurfacePanelFooter className="justify-end">
         <Button asChild variant="ghost" size="sm">
           <Link to="/$projectId/cost" params={{ projectId }}>
             Review spend <ArrowRight />
           </Link>
         </Button>
-      </CardFooter>
-    </Card>
+      </SurfacePanelFooter>
+    </SurfacePanel>
   );
 }
 
 const runtimeStates = [
-  { key: "ready", label: "Ready", color: "bg-emerald-500/80" },
-  { key: "provisioning", label: "Provisioning", color: "bg-amber-500/75" },
+  { key: "ready", label: "Ready", color: "bg-success" },
+  { key: "provisioning", label: "Provisioning", color: "bg-warning" },
   { key: "failed", label: "Failed", color: "bg-destructive" },
   { key: "destroying", label: "Destroying", color: "bg-muted-foreground/45" },
 ] as const;
@@ -354,20 +423,22 @@ export function RuntimeHealthCard({
   data: ProjectOverviewResponse["runtime"];
   projectId: string;
 }) {
+  const summary = getRuntimeSummary(data);
   return (
-    <Card>
-      <CardHeader className="border-b">
-        <div className="flex items-start justify-between gap-3">
+    <SurfacePanel>
+      <SurfacePanelHeader>
+        <div className="flex w-full items-start justify-between gap-3">
           <div>
-            <CardTitle className="font-sans text-sm font-semibold">Runtime health</CardTitle>
-            <p className="mt-0.5 text-xs text-muted-foreground">Current Instance lifecycle state.</p>
+            <SurfacePanelTitle>Runtime health</SurfacePanelTitle>
+            <SurfacePanelDescription>Current Instance lifecycle state.</SurfacePanelDescription>
           </div>
-          <Badge variant={data.available ? "secondary" : "outline"}>
-            {data.available ? "Live" : "Persisted state"}
-          </Badge>
+          <StatusBadge
+            tone={summary.tone}
+            label={summary.label}
+          />
         </div>
-      </CardHeader>
-      <CardContent className="py-5">
+      </SurfacePanelHeader>
+      <SurfacePanelContent>
         <div className="flex items-end justify-between gap-4">
           <div>
             <p className="font-sans text-3xl font-medium tabular-nums">{data.ready}</p>
@@ -398,15 +469,15 @@ export function RuntimeHealthCard({
             </div>
           ))}
         </dl>
-      </CardContent>
-      <CardFooter className="justify-end">
+      </SurfacePanelContent>
+      <SurfacePanelFooter className="justify-end">
         <Button asChild variant="ghost" size="sm">
           <Link to="/$projectId/instances" params={{ projectId }}>
             View runtime <ArrowRight />
           </Link>
         </Button>
-      </CardFooter>
-    </Card>
+      </SurfacePanelFooter>
+    </SurfacePanel>
   );
 }
 
@@ -436,14 +507,16 @@ export function ModelAssignmentCard({
   }, [assignment.segments]);
 
   return (
-    <Card>
-      <CardHeader className="border-b">
-        <CardTitle className="font-sans text-sm font-semibold">Model assignment distribution</CardTitle>
-        <p className="mt-0.5 text-xs text-muted-foreground">
+    <SurfacePanel>
+      <SurfacePanelHeader>
+        <div>
+          <SurfacePanelTitle>Model assignment distribution</SurfacePanelTitle>
+          <SurfacePanelDescription>
           One count per active Agent&apos;s default route.
-        </p>
-      </CardHeader>
-      <CardContent className="flex min-h-64 flex-col justify-center py-5">
+          </SurfacePanelDescription>
+        </div>
+      </SurfacePanelHeader>
+      <SurfacePanelContent className="flex min-h-64 flex-col justify-center">
         {assignment.totalAgents > 0 ? (
           <div className="grid items-center gap-6 sm:grid-cols-[11rem_minmax(0,1fr)]">
             <div className="relative mx-auto size-44">
@@ -501,8 +574,8 @@ export function ModelAssignmentCard({
             </p>
           </div>
         )}
-      </CardContent>
-      <CardFooter>
+      </SurfacePanelContent>
+      <SurfacePanelFooter>
         <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs text-muted-foreground">
             Resolved-model calls remain in Cost and Usage.
@@ -513,8 +586,8 @@ export function ModelAssignmentCard({
             </Link>
           </Button>
         </div>
-      </CardFooter>
-    </Card>
+      </SurfacePanelFooter>
+    </SurfacePanel>
   );
 }
 
@@ -527,14 +600,14 @@ export function AgentActivityRanking({
 }) {
   const maximumRuns = Math.max(0, ...activity.map((item) => item.runs));
   return (
-    <Card className="gap-0 py-0">
-      <CardHeader className="border-b py-4">
-        <div className="flex items-start justify-between gap-4">
+    <SurfacePanel>
+      <SurfacePanelHeader>
+        <div className="flex w-full items-start justify-between gap-4">
           <div>
-            <CardTitle className="font-sans text-sm font-semibold">Agent activity ranking</CardTitle>
-            <p className="mt-0.5 text-xs text-muted-foreground">
+            <SurfacePanelTitle>Agent activity distribution</SurfacePanelTitle>
+            <SurfacePanelDescription>
               Actual use in the selected period, including configured Agents with no Runs.
-            </p>
+            </SurfacePanelDescription>
           </div>
           <Button asChild variant="ghost" size="sm" className="shrink-0">
             <Link to="/$projectId/traces" params={{ projectId }}>
@@ -542,62 +615,46 @@ export function AgentActivityRanking({
             </Link>
           </Button>
         </div>
-      </CardHeader>
+      </SurfacePanelHeader>
       {activity.length ? (
-        <CardContent className="overflow-x-auto px-0">
-          <table className="w-full min-w-[680px] border-collapse text-xs">
-            <caption className="sr-only">
-              Agent activity ranked by Runs, active users, success rate, and cost
-            </caption>
-            <thead>
-              <tr className="border-b text-left text-muted-foreground">
-                <th scope="col" className="w-10 px-4 py-2.5 font-medium">#</th>
-                <th scope="col" className="min-w-64 px-3 py-2.5 font-medium">Agent</th>
-                <th scope="col" className="px-3 py-2.5 text-right font-medium">Runs</th>
-                <th scope="col" className="px-3 py-2.5 text-right font-medium">Active users</th>
-                <th scope="col" className="px-3 py-2.5 text-right font-medium">Success rate</th>
-                <th scope="col" className="px-4 py-2.5 text-right font-medium">Cost</th>
-              </tr>
-            </thead>
-            <tbody>
-              {activity.map((item, index) => (
-                <tr key={item.agentId} className="border-b last:border-b-0">
-                  <td className="px-4 py-2.5 tabular-nums text-muted-foreground">{index + 1}</td>
-                  <th scope="row" className="px-3 py-2.5 text-left font-medium">
-                    <div className="relative min-h-9 overflow-hidden rounded-sm bg-muted/40">
-                      <span
-                        className="absolute inset-y-0 left-0 bg-[var(--overview-series-1)]/20"
-                        style={{ width: `${maximumRuns ? (item.runs / maximumRuns) * 100 : 0}%` }}
-                        aria-hidden
-                      />
-                      <span className="relative flex min-h-9 items-center truncate px-3">{item.agentName}</span>
-                    </div>
-                  </th>
-                  <td className="px-3 py-2.5 text-right font-medium tabular-nums">{number(item.runs)}</td>
-                  <td
-                    className="px-3 py-2.5 text-right tabular-nums text-muted-foreground"
-                    title={item.activeUsers === null ? "End-user attribution is unavailable" : undefined}
-                  >
-                    {item.activeUsers === null ? "—" : number(item.activeUsers)}
-                  </td>
-                  <td className="px-3 py-2.5 text-right tabular-nums text-muted-foreground">
-                    {item.successRate === null ? "—" : `${(item.successRate * 100).toFixed(1)}%`}
-                  </td>
-                  <td className="px-4 py-2.5 text-right tabular-nums text-muted-foreground">{money(item.costUsd)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </CardContent>
+        <SurfacePanelContent className="py-0">
+          <ol aria-label="Agent activity ranked by Runs" className="divide-y divide-[var(--surface-panel-border)]">
+            {activity.map((item, index) => (
+              <li key={item.agentId} className="grid gap-3 py-4 lg:grid-cols-[1.2rem_minmax(12rem,1fr)_minmax(20rem,2fr)_auto] lg:items-center">
+                <span className="text-xs tabular-nums text-muted-foreground">{index + 1}</span>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium">{item.agentName}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {item.activeUsers === null ? "Users unavailable" : `${number(item.activeUsers)} active users`}
+                    {" · "}
+                    {item.successRate === null ? "Success unavailable" : `${(item.successRate * 100).toFixed(1)}% success`}
+                  </p>
+                </div>
+                <div className="flex min-w-0 items-center gap-3">
+                  <div className="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-muted" aria-hidden>
+                    <span
+                      className="block h-full rounded-full bg-[var(--overview-series-1)]"
+                      style={{ width: `${maximumRuns ? (item.runs / maximumRuns) * 100 : 0}%` }}
+                    />
+                  </div>
+                  <span className="w-16 shrink-0 text-right text-xs font-medium tabular-nums">
+                    {number(item.runs)} Runs
+                  </span>
+                </div>
+                <span className="text-right text-xs tabular-nums text-muted-foreground">{money(item.costUsd)}</span>
+              </li>
+            ))}
+          </ol>
+        </SurfacePanelContent>
       ) : (
-        <CardContent className="flex min-h-28 items-center justify-center py-6 text-center">
+        <SurfacePanelContent className="flex min-h-28 items-center justify-center py-6 text-center">
           <div>
             <p className="text-sm font-medium">No Agents configured</p>
             <p className="mt-1 text-xs text-muted-foreground">Activity will appear after the first Agent is created.</p>
           </div>
-        </CardContent>
+        </SurfacePanelContent>
       )}
-    </Card>
+    </SurfacePanel>
   );
 }
 
@@ -618,12 +675,15 @@ function AttentionRow({
 }) {
   const Icon = item.severity === "critical" ? CircleAlert : TriangleAlert;
   return (
-    <li className="grid gap-4 border-b px-4 py-4 last:border-b-0 lg:grid-cols-[auto_minmax(0,1fr)_auto] lg:items-start">
+    <li className={cn(
+      "grid gap-4 border-b border-[var(--surface-panel-border)] px-5 py-4 last:border-b-0 sm:px-6 lg:grid-cols-[auto_minmax(0,1fr)_auto] lg:items-center",
+      item.severity === "critical" ? "bg-destructive-surface/55" : "bg-warning-surface/45",
+    )}>
       <span className={cn(
         "grid size-9 place-items-center rounded-md",
         item.severity === "critical"
           ? "bg-destructive/10 text-destructive"
-          : "bg-amber-500/10 text-amber-700 dark:text-amber-300",
+          : "bg-warning-surface text-warning-foreground",
       )}>
         <Icon className="size-4" aria-hidden />
       </span>
@@ -657,7 +717,7 @@ function AttentionRow({
   );
 }
 
-export function AttentionListCard({
+export function AttentionList({
   generatedAt,
   items,
 }: {
@@ -669,14 +729,14 @@ export function AttentionListCard({
   const warning = items.length - critical;
   const visibleItems = expanded ? items : items.slice(0, 5);
   return (
-    <Card className="gap-0 py-0">
-      <CardHeader className="border-b py-4">
-        <div className="flex items-start justify-between gap-3">
+    <SurfacePanel aria-labelledby="needs-attention-title">
+      <SurfacePanelHeader>
+        <div className="flex w-full items-start justify-between gap-3">
           <div>
-            <CardTitle className="font-sans text-sm font-semibold">Needs attention</CardTitle>
-            <p className="mt-0.5 text-xs text-muted-foreground">
+            <SurfacePanelTitle id="needs-attention-title">Needs attention</SurfacePanelTitle>
+            <SurfacePanelDescription>
               Ordered by severity and age; every item names an owner and one next step.
-            </p>
+            </SurfacePanelDescription>
           </div>
           {items.length ? (
             <Badge variant="outline" className="shrink-0">
@@ -684,33 +744,31 @@ export function AttentionListCard({
             </Badge>
           ) : null}
         </div>
-      </CardHeader>
+      </SurfacePanelHeader>
       {items.length ? (
         <>
           <ul>{visibleItems.map((item) => (
             <AttentionRow key={item.code} generatedAt={generatedAt} item={item} />
           ))}</ul>
           {items.length > 5 ? (
-            <CardFooter className="justify-center">
+            <SurfacePanelFooter className="justify-center">
               <Button variant="ghost" size="sm" onClick={() => setExpanded((value) => !value)}>
                 {expanded ? "Show fewer" : `Show all ${items.length}`}
                 <ChevronDown className={cn("transition-transform", expanded && "rotate-180")} />
               </Button>
-            </CardFooter>
+            </SurfacePanelFooter>
           ) : null}
         </>
       ) : (
-        <CardContent className="flex min-h-24 items-center gap-3 py-5">
-          <span className="grid size-9 place-items-center rounded-md bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
-            <CheckCircle2 className="size-4" />
-          </span>
+        <SurfacePanelContent className="flex min-h-20 items-center gap-3 py-4">
+          <StatusIcon tone="success" />
           <div>
             <p className="text-sm font-medium">No issues require attention</p>
             <p className="mt-0.5 text-xs text-muted-foreground">No operational or governance thresholds are currently active.</p>
           </div>
-        </CardContent>
+        </SurfacePanelContent>
       )}
-    </Card>
+    </SurfacePanel>
   );
 }
 
@@ -728,37 +786,34 @@ export function ProjectResourcesSummary({
   resources: ProjectOverviewResponse["resources"];
 }) {
   const entries: Array<{
+    description: string;
     label: string;
     value: string;
-    icon: typeof ServerCog;
     to: ResourceRoute;
   }> = [
-    { label: "Runtime", value: `${resources.runtimeCount} Instances`, icon: ServerCog, to: "/$projectId/instances" },
-    { label: "Published skills", value: compact(resources.publishedSkillCount), icon: Sparkles, to: "/$projectId/skills" },
-    { label: "Memory", value: `${resources.memoryEnabledInstanceCount} enabled`, icon: BrainCircuit, to: "/$projectId/memory" },
-    { label: "Policies", value: `${resources.activePolicyCount} active`, icon: ShieldCheck, to: "/$projectId/access-policies" },
+    { description: "Persisted compute and Agent execution environments.", label: "Runtime", value: `${resources.runtimeCount} Instances`, to: "/$projectId/instances" },
+    { description: "Reusable capabilities available to configured Agents.", label: "Published skills", value: compact(resources.publishedSkillCount), to: "/$projectId/skills" },
+    { description: "Instances with durable Project Memory enabled.", label: "Memory", value: `${resources.memoryEnabledInstanceCount} enabled`, to: "/$projectId/memory" },
+    { description: "Active access rules protecting Project resources.", label: "Policies", value: `${resources.activePolicyCount} active`, to: "/$projectId/access-policies" },
   ];
   return (
     <section aria-labelledby="project-resources-title">
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <div>
-          <h2 id="project-resources-title" className="font-sans text-sm font-semibold">Project resources</h2>
-          <p className="mt-0.5 text-xs text-muted-foreground">Inventory summary and detailed management entry points.</p>
-        </div>
-      </div>
-      <div className="grid overflow-hidden rounded-lg border border-border/65 bg-card sm:grid-cols-2 xl:grid-cols-4">
-        {entries.map(({ icon: Icon, label, to, value }) => (
+      <SectionHeader
+        titleId="project-resources-title"
+        title="Project resources"
+        description="Inventory summary and detailed management entry points."
+      />
+      <div className="border-y border-[var(--surface-panel-border)]">
+        {entries.map(({ description, label, to, value }) => (
           <Link
             key={label}
             to={to}
             params={{ projectId }}
-            className="group flex min-h-20 items-center gap-3 border-b p-4 transition-colors last:border-b-0 hover:bg-muted/30 focus-visible:outline-2 focus-visible:outline-offset-[-2px] sm:odd:border-r sm:[&:nth-child(3)]:border-b-0 xl:border-b-0 xl:border-r xl:odd:border-r xl:last:border-r-0"
+            className="group grid min-h-16 gap-2 border-b border-[var(--surface-panel-border)] px-2 py-3.5 transition-colors last:border-b-0 hover:bg-[var(--surface-panel)] focus-visible:outline-2 focus-visible:outline-offset-[-2px] sm:grid-cols-[minmax(10rem,0.7fr)_minmax(14rem,1.5fr)_auto_auto] sm:items-center sm:gap-5 sm:px-3"
           >
-            <Icon className="size-4 text-muted-foreground" />
-            <span className="min-w-0 flex-1">
-              <span className="block text-xs text-muted-foreground">{label}</span>
-              <strong className="mt-1 block text-sm font-medium tabular-nums">{value}</strong>
-            </span>
+            <strong className="text-sm font-medium">{label}</strong>
+            <span className="text-xs leading-5 text-muted-foreground">{description}</span>
+            <span className="text-xs font-medium tabular-nums sm:text-right">{value}</span>
             <ArrowRight className="size-3.5 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
           </Link>
         ))}

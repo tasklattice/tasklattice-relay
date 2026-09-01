@@ -133,7 +133,7 @@ export function ProjectSwitcher({
       <div
         aria-label={t("projectSwitcher.loading")}
         className={cn(
-          "h-12 animate-pulse rounded-md bg-sidebar-accent",
+          "h-12 animate-pulse rounded-md bg-[var(--sidebar-hover)]",
           collapsed ? "w-12" : "w-full",
         )}
       />
@@ -153,8 +153,8 @@ export function ProjectSwitcher({
               : t("projectSwitcher.noProject")
           }
           className={cn(
-            "group flex min-h-12 items-center rounded-md border border-sidebar-border bg-sidebar text-left outline-none transition-colors",
-            "hover:border-sidebar-ring/45 hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-ring/55 data-[state=open]:border-sidebar-ring/45 data-[state=open]:bg-sidebar-accent",
+            "group flex min-h-12 items-center rounded-md border border-sidebar-border bg-[var(--sidebar-control)] text-left outline-none transition-[background-color,border-color]",
+            "hover:border-sidebar-foreground/15 hover:bg-[var(--sidebar-control-hover)] focus-visible:ring-2 focus-visible:ring-sidebar-ring/60 focus-visible:ring-offset-1 focus-visible:ring-offset-sidebar data-[state=open]:border-sidebar-foreground/15 data-[state=open]:bg-[var(--sidebar-control-hover)] disabled:opacity-45",
             collapsed
               ? "mx-auto size-12 justify-center px-0"
               : "w-full gap-2.5 px-2.5",
@@ -169,7 +169,7 @@ export function ProjectSwitcher({
           ) : (
             <span
               aria-hidden="true"
-              className="grid size-7 shrink-0 place-items-center rounded-full bg-sidebar-accent text-xs font-semibold text-sidebar-foreground"
+              className="grid size-7 shrink-0 place-items-center rounded-full bg-[var(--sidebar-active)] text-xs font-semibold text-sidebar-foreground"
             >
               P
             </span>

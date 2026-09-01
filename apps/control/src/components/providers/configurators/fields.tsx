@@ -28,25 +28,26 @@ export function ProviderTextField({ disabled, error, id, label, onChange, placeh
   const errorId = `${id}-error`;
   return (
     <div className="space-y-2">
-      <Label htmlFor={id}>{label}</Label>
+      <Label htmlFor={id} required={required}>{label}</Label>
       <Input id={id} type={type} value={value} disabled={disabled} required={required} placeholder={placeholder} aria-describedby={error ? errorId : undefined} aria-invalid={Boolean(error)} onChange={(event) => onChange(event.target.value)} />
       {error ? <p id={errorId} role="alert" className="text-xs text-destructive">{error}</p> : null}
     </div>
   );
 }
 
-export function ProviderSelectField({ disabled, id, label, onChange, options, value }: {
+export function ProviderSelectField({ disabled, id, label, onChange, options, required = false, value }: {
   disabled: boolean;
   id: string;
   label: string;
   onChange: (value: string) => void;
   options: Array<{ label: string; value: string }>;
+  required?: boolean;
   value: string;
 }) {
   return (
     <div className="space-y-2">
-      <Label htmlFor={id}>{label}</Label>
-      <Select value={value} onValueChange={onChange} disabled={disabled}>
+      <Label htmlFor={id} required={required}>{label}</Label>
+      <Select value={value} onValueChange={onChange} disabled={disabled} required={required}>
         <SelectTrigger id={id}><SelectValue /></SelectTrigger>
         <SelectContent>{options.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent>
       </Select>
@@ -54,20 +55,21 @@ export function ProviderSelectField({ disabled, id, label, onChange, options, va
   );
 }
 
-export function ProviderTextareaField({ disabled, error, id, label, onChange, placeholder, value }: {
+export function ProviderTextareaField({ disabled, error, id, label, onChange, placeholder, required = false, value }: {
   disabled: boolean;
   error?: string | undefined;
   id: string;
   label: string;
   onChange: (value: string) => void;
   placeholder?: string | undefined;
+  required?: boolean;
   value: string;
 }) {
   const errorId = `${id}-error`;
   return (
     <div className="space-y-2">
-      <Label htmlFor={id}>{label}</Label>
-      <Textarea id={id} rows={7} value={value} disabled={disabled} placeholder={placeholder} aria-describedby={error ? errorId : undefined} aria-invalid={Boolean(error)} onChange={(event) => onChange(event.target.value)} />
+      <Label htmlFor={id} required={required}>{label}</Label>
+      <Textarea id={id} rows={7} value={value} disabled={disabled} required={required} placeholder={placeholder} aria-describedby={error ? errorId : undefined} aria-invalid={Boolean(error)} onChange={(event) => onChange(event.target.value)} />
       {error ? <p id={errorId} role="alert" className="text-xs text-destructive">{error}</p> : null}
     </div>
   );

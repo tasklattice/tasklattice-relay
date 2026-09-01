@@ -11,6 +11,9 @@ images:
   runner:
     tag: dev
     pullPolicy: IfNotPresent
+  expertAgentRuntime:
+    tag: dev
+    pullPolicy: IfNotPresent
   litellm:
     tag: dev
     pullPolicy: IfNotPresent

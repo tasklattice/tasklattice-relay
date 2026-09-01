@@ -87,21 +87,21 @@ export function RuntimePolicyEditorDrawer({
         >
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="policy-name">Policy name</Label>
+              <Label htmlFor="policy-name" required>Policy name</Label>
               <Input id="policy-name" value={value.name} onChange={(event) => update("name", event.target.value)} minLength={3} required placeholder="Internal development" />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="policy-network-access">Access summary</Label>
+              <Label htmlFor="policy-network-access" required>Access summary</Label>
               <Input id="policy-network-access" value={value.networkAccess} onChange={(event) => update("networkAccess", event.target.value)} minLength={3} required placeholder="api.example.com · read-only" />
             </div>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="policy-description">Description</Label>
+            <Label htmlFor="policy-description" required>Description</Label>
             <Input id="policy-description" value={value.description} onChange={(event) => update("description", event.target.value)} minLength={10} required placeholder="Explain what this boundary permits and why." />
           </div>
           <div className="space-y-2">
             <div className="flex items-center justify-between gap-3">
-              <Label htmlFor="policy-yaml">Policy YAML</Label>
+              <Label htmlFor="policy-yaml" required>Policy YAML</Label>
               <span className="font-mono text-xs text-muted-foreground">OpenShell schema v1</span>
             </div>
             <Textarea id="policy-yaml" className="min-h-[360px] resize-y font-mono text-xs leading-5" value={value.policyYaml} onChange={(event) => update("policyYaml", event.target.value)} spellCheck={false} required />

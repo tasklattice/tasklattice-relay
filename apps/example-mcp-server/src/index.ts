@@ -5,6 +5,7 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import { z } from "zod";
 import { startA2aServer } from "./a2a.js";
 import { requireBasicAuthentication } from "./basic-auth.js";
+import { listGitHubCommits } from "./github.js";
 
 const host = process.env.HOST?.trim() || "0.0.0.0";
 const port = parsePort(process.env.PORT);
@@ -18,6 +19,36 @@ function createExampleServer(): McpServer {
     name: "tali-example-mcp",
     version: "0.1.0",
   });
+
+  server.registerTool(
+    "list_commits",
+    {
+      title: "List GitHub Commits",
+      description: "List commits from a GitHub repository through the read-only REST API.",
+      inputSchema: {
+        owner: z.string().trim().min(1).max(120),
+        repo: z.string().trim().min(1).max(120),
+        sha: z.string().trim().min(1).max(240).optional(),
+        author: z.string().trim().min(1).max(240).optional(),
+        since: z.string().datetime({ offset: true }).optional(),
+        until: z.string().datetime({ offset: true }).optional(),
+        page: z.number().int().min(1).max(100).default(1),
+        perPage: z.number().int().min(1).max(100).default(30),
+      },
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
+    },
+    async (input) => ({
+      content: [{
+        type: "text",
+        text: JSON.stringify(await listGitHubCommits(input)),
+      }],
+    }),
+  );
 
   server.registerTool(
     "echo_message",

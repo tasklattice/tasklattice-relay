@@ -57,6 +57,10 @@ images:
     repository: tali-openshell-runner
     tag: ""
     pullPolicy: IfNotPresent
+  expertAgentRuntime:
+    repository: tali-expert-agent-runtime
+    tag: ""
+    pullPolicy: IfNotPresent
   litellm:
     repository: tali-litellm
     tag: ""
@@ -328,6 +332,18 @@ projectRuntimeBridge:
     limits:
       cpu: 250m
       memory: 256Mi
+
+# Version-pinned A2A Runtime deployed for immutable Expert Agent Versions.
+# It can reach only the Project Runtime Bridge and has no Terminal capability.
+expertAgentRuntime:
+  enabled: true
+  resources:
+    requests:
+      cpu: 25m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
 
 litellm:
   replicaCount: 1

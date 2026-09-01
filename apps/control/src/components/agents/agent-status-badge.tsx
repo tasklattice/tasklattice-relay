@@ -1,18 +1,6 @@
 import type { InstanceStatus } from "@tali/contracts";
-import { Badge } from "@/components/ui/badge";
+import { RuntimeStatusBadge } from "@/components/shared/status";
 
 export function AgentStatusBadge({ status }: { status: InstanceStatus }) {
-  return (
-    <Badge
-      variant={
-        status === "READY"
-          ? "default"
-          : status === "FAILED"
-            ? "destructive"
-            : "secondary"
-      }
-    >
-      {status}
-    </Badge>
-  );
+  return <RuntimeStatusBadge status={status} />;
 }

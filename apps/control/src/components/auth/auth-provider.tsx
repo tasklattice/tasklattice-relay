@@ -9,9 +9,11 @@ import {
 } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { authClient } from "@/lib/auth-client";
+import { canonicalLocation } from "@/lib/canonical-origin";
 
 export interface AuthConfig {
   authRequired: boolean;
+  canonicalOrigin: string;
   developmentDefaults: boolean;
   localEnabled: boolean;
   mode: "local" | "local-sso";
@@ -69,6 +71,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const nextConfig = await jsonRequest<AuthConfig>("/api/v1/auth/config");
         if (disposed) return;
+        const canonicalURL = canonicalLocation(
+          window.location.href,
+          nextConfig.canonicalOrigin,
+        );
+        if (canonicalURL) {
+          window.location.replace(canonicalURL);
+          return;
+        }
         setConfig(nextConfig);
         try {
           const nextUser = await loadUser();

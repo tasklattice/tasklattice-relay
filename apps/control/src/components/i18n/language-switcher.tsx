@@ -13,8 +13,17 @@ import {
   normalizeLanguage,
   type SupportedLanguage,
 } from "@/i18n/config";
+import { cn } from "@/lib/utils";
 
-export function LanguageSwitcher() {
+export function LanguageSwitcher({
+  className,
+  compactOnMobile = false,
+  size = "lg",
+}: {
+  className?: string;
+  compactOnMobile?: boolean;
+  size?: "default" | "lg";
+}) {
   const { i18n, t } = useTranslation("common");
   const language =
     normalizeLanguage(i18n.resolvedLanguage ?? i18n.language) ??
@@ -29,8 +38,14 @@ export function LanguageSwitcher() {
     >
       <SelectTrigger
         aria-label={t("language.label")}
-        size="lg"
-        className="min-w-36 bg-background/90"
+        size={size}
+        className={cn(
+          "min-w-36 bg-background/90",
+          compactOnMobile
+            ? "min-w-11 justify-center px-0 [&_[data-slot=select-value]]:hidden [&>svg:last-child]:hidden sm:min-w-36 sm:justify-between sm:px-3 sm:[&_[data-slot=select-value]]:flex sm:[&>svg:last-child]:block"
+            : null,
+          className,
+        )}
       >
         <Languages className="size-4 text-muted-foreground" />
         <SelectValue />

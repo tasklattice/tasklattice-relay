@@ -307,7 +307,7 @@ export class KnowledgeVectorDatabase {
         chunk.id,
         chunk.content,
         chunk.filename,
-        chunk.attributes || jsonb_build_object('chunk_index', chunk.chunk_index),
+        chunk.attributes || jsonb_build_object('chunk_index', chunk.chunk_index) AS attributes,
         1 - (chunk.embedding <=> ${encoded}::public.vector) AS score
       FROM tasklattice.knowledge_vector_chunks AS chunk
       WHERE chunk.project_id = ${this.store.projectId}

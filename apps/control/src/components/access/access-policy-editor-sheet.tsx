@@ -232,8 +232,10 @@ export function AccessPolicyEditorSheet({
                 allowed or denied.
               </p>
             </div>
-            <Field label="Policy name">
+            <Field htmlFor="access-policy-name" label="Policy name" required>
               <Input
+                id="access-policy-name"
+                required
                 value={draft.name}
                 onChange={(event) =>
                   setDraft((current) => ({
@@ -491,11 +493,11 @@ function ChoiceCard({
   );
 }
 
-function Field({ children, label }: { children: ReactNode; label: string }) {
+function Field({ children, htmlFor, label, required = false }: { children: ReactNode; htmlFor?: string; label: string; required?: boolean }) {
   return (
-    <label className="space-y-2">
-      <Label>{label}</Label>
+    <div className="space-y-2">
+      <Label htmlFor={htmlFor} required={required}>{label}</Label>
       {children}
-    </label>
+    </div>
   );
 }

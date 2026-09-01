@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 const routeLabelKeys = {
   "access-policies": "routes.accessPolicies",
   "agent-garden": "routes.agentGarden",
+  agents: "routes.agents",
   "audit-logs": "routes.auditLogs",
   cost: "routes.cost",
   help: "routes.help",
@@ -29,6 +30,7 @@ const routeLabelKeys = {
 const detailLabelKeys = {
   "access-policies": "details.accessPolicies",
   "agent-garden": "details.agentGarden",
+  agents: "details.agents",
   instances: "details.instances",
   "vector-databases": "details.vectorDatabases",
   "setting/model-routings": "details.modelRoutings",

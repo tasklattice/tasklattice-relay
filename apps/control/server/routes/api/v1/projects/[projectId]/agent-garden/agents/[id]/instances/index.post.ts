@@ -1,4 +1,5 @@
 import { defineHandler } from "nitro";
+import { z } from "zod";
 import {
   requireAuth,
   unauthorizedResponse,
@@ -20,11 +21,13 @@ export default defineHandler(async (event) => {
     return unauthorizedResponse(error);
   }
   try {
-    await requireProjectRole(event.req, ["admin"]);
+    await requireProjectRole(event.req, ["admin", "developer"]);
     const id = decodeURIComponent(event.context.params?.id ?? "");
+    const input = z.object({ versionId: z.string().uuid().optional() }).strict()
+      .parse(await event.req.json());
     const instance = await (
       await getAgentGardenService(event.req)
-    ).instantiate(id, actorId);
+    ).instantiate(id, actorId, input.versionId);
     return jsonResponse(instance, {
       status: 201,
       headers: {

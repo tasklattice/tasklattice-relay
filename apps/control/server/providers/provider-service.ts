@@ -23,6 +23,10 @@ import {
 } from "./provider-adapters";
 import { LiteLLMClient, type LiteLLMAdminClient } from "./litellm-client";
 import { PlatformSettingsService } from "../platform/platform-settings-service";
+import {
+  createSecretStore,
+  type SecretStore,
+} from "../secrets/secret-store";
 
 interface StoredProviderCredential {
   version: 1;
@@ -175,6 +179,10 @@ function encodeCredential(draft: ProviderConnectionDraft): string {
   } satisfies StoredProviderCredential);
 }
 
+function isManagedCredentialReference(value: string): boolean {
+  return /^(?:k8s|memory):\/\//.test(value);
+}
+
 function decodeCredential(account: ProviderAccount, rawCredential: string): ProviderConnectionDraft {
   const stored = JSON.parse(rawCredential) as Partial<StoredProviderCredential>;
   if (
@@ -244,7 +252,31 @@ export class ProviderService {
   constructor(
     readonly store = new ProjectStore(),
     readonly litellm: LiteLLMAdminClient = new LiteLLMClient(),
+    readonly secrets: SecretStore = createSecretStore(),
   ) {}
+
+  private async credential(
+    account: ProviderAccount,
+  ): Promise<string | undefined> {
+    const stored = await this.store.getProviderAccountCredential(account.id);
+    if (!stored) return undefined;
+    if (isManagedCredentialReference(stored)) return this.secrets.get(stored);
+
+    // Backward compatibility: move a legacy inline payload to the managed
+    // Project Secret store on first use, then retain only the opaque reference.
+    const reference = await this.secrets.put(
+      this.store.projectId,
+      `provider-${account.id}`,
+      stored,
+    );
+    try {
+      await this.store.saveProviderAccount(account, reference);
+    } catch (error) {
+      await this.secrets.delete(reference).catch(() => undefined);
+      throw error;
+    }
+    return stored;
+  }
 
   async listAccounts(): Promise<ProviderAccount[]> {
     return this.store.listProviderAccounts();
@@ -260,7 +292,7 @@ export class ProviderService {
 
   async discoverAccount(id: string): Promise<ProviderDiscoveryResult | undefined> {
     const account = await this.store.getProviderAccount(id);
-    const rawCredential = await this.store.getProviderAccountCredential(id);
+    const rawCredential = account ? await this.credential(account) : undefined;
     if (!account || !rawCredential) return undefined;
     return this.discover(decodeCredential(account, rawCredential));
   }
@@ -275,7 +307,7 @@ export class ProviderService {
 
   async revalidateAccount(id: string): Promise<ProviderAccount | undefined> {
     const account = await this.store.getProviderAccount(id);
-    const rawCredential = await this.store.getProviderAccountCredential(id);
+    const rawCredential = account ? await this.credential(account) : undefined;
     if (!account || !rawCredential) return undefined;
     const draft = decodeCredential(account, rawCredential);
     const discovery = await this.discover(draft);
@@ -332,6 +364,7 @@ export class ProviderService {
   async deleteAccount(id: string): Promise<boolean> {
     const account = await this.store.getProviderAccount(id);
     if (!account) return false;
+    const credentialReference = await this.store.getProviderAccountCredential(id);
     const models = await this.store.listModelDeployments(id);
     await this.store.assertCanRemoveEmbeddingModels(
       models.map((model) => model.id),
@@ -352,7 +385,15 @@ export class ProviderService {
       );
     for (const model of models)
       await this.litellm.deleteModel(model.litellmModelName).catch(() => undefined);
-    return this.store.deleteProviderAccount(id);
+    const deleted = await this.store.deleteProviderAccount(id);
+    if (
+      deleted
+      && credentialReference
+      && isManagedCredentialReference(credentialReference)
+    ) {
+      await this.secrets.delete(credentialReference);
+    }
+    return deleted;
   }
 
   async deleteModelDeployment(id: string): Promise<boolean> {
@@ -424,7 +465,7 @@ export class ProviderService {
 
   async registerModel(input: CreateModelDeploymentInput): Promise<ModelDeployment> {
     const account = await this.store.getProviderAccount(input.providerAccountId);
-    const rawCredential = await this.store.getProviderAccountCredential(input.providerAccountId);
+    const rawCredential = account ? await this.credential(account) : undefined;
     if (!account || !rawCredential) throw new Error("Provider was not found.");
     const draft = decodeCredential(account, rawCredential);
     const supportedTypes = catalog(draft.provider).modelTypes as readonly string[];
@@ -511,16 +552,27 @@ export class ProviderService {
         failures[0]?.message ?? "No selected model could be registered through LiteLLM.",
       );
     const validatedAt = new Date().toISOString();
-    const savedAccount = await this.store.saveProviderAccount({
-      ...account,
-      status: failures.length ? "DEGRADED" : "VALIDATED",
-      checks: validationChecks(discovery, failures.length > 0),
-      validationMessage: failures.length
-        ? `${models.length} models registered; ${failures.length} need attention.`
-        : `${models.length} models registered and validated through LiteLLM.`,
-      validatedAt,
-      updatedAt: validatedAt,
-    }, encodeCredential(input.connection));
+    const credentialReference = await this.secrets.put(
+      this.store.projectId,
+      `provider-${account.id}`,
+      encodeCredential(input.connection),
+    );
+    let savedAccount: ProviderAccount;
+    try {
+      savedAccount = await this.store.saveProviderAccount({
+        ...account,
+        status: failures.length ? "DEGRADED" : "VALIDATED",
+        checks: validationChecks(discovery, failures.length > 0),
+        validationMessage: failures.length
+          ? `${models.length} models registered; ${failures.length} need attention.`
+          : `${models.length} models registered and validated through LiteLLM.`,
+        validatedAt,
+        updatedAt: validatedAt,
+      }, credentialReference);
+    } catch (error) {
+      await this.secrets.delete(credentialReference).catch(() => undefined);
+      throw error;
+    }
     for (const model of models) await this.store.saveModelDeployment(model);
     return { account: savedAccount, models, failures };
   }

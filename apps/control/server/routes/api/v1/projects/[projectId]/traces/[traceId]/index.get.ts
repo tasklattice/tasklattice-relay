@@ -2,10 +2,7 @@ import { defineHandler } from "nitro";
 import { requireAuth, unauthorizedResponse } from "../../../../../../../auth/auth";
 import { traceParamsSchema } from "../../../../../../../api-contracts/schemas";
 import { errorResponse, jsonResponse, problemResponse } from "../../../../../../../http/responses";
-import { requireProjectRole } from "../../../../../../../services";
-import { FixtureTraceRepository } from "../../../../../../../traces/fixture-trace-repository";
-
-const repository = new FixtureTraceRepository();
+import { ExpertAgentTraceRepository } from "../../../../../../../traces/expert-agent-trace-repository";
 
 export default defineHandler(async (event) => {
   try {
@@ -15,8 +12,14 @@ export default defineHandler(async (event) => {
   }
 
   try {
-    await requireProjectRole(event.req, ["admin", "user"]);
+    const auth = await requireAuth(event.req);
     const { traceId } = traceParamsSchema.parse(event.context.params);
+    const repository = new ExpertAgentTraceRepository(
+      decodeURIComponent(event.context.params?.projectId ?? ""),
+      auth.user.id,
+      undefined,
+      auth.accessContext?.roleId === "ROLE_AGENT_DEVELOPER",
+    );
     const trace = await repository.getById(traceId);
     return trace
       ? jsonResponse(trace)

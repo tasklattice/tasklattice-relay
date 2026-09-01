@@ -27,6 +27,7 @@ jobs:
       contracts: ${{ steps.filter.outputs.contracts }}
       control: ${{ steps.filter.outputs.control }}
       runner: ${{ steps.filter.outputs.runner }}
+      expert_runtime: ${{ steps.filter.outputs.expert_runtime }}
       example_mcp: ${{ steps.filter.outputs.example_mcp }}
       litellm: ${{ steps.filter.outputs.litellm }}
       helm: ${{ steps.filter.outputs.helm }}
@@ -68,6 +69,14 @@ jobs:
               - 'tsconfig.base.json'
               - 'packages/contracts/**'
               - 'apps/runner/**'
+            expert_runtime:
+              - '.github/actions/setup-node-workspace/**'
+              - '.github/workflows/pr-ci.yml'
+              - 'package.json'
+              - 'package-lock.json'
+              - 'tsconfig.base.json'
+              - 'packages/contracts/**'
+              - 'apps/expert-agent-runtime/**'
             example_mcp:
               - '.github/actions/setup-node-workspace/**'
               - '.github/workflows/pr-ci.yml'
@@ -94,6 +103,7 @@ jobs:
               - '.dockerignore'
               - '.github/workflows/pr-ci.yml'
               - 'infra/docker/Dockerfile'
+              - 'apps/expert-agent-runtime/**'
 
       - name: Validate test module configuration
         run: npm run test:modules:config
@@ -161,6 +171,24 @@ jobs:
         run: npm run typecheck --workspace @tali/runner
       - name: Build runner
         run: npm run build --workspace @tali/runner
+
+  expert_runtime:
+    name: Expert Agent Runtime
+    needs: changes
+    if: needs.changes.outputs.expert_runtime == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup-node-workspace
+      - name: Build shared contracts
+        run: npm run build --workspace @tali/contracts
+      - name: Test Expert Agent Runtime
+        run: npm run test --workspace @tali/expert-agent-runtime
+      - name: Typecheck Expert Agent Runtime
+        run: npm run typecheck --workspace @tali/expert-agent-runtime
+      - name: Build Expert Agent Runtime
+        run: npm run build --workspace @tali/expert-agent-runtime
 
   module_tests:
     name: Test / ${{ matrix.label }}
@@ -277,6 +305,7 @@ jobs:
         target:
           - control
           - runner
+          - expert-agent-runtime
           - demo-test
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -306,6 +335,7 @@ jobs:
       - contracts
       - control
       - runner
+      - expert_runtime
       - module_tests
       - test_matrix
       - example_mcp
@@ -322,6 +352,7 @@ jobs:
           CONTRACTS_RESULT: ${{ needs.contracts.result }}
           CONTROL_RESULT: ${{ needs.control.result }}
           RUNNER_RESULT: ${{ needs.runner.result }}
+          EXPERT_RUNTIME_RESULT: ${{ needs.expert_runtime.result }}
           MODULE_TESTS_RESULT: ${{ needs.module_tests.result }}
           TEST_MATRIX_RESULT: ${{ needs.test_matrix.result }}
           EXAMPLE_MCP_RESULT: ${{ needs.example_mcp.result }}
@@ -336,6 +367,7 @@ jobs:
             CONTRACTS \
             CONTROL \
             RUNNER \
+            EXPERT_RUNTIME \
             MODULE_TESTS \
             TEST_MATRIX \
             EXAMPLE_MCP \

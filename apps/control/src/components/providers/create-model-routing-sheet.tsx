@@ -340,6 +340,7 @@ export function CreateModelRoutingSheet({
             <Field
               label="Routing name"
               htmlFor="routing-name"
+              required
               help={
                 attempted && !nameValid
                   ? "Enter at least 2 characters."
@@ -349,6 +350,7 @@ export function CreateModelRoutingSheet({
             >
               <Input
                 id="routing-name"
+                required
                 value={name}
                 aria-invalid={attempted && !nameValid}
                 onChange={(event) => setName(event.target.value)}
@@ -368,9 +370,11 @@ export function CreateModelRoutingSheet({
             <Field
               label="Routing method"
               htmlFor="routing-routing-method"
+              required
               help={routingModeDescriptions[routingMode]}
             >
               <Select
+                required
                 value={routingMode}
                 onValueChange={(value) =>
                   setRoutingMode(value as RoutingMode)
@@ -518,9 +522,10 @@ export function CreateModelRoutingSheet({
             <Field
               label="Retries"
               htmlFor="routing-retries"
+              required
               help="Attempts on the selected model before fallback is used."
             >
-              <Select value={retries} onValueChange={setRetries}>
+              <Select value={retries} onValueChange={setRetries} required>
                 <SelectTrigger id="routing-retries">
                   <SelectValue />
                 </SelectTrigger>
@@ -670,9 +675,10 @@ function SemanticRoutesEditor({
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor={`semantic-intent-${route.id}`}>Intent key</Label>
+                <Label htmlFor={`semantic-intent-${route.id}`} required>Intent key</Label>
                 <Input
                   id={`semantic-intent-${route.id}`}
+                  required
                   value={route.intent}
                   aria-invalid={attempted && !valid}
                   placeholder="coding"
@@ -682,10 +688,11 @@ function SemanticRoutesEditor({
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor={`semantic-model-${route.id}`}>
+                <Label htmlFor={`semantic-model-${route.id}`} required>
                   Target model
                 </Label>
                 <Select
+                  required
                   value={route.modelDeploymentId}
                   onValueChange={(value) =>
                     update(route.id, { modelDeploymentId: value })
@@ -705,11 +712,12 @@ function SemanticRoutesEditor({
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor={`semantic-description-${route.id}`}>
+              <Label htmlFor={`semantic-description-${route.id}`} required>
                 Description
               </Label>
               <Input
                 id={`semantic-description-${route.id}`}
+                required
                 value={route.description}
                 placeholder="Programming and debugging requests"
                 onChange={(event) =>
@@ -718,12 +726,13 @@ function SemanticRoutesEditor({
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor={`semantic-examples-${route.id}`}>
+              <Label htmlFor={`semantic-examples-${route.id}`} required>
                 Example user messages
               </Label>
               <Textarea
                 id={`semantic-examples-${route.id}`}
                 className="min-h-24 font-mono text-xs"
+                required
                 value={route.utterances}
                 placeholder={"Help me debug this function\nDesign a REST API"}
                 onChange={(event) =>
@@ -780,8 +789,8 @@ function ModelField({
   value: string;
 }) {
   return (
-    <Field label={label} htmlFor={id} help={help} invalid={invalid}>
-      <Select value={value} onValueChange={onChange}>
+    <Field label={label} htmlFor={id} help={help} invalid={invalid} required={!allowNone}>
+      <Select value={value} onValueChange={onChange} required={!allowNone}>
         <SelectTrigger id={id} aria-invalid={invalid}>
           <SelectValue placeholder={placeholder} />
         </SelectTrigger>
@@ -827,16 +836,18 @@ function Field({
   htmlFor,
   invalid,
   label,
+  required = false,
 }: {
   children: ReactNode;
   help: string;
   htmlFor?: string;
   invalid?: boolean;
   label: string;
+  required?: boolean;
 }) {
   return (
     <div className="space-y-2">
-      <Label htmlFor={htmlFor}>{label}</Label>
+      <Label htmlFor={htmlFor} required={required}>{label}</Label>
       {children}
       <p
         className={cn(

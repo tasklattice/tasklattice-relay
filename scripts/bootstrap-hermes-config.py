@@ -26,6 +26,7 @@ MCP_LINE = re.compile(
 OPENSHELL_CREDENTIAL_PLACEHOLDER = re.compile(
     r"^openshell:resolve:env:v[0-9]+_OPENAI_API_KEY$"
 )
+ENVIRONMENT_NAME = re.compile(r"^[A-Z][A-Z0-9_]*$")
 MAX_A2A_REGISTRY_BYTES = 1024 * 1024
 
 
@@ -136,6 +137,44 @@ def validate_vector_database_registry_url(value: str) -> urllib.parse.ParseResul
             "Hermes Vector Database registry must be an in-cluster HTTP Service URL"
         )
     return registry_url
+
+
+def validate_durable_memory_endpoint(value: str) -> urllib.parse.ParseResult:
+    endpoint = urllib.parse.urlparse(value)
+    path_parts = endpoint.path.split("/")
+    if (
+        endpoint.scheme != "http"
+        or not endpoint.hostname
+        or not endpoint.hostname.endswith(".svc.cluster.local")
+        or endpoint.username
+        or endpoint.password
+        or endpoint.query
+        or endpoint.fragment
+        or path_parts[:4] != ["", "v1", "memory", "coordinators"]
+        or len(path_parts) != 5
+        or not path_parts[4]
+    ):
+        raise RuntimeError(
+            "Hermes Durable Memory endpoint must be an in-cluster coordinator URL"
+        )
+    return endpoint
+
+
+def set_environment_value(original: bytes, name: str, value: str) -> bytes:
+    """Update one non-secret managed dotenv value without disturbing other lines."""
+    if not ENVIRONMENT_NAME.fullmatch(name) or "\n" in value or "\r" in value:
+        raise RuntimeError("Hermes managed environment update is invalid")
+    lines = original.decode("utf-8").splitlines()
+    prefix = f"{name}="
+    matches = [index for index, line in enumerate(lines) if line.startswith(prefix)]
+    if len(matches) > 1:
+        raise RuntimeError(f"Hermes managed environment contains duplicate {name}")
+    assignment = f"{name}={value}"
+    if matches:
+        lines[matches[0]] = assignment
+    else:
+        lines.append(assignment)
+    return ("\n".join(lines) + "\n").encode("utf-8")
 
 
 def openshell_model_credential() -> str:
@@ -305,6 +344,7 @@ def main() -> None:
     parser.add_argument("--vector-database-registry-url")
     parser.add_argument("--vector-database-registry-token")
     parser.add_argument("--durable-memory-provider")
+    parser.add_argument("--durable-memory-endpoint")
     parser.add_argument(
         "--mcp-digest-builder",
         type=Path,
@@ -441,8 +481,19 @@ def main() -> None:
             args.vector_database_registry_token,
             registry,
         )
+    if bool(args.durable_memory_provider) != bool(args.durable_memory_endpoint):
+        raise RuntimeError(
+            "Hermes Durable Memory provider and endpoint must be configured together"
+        )
+    updated_env = original_env
     if args.durable_memory_provider:
+        validate_durable_memory_endpoint(args.durable_memory_endpoint)
         configure_durable_memory(validated, args.durable_memory_provider)
+        updated_env = set_environment_value(
+            original_env,
+            "TALI_DURABLE_MEMORY_ENDPOINT",
+            args.durable_memory_endpoint,
+        )
     updated = yaml.safe_dump(
         validated,
         allow_unicode=True,
@@ -451,20 +502,23 @@ def main() -> None:
     )
     updated_config = updated.encode("utf-8")
     config_mode = config.stat().st_mode & 0o7777
+    env_mode = env.stat().st_mode & 0o7777
     anchor_mode = hash_file.stat().st_mode & 0o7777
 
     try:
         atomic_write(config, updated_config, config_mode)
+        atomic_write(env, updated_env, env_mode)
         if mcp_digest(config, args.mcp_digest_builder, args.runtime_config_guard) != anchored_mcp:
             raise RuntimeError("Inference routing unexpectedly changed Hermes MCP configuration")
         updated_anchor = (
             f"{digest(updated_config)}  {config}\n"
-            f"{digest(original_env)}  {env}\n"
+            f"{digest(updated_env)}  {env}\n"
             f"# nemoclaw-hermes-mcp-state-v1 intended={anchored_mcp} applied={anchored_mcp}\n"
         ).encode("utf-8")
         atomic_write(hash_file, updated_anchor, anchor_mode)
     except BaseException:
         atomic_write(config, original_config, config_mode)
+        atomic_write(env, original_env, env_mode)
         atomic_write(hash_file, original_anchor, anchor_mode)
         raise
 

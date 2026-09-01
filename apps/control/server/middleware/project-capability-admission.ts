@@ -1,4 +1,5 @@
 import { defineMiddleware } from "nitro";
+import type { ResourceRelation } from "@tali/contracts";
 import { requireAuth, unauthorizedResponse } from "../auth/auth";
 import { prisma } from "../db/prisma";
 import { errorResponse, problemResponse } from "../http/responses";
@@ -43,10 +44,15 @@ async function ownership(
 ): Promise<{
   collectionRole?: ProjectRole;
   ownedByActor: boolean;
+  resolvedRelation?: ResourceRelation;
 }> {
   const path = new URL(request.url).pathname;
   const scopedProjectId = projectId(path);
-  if (resolver === "INSTANCE_COLLECTION") {
+  if (
+    resolver === "INSTANCE_COLLECTION"
+    || resolver === "EXPERT_AGENT_COLLECTION"
+    || resolver === "TRACE_COLLECTION"
+  ) {
     const membership = await prisma().projectMember.findUnique({
       where: {
         projectId_userId: { projectId: scopedProjectId, userId: actorId },
@@ -61,6 +67,50 @@ async function ownership(
       ownedByActor: false,
     };
   }
+  if (resolver === "TRACE") {
+    const run = resourceId
+      ? await prisma().projectRunRecord.findFirst({
+          where: {
+            projectId: scopedProjectId,
+            traceId: resourceId,
+            expertAgentId: { not: null },
+          },
+          select: { expertAgentId: true },
+        })
+      : undefined;
+    const relation = run?.expertAgentId
+      ? await prisma().expertAgentMemberRecord.findFirst({
+          where: {
+            projectId: scopedProjectId,
+            agentId: run.expertAgentId,
+            userId: actorId,
+            agent: { deletedAt: null },
+          },
+          select: { relation: true },
+        })
+      : undefined;
+    return {
+      ownedByActor: relation?.relation === "OWNER",
+      ...(relation ? { resolvedRelation: relation.relation } : {}),
+    };
+  }
+  if (resolver === "EXPERT_AGENT") {
+    const relation = resourceId
+      ? await prisma().expertAgentMemberRecord.findFirst({
+          where: {
+            projectId: scopedProjectId,
+            agentId: resourceId,
+            userId: actorId,
+            agent: { deletedAt: null },
+          },
+          select: { relation: true },
+        })
+      : undefined;
+    return {
+      ownedByActor: relation?.relation === "OWNER",
+      ...(relation ? { resolvedRelation: relation.relation } : {}),
+    };
+  }
   if (resolver === "INSTANCE") {
     const row = resourceId
       ? await prisma().agentRecord.findFirst({
@@ -68,7 +118,23 @@ async function ownership(
           select: { ownerUserId: true },
         })
       : undefined;
-    return { ownedByActor: row?.ownerUserId === actorId };
+    if (row) return { ownedByActor: row.ownerUserId === actorId };
+
+    const relation = resourceId
+      ? await prisma().expertAgentMemberRecord.findFirst({
+          where: {
+            projectId: scopedProjectId,
+            agentId: resourceId,
+            userId: actorId,
+            agent: { deletedAt: null },
+          },
+          select: { relation: true },
+        })
+      : undefined;
+    return {
+      ownedByActor: relation?.relation === "OWNER",
+      ...(relation ? { resolvedRelation: relation.relation } : {}),
+    };
   }
   if (resolver === "REGISTERED_AGENT") {
     const row = resourceId
@@ -128,6 +194,7 @@ export default defineMiddleware(async (event) => {
       admission.relation,
       ownershipResult.ownedByActor,
       ownershipResult.collectionRole,
+      ownershipResult.resolvedRelation,
     );
     const requirements = [...admission.requirements];
     requirements.push(...conditionalRequestRequirements(

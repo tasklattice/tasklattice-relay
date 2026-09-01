@@ -154,6 +154,22 @@ enum MemoryExperienceStatus {
   @@schema("tasklattice")
 }
 
+enum ExpertAgentRelation {
+  OWNER
+  MAINTAINER
+
+  @@map("expert_agent_relation")
+  @@schema("tasklattice")
+}
+
+enum ExpertAgentExecutionMode {
+  AGENTIC
+  WORKFLOW
+
+  @@map("expert_agent_execution_mode")
+  @@schema("tasklattice")
+}
+
 model User {
   id                            String     @id
   username                      String?    @unique
@@ -522,6 +538,7 @@ model Project {
   memories                     MemoryRecord[]
   instanceLifecycleOperations  InstanceLifecycleOperation[]
   instanceLifecycleEvents      InstanceLifecycleEvent[]
+  expertAgents                 ExpertAgentRecord[]
 
   @@unique([departmentId, name], map: "projects_department_name_key")
   @@index([departmentId, createdAt])
@@ -615,6 +632,10 @@ model ProjectRunRecord {
   durationMs     Int?      @map("duration_ms")
   terminalReason String?   @map("terminal_reason")
   errorCategory  String?   @map("error_category")
+  expertAgentId  String?   @map("expert_agent_id") @db.Uuid
+  expertAgentVersionId String? @map("expert_agent_version_id") @db.Uuid
+  expertEngineVersion String? @map("expert_engine_version")
+  expertTrace     Json?     @map("expert_trace")
   createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
@@ -625,6 +646,7 @@ model ProjectRunRecord {
   @@index([projectId, startedAt], map: "project_runs_project_started_idx")
   @@index([projectId, status, startedAt], map: "project_runs_project_status_started_idx")
   @@index([projectId, instanceId, startedAt], map: "project_runs_project_instance_started_idx")
+  @@index([projectId, expertAgentId, expertAgentVersionId, startedAt(sort: Desc)], map: "project_runs_expert_agent_version_started_idx")
   @@map("project_runs")
   @@schema("tasklattice")
 }
@@ -684,7 +706,11 @@ model ProjectMember {
   project            Project                       @relation(fields: [projectId], references: [id], onDelete: Cascade)
   user               User                          @relation(fields: [userId], references: [id], onDelete: Cascade)
   ownedAgents        AgentRecord[]                 @relation("AgentRecordOwnerMembership")
+  createdAgentInstances AgentRecord[]               @relation("AgentRecordCreatorMembership")
   ownedCatalogAgents AgentCatalogRecord[]          @relation("AgentCatalogRecordOwnerMembership")
+  createdExpertAgents ExpertAgentRecord[]           @relation("ExpertAgentCreatorMembership")
+  updatedExpertAgents ExpertAgentRecord[]           @relation("ExpertAgentUpdaterMembership")
+  expertAgentRelations ExpertAgentMemberRecord[]    @relation("ExpertAgentMemberProjectMembership")
   roleAssignments    ProjectMemberRoleAssignment[]
 
   @@id([projectId, userId])
@@ -732,14 +758,20 @@ model AgentRecord {
   creationIdempotencyKey String?                                  @map("creation_idempotency_key")
   kind                   String                                   @default("SUPERVISOR")
   catalogAgentId         String?                                  @map("catalog_agent_id")
+  developedAgentId       String?                                  @map("developed_agent_id") @db.Uuid
+  agentVersionId         String?                                  @map("agent_version_id") @db.Uuid
   payload                Json
   ownerUserId            String                                   @map("owner_user_id")
+  createdByUserId        String?                                  @map("created_by_user_id")
   createdAt              DateTime                                 @map("created_at") @db.Timestamptz(6)
   updatedAt              DateTime                                 @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   deletedAt              DateTime?                                @map("deleted_at") @db.Timestamptz(6)
   project                Project                                  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   ownerMembership        ProjectMember                            @relation("AgentRecordOwnerMembership", fields: [projectId, ownerUserId], references: [projectId, userId], onDelete: Restrict, map: "agents_owner_membership_fkey")
+  creatorMembership      ProjectMember?                           @relation("AgentRecordCreatorMembership", fields: [projectId, createdByUserId], references: [projectId, userId], onDelete: Restrict, map: "agents_creator_membership_fkey")
   catalogAgent           AgentCatalogRecord?                      @relation("CatalogAgentRuntimeInstances", fields: [projectId, catalogAgentId], references: [projectId, id], onDelete: Cascade, map: "agents_catalog_agent_fkey")
+  developedAgent         ExpertAgentRecord?                       @relation("DevelopedAgentRuntimeInstances", fields: [projectId, developedAgentId], references: [projectId, id], onDelete: Cascade, map: "agents_developed_agent_fkey")
+  agentVersion           ExpertAgentVersionRecord?                @relation("DevelopedAgentVersionRuntimeInstances", fields: [projectId, agentVersionId], references: [projectId, id], onDelete: Restrict, map: "agents_agent_version_fkey")
   accessPolicyBindings   AgentInstanceAccessPolicyBindingRecord[]
   memoryBindings         MemoryBinding[]
   lifecycleOperations    InstanceLifecycleOperation[]
@@ -747,7 +779,10 @@ model AgentRecord {
   @@id([projectId, id])
   @@unique([projectId, ownerUserId, creationIdempotencyKey], map: "agents_project_owner_creation_idempotency_key")
   @@index([projectId, ownerUserId], map: "agents_project_owner_idx")
+  @@index([projectId, createdByUserId], map: "agents_project_creator_idx")
   @@index([projectId, kind, catalogAgentId], map: "agents_project_kind_catalog_idx")
+  @@index([projectId, kind, developedAgentId], map: "agents_project_kind_developed_idx")
+  @@index([projectId, agentVersionId], map: "agents_project_version_idx")
   @@index([projectId, deletedAt, createdAt(sort: Desc)], map: "agents_project_active_created_idx")
   @@map("agents")
   @@schema("tasklattice")
@@ -953,6 +988,137 @@ model AgentCatalogRecord {
   @@index([projectId, ownerUserId], map: "agent_catalog_project_owner_idx")
   @@index([projectId, updatedAt(sort: Desc)], map: "agent_catalog_updated_idx")
   @@map("agent_catalog")
+  @@schema("tasklattice")
+}
+
+model ExpertAgentRecord {
+  projectId     String                   @map("project_id")
+  id            String                   @default(uuid()) @db.Uuid
+  slug          String
+  name          String
+  description   String
+  executionMode ExpertAgentExecutionMode @map("execution_mode")
+  revision      Int                      @default(0)
+  contentDigest String                   @map("content_digest")
+  productSpec   Json                     @map("product_spec")
+  policySpec    Json                     @map("policy_spec")
+  delegationSpec Json                    @default("[]") @map("delegation_spec")
+  acceptanceSpec Json                    @map("acceptance_spec")
+  safetySpec    Json                     @map("safety_spec")
+  executionSpec Json                     @map("execution_spec")
+  resourceBindings Json                  @default("[]") @map("resource_bindings")
+  latestReleasedVersionId String?        @map("latest_released_version_id") @db.Uuid
+  createdBy     String                   @map("created_by")
+  updatedBy     String                   @map("updated_by")
+  createdAt     DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime                 @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt     DateTime?                @map("deleted_at") @db.Timestamptz(6)
+
+  project       Project                         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  creator       ProjectMember                   @relation("ExpertAgentCreatorMembership", fields: [projectId, createdBy], references: [projectId, userId], onDelete: Restrict, map: "expert_agents_creator_membership_fkey")
+  updater       ProjectMember                   @relation("ExpertAgentUpdaterMembership", fields: [projectId, updatedBy], references: [projectId, userId], onDelete: Restrict, map: "expert_agents_updater_membership_fkey")
+  members       ExpertAgentMemberRecord[]
+  versions      ExpertAgentVersionRecord[]
+  latestReleasedVersion ExpertAgentVersionRecord? @relation("ExpertAgentLatestReleasedVersion", fields: [projectId, latestReleasedVersionId], references: [projectId, id], onDelete: NoAction)
+  testRuns      ExpertAgentTestRunRecord[]
+  runtimeInstances AgentRecord[] @relation("DevelopedAgentRuntimeInstances")
+
+  @@id([projectId, id])
+  @@unique([projectId, slug], map: "expert_agents_project_slug_key")
+  @@index([projectId, executionMode, updatedAt(sort: Desc)], map: "expert_agents_project_mode_updated_idx")
+  @@index([projectId, deletedAt, updatedAt(sort: Desc)], map: "expert_agents_project_active_updated_idx")
+  @@map("expert_agents")
+  @@schema("tasklattice")
+}
+
+model ExpertAgentMemberRecord {
+  projectId String              @map("project_id")
+  agentId   String              @map("agent_id") @db.Uuid
+  userId    String              @map("user_id")
+  relation  ExpertAgentRelation
+  createdAt DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  agent  ExpertAgentRecord @relation(fields: [projectId, agentId], references: [projectId, id], onDelete: Cascade)
+  member ProjectMember     @relation("ExpertAgentMemberProjectMembership", fields: [projectId, userId], references: [projectId, userId], onDelete: Cascade, map: "expert_agent_members_project_membership_fkey")
+
+  @@id([projectId, agentId, userId])
+  @@index([projectId, userId, relation], map: "expert_agent_members_user_relation_idx")
+  @@map("expert_agent_members")
+  @@schema("tasklattice")
+}
+
+model ExpertAgentTestRunRecord {
+  projectId          String   @map("project_id")
+  id                 String   @default(uuid()) @db.Uuid
+  agentId            String   @map("agent_id") @db.Uuid
+  agentRevision      Int      @map("agent_revision")
+  contentDigest      String   @map("content_digest")
+  mode               String
+  attempt            Int      @default(1)
+  status             String
+  evidence           Json
+  failureReason      String?  @map("failure_reason")
+  createdBy          String   @map("created_by")
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  startedAt          DateTime @map("started_at") @db.Timestamptz(6)
+  finishedAt         DateTime @map("finished_at") @db.Timestamptz(6)
+
+  agent       ExpertAgentRecord             @relation(fields: [projectId, agentId], references: [projectId, id], onDelete: Cascade)
+  @@id([projectId, id])
+  @@unique([projectId, agentId, agentRevision, mode, attempt], map: "expert_agent_test_runs_attempt_key")
+  @@index([projectId, agentId, mode, createdAt(sort: Desc)], map: "expert_agent_test_runs_agent_created_idx")
+  @@index([projectId, agentId, contentDigest, status], map: "expert_agent_test_runs_digest_status_idx")
+  @@map("expert_agent_test_runs")
+  @@schema("tasklattice")
+}
+
+model ExpertAgentVersionRecord {
+  projectId    String   @map("project_id")
+  id           String   @default(uuid()) @db.Uuid
+  agentId      String   @map("agent_id") @db.Uuid
+  versionNumber Int     @map("version_number")
+  sourceRevision Int    @map("source_revision")
+  contentDigest String  @map("content_digest")
+  snapshot      Json
+  manifest      Json
+  manifestDigest String @map("manifest_digest")
+  artifactSetDigest String @map("artifact_set_digest")
+  releaseNotes  String? @map("release_notes")
+  gardenStatus  String  @default("PUBLISHED") @map("garden_status")
+  publishedBy  String   @map("published_by")
+  publishedAt  DateTime @default(now()) @map("published_at") @db.Timestamptz(6)
+
+  agent               ExpertAgentRecord               @relation(fields: [projectId, agentId], references: [projectId, id], onDelete: Cascade)
+  latestForAgents     ExpertAgentRecord[]              @relation("ExpertAgentLatestReleasedVersion")
+  artifacts           ExpertAgentVersionArtifactRecord[]
+  runtimeInstances    AgentRecord[]                    @relation("DevelopedAgentVersionRuntimeInstances")
+
+  @@id([projectId, id])
+  @@unique([projectId, agentId, versionNumber], map: "expert_agent_versions_number_key")
+  @@unique([projectId, agentId, contentDigest], map: "expert_agent_versions_digest_key")
+  @@index([projectId, agentId, publishedAt(sort: Desc)], map: "expert_agent_versions_agent_published_idx")
+  @@map("expert_agent_versions")
+  @@schema("tasklattice")
+}
+
+model ExpertAgentVersionArtifactRecord {
+  projectId      String    @map("project_id")
+  id             String    @default(uuid()) @db.Uuid
+  versionId      String    @map("version_id") @db.Uuid
+  kind           String
+  mediaType      String    @map("media_type")
+  digest         String
+  uri            String
+  sizeBytes      Int?      @map("size_bytes")
+  metadata       Json      @default("{}")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  version ExpertAgentVersionRecord @relation(fields: [projectId, versionId], references: [projectId, id], onDelete: Cascade)
+
+  @@id([projectId, id])
+  @@unique([projectId, versionId, kind, digest], map: "expert_agent_version_artifacts_kind_digest_key")
+  @@index([projectId, versionId], map: "expert_agent_version_artifacts_version_idx")
+  @@map("expert_agent_version_artifacts")
   @@schema("tasklattice")
 }
 

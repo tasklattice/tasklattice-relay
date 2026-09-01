@@ -3,7 +3,7 @@ import { instanceParamsSchema } from "../../../../../../../api-contracts/schemas
 import { requireAuth, unauthorizedResponse } from "../../../../../../../auth/auth";
 import { errorResponse, jsonResponse, problemResponse } from "../../../../../../../http/responses";
 import { getAgentInstanceDetailService } from "../../../../../../../services";
-import { a2aInstanceConfigurationView, instanceConfigurationView } from "../../../../../../../instances/instance-http-view";
+import { a2aInstanceConfigurationView, agentServiceInstanceConfigurationView, instanceConfigurationView } from "../../../../../../../instances/instance-http-view";
 
 export default defineHandler(async (event) => {
   try {
@@ -20,6 +20,11 @@ export default defineHandler(async (event) => {
       ? { ...detail, instance: instanceConfigurationView(detail.instance) }
       : detail?.kind === "A2A"
         ? { ...detail, instance: a2aInstanceConfigurationView(detail.instance) }
+        : detail?.kind === "PROJECT_AGENT"
+          ? {
+              ...detail,
+              instance: agentServiceInstanceConfigurationView(detail.instance),
+            }
         : detail;
     return response
       ? jsonResponse(response)
