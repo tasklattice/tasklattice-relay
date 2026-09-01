@@ -216,7 +216,7 @@ function McpServers() {
               className="grid min-h-24 w-full gap-3 border-b px-5 py-4 text-left transition-colors last:border-b-0 hover:bg-muted/45 focus-visible:outline-2 focus-visible:outline-offset-[-2px] sm:grid-cols-[minmax(0,1fr)_150px_120px_auto] sm:items-center"
             >
               <span className="flex min-w-0 items-center gap-3">
-                <span className="grid size-11 shrink-0 place-items-center rounded-md border bg-background shadow-xs">
+                <span className="grid size-11 shrink-0 place-items-center rounded-md border border-border bg-card shadow-xs">
                   <McpBrandIcon
                     brand={resolveMcpServerBrand(item, templates)}
                     className="size-6"

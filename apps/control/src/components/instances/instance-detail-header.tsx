@@ -95,7 +95,7 @@ export function InstanceHeader({
           </Button>
           <AgentPlatformIcon
             platform={platform}
-            className="size-14 bg-[#171717]"
+            className="size-14"
             imageClassName="size-10"
           />
           <div className="min-w-0">
