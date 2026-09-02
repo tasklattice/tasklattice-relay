@@ -13,12 +13,11 @@ export default defineHandler(async (event) => {
   try {
     const auth = await requireAuth(event.req);
     const projectId = decodeURIComponent(event.context.params?.projectId ?? "");
-    const relationScoped = auth.accessContext?.roleId === "ROLE_AGENT_DEVELOPER";
     const repository = new ExpertAgentTraceRepository(
       projectId,
       auth.user.id,
       undefined,
-      relationScoped,
+      false,
     );
     return jsonResponse({ data: await repository.list(), source: "otel" });
   } catch (error) {

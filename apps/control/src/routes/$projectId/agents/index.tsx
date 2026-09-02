@@ -39,7 +39,7 @@ function ExpertAgents() {
     const normalized = query.trim().toLowerCase();
     if (!normalized) return agents.data ?? [];
     return (agents.data ?? []).filter((agent) =>
-      [agent.name, agent.slug, agent.description, agent.executionMode, agent.relation]
+      [agent.name, agent.slug, agent.description, agent.executionMode]
         .join(" ")
         .toLowerCase()
         .includes(normalized),
@@ -60,7 +60,7 @@ function ExpertAgents() {
               search: { define: true },
             })}
           >
-            <Plus /> Create Agent
+            <Plus /> Define Agent
           </Button>
         )}
       />
@@ -77,7 +77,7 @@ function ExpertAgents() {
           />
         </label>
         <p className="text-sm tabular-nums text-muted-foreground">
-          {visibleAgents.length} scoped Agent{visibleAgents.length === 1 ? "" : "s"}
+          {visibleAgents.length} Project Agent{visibleAgents.length === 1 ? "" : "s"}
         </p>
       </div>
 
@@ -98,14 +98,13 @@ function ExpertAgents() {
         </div>
       ) : visibleAgents.length ? (
         <div className="overflow-x-auto border">
-          <table className="w-full min-w-[58rem] text-left text-sm">
+          <table className="w-full min-w-[50rem] text-left text-sm">
             <thead className="bg-muted/35 text-xs text-muted-foreground">
               <tr className="border-b">
                 <th className="px-4 py-3 font-medium">Agent</th>
                 <th className="px-3 py-3 font-medium">Stage</th>
                 <th className="px-3 py-3 font-medium">Latest Version</th>
                 <th className="px-3 py-3 text-right font-medium">Instances</th>
-                <th className="px-3 py-3 font-medium">Relation</th>
                 <th className="w-28 px-4 py-3"><span className="sr-only">Actions</span></th>
               </tr>
             </thead>
@@ -138,7 +137,6 @@ function ExpertAgents() {
                   </td>
                   <td className="px-3 py-3 font-mono text-xs">{agent.latestVersion?.label ?? "—"}</td>
                   <td className="px-3 py-3 text-right tabular-nums">{agent.instanceCount}</td>
-                  <td className="px-3 py-3 text-xs text-muted-foreground">{agent.relation}</td>
                   <td className="px-4 py-3 text-right">
                     <Button asChild variant="ghost" size="icon">
                       <Link to="/$projectId/agents/$agentId" params={{ projectId, agentId: agent.id }} aria-label={`Develop ${agent.name}`}>
@@ -155,7 +153,7 @@ function ExpertAgents() {
         <div className="grid min-h-72 place-items-center border text-center">
           <div className="max-w-lg px-6">
             <Bot className="mx-auto size-7 text-muted-foreground" />
-            <h2 className="mt-4 text-lg font-semibold">{query ? "No matching Agents" : "Create your first independent Agent"}</h2>
+            <h2 className="mt-4 text-lg font-semibold">{query ? "No matching Agents" : "Define your first Agent"}</h2>
             <p className="mt-2 text-sm leading-6 text-muted-foreground">
               {query
                 ? "Try another search term."
@@ -167,7 +165,7 @@ function ExpertAgents() {
                 params: { projectId },
                 search: { define: true },
               })}>
-                <Plus /> Create Agent
+                <Plus /> Define Agent
               </Button>
             ) : null}
           </div>

@@ -33,7 +33,7 @@ export class ExpertAgentNotFoundError extends Error {
   readonly status = 404;
 
   constructor() {
-    super("The Agent was not found in the current OWNER/MAINTAINER scope.");
+    super("The Agent was not found in the current Project.");
     this.name = "ExpertAgentNotFoundError";
   }
 }
@@ -546,18 +546,15 @@ export class ExpertAgentLifecycleService {
     agentId: string;
     actorId: string;
   }): Promise<ExpertAgentRecord> {
-    const relation = await this.db.expertAgentMemberRecord.findFirst({
+    const agent = await this.db.expertAgentRecord.findFirst({
       where: {
         projectId: input.projectId,
-        agentId: input.agentId,
-        userId: input.actorId,
-        relation: { in: ["OWNER", "MAINTAINER"] },
-        agent: { deletedAt: null },
+        id: input.agentId,
+        deletedAt: null,
       },
-      include: { agent: true },
     });
-    if (!relation) throw new ExpertAgentNotFoundError();
-    return relation.agent;
+    if (!agent) throw new ExpertAgentNotFoundError();
+    return agent;
   }
 
   private async requireDelegationTargets(input: {
@@ -571,28 +568,17 @@ export class ExpertAgentLifecycleService {
       throw new ExpertAgentVersionConflictError("An Agent cannot delegate to itself.");
     }
     if (!targetIds.length) return;
-    const [relations, activeTargets] = await Promise.all([
-      this.db.expertAgentMemberRecord.findMany({
-        where: {
-          projectId: input.projectId,
-          agentId: { in: targetIds },
-          userId: input.actorId,
-          relation: { in: ["OWNER", "MAINTAINER"] },
-        },
-        select: { agentId: true },
-      }),
-      this.db.expertAgentRecord.findMany({
-        where: {
-          projectId: input.projectId,
-          id: { in: targetIds },
-          deletedAt: null,
-        },
-        select: { id: true },
-      }),
-    ]);
-    if (relations.length !== targetIds.length || activeTargets.length !== targetIds.length) {
+    const activeTargets = await this.db.expertAgentRecord.findMany({
+      where: {
+        projectId: input.projectId,
+        id: { in: targetIds },
+        deletedAt: null,
+      },
+      select: { id: true },
+    });
+    if (activeTargets.length !== new Set(targetIds).size) {
       throw new ExpertAgentVersionConflictError(
-        "Every delegated Agent must be active and in your OWNER/MAINTAINER scope.",
+        "Every delegated Agent must be active in the current Project.",
       );
     }
   }

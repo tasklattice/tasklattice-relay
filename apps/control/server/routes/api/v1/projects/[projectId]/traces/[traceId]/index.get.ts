@@ -18,7 +18,7 @@ export default defineHandler(async (event) => {
       decodeURIComponent(event.context.params?.projectId ?? ""),
       auth.user.id,
       undefined,
-      auth.accessContext?.roleId === "ROLE_AGENT_DEVELOPER",
+      false,
     );
     const trace = await repository.getById(traceId);
     return trace

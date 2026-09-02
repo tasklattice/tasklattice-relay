@@ -264,9 +264,10 @@ export class AgentGardenService {
   ) {}
 
   async snapshot(ownerUserId?: string): Promise<AgentGardenSnapshot> {
-    const [, instances, developedAgents] = await Promise.all([
+    const [, managedInstances, developedInstances, developedAgents] = await Promise.all([
       this.store.ensureAgents(databaseAgentCatalog),
       this.store.listManagedInstances(ownerUserId),
+      this.store.listProjectAgentInstances(ownerUserId),
       this.developedAgents(ownerUserId),
     ]);
     const persistedAgents = await this.store.listAgents(ownerUserId);
@@ -292,7 +293,7 @@ export class AgentGardenService {
         ),
         ...developedAgents,
       ],
-      instances,
+      instances: [...managedInstances, ...developedInstances],
     };
   }
 
@@ -311,7 +312,11 @@ export class AgentGardenService {
         versions: {
           where: { gardenStatus: "PUBLISHED" },
           orderBy: { versionNumber: "desc" },
-          include: { _count: { select: { runtimeInstances: true } } },
+          include: {
+            _count: {
+              select: { runtimeInstances: { where: { deletedAt: null } } },
+            },
+          },
         },
       },
     });

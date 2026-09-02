@@ -516,7 +516,7 @@ The repository's local deployment script performs this mapping automatically:
 npm run helm:deploy:dev:keycloak
 ```
 
-Every local deployment idempotently creates `isolation-1` and `isolation-2`
+Every local deployment idempotently ensures `proj1` and `isolation-1` exist
 under `dep1` from `config/development-projects.json`. The Keycloak command also
 signs in to Control with the local development administrator,
 validates and saves the embedded Keycloak provider through the Control API,
@@ -580,9 +580,10 @@ managed identity provider for production.
 ## Example MCP Server for integration tests
 
 Set `exampleMcp.enabled=true` to deploy a test-only, in-cluster Streamable HTTP
-MCP Server. It exposes three deterministic tools: `echo_message`,
-`calculate_sum`, and `get_platform_status`. The Service is not exposed outside
-the cluster, requires HTTP Basic authentication, and is available to LiteLLM at:
+MCP Server. It exposes the read-only `list_commits` GitHub tool plus three
+deterministic tools: `echo_message`, `calculate_sum`, and
+`get_platform_status`. The Service is not exposed outside the cluster, requires
+HTTP Basic authentication, and is available to LiteLLM at:
 
 ```text
 http://tali-relay-example-mcp:3000/mcp
@@ -604,6 +605,12 @@ Build and deploy the local example together with Keycloak:
 npm run images:build:dev:demo-test
 npm run helm:deploy:dev:keycloak:example-mcp
 ```
+
+The GitHub tool accepts a token from
+`exampleMcp.githubTokenSecret.name`/`.key`. The local deployment script creates
+that Secret from `GITHUB_TOKEN`, or from the authenticated `gh` CLI when one is
+available. The token is never passed as a Helm value or stored in Helm release
+metadata.
 
 Register the endpoint as a custom HTTP MCP Server in a Project. TaskLattice Relay
 then asks LiteLLM to discover the tools and stores the resulting names,

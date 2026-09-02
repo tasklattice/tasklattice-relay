@@ -234,6 +234,19 @@ function commitArray(value: unknown): unknown[] {
   if (typeof value === "string") return commitArray(parseJsonText(value));
   if (!value || typeof value !== "object") return [];
   const record = value as Record<string, unknown>;
+  if (record.isError === true) {
+    const message = Array.isArray(record.content)
+      ? record.content
+        .map((item) => {
+          if (!item || typeof item !== "object") return "";
+          const text = (item as Record<string, unknown>).text;
+          return typeof text === "string" ? text.trim() : "";
+        })
+        .filter(Boolean)
+        .join(" ")
+      : "";
+    throw new Error(message || "GitHub MCP list_commits failed.");
+  }
   for (const key of ["commits", "items", "data", "result", "structuredContent"]) {
     if (record[key] !== undefined) {
       const nested = commitArray(record[key]);

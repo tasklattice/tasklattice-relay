@@ -513,7 +513,11 @@ function Instances() {
       && (source === "ALL" || (source === "PROJECT_AGENT" ? isProjectAgentSource(item.sourceType) : item.sourceType === source));
   }), [inventory.data?.data, query, source, status]);
   const agentById = useMemo(() => new Map((agents.data ?? []).map((agent) => [agent.id, agent])), [agents.data]);
-  const managedById = useMemo(() => new Map((garden.data?.instances ?? []).map((instance) => [instance.id, instance])), [garden.data?.instances]);
+  const managedById = useMemo(() => new Map(
+    (garden.data?.instances ?? [])
+      .filter((instance): instance is A2aAgentInstance => instance.kind === "A2A")
+      .map((instance) => [instance.id, instance]),
+  ), [garden.data?.instances]);
   const filtered = useMemo(() => visibleInventory.flatMap((item) => {
     if (item.sourceType !== "WORKSPACE_INSTANCE") return [];
     const agent = agentById.get(item.sourceId);

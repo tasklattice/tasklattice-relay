@@ -2,18 +2,19 @@
 
 import { RelayClient } from "./live-hermes-e2e-lib.mjs";
 
-const baseUrl = process.env.TALI_BASE_URL ?? "http://127.0.0.1:18080";
+const baseUrl = process.env.TALI_BASE_URL ?? "http://localhost:38080";
+const departmentId = process.env.TALI_LIVE_EXPERT_AGENT_DEPARTMENT_ID ?? "dep1";
 const projectId = process.env.TALI_LIVE_EXPERT_AGENT_PROJECT_ID ?? "proj1";
 const username = process.env.TALI_VALIDATION_USERNAME ?? "admin";
 const password = process.env.TALI_VALIDATION_PASSWORD ?? "password";
-const providerName = "Release 0 DeepSeek";
-const routingName = "Expert Agent Release 0";
-const embeddingProviderName = "Release 0 NVIDIA Embeddings";
+const providerName = "Department DeepSeek";
+const routingName = "Department Default DeepSeek";
+const embeddingProviderName = "Department NVIDIA Embeddings";
 const embeddingModelId = "nvidia/llama-nemotron-embed-vl-1b-v2";
 
 if (process.env.TALI_LIVE_MODEL_PROVISIONING !== "1") {
   throw new Error(
-    "Set TALI_LIVE_MODEL_PROVISIONING=1 to authorize one bounded Project Provider, model, Routing, and Contract-draft validation.",
+    "Set TALI_LIVE_MODEL_PROVISIONING=1 to authorize bounded Department Provider, Model, Routing, and Project inheritance validation.",
   );
 }
 
@@ -26,263 +27,265 @@ if (!embeddingApiKey) {
   throw new Error("NVAPI_API_KEY is unavailable; no credential was read or persisted.");
 }
 
-function data(value) {
+function items(value) {
   return Array.isArray(value) ? value : value?.data ?? [];
+}
+
+function contextOption(state, level, resourceId, roleId) {
+  return state.options.find((option) =>
+    option.level === level
+    && option.resourceId === resourceId
+    && option.roleId === roleId
+  );
+}
+
+async function select(client, option) {
+  await client.request("/api/v1/access-context", {
+    method: "PUT",
+    body: JSON.stringify({
+      level: option.level,
+      resourceId: option.resourceId,
+      roleId: option.roleId,
+    }),
+  });
+}
+
+function department(client, path, init) {
+  return client.request(
+    `/api/v1/departments/${encodeURIComponent(departmentId)}${path}`,
+    init,
+  );
+}
+
+async function ensureProvider(client, {
+  connection,
+  complianceDomain = "GLOBAL",
+  selectModel,
+}) {
+  const providers = items(await department(client, "/providers"));
+  let provider = providers.find((item) =>
+    item.name === connection.name && item.providerKind === connection.provider
+  );
+  let models = items(await department(client, "/models"));
+
+  if (!provider) {
+    const discovery = await department(client, "/providers/discover", {
+      method: "POST",
+      body: JSON.stringify(connection),
+    });
+    const selected = selectModel(discovery.models ?? []);
+    if (!selected) {
+      throw new Error(`${connection.name} did not expose the required model.`);
+    }
+    const created = await department(client, "/providers", {
+      method: "POST",
+      body: JSON.stringify({
+        connection,
+        models: [{
+          modelId: selected.modelId,
+          displayName: selected.displayName,
+          modelType: selected.modelType,
+          capabilities: selected.capabilities,
+          inputModalities: selected.inputModalities,
+          outputModalities: selected.outputModalities,
+        }],
+        complianceDomain,
+      }),
+    });
+    provider = created.account;
+    models = [...models, ...(created.models ?? [])];
+  } else if (provider.status !== "VALIDATED") {
+    provider = await department(
+      client,
+      `/providers/${encodeURIComponent(provider.id)}/validate`,
+      { method: "POST", body: "{}" },
+    );
+    models = items(await department(client, "/models"));
+  }
+
+  const model = models.find((candidate) =>
+    candidate.providerAccountId === provider.id && selectModel([candidate])
+  );
+  if (!model || model.status !== "VALIDATED") {
+    throw new Error(`${connection.name} has no matching VALIDATED Department Model.`);
+  }
+  return { model, provider };
 }
 
 async function main() {
   const client = new RelayClient(baseUrl);
   await client.login(username, password);
-
   const accessContext = await client.request("/api/v1/access-context");
-  const projectAdmin = accessContext.options.find((option) =>
-    option.level === "project"
-    && option.resourceId === projectId
-    && option.roleId === "ROLE_PROJECT_ADMIN"
+  const departmentAdmin = contextOption(
+    accessContext,
+    "department",
+    departmentId,
+    "ROLE_DEPARTMENT_ADMIN",
   );
-  const projectDeveloper = accessContext.options.find((option) =>
-    option.level === "project"
-    && option.resourceId === projectId
-    && option.roleId === "ROLE_AGENT_DEVELOPER"
+  const projectAdmin = contextOption(
+    accessContext,
+    "project",
+    projectId,
+    "ROLE_PROJECT_ADMIN",
   );
-  if (!projectAdmin || !projectDeveloper) {
+  const projectDeveloper = contextOption(
+    accessContext,
+    "project",
+    projectId,
+    "ROLE_AGENT_DEVELOPER",
+  );
+  if (!departmentAdmin || !projectAdmin || !projectDeveloper) {
     throw new Error(
-      "The validation Account must be assigned both Project Administrator and Agent Developer for bounded provisioning.",
+      "The validation Account must have Department Administrator plus Project Administrator and Agent Developer contexts.",
     );
   }
-  await client.request("/api/v1/access-context", {
-    method: "PUT",
-    body: JSON.stringify({
-      level: projectAdmin.level,
-      resourceId: projectAdmin.resourceId,
-      roleId: projectAdmin.roleId,
-    }),
-  });
 
+  await select(client, departmentAdmin);
   try {
-
-    let providers = data(await client.project(projectId, "/providers"));
-    let provider = providers.find((item) =>
-      item.name === providerName && item.providerKind === "deepseek"
-    );
-    let models = data(await client.project(projectId, "/models"));
-
-    if (!provider) {
-      const connection = {
+    const llm = await ensureProvider(client, {
+      connection: {
         provider: "deepseek",
         name: providerName,
         config: { endpoint: "https://api.deepseek.com/v1" },
         credentials: { apiKey },
-      };
-      const discovery = await client.project(projectId, "/providers/discover", {
-        method: "POST",
-        body: JSON.stringify(connection),
-      });
-      const selected = discovery.models.find((model) => model.modelId === "deepseek-chat")
-        ?? discovery.models.find((model) => model.modelType === "llm");
-      if (!selected) throw new Error("DeepSeek did not expose an LLM deployment.");
+      },
+      selectModel: (models) => models.find((model) => model.modelId === "deepseek-chat")
+        ?? models.find((model) => model.modelType === "llm"),
+    });
 
-      const created = await client.project(projectId, "/providers", {
-        method: "POST",
-        body: JSON.stringify({
-          connection,
-          models: [{
-            modelId: selected.modelId,
-            displayName: selected.displayName,
-            modelType: selected.modelType,
-            capabilities: selected.capabilities,
-            inputModalities: selected.inputModalities,
-            outputModalities: selected.outputModalities,
-          }],
-          complianceDomain: "GLOBAL",
-        }),
-      });
-      provider = created.account;
-      models = [...models, ...created.models];
-    } else if (provider.status !== "VALIDATED") {
-      provider = await client.project(
-        projectId,
-        `/providers/${encodeURIComponent(provider.id)}/validate`,
-        { method: "POST", body: "{}" },
-      );
-      models = data(await client.project(projectId, "/models"));
-    }
-
-    let model = models.find((item) =>
-      item.providerAccountId === provider.id
-      && item.modelId === "deepseek-chat"
-      && item.status === "VALIDATED"
-    ) ?? models.find((item) =>
-      item.providerAccountId === provider.id
-      && item.modelType === "llm"
-      && item.status === "VALIDATED"
-    );
-    if (!model) {
-      model = await client.project(projectId, "/models", {
-        method: "POST",
-        body: JSON.stringify({
-          providerAccountId: provider.id,
-          modelId: "deepseek-chat",
-          displayName: "DeepSeek Chat",
-          modelType: "llm",
-        }),
-      });
-    }
-    if (model.status !== "VALIDATED") {
-      throw new Error(`The selected model is ${model.status}; Routing was not created.`);
-    }
-
-    const gateways = data(await client.project(projectId, "/inference-gateways"));
+    const gateways = items(await department(client, "/inference-gateways"));
     const gateway = gateways[0];
-    if (!gateway) throw new Error("No Project LiteLLM Gateway is available.");
+    if (!gateway) throw new Error("No Department LiteLLM Gateway is available.");
 
-    let routings = data(await client.project(projectId, "/model-routings"));
+    const routings = items(await department(client, "/model-routings"));
     let routing = routings.find((item) => item.name === routingName);
     if (!routing) {
-      routing = await client.project(projectId, "/model-routings", {
+      routing = await department(client, "/model-routings", {
         method: "POST",
         body: JSON.stringify({
           name: routingName,
-          description: "Cost-bounded default Routing for Expert Agent Contract drafting and semantic evaluation.",
+          description: "Department-managed, cost-bounded default Routing for child Project Agent development and runtime inference.",
           gatewayId: gateway.id,
           routingPolicy: {
             version: 1,
             mode: "SINGLE",
-            modelDeploymentId: model.id,
+            modelDeploymentId: llm.model.id,
             fallbackModelDeploymentIds: [],
             retries: 1,
           },
           complianceDomain: "GLOBAL",
           isDefault: true,
           keyPolicy: { perInstance: true, rotationDays: 30 },
-          auditPolicy: { controlPlane: true, requestLogs: true, capturePrompts: false },
+          auditPolicy: {
+            controlPlane: true,
+            requestLogs: true,
+            capturePrompts: false,
+          },
         }),
       });
-    } else {
-      if (routing.status !== "READY") {
-        routing = await client.project(
-          projectId,
-          `/model-routings/${encodeURIComponent(routing.id)}/refresh`,
-          { method: "POST", body: "{}" },
-        );
-      }
-      if (routing.status === "READY" && !routing.isDefault) {
-        routing = await client.project(
-          projectId,
-          `/model-routings/${encodeURIComponent(routing.id)}`,
-          { method: "PUT", body: JSON.stringify({ isDefault: true }) },
-        );
-      }
-    }
-    if (routing.status !== "READY" || !routing.isDefault) {
-      throw new Error(
-        `Project Routing is ${routing.status}${routing.isDefault ? "" : " and is not default"}.`,
+    } else if (routing.status !== "READY") {
+      routing = await department(
+        client,
+        `/model-routings/${encodeURIComponent(routing.id)}/refresh`,
+        { method: "POST", body: "{}" },
       );
     }
-
-    const draft = await client.project(projectId, "/expert-agents/contract-drafts", {
-      method: "POST",
-      body: JSON.stringify({
-        intention: "Build a flexible Agent that reads an allowed GitHub repository for an arbitrary date range and summarizes verified commits with source citations, without writing to GitHub.",
-      }),
-    });
-    if (draft.status !== "GENERATED" || draft.source?.id !== routing.id) {
-      throw new Error("The real Project Routing did not generate the Agent Contract draft.");
+    if (routing.status !== "READY") {
+      throw new Error(`Department Routing is ${routing.status}.`);
     }
 
-    providers = data(await client.project(projectId, "/providers"));
-    models = data(await client.project(projectId, "/models"));
-    let embeddingProvider = providers.find((item) =>
-      item.name === embeddingProviderName && item.providerKind === "nvidia-nim"
-    );
-    if (!embeddingProvider) {
-      const connection = {
+    const embedding = await ensureProvider(client, {
+      connection: {
         provider: "nvidia-nim",
         name: embeddingProviderName,
         config: { endpoint: "https://integrate.api.nvidia.com/v1" },
         credentials: { apiKey: embeddingApiKey },
-      };
-      const discovery = await client.project(projectId, "/providers/discover", {
-        method: "POST",
-        body: JSON.stringify(connection),
-      });
-      const selected = discovery.models.find((item) => item.modelId === embeddingModelId);
-      if (!selected) throw new Error(`NVIDIA NIM did not expose ${embeddingModelId}.`);
-      const created = await client.project(projectId, "/providers", {
-        method: "POST",
-        body: JSON.stringify({
-          connection,
-          models: [{
-            modelId: selected.modelId,
-            displayName: selected.displayName,
-            modelType: selected.modelType,
-            capabilities: selected.capabilities,
-            inputModalities: selected.inputModalities,
-            outputModalities: selected.outputModalities,
-          }],
-          complianceDomain: "GLOBAL",
-        }),
-      });
-      embeddingProvider = created.account;
-      models = [...models, ...created.models];
-    } else if (embeddingProvider.status !== "VALIDATED") {
-      embeddingProvider = await client.project(
+      },
+      selectModel: (models) => models.find((model) =>
+        model.modelId === embeddingModelId && model.modelType === "text-embedding"
+      ),
+    });
+
+    await select(client, projectAdmin);
+    const projectRoutings = items(await client.project(projectId, "/model-routings"));
+    let inheritedRouting = projectRoutings.find((item) => item.id === routing.id);
+    if (!inheritedRouting) {
+      inheritedRouting = await client.project(
         projectId,
-        `/providers/${encodeURIComponent(embeddingProvider.id)}/validate`,
+        `/model-routings/${encodeURIComponent(routing.id)}/inherit`,
         { method: "POST", body: "{}" },
       );
-      models = data(await client.project(projectId, "/models"));
     }
-    const embeddingModel = models.find((item) =>
-      item.providerAccountId === embeddingProvider.id
-      && item.modelId === embeddingModelId
-      && item.status === "VALIDATED"
-    );
-    if (!embeddingModel) {
-      throw new Error(`NVIDIA embedding deployment ${embeddingModelId} is not VALIDATED.`);
+    if (!inheritedRouting.isDefault) {
+      inheritedRouting = await client.project(
+        projectId,
+        `/model-routings/${encodeURIComponent(routing.id)}`,
+        { method: "PUT", body: JSON.stringify({ isDefault: true }) },
+      );
+    }
+    if (
+      inheritedRouting.status !== "READY"
+      || inheritedRouting.origin?.scope !== "DEPARTMENT"
+      || inheritedRouting.origin?.inherited !== true
+      || !inheritedRouting.isDefault
+    ) {
+      throw new Error("The Project did not receive the READY Department Routing as its default.");
+    }
+
+    const projectModels = items(await client.project(projectId, "/models"));
+    let inheritedEmbedding = projectModels.find((item) => item.id === embedding.model.id);
+    if (!inheritedEmbedding) {
+      inheritedEmbedding = await client.project(
+        projectId,
+        `/models/${encodeURIComponent(embedding.model.id)}/inherit`,
+        { method: "POST", body: "{}" },
+      );
+    }
+    if (
+      inheritedEmbedding.status !== "VALIDATED"
+      || inheritedEmbedding.origin?.scope !== "DEPARTMENT"
+      || inheritedEmbedding.origin?.inherited !== true
+    ) {
+      throw new Error("The Project did not inherit the VALIDATED Department embedding Model.");
     }
 
     console.log(JSON.stringify({
+      departmentId,
       projectId,
-      provider: {
-        id: provider.id,
-        kind: provider.providerKind,
-        status: provider.status,
-        credentialState: provider.credentialState,
+      department: {
+        provider: {
+          id: llm.provider.id,
+          kind: llm.provider.providerKind,
+          status: llm.provider.status,
+        },
+        model: {
+          id: llm.model.id,
+          modelId: llm.model.modelId,
+          status: llm.model.status,
+        },
+        routing: {
+          id: routing.id,
+          status: routing.status,
+          mode: routing.routingPolicy.mode,
+        },
+        embedding: {
+          providerId: embedding.provider.id,
+          providerStatus: embedding.provider.status,
+          modelId: embedding.model.modelId,
+          deploymentId: embedding.model.id,
+          modelStatus: embedding.model.status,
+        },
       },
-      model: { id: model.id, modelId: model.modelId, status: model.status },
-      routing: {
-        id: routing.id,
-        status: routing.status,
-        isDefault: routing.isDefault,
-        mode: routing.routingPolicy.mode,
-      },
-      contractDraft: {
-        status: draft.status,
-        sourceKind: draft.source.kind,
-        sourceId: draft.source.id,
-        generatedName: draft.draft.name,
-        executionMode: draft.draft.executionMode,
-        preset: draft.draft.policy.preset,
-      },
-      embedding: {
-        providerId: embeddingProvider.id,
-        providerStatus: embeddingProvider.status,
-        credentialState: embeddingProvider.credentialState,
-        modelId: embeddingModel.modelId,
-        deploymentId: embeddingModel.id,
-        modelStatus: embeddingModel.status,
+      projectInheritance: {
+        routingId: inheritedRouting.id,
+        routingOrigin: inheritedRouting.origin,
+        isDefault: inheritedRouting.isDefault,
+        embeddingModelId: inheritedEmbedding.id,
+        embeddingOrigin: inheritedEmbedding.origin,
       },
     }, null, 2));
   } finally {
-    await client.request("/api/v1/access-context", {
-      method: "PUT",
-      body: JSON.stringify({
-        level: projectDeveloper.level,
-        resourceId: projectDeveloper.resourceId,
-        roleId: projectDeveloper.roleId,
-      }),
-    });
+    await select(client, projectDeveloper);
   }
 }
 

@@ -9,14 +9,27 @@ export interface SecretStore {
 
 const memorySecrets = new Map<string, string>();
 
+function kubernetesSlug(value: string, fallback: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/^-+|-+$/g, "") || fallback;
+}
+
 function kubernetesSecretName(projectId: string, resourceId: string): string {
-  const slug = (value: string, fallback: string) =>
-    value.toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/^-+|-+$/g, "") || fallback;
   const digest = createHash("sha256")
     .update(`${projectId}:${resourceId}`)
     .digest("hex")
     .slice(0, 10);
-  return `tali-secret-${slug(projectId, "project").slice(0, 12)}-${slug(resourceId, "resource").slice(0, 24)}-${digest}`;
+  return `tali-secret-${kubernetesSlug(projectId, "project").slice(0, 12)}-${kubernetesSlug(resourceId, "resource").slice(0, 24)}-${digest}`;
+}
+
+export function kubernetesSecretLabels(
+  projectId: string,
+  resourceId: string,
+): Record<string, string> {
+  return {
+    "app.kubernetes.io/managed-by": "tali",
+    "tali.io/project-id": kubernetesSlug(projectId, "project").slice(0, 63),
+    "tali.io/resource-id": kubernetesSlug(resourceId, "resource").slice(0, 63),
+  };
 }
 
 export class DevelopmentSecretStore implements SecretStore {
@@ -68,11 +81,7 @@ export class KubernetesSecretStore implements SecretStore {
       metadata: {
         name,
         namespace: this.namespace,
-        labels: {
-          "app.kubernetes.io/managed-by": "tali",
-          "tali.io/project-id": projectId.slice(0, 63),
-          "tali.io/resource-id": resourceId.slice(0, 63),
-        },
+        labels: kubernetesSecretLabels(projectId, resourceId),
       },
       type: "Opaque",
       data: { CREDENTIAL: Buffer.from(secret).toString("base64") },

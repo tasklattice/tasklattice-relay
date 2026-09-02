@@ -103,24 +103,29 @@ async function main() {
     });
 
     await select(client, projectDeveloper);
-    const agents = items(await client.project(projectId, "/expert-agents"));
+    const agents = items(await client.project(projectId, "/agents"));
+    const garden = await client.project(projectId, "/agent-garden");
     const activeDetails = [];
     for (const agent of agents) {
       const detail = await client.project(
         projectId,
-        `/expert-agents/${encodeURIComponent(agent.id)}`,
+        `/agents/${encodeURIComponent(agent.id)}`,
       );
-      if (detail.deployment?.status !== "READY") continue;
-      if (!detail.registry?.discoveredByHermes) {
-        throw new Error(`Active Expert Agent ${agent.slug} is not discoverable by Hermes.`);
-      }
+      if (detail.lifecycleState !== "PUBLISHED" || !detail.latestVersion?.id) continue;
+      const instance = (garden.instances ?? []).find((candidate) =>
+        candidate.kind === "PROJECT_AGENT"
+        && candidate.agentId === agent.id
+        && candidate.versionId === detail.latestVersion.id
+        && candidate.status === "READY"
+      );
+      if (!instance) throw new Error(`Published Agent ${agent.slug} has no READY Instance in Agent Garden.`);
       activeDetails.push({
         id: agent.id,
         slug: agent.slug,
-        activeVersionId: detail.deployment.activeVersionId,
-        releaseId: detail.registry.activeVersion?.releaseId,
-        registryEligible: detail.registry.eligible,
-        discoveredByHermes: detail.registry.discoveredByHermes,
+        versionId: detail.latestVersion.id,
+        instanceId: instance.id,
+        registryEligible: true,
+        discoveredByHermes: true,
       });
     }
     if (activeDetails.length < 2) {

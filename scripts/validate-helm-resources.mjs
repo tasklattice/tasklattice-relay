@@ -361,8 +361,8 @@ if (hindsightMigration.metadata?.annotations?.[syncWaveAnnotation] !== "20") {
 if (hindsightMigration.metadata?.annotations?.["helm.sh/hook"] != null) {
   throw new Error("The Hindsight migration Job must use normal Job semantics instead of a Helm hook.");
 }
-if (hindsightMigration.spec?.ttlSecondsAfterFinished !== 60) {
-  throw new Error("The completed Hindsight migration Pod must be cleaned up after 60 seconds.");
+if (hindsightMigration.spec?.ttlSecondsAfterFinished !== 3600) {
+  throw new Error("The completed Hindsight migration Job must outlive Helm's wait window.");
 }
 const migrationPodSpec = hindsightMigration.spec?.template?.spec;
 const migrationContainer = migrationPodSpec?.containers?.find(

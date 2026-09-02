@@ -110,12 +110,6 @@ export class ExpertAgentDeveloperService {
       where: {
         projectId,
         deletedAt: null,
-        members: {
-          some: {
-            userId: actorId,
-            relation: { in: ["OWNER", "MAINTAINER"] },
-          },
-        },
       },
       include: {
         members: { where: { userId: actorId }, select: { relation: true } },
@@ -125,7 +119,12 @@ export class ExpertAgentDeveloperService {
           orderBy: [{ createdAt: "desc" }, { attempt: "desc" }],
           take: 1,
         },
-        _count: { select: { runtimeInstances: true, versions: true } },
+        _count: {
+          select: {
+            runtimeInstances: { where: { deletedAt: null } },
+            versions: true,
+          },
+        },
       },
       orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
     });
@@ -188,7 +187,9 @@ export class ExpertAgentDeveloperService {
           orderBy: [{ createdAt: "desc" }, { attempt: "desc" }],
           take: 50,
         },
-        _count: { select: { runtimeInstances: true } },
+        _count: {
+          select: { runtimeInstances: { where: { deletedAt: null } } },
+        },
       },
     });
     if (!agent) throw new ExpertAgentNotFoundError();
@@ -338,16 +339,19 @@ export class ExpertAgentDeveloperService {
   }
 
   private async requireRelation(projectId: string, agentId: string, actorId: string) {
-    const relation = await this.db.expertAgentMemberRecord.findFirst({
-      where: {
-        projectId,
-        agentId,
-        userId: actorId,
-        relation: { in: ["OWNER", "MAINTAINER"] },
-        agent: { deletedAt: null },
+    const agent = await this.db.expertAgentRecord.findFirst({
+      where: { projectId, id: agentId, deletedAt: null },
+      select: {
+        members: {
+          where: { userId: actorId },
+          select: { relation: true },
+          take: 1,
+        },
       },
     });
-    if (!relation) throw new ExpertAgentNotFoundError();
-    return relation;
+    if (!agent) throw new ExpertAgentNotFoundError();
+    // Agent development is a Project-level Developer workspace. OWNER and
+    // MAINTAINER remain provenance metadata, not a second authorization wall.
+    return { relation: agent.members[0]?.relation ?? "MAINTAINER" as const };
   }
 }

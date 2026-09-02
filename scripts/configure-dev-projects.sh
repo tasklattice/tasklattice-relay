@@ -98,4 +98,4 @@ while IFS= read -r configured_project; do
 done < <(jq -c '.[]' "$projects_file")
 
 project_count="$(jq 'length' "$projects_file")"
-echo "Configured $project_count development isolation Projects ($created_count created, $existing_count existing)."
+echo "Configured $project_count development Projects ($created_count created, $existing_count existing)."

@@ -124,7 +124,7 @@ export function CreateExpertAgentSheet({
     <EntitySheet
       open={open}
       onOpenChange={(next) => next ? onOpenChange(true) : close()}
-      title="Create Agent"
+      title="Define Agent"
       description="Describe what this Agent should accomplish and choose how it should work."
       width="lg"
       footer={(

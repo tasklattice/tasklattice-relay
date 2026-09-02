@@ -1,5 +1,5 @@
 {
-  "revision": 4,
+  "revision": 5,
   "roles": [
     {
       "id": "ROLE_PLATFORM_ADMIN",
@@ -1157,7 +1157,7 @@
       "scope": "PROJECT",
       "family": "PROJECT_BUSINESS",
       "name": "Agent Developer",
-      "description": "Manages the lifecycle and configuration of owned or maintained Agents.",
+      "description": "Defines, tests, and publishes Agents shared by the Project development workspace.",
       "assignable": true,
       "sortOrder": 40,
       "grants": [
@@ -1176,6 +1176,7 @@
         {
           "capability": "CAP_AGENT_REGISTRATION_VIEW",
           "relations": [
+            "PROJECT_ANY",
             "OWNER",
             "MAINTAINER"
           ]
@@ -1183,6 +1184,7 @@
         {
           "capability": "CAP_AGENT_REGISTRATION_CREATE",
           "relations": [
+            "PROJECT_ANY",
             "OWNER",
             "MAINTAINER"
           ]
@@ -1190,6 +1192,7 @@
         {
           "capability": "CAP_AGENT_REGISTRATION_DISCOVER",
           "relations": [
+            "PROJECT_ANY",
             "OWNER",
             "MAINTAINER"
           ]
@@ -1197,6 +1200,7 @@
         {
           "capability": "CAP_AGENT_REGISTRATION_UPDATE",
           "relations": [
+            "PROJECT_ANY",
             "OWNER",
             "MAINTAINER"
           ]
@@ -1204,6 +1208,7 @@
         {
           "capability": "CAP_AGENT_REGISTRATION_DELETE",
           "relations": [
+            "PROJECT_ANY",
             "OWNER",
             "MAINTAINER"
           ]
@@ -1211,6 +1216,7 @@
         {
           "capability": "CAP_AGENT_INSTANCE_VIEW",
           "relations": [
+            "PROJECT_ANY",
             "OWNER",
             "MAINTAINER"
           ]
@@ -1218,6 +1224,7 @@
         {
           "capability": "CAP_AGENT_INSTANCE_CONFIG_VIEW",
           "relations": [
+            "PROJECT_ANY",
             "OWNER",
             "MAINTAINER"
           ]
@@ -1274,6 +1281,7 @@
         {
           "capability": "CAP_AGENT_INSTANCE_LOG_VIEW",
           "relations": [
+            "PROJECT_ANY",
             "OWNER",
             "MAINTAINER"
           ]
@@ -1629,6 +1637,7 @@
         {
           "capability": "CAP_TRACE_VIEW",
           "relations": [
+            "PROJECT_ANY",
             "OWNER",
             "MAINTAINER"
           ]

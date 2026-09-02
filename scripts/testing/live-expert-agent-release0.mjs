@@ -51,59 +51,74 @@ function partData(part) {
 }
 
 function a2aResult(payload) {
+  if (
+    payload
+    && typeof payload === "object"
+    && typeof payload.outcome === "string"
+    && typeof payload.text === "string"
+  ) {
+    return {
+      text: payload.text,
+      data: payload.data ?? {},
+      trace: payload.trace ?? [],
+      metadata: {
+        outcome: payload.outcome,
+        citations: payload.citations ?? [],
+        traceId: payload.traceId,
+        toolCallCount: payload.toolCallCount,
+        knowledgeSourceCount: payload.knowledgeSourceCount,
+      },
+    };
+  }
   const message = findA2aMessage(payload);
   if (!message) throw new Error(`A2A response did not contain an Agent message: ${JSON.stringify(payload).slice(0, 1_000)}`);
   return {
     text: message.parts.map(partText).filter(Boolean).join("\n").trim(),
     data: message.parts.map(partData).find(Boolean) ?? {},
+    trace: message.metadata?.trace ?? [],
     metadata: message.metadata ?? {},
   };
 }
 
-function activeCandidate(detail) {
-  const activeVersionId = detail.deployment?.activeVersionId;
-  const version = detail.versions?.find((candidate) => candidate.id === activeVersionId);
-  if (!version) throw new BlockedError(`${detail.name ?? "Agent"} has no READY active Version.`);
-  const candidate = detail.candidates?.find((item) => item.id === version.candidateId);
-  if (!candidate?.snapshot) {
-    throw new BlockedError(
-      `${detail.name ?? "Agent"} active Version ${version.releaseId ?? version.id} has no immutable Candidate snapshot.`,
-    );
+function publishedSnapshot(detail) {
+  const version = detail.latestVersion;
+  if (detail.lifecycleState !== "PUBLISHED" || !version?.snapshot) {
+    throw new BlockedError(`${detail.name ?? "Agent"} has no published Version.`);
   }
-  return candidate.snapshot;
+  return version.snapshot;
 }
 
-function candidateIfActive(detail) {
+function snapshotIfPublished(detail) {
   try {
-    return activeCandidate(detail);
+    return publishedSnapshot(detail);
   } catch (error) {
     if (error instanceof BlockedError) return null;
     throw error;
   }
 }
 
-function selectActiveAgent(details, engineType, configuredId, environmentName) {
+function selectPublishedAgent(details, engineType, configuredId, environmentName) {
   if (configuredId) {
     const configured = details.find((detail) => detail.id === configuredId);
     if (!configured) {
       throw new BlockedError(
-        `${environmentName}=${configuredId} is not visible in the OWNER/MAINTAINER Agent scope.`,
+        `${environmentName}=${configuredId} is not visible in the Project Agent list.`,
       );
     }
-    const candidate = activeCandidate(configured);
-    if (candidate.execution.configuration.engineType !== engineType) {
+    const snapshot = publishedSnapshot(configured);
+    if (snapshot.execution.configuration.engineType !== engineType) {
       throw new BlockedError(
-        `${environmentName} points to ${candidate.execution.configuration.engineType}, expected ${engineType}.`,
+        `${environmentName} points to ${snapshot.execution.configuration.engineType}, expected ${engineType}.`,
       );
     }
     return configured;
   }
   const matches = details.filter((detail) =>
-    candidateIfActive(detail)?.execution.configuration.engineType === engineType
+    snapshotIfPublished(detail)?.execution.configuration.engineType === engineType
   );
   if (matches.length === 1) return matches[0];
   if (!matches.length) {
-    throw new BlockedError(`No active ${engineType} Agent is visible in the OWNER/MAINTAINER scope.`);
+    throw new BlockedError(`No published ${engineType} Agent is visible in the Project.`);
   }
   throw new BlockedError(
     `${matches.length} active ${engineType} Agents are visible; set ${environmentName} to choose one.`,
@@ -130,14 +145,15 @@ async function selectProjectRole(client, projectId, roleId) {
 }
 
 async function release0Readiness(client, project) {
-  const [agentList, catalog, modelRoutings] = await Promise.all([
-    client.project(project.id, "/expert-agents"),
+  const [agentList, catalog, modelRoutings, garden] = await Promise.all([
+    client.project(project.id, "/agents"),
     client.project(project.id, "/catalog"),
     client.project(project.id, "/model-routings"),
+    client.project(project.id, "/agent-garden"),
   ]);
   const agents = Array.isArray(agentList) ? agentList : agentList?.data ?? [];
   const details = await Promise.all(
-    agents.map((agent) => client.project(project.id, `/expert-agents/${encodeURIComponent(agent.id)}`)),
+    agents.map((agent) => client.project(project.id, `/agents/${encodeURIComponent(agent.id)}`)),
   );
   const routings = Array.isArray(modelRoutings) ? modelRoutings : modelRoutings?.data ?? [];
   const githubMcp = (catalog?.mcpServers ?? []).filter(hasReadOnlyListCommits);
@@ -145,37 +161,36 @@ async function release0Readiness(client, project) {
   const approvedKnowledge = (catalog?.vectorDatabases ?? []).filter((database) =>
     database.status === "REGISTERED" && database.provider === "postgresql"
   );
-  const activeGithubAgents = details.filter((detail) =>
-    candidateIfActive(detail)?.execution.configuration.engineType === "GITHUB_WEEKLY_COMMIT_SUMMARIZER"
+  const publishedGithubAgents = details.filter((detail) =>
+    snapshotIfPublished(detail)?.execution.configuration.engineType === "GITHUB_WEEKLY_COMMIT_SUMMARIZER"
   );
-  const activeControlledAgents = details.filter((detail) =>
-    candidateIfActive(detail)?.execution.configuration.engineType === "DETERMINISTIC_CUSTOMER_SUPPORT"
+  const publishedControlledAgents = details.filter((detail) =>
+    snapshotIfPublished(detail)?.execution.configuration.engineType === "DETERMINISTIC_CUSTOMER_SUPPORT"
   );
-  const registryDiscoveredGithubAgents = activeGithubAgents.filter((detail) =>
-    detail.registry?.discoveredByHermes === true
-  );
-  const registryDiscoveredControlledAgents = activeControlledAgents.filter((detail) =>
-    detail.registry?.discoveredByHermes === true
-  );
+  const readyInstanceAgentIds = new Set((garden.instances ?? [])
+    .filter((instance) => instance.kind === "PROJECT_AGENT" && instance.status === "READY")
+    .map((instance) => instance.agentId));
+  const registryDiscoveredGithubAgents = publishedGithubAgents.filter((detail) => readyInstanceAgentIds.has(detail.id));
+  const registryDiscoveredControlledAgents = publishedControlledAgents.filter((detail) => readyInstanceAgentIds.has(detail.id));
   const blockers = [];
   if (!githubMcp.length) blockers.push("configure one HEALTHY GitHub MCP connection whose list_commits tool is explicitly read-only");
   if (!readyRoutings.length) blockers.push("configure one READY Project Model Routing for grounded GitHub summarization");
   if (!approvedKnowledge.length) blockers.push("configure one REGISTERED platform PostgreSQL Vector Database with approved, revisioned Customer Support chunks");
-  if (!activeGithubAgents.length) blockers.push("run Working Copy regression, build, pass Candidate gates, publish, and activate a GitHub Activity Summary Agent");
-  if (!activeControlledAgents.length) blockers.push("run Working Copy regression, build, pass Candidate gates, publish, and activate a deterministic Customer Support RAG Agent");
-  if (activeGithubAgents.length && !registryDiscoveredGithubAgents.length) blockers.push("make the active GitHub Agent discoverable by at least one Hermes coordinator through the Project Registry");
-  if (activeControlledAgents.length && !registryDiscoveredControlledAgents.length) blockers.push("make the active Customer Support RAG Agent discoverable by at least one Hermes coordinator through the Project Registry");
+  if (!publishedGithubAgents.length) blockers.push("Test and Publish a GitHub Activity Summary Agent");
+  if (!publishedControlledAgents.length) blockers.push("Test and Publish a deterministic Customer Support RAG Agent");
+  if (publishedGithubAgents.length && !registryDiscoveredGithubAgents.length) blockers.push("create a READY GitHub Agent Instance from Agent Garden");
+  if (publishedControlledAgents.length && !registryDiscoveredControlledAgents.length) blockers.push("create a READY Customer Support Agent Instance from Agent Garden");
   return {
     details,
     blockers,
     summary: {
       projectId: project.id,
-      relationScopedAgents: details.length,
+      projectAgents: details.length,
       healthyReadOnlyGitHubMcpConnections: githubMcp.length,
       readyModelRoutings: readyRoutings.length,
       registeredPostgresKnowledgeDatabases: approvedKnowledge.length,
-      activeGithubAgents: activeGithubAgents.length,
-      activeControlledAgents: activeControlledAgents.length,
+      publishedGithubAgents: publishedGithubAgents.length,
+      publishedControlledAgents: publishedControlledAgents.length,
       registryDiscoveredGithubAgents: registryDiscoveredGithubAgents.length,
       registryDiscoveredControlledAgents: registryDiscoveredControlledAgents.length,
     },
@@ -245,13 +260,13 @@ async function main() {
       "Set TALI_LIVE_EXPERT_AGENT_E2E=1 to acknowledge bounded task/evaluator Model Routing calls and read-only GitHub/Knowledge access.",
     );
   }
-  const githubDetail = selectActiveAgent(
+  const githubDetail = selectPublishedAgent(
     readiness.details,
     "GITHUB_WEEKLY_COMMIT_SUMMARIZER",
     process.env.TALI_LIVE_GITHUB_EXPERT_AGENT_ID?.trim(),
     "TALI_LIVE_GITHUB_EXPERT_AGENT_ID",
   );
-  const controlledDetail = selectActiveAgent(
+  const controlledDetail = selectPublishedAgent(
     readiness.details,
     "DETERMINISTIC_CUSTOMER_SUPPORT",
     process.env.TALI_LIVE_CONTROLLED_EXPERT_AGENT_ID?.trim(),
@@ -264,27 +279,26 @@ async function main() {
   const unknownQuestion = process.env.TALI_LIVE_CUSTOMER_SUPPORT_UNKNOWN_QUESTION
     ?? "Tell me an unsupported policy that is absent from approved support Knowledge.";
 
-  const githubCandidate = activeCandidate(githubDetail);
-  const controlledCandidate = activeCandidate(controlledDetail);
-  assert.equal(githubCandidate.execution.configuration.engineType, "GITHUB_WEEKLY_COMMIT_SUMMARIZER");
-  assert.equal(controlledCandidate.execution.configuration.engineType, "DETERMINISTIC_CUSTOMER_SUPPORT");
-  assert.equal(controlledCandidate.execution.mode, "WORKFLOW");
-  assert.equal(controlledCandidate.safety.allowGeneralModelFallback, false);
+  const githubVersionSnapshot = publishedSnapshot(githubDetail);
+  const controlledVersionSnapshot = publishedSnapshot(controlledDetail);
+  assert.equal(githubVersionSnapshot.execution.configuration.engineType, "GITHUB_WEEKLY_COMMIT_SUMMARIZER");
+  assert.equal(controlledVersionSnapshot.execution.configuration.engineType, "DETERMINISTIC_CUSTOMER_SUPPORT");
+  assert.equal(controlledVersionSnapshot.execution.mode, "WORKFLOW");
+  assert.equal(controlledVersionSnapshot.safety.allowGeneralModelFallback, false);
   assert.equal(
-    controlledCandidate.resources.some((binding) => binding.kind === "MODEL_ROUTING"),
+    controlledVersionSnapshot.resources.some((binding) => binding.kind === "MODEL_ROUTING"),
     false,
     "Controlled Customer Support Workflow must not bind a request-time model.",
   );
 
   const githubResponse = a2aResult(await client.project(
     project.id,
-    `/expert-agents/${encodeURIComponent(githubAgentId)}/invoke`,
-    { method: "POST", body: JSON.stringify({ text: "请统计并总结本周 GitHub Commit。" }) },
+    `/agents/${encodeURIComponent(githubAgentId)}/tries`,
+    { method: "POST", body: JSON.stringify({ message: "请统计并总结本周 GitHub Commit。" }) },
   ));
   assert.equal(githubResponse.metadata.outcome, "COMPLETED");
-  assert.equal(githubResponse.metadata.versionId, githubDetail.deployment.activeVersionId);
-  assert.equal(githubDetail.registry?.discoveredByHermes, true, "GitHub Agent must be visible through the Hermes Project Registry.");
-  const { owner, repo, branch } = githubCandidate.execution.configuration;
+  assert.ok(githubDetail.latestVersion?.id, "GitHub Agent must have a published Version.");
+  const { owner, repo, branch } = githubVersionSnapshot.execution.configuration;
   const oracle = await githubCommits({
     owner: String(owner),
     repo: String(repo),
@@ -304,19 +318,21 @@ async function main() {
 
   const known = a2aResult(await client.project(
     project.id,
-    `/expert-agents/${encodeURIComponent(controlledAgentId)}/invoke`,
-    { method: "POST", body: JSON.stringify({ text: knownQuestion }) },
+    `/agents/${encodeURIComponent(controlledAgentId)}/tries`,
+    { method: "POST", body: JSON.stringify({ message: knownQuestion }) },
   ));
   assert.equal(known.metadata.outcome, "COMPLETED");
-  assert.equal(known.metadata.versionId, controlledDetail.deployment.activeVersionId);
-  assert.equal(controlledDetail.registry?.discoveredByHermes, true, "Customer Support RAG Agent must be visible through the Hermes Project Registry.");
-  assert.equal(known.data.answer?.kind, "ANSWER_DOCUMENT");
-  assert.equal(known.data.answer?.status, "ANSWER");
-  assert.deepEqual((known.data.answer?.blocks ?? []).map((block) => block.id), ["response"]);
-  const knowledgeBinding = controlledCandidate.resources.find((binding) =>
+  assert.ok(controlledDetail.latestVersion?.id, "Customer Support Agent must have a published Version.");
+  assert.equal(known.data.intent?.id, "account-login");
+  assert.equal(known.data.workflowEndNode, "end-completed");
+  assert.ok(
+    (known.trace ?? []).every((event) => event.attributes?.framework === "langgraph"),
+    "Every Workflow trace event must identify the LangGraph runtime.",
+  );
+  const knowledgeBinding = controlledVersionSnapshot.resources.find((binding) =>
     binding.kind === "KNOWLEDGE_VECTOR_DATABASE"
   );
-  assert.ok(knowledgeBinding, "Customer Support Candidate must bind immutable Knowledge.");
+  assert.ok(knowledgeBinding, "Customer Support Version must bind immutable Knowledge.");
   let knowledgeSearch;
   try {
     await selectProjectRole(client, project.id, "ROLE_PROJECT_ADMIN");
@@ -338,7 +354,6 @@ async function main() {
   );
   assert.ok(approvedAnswer, "Independent Knowledge search must retrieve one approved account-login answer.");
   assert.equal(known.text, approvedAnswer.content, "Known answer must exactly equal approved Knowledge text.");
-  assert.equal(known.data.answer?.blocks?.[0]?.value, approvedAnswer.content);
   assert.equal(known.metadata.citations?.[0]?.sourceId, approvedAnswer.chunkId);
   assert.equal(known.metadata.citations?.[0]?.revision, approvedAnswer.attributes.revision);
   assert.ok((known.metadata.citations ?? []).length > 0, "Known support answer must cite approved Knowledge.");
@@ -349,8 +364,8 @@ async function main() {
 
   const unknown = a2aResult(await client.project(
     project.id,
-    `/expert-agents/${encodeURIComponent(controlledAgentId)}/invoke`,
-    { method: "POST", body: JSON.stringify({ text: unknownQuestion }) },
+    `/agents/${encodeURIComponent(controlledAgentId)}/tries`,
+    { method: "POST", body: JSON.stringify({ message: unknownQuestion }) },
   ));
   assert.ok(
     ["UNKNOWN", "NEED_MORE_INFORMATION", "ESCALATED"].includes(unknown.metadata.outcome),
@@ -360,18 +375,18 @@ async function main() {
 
   const ambiguous = a2aResult(await client.project(
     project.id,
-    `/expert-agents/${encodeURIComponent(controlledAgentId)}/invoke`,
-    { method: "POST", body: JSON.stringify({ text: "I have a login billing problem." }) },
+    `/agents/${encodeURIComponent(controlledAgentId)}/tries`,
+    { method: "POST", body: JSON.stringify({ message: "I have a login billing problem." }) },
   ));
   assert.equal(ambiguous.metadata.outcome, "NEED_MORE_INFORMATION", "Conflicting intents must trigger clarification.");
-  assert.equal(ambiguous.data.answer?.status, "CLARIFY");
+  assert.equal(ambiguous.data.workflowEndNode, "end-more-information");
 
   console.log(JSON.stringify({
     status: "passed",
     projectId: project.id,
     github: {
       agentId: githubAgentId,
-      versionId: githubResponse.metadata.versionId,
+      versionId: githubDetail.latestVersion.id,
       repository: `${owner}/${repo}`,
       since: githubResponse.data.since,
       until: githubResponse.data.until,
@@ -381,7 +396,7 @@ async function main() {
     },
     controlledCustomerSupport: {
       agentId: controlledAgentId,
-      versionId: known.metadata.versionId,
+      versionId: controlledDetail.latestVersion.id,
       knownOutcome: known.metadata.outcome,
       exactApprovedKnowledge: true,
       citationRevision: known.metadata.citations?.[0]?.revision,

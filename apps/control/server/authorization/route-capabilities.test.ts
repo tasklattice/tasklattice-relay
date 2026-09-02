@@ -10,6 +10,36 @@ import {
 } from "./route-capabilities";
 
 describe("Project route capability declarations", () => {
+  it("reserves Agent definition routes for the active Developer role", () => {
+    expect(projectRouteAdmissionPolicy(
+      "GET",
+      "/api/v1/projects/individual/agents",
+    )).toMatchObject({
+      relation: "EXPERT_AGENT_COLLECTION",
+      requiredActiveRole: "developer",
+    });
+    expect(projectRouteAdmissionPolicy(
+      "PATCH",
+      "/api/v1/projects/individual/agents/agent-1",
+    )).toMatchObject({
+      relation: "EXPERT_AGENT",
+      requiredActiveRole: "developer",
+    });
+    expect(projectRouteAdmissionPolicy(
+      "GET",
+      "/api/v1/projects/individual/agent-garden",
+    )?.requiredActiveRole).toBeUndefined();
+  });
+
+  it("treats Developer inventory collections as Project-shared read models", () => {
+    expect(concreteRelation("INSTANCE_COLLECTION", false, "developer"))
+      .toBe("PROJECT_ANY");
+    expect(concreteRelation("EXPERT_AGENT_COLLECTION", false, "developer"))
+      .toBe("PROJECT_ANY");
+    expect(concreteRelation("TRACE_COLLECTION", false, "developer"))
+      .toBe("PROJECT_ANY");
+  });
+
   it("preserves a resolved Project Agent relation for Instance admission", () => {
     expect(concreteRelation("INSTANCE", false, undefined, "MAINTAINER"))
       .toBe("MAINTAINER");
@@ -117,6 +147,7 @@ describe("Project route capability declarations", () => {
         `/api/v1/projects/individual/agents/${path}`,
       )).toEqual({
         relation: "NEW_OWNER",
+        requiredActiveRole: "developer",
         requirements: [{
           capability: "CAP_AGENT_REGISTRATION_CREATE",
           resourceType: "ExpertAgent",
@@ -134,6 +165,7 @@ describe("Project route capability declarations", () => {
     ] as const) {
       expect(projectRouteAdmissionPolicy(method, path)).toEqual({
         relation: "EXPERT_AGENT",
+        requiredActiveRole: "developer",
         resourceId: "agent-1",
         requirements: [{
           capability: "CAP_AGENT_REGISTRATION_UPDATE",
@@ -149,6 +181,7 @@ describe("Project route capability declarations", () => {
       "/api/v1/projects/individual/agents/agent-1",
     )).toEqual({
       relation: "EXPERT_AGENT",
+      requiredActiveRole: "developer",
       resourceId: "agent-1",
       requirements: [{
         capability: "CAP_AGENT_REGISTRATION_DELETE",

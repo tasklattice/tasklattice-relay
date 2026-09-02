@@ -1,8 +1,10 @@
 import {
   agentGardenEntrySchema,
   a2aAgentInstanceSchema,
+  projectAgentRuntimeInstanceSchema,
   type A2aAgentInstance,
   type AgentGardenEntry,
+  type ProjectAgentRuntimeInstance,
 } from "@tali/contracts";
 import { prisma } from "../db/prisma";
 import type { Prisma, PrismaClient } from "../generated/prisma/client";
@@ -315,6 +317,43 @@ export class AgentGardenStore {
       },
     });
     return rows.map((row) => a2aAgentInstanceSchema.parse({
+      ...(row.payload as object),
+      createdBy: managedInstanceCreator(
+        row.creatorMembership?.user ?? row.ownerMembership.user,
+      ),
+    }));
+  }
+
+  async listProjectAgentInstances(
+    ownerUserId?: string,
+  ): Promise<ProjectAgentRuntimeInstance[]> {
+    const rows = await this.db.agentRecord.findMany({
+      where: {
+        projectId: this.projectId,
+        kind: "PROJECT_AGENT",
+        deletedAt: null,
+        ...(ownerUserId ? { ownerUserId } : {}),
+      },
+      orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+      select: {
+        payload: true,
+        ownerMembership: {
+          select: {
+            user: {
+              select: { id: true, displayName: true, username: true },
+            },
+          },
+        },
+        creatorMembership: {
+          select: {
+            user: {
+              select: { id: true, displayName: true, username: true },
+            },
+          },
+        },
+      },
+    });
+    return rows.map((row) => projectAgentRuntimeInstanceSchema.parse({
       ...(row.payload as object),
       createdBy: managedInstanceCreator(
         row.creatorMembership?.user ?? row.ownerMembership.user,

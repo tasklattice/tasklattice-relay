@@ -69,8 +69,8 @@ projectOpenShell:
   enabled: true
 
 runner:
-  # Keep two Project-isolation acceptance Sandboxes schedulable alongside the
-  # local control stack and any developer Sandboxes already on a single node.
+  # Keep the local Project-isolation acceptance Sandbox schedulable alongside
+  # the control stack and any developer Sandboxes already on a single node.
   sandbox:
     cpu: "1"
     cpuRequest: 500m

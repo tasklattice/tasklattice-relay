@@ -243,7 +243,10 @@ hindsight:
         memory: 2Gi
   migration:
     activeDeadlineSeconds: 900
-    ttlSecondsAfterFinished: 60
+    # Keep the completed Job longer than the local Helm wait timeout. Helm 4 can
+    # otherwise lose the Job while it is still evaluating the release and leave
+    # an otherwise healthy upgrade stuck in pending-upgrade.
+    ttlSecondsAfterFinished: 3600
     resources:
       requests:
         cpu: 50m
@@ -377,6 +380,11 @@ litellm:
 exampleMcp:
   enabled: false
   replicaCount: 1
+  # Optional local/test credential for the read-only GitHub tool. Keep the
+  # token in a pre-existing Secret; never place it in Helm release metadata.
+  githubTokenSecret:
+    name: ""
+    key: GITHUB_TOKEN
   auth:
     username: Username
     password: Password
@@ -440,13 +448,12 @@ keycloak:
   enabled: false
   publicUrl: ""
   adminUsername: admin
-  # Realm groups for the historical fixture and the two development isolation
-  # Projects. The post-deploy configurator binds every Project it discovers,
-  # so additional development Projects do not require script changes.
+  # Realm groups for the two default development Projects. The post-deploy
+  # configurator binds every Project it discovers, so additional development
+  # Projects do not require script changes.
   testProjectIds:
     - proj1
     - isolation-1
-    - isolation-2
   service:
     type: LoadBalancer
     port: 8080
@@ -463,7 +470,6 @@ keycloak:
       groups:
         - /tali/d/dep1/p/proj1/r/ROLE_PROJECT_ADMIN
         - /tali/d/dep1/p/isolation-1/r/ROLE_PROJECT_ADMIN
-        - /tali/d/dep1/p/isolation-2/r/ROLE_PROJECT_ADMIN
     - id: 71000000-0000-4000-8000-000000000001
       username: adm
       email: adm@tali.test
@@ -482,11 +488,6 @@ keycloak:
         - /tali/d/dep1/p/isolation-1/r/ROLE_AGENT_DEVELOPER
         - /tali/d/dep1/p/isolation-1/r/ROLE_REVIEWER
         - /tali/d/dep1/p/isolation-1/r/ROLE_USER
-        - /tali/d/dep1/p/isolation-2/r/ROLE_PROJECT_ADMIN
-        - /tali/d/dep1/p/isolation-2/r/ROLE_AUDITOR
-        - /tali/d/dep1/p/isolation-2/r/ROLE_AGENT_DEVELOPER
-        - /tali/d/dep1/p/isolation-2/r/ROLE_REVIEWER
-        - /tali/d/dep1/p/isolation-2/r/ROLE_USER
     - id: 71000000-0000-4000-8000-000000000007
       username: sso-admin
       email: sso-admin@tali.test
@@ -505,11 +506,6 @@ keycloak:
         - /tali/d/dep1/p/isolation-1/r/ROLE_AGENT_DEVELOPER
         - /tali/d/dep1/p/isolation-1/r/ROLE_REVIEWER
         - /tali/d/dep1/p/isolation-1/r/ROLE_USER
-        - /tali/d/dep1/p/isolation-2/r/ROLE_PROJECT_ADMIN
-        - /tali/d/dep1/p/isolation-2/r/ROLE_AUDITOR
-        - /tali/d/dep1/p/isolation-2/r/ROLE_AGENT_DEVELOPER
-        - /tali/d/dep1/p/isolation-2/r/ROLE_REVIEWER
-        - /tali/d/dep1/p/isolation-2/r/ROLE_USER
     - id: 71000000-0000-4000-8000-000000000002
       username: project-admin
       email: project-admin@tali.test
@@ -518,7 +514,6 @@ keycloak:
       groups:
         - /tali/d/dep1/p/proj1/r/ROLE_PROJECT_ADMIN
         - /tali/d/dep1/p/isolation-1/r/ROLE_PROJECT_ADMIN
-        - /tali/d/dep1/p/isolation-2/r/ROLE_PROJECT_ADMIN
     - id: 71000000-0000-4000-8000-000000000008
       username: department-admin
       email: department-admin@tali.test
@@ -534,7 +529,6 @@ keycloak:
       groups:
         - /tali/d/dep1/p/proj1/r/ROLE_AGENT_DEVELOPER
         - /tali/d/dep1/p/isolation-1/r/ROLE_AGENT_DEVELOPER
-        - /tali/d/dep1/p/isolation-2/r/ROLE_AGENT_DEVELOPER
     - id: 71000000-0000-4000-8000-000000000004
       username: reviewer
       email: reviewer@tali.test
@@ -543,7 +537,6 @@ keycloak:
       groups:
         - /tali/d/dep1/p/proj1/r/ROLE_REVIEWER
         - /tali/d/dep1/p/isolation-1/r/ROLE_REVIEWER
-        - /tali/d/dep1/p/isolation-2/r/ROLE_REVIEWER
     - id: 71000000-0000-4000-8000-000000000005
       username: end-user
       email: end-user@tali.test
@@ -552,7 +545,6 @@ keycloak:
       groups:
         - /tali/d/dep1/p/proj1/r/ROLE_USER
         - /tali/d/dep1/p/isolation-1/r/ROLE_USER
-        - /tali/d/dep1/p/isolation-2/r/ROLE_USER
     - id: 71000000-0000-4000-8000-000000000006
       username: auditor
       email: auditor@tali.test
@@ -561,7 +553,6 @@ keycloak:
       groups:
         - /tali/d/dep1/p/proj1/r/ROLE_AUDITOR
         - /tali/d/dep1/p/isolation-1/r/ROLE_AUDITOR
-        - /tali/d/dep1/p/isolation-2/r/ROLE_AUDITOR
   resources:
     requests:
       cpu: 250m

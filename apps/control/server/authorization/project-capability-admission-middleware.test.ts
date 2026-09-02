@@ -235,22 +235,16 @@ describe("Project Capability admission middleware", () => {
     ]);
   });
 
-  it("denies a Developer before the handler when the Agent is not owned", async () => {
+  it("allows a Developer to inspect a Project Instance they did not create", async () => {
     const request = authorizedRequest(
       users.developer,
       "/api/v1/projects/individual/instances/other-agent",
     );
-    const response = await (await middleware())({ context: {}, req: request });
-    expect(response?.status).toBe(403);
-    await expect(response?.json()).resolves.toMatchObject({
-      authorization: {
-        capability: "CAP_AGENT_INSTANCE_CONFIG_VIEW",
-        decision: "DENY",
-      },
-    });
-    expect(isProjectAdmissionComplete(request)).toBe(false);
+    await expect((await middleware())({ context: {}, req: request }))
+      .resolves.toBeUndefined();
+    expect(isProjectAdmissionComplete(request)).toBe(true);
     expect(admissionEvidenceForRequest(request)[0]).toMatchObject({
-      decision: "DENY",
+      decision: "ALLOW",
       relation: "PROJECT_ANY",
     });
   });
@@ -281,21 +275,56 @@ describe("Project Capability admission middleware", () => {
     },
   );
 
-  it("denies a Developer who has no Project Agent relation", async () => {
+  it("allows a Developer to inspect a Project Agent Instance without a per-Agent relation", async () => {
     const request = authorizedRequest(
       users.developer,
       `/api/v1/projects/individual/instances/${projectAgentIds.other}`,
     );
 
+    await expect((await middleware())({ context: {}, req: request }))
+      .resolves.toBeUndefined();
+    expect(admissionEvidenceForRequest(request)[0]).toMatchObject({
+      capability: "CAP_AGENT_INSTANCE_CONFIG_VIEW",
+      decision: "ALLOW",
+      relation: "PROJECT_ANY",
+    });
+  });
+
+  it("allows a Developer into the shared Agent authoring collection", async () => {
+    const request = authorizedRequest(
+      users.developer,
+      "/api/v1/projects/individual/agents",
+    );
+    await expect((await middleware())({ context: {}, req: request }))
+      .resolves.toBeUndefined();
+    expect(admissionEvidenceForRequest(request)[0]).toMatchObject({
+      capability: "CAP_AGENT_REGISTRATION_VIEW",
+      decision: "ALLOW",
+      relation: "PROJECT_ANY",
+    });
+  });
+
+  it("denies Project Admin access to Agent definition routes", async () => {
+    const request = authorizedRequest(
+      users.admin,
+      "/api/v1/projects/individual/agents",
+    );
     const response = await (await middleware())({ context: {}, req: request });
     expect(response?.status).toBe(403);
     await expect(response?.json()).resolves.toMatchObject({
-      authorization: {
-        capability: "CAP_AGENT_INSTANCE_CONFIG_VIEW",
-        decision: "DENY",
-        reason: "The grant does not cover resource relation PROJECT_ANY.",
-      },
+      code: "agent_developer_role_required",
+      detail: "Agent definition and development require the active Agent Developer role.",
     });
+    expect(isProjectAdmissionComplete(request)).toBe(false);
+  });
+
+  it("keeps Agent Garden available to Project Admin", async () => {
+    const request = authorizedRequest(
+      users.admin,
+      "/api/v1/projects/individual/agent-garden",
+    );
+    await expect((await middleware())({ context: {}, req: request }))
+      .resolves.toBeUndefined();
   });
 
   it("does not synthesize ASSIGNED from the User role", async () => {

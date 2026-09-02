@@ -95,12 +95,12 @@ async function main() {
     }
 
     await select(client, projectDeveloper);
-    const agents = items(await client.project(projectId, "/expert-agents"));
+    const agents = items(await client.project(projectId, "/agents"));
     const agent = agents.find((candidate) => candidate.slug === "github-weekly-commit-summary");
     if (!agent) throw new Error("The GitHub Activity Summary reference Agent was not found.");
-    const [workingCopy, resourcePage] = await Promise.all([
-      client.project(projectId, `/expert-agents/${encodeURIComponent(agent.id)}/working-copy`),
-      client.project(projectId, `/expert-agents/${encodeURIComponent(agent.id)}/available-resources`),
+    const [detail, resourcePage] = await Promise.all([
+      client.project(projectId, `/agents/${encodeURIComponent(agent.id)}`),
+      client.project(projectId, `/agents/${encodeURIComponent(agent.id)}/available-resources`),
     ]);
     const resources = items(resourcePage);
     const mcpResource = resources.find((resource) =>
@@ -112,7 +112,7 @@ async function main() {
     if (!mcpResource?.revision || !routingResource?.revision) {
       throw new Error("The GitHub MCP or Project Model Routing has no immutable resource revision.");
     }
-    const current = workingCopy.value;
+    const current = detail.definition;
     const nextResources = current.resources.filter((resource) =>
       resource.kind !== "MCP_SERVER" && resource.kind !== "MODEL_ROUTING"
     );
@@ -134,12 +134,12 @@ async function main() {
     );
     const updated = await client.project(
       projectId,
-      `/expert-agents/${encodeURIComponent(agent.id)}/working-copy`,
+      `/agents/${encodeURIComponent(agent.id)}`,
       {
-        method: "PUT",
+        method: "PATCH",
         body: JSON.stringify({
           ...current,
-          expectedRevision: workingCopy.revision,
+          expectedRevision: detail.revision,
           execution: {
             ...current.execution,
             engine: {
@@ -173,7 +173,7 @@ async function main() {
       agent: {
         id: agent.id,
         slug: agent.slug,
-        workingCopyRevision: updated.revision,
+        revision: updated.revision,
         engineVersion: "release-0",
         repository: "tasklattice/tasklattice-relay",
         modelRoutingId: routingResource.resourceId,

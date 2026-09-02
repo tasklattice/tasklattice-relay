@@ -10,6 +10,7 @@ import {
   ExpertAgentLifecycleService,
   ExpertAgentPublishGateError,
 } from "./expert-agent-lifecycle-service";
+import { ExpertAgentDeveloperService } from "./expert-agent-developer-service";
 
 let database: PrismaClient | undefined;
 
@@ -92,6 +93,51 @@ function passedPublishTest(agentDigest: string): ExpertAgentTestEvidence {
 }
 
 describe("Agent Developer lifecycle", () => {
+  it("shares Agent definitions across Project Developers", async () => {
+    const store = createTestStore();
+    database = store.database();
+    const lifecycle = new ExpertAgentLifecycleService(database);
+    const agent = await lifecycle.createAgent({
+      projectId: store.projectId,
+      actorId: "local-admin",
+      slug: "shared-project-agent",
+      executionMode: "AGENTIC",
+      definition: definition(),
+    });
+    await database.user.create({
+      data: {
+        id: "project-developer",
+        username: "project-developer",
+        email: "project-developer@example.test",
+        displayName: "Project Developer",
+      },
+    });
+    await database.projectMember.create({
+      data: {
+        projectId: store.projectId,
+        userId: "project-developer",
+        role: "developer",
+      },
+    });
+
+    const developer = new ExpertAgentDeveloperService(database);
+    await expect(developer.list(store.projectId, "project-developer"))
+      .resolves.toEqual([
+        expect.objectContaining({ id: agent.id, slug: "shared-project-agent" }),
+      ]);
+    const changed = definition(0);
+    changed.product = {
+      ...changed.product,
+      purpose: "Answer supported questions from shared approved knowledge.",
+    };
+    await expect(lifecycle.updateAgent({
+      projectId: store.projectId,
+      agentId: agent.id,
+      actorId: "project-developer",
+      definition: changed,
+    })).resolves.toMatchObject({ revision: 1, updatedBy: "project-developer" });
+  });
+
   it("deletes an unpublished Agent and its development history", async () => {
     const store = createTestStore();
     database = store.database();
@@ -263,6 +309,12 @@ describe("Agent Developer lifecycle", () => {
     ]);
     expect(activate).toHaveBeenCalledTimes(2);
     expect(new Set(activate.mock.calls.map(([input]) => input.instanceId)).size).toBe(2);
+    await expect(garden.snapshot("local-admin")).resolves.toMatchObject({
+      instances: expect.arrayContaining([
+        expect.objectContaining({ id: first.id, kind: "PROJECT_AGENT", versionId: version.id }),
+        expect.objectContaining({ id: second.id, kind: "PROJECT_AGENT", versionId: version.id }),
+      ]),
+    });
     await expect(database.agentRecord.count({
       where: {
         projectId: store.projectId,

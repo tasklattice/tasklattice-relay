@@ -29,8 +29,8 @@ export function DeveloperHome() {
   return (
     <div className="mx-auto max-w-[86rem] space-y-8 pb-8">
       <header className="flex flex-col gap-5 border-b pb-6 sm:flex-row sm:items-end sm:justify-between">
-        <div><p className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">{currentProject?.name ?? "Project"}</p><h1 className="mt-2 font-display text-[1.75rem] font-medium tracking-[-0.03em]">Agent Developer</h1><p className="mt-2 text-sm text-muted-foreground">Continue the next concrete step for an Agent you own or maintain.</p></div>
-        <Button asChild><Link to="/$projectId/agents" params={{ projectId }} search={{ define: true }}><Plus /> Create Agent</Link></Button>
+        <div><p className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">{currentProject?.name ?? "Project"}</p><h1 className="mt-2 font-display text-[1.75rem] font-medium tracking-[-0.03em]">Agent Developer</h1><p className="mt-2 text-sm text-muted-foreground">Continue the next concrete step for a Project Agent.</p></div>
+        <Button asChild><Link to="/$projectId/agents" params={{ projectId }} search={{ define: true }}><Plus /> Define Agent</Link></Button>
       </header>
 
       <section>

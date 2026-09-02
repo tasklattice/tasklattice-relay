@@ -8,12 +8,12 @@ const developmentProjects = JSON.parse(
   readFileSync("config/development-projects.json", "utf8"),
 );
 const expectedProjects = [
+  { departmentId: "dep1", id: "proj1", name: "proj1" },
   { departmentId: "dep1", id: "isolation-1", name: "Isolation 1" },
-  { departmentId: "dep1", id: "isolation-2", name: "Isolation 2" },
 ];
 if (JSON.stringify(developmentProjects) !== JSON.stringify(expectedProjects)) {
   throw new Error(
-    "Development defaults must declare isolation-1 and isolation-2 in dep1.",
+    "Development defaults must declare proj1 and isolation-1 in dep1.",
   );
 }
 
@@ -99,5 +99,5 @@ for (const { id } of expectedProjects) {
 }
 
 console.log(
-  `Validated ${developmentProjects.length} development isolation Projects and ${realm.users.length + 3} password defaults.`,
+  `Validated ${developmentProjects.length} development Projects and ${realm.users.length + 3} password defaults.`,
 );

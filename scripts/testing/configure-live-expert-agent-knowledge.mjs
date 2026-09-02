@@ -205,12 +205,12 @@ async function main() {
     );
 
     await select(client, projectDeveloper);
-    const agents = items(await client.project(projectId, "/expert-agents"));
+    const agents = items(await client.project(projectId, "/agents"));
     const agent = agents.find((candidate) => candidate.slug === agentSlug);
     if (!agent) throw new Error(`Reference Agent ${agentSlug} was not found.`);
-    const [workingCopy, resourcePage] = await Promise.all([
-      client.project(projectId, `/expert-agents/${encodeURIComponent(agent.id)}/working-copy`),
-      client.project(projectId, `/expert-agents/${encodeURIComponent(agent.id)}/available-resources`),
+    const [detail, resourcePage] = await Promise.all([
+      client.project(projectId, `/agents/${encodeURIComponent(agent.id)}`),
+      client.project(projectId, `/agents/${encodeURIComponent(agent.id)}/available-resources`),
     ]);
     const resource = items(resourcePage).find((item) =>
       item.kind === "KNOWLEDGE_VECTOR_DATABASE"
@@ -221,7 +221,7 @@ async function main() {
       throw new Error("Validation Knowledge has no immutable resource revision.");
     }
 
-    const current = workingCopy.value;
+    const current = detail.definition;
     const executableCases = {
       "approved-answer-exact": {
         request: { text: "How do I reset my login password?" },
@@ -397,13 +397,13 @@ async function main() {
     const updated = changed
       ? await client.project(
         projectId,
-        `/expert-agents/${encodeURIComponent(agent.id)}/working-copy`,
+        `/agents/${encodeURIComponent(agent.id)}`,
         {
-          method: "PUT",
-          body: JSON.stringify({ ...next, expectedRevision: workingCopy.revision }),
+          method: "PATCH",
+          body: JSON.stringify({ ...next, expectedRevision: detail.revision }),
         },
       )
-      : workingCopy;
+      : detail;
 
     console.log(JSON.stringify({
       projectId,
@@ -425,7 +425,7 @@ async function main() {
       agent: {
         id: agent.id,
         slug: agent.slug,
-        workingCopyRevision: updated.revision,
+        revision: updated.revision,
         changed,
         engineVersion: "release-0",
         requestTimeModelBinding: false,

@@ -54,6 +54,7 @@ export const expertAgentTryResultSchema = z.object({
     "FAILED",
   ]),
   text: z.string().max(32_000),
+  data: z.record(z.string(), z.unknown()),
   durationMs: z.number().int().nonnegative(),
   toolCallCount: z.number().int().nonnegative(),
   knowledgeSourceCount: z.number().int().nonnegative(),

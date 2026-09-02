@@ -1,6 +1,6 @@
 import type {
-  A2aAgentInstance,
   AgentGardenEntry,
+  AgentGardenRuntimeInstance,
 } from "@tali/contracts";
 import { Link } from "@tanstack/react-router";
 import {
@@ -44,7 +44,7 @@ export function AgentDetailSheet({
 }: {
   agent: AgentGardenEntry | undefined;
   canManage: boolean;
-  instance: A2aAgentInstance | undefined;
+  instance: AgentGardenRuntimeInstance | undefined;
   onCreateInstance: () => void;
   onOpenChange: (open: boolean) => void;
   onRefresh: () => void;

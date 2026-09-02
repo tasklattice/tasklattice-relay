@@ -1,12 +1,12 @@
 [
   {
     "departmentId": "dep1",
-    "id": "isolation-1",
-    "name": "Isolation 1"
+    "id": "proj1",
+    "name": "proj1"
   },
   {
     "departmentId": "dep1",
-    "id": "isolation-2",
-    "name": "Isolation 2"
+    "id": "isolation-1",
+    "name": "Isolation 1"
   }
 ]

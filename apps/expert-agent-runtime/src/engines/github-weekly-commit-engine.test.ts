@@ -194,6 +194,16 @@ class EmptyResources extends FakeResources {
   }
 }
 
+class FailedMcpResources extends FakeResources {
+  override async callMcpTool(input: McpToolCallInput): Promise<unknown> {
+    this.calls.push(input);
+    return {
+      content: [{ type: "text", text: "GitHub list commits returned HTTP 403." }],
+      isError: true,
+    };
+  }
+}
+
 function runtime(
   resources: ExpertAgentResourceClient,
   runtimeVersion: ExpertAgentVersionSnapshot = snapshot,
@@ -219,6 +229,17 @@ describe("GitHubWeeklyCommitEngine", () => {
     );
     expect(window.since.toISOString()).toBe("2026-08-23T16:00:00.000Z");
     expect(window.until.toISOString()).toBe("2026-08-30T04:00:00.000Z");
+  });
+
+  it("surfaces MCP tool failures instead of parsing their text as commit JSON", async () => {
+    const resources = new FailedMcpResources({});
+
+    await expect(runtime(resources).execute({
+      messageId: "message-mcp-error",
+      contextId: "context-mcp-error",
+      text: "Summarize this week.",
+      metadata: { period: "WEEK" },
+    })).rejects.toThrow("GitHub list commits returned HTTP 403.");
   });
 
   it("uses real MCP facts for counts and validates model SHA references", async () => {

@@ -432,7 +432,11 @@ async function main() {
     const ready = (kind, preferred) => available.find((resource) =>
       resource.kind === kind && resource.ready && resource.revision && preferred.test(resource.name)
     ) ?? available.find((resource) => resource.kind === kind && resource.ready && resource.revision);
-    const desired = structuredClone(reference.definition);
+    // Preserve executable values calibrated by the live resource
+    // configurators (for example vector similarity thresholds and intent
+    // vocabulary) on idempotent seed runs. The reference skeleton is used
+    // only when the Agent is first defined above.
+    const desired = structuredClone(detail.definition);
     desired.expectedRevision = detail.revision;
     if (reference.executionMode === "AGENTIC") {
       const mcp = ready("MCP_SERVER", /^github read-only commits$/i) ?? ready("MCP_SERVER", /github/i);

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { eventually, RelayClient } from "./live-hermes-e2e-lib.mjs";
+import { RelayClient } from "./live-hermes-e2e-lib.mjs";
 
 const baseUrl = process.env.TALI_BASE_URL ?? "http://127.0.0.1:18080";
 const projectId = process.env.TALI_LIVE_EXPERT_AGENT_PROJECT_ID ?? "proj1";
@@ -10,7 +10,7 @@ const slug = process.env.TALI_LIVE_EXPERT_AGENT_SLUG?.trim();
 
 if (process.env.TALI_LIVE_AGENT_RELEASE !== "1") {
   throw new Error(
-    "Set TALI_LIVE_AGENT_RELEASE=1 to authorize regression, Candidate validation, immutable publication, and activation.",
+    "Set TALI_LIVE_AGENT_RELEASE=1 to authorize Test, Publish, and Instance creation for one Agent.",
   );
 }
 if (!slug) throw new Error("Set TALI_LIVE_EXPERT_AGENT_SLUG to the exact Agent slug.");
@@ -31,127 +31,75 @@ async function main() {
     }),
   });
 
-  const agents = items(await client.project(projectId, "/expert-agents"));
+  const agents = items(await client.project(projectId, "/agents"));
   const agent = agents.find((candidate) => candidate.slug === slug);
-  if (!agent) throw new Error(`Agent ${slug} was not found in the relation-scoped list.`);
-  const path = `/expert-agents/${encodeURIComponent(agent.id)}`;
-  const initial = await client.project(projectId, path);
-  let regression = initial.workingCopyEvaluations.find((evaluation) =>
-    evaluation.workingCopyRevision === initial.workingCopy?.revision
-    && evaluation.status === "PASSED"
-  );
-  let candidate = initial.candidates.find((item) =>
-    item.workingCopyRevision === initial.workingCopy?.revision
-    && item.readiness?.ready
-  );
-  let validations = candidate?.validations ?? [];
+  if (!agent) throw new Error(`Agent ${slug} was not found in Project ${projectId}.`);
+  const path = `/agents/${encodeURIComponent(agent.id)}`;
+  let detail = await client.project(projectId, path);
 
-  if (!candidate) {
-    regression = await client.project(projectId, `${path}/working-copy/evaluate`, {
+  let testRun = detail.testRuns.find((run) =>
+    run.contentDigest === detail.contentDigest && run.status === "PASSED"
+  );
+  if (!testRun) {
+    testRun = await client.project(projectId, `${path}/test-runs`, {
       method: "POST",
       body: "{}",
     });
-    if (regression.status !== "PASSED") {
-      throw new Error(
-        `Working Copy r${regression.workingCopyRevision} regression ${regression.status}: ${regression.evidence?.summary ?? "no summary"}`,
-      );
+    if (testRun.status !== "PASSED") {
+      throw new Error(`Agent Test failed: ${testRun.evidence?.summary ?? "no summary"}`);
     }
-
-    candidate = await client.project(projectId, `${path}/candidates`, {
-      method: "POST",
-      body: "{}",
-    });
-    const validationPage = await client.project(
-      projectId,
-      `${path}/candidates/${encodeURIComponent(candidate.id)}/validate`,
-      { method: "POST", body: "{}" },
-    );
-    validations = items(validationPage);
-    const failing = validations.filter((validation) => validation.status !== "PASSED");
-    if (failing.length) {
-      throw new Error(
-        `Candidate validation failed: ${failing.map((item) => `${item.kind}:${item.status}`).join(", ")}`,
-      );
-    }
-  }
-  const candidateDetail = await client.project(
-    projectId,
-    `${path}/candidates/${encodeURIComponent(candidate.id)}`,
-  );
-  if (!candidateDetail.readiness?.ready) {
-    throw new Error(
-      `Candidate is not publishable: ${[...(candidateDetail.readiness?.missing ?? []), ...(candidateDetail.readiness?.failing ?? []), ...(candidateDetail.readiness?.stale ?? [])].join(", ")}`,
-    );
-  }
-  if (!regression) {
-    throw new Error("A publishable Candidate has no matching passed Working Copy regression receipt.");
+    detail = await client.project(projectId, path);
   }
 
-  const version = candidateDetail.versionId
-    ? (initial.versions.find((item) => item.id === candidateDetail.versionId)
-      ?? items(await client.project(projectId, `${path}/versions`))
-        .find((item) => item.id === candidateDetail.versionId))
-    : await client.project(
-      projectId,
-      `${path}/candidates/${encodeURIComponent(candidate.id)}/publish`,
-      { method: "POST", body: "{}" },
-    );
-  if (!version) throw new Error("Published Version could not be read.");
-  const beforeActivation = await client.project(projectId, path);
-  const alreadyActive = beforeActivation.deployment?.status === "READY"
-    && beforeActivation.deployment?.activeVersionId === version.id;
-  const activation = alreadyActive
-    ? { id: "already-active", status: "READY" }
-    : await client.project(projectId, `${path}/activations`, {
+  let version = detail.latestVersion?.contentDigest === detail.contentDigest
+    ? detail.latestVersion
+    : await client.project(projectId, `${path}/publications`, {
       method: "POST",
       body: JSON.stringify({
-        action: "ACTIVATE",
-        targetVersionId: version.id,
-        expectedDeploymentRevision: beforeActivation.deployment?.revision ?? 0,
-        reason: "Release 0 end-to-end validation",
+        expectedRevision: detail.revision,
+        publicationNotes: "Validated by the local Define → Test → Publish flow.",
       }),
     });
-  const active = await eventually(async () => {
-    const detail = await client.project(projectId, path);
-    if (
-      detail.deployment?.status === "READY"
-      && detail.deployment?.activeVersionId === version.id
-    ) return detail;
-    if (detail.deployment?.status === "FAILED") {
-      throw new Error("Activation reconciled to FAILED.");
-    }
-    return undefined;
-  }, {
-    description: `${slug} activation`,
-    intervalMs: 1_000,
-    timeoutMs: 180_000,
-  });
+  detail = await client.project(projectId, path);
+  version = detail.latestVersion ?? version;
+  if (!version?.id || version.contentDigest !== detail.contentDigest) {
+    throw new Error("Publish did not create an immutable Version for the tested definition.");
+  }
+
+  let garden = await client.project(projectId, "/agent-garden");
+  const gardenAgent = garden.agents.find((candidate) =>
+    candidate.source === "PROJECT_DEVELOPED"
+    && candidate.distribution?.type === "VERSION_BUNDLE"
+    && candidate.distribution.agentId === agent.id
+  );
+  if (!gardenAgent) throw new Error("Published Agent is missing from Agent Garden.");
+  let instance = garden.instances.find((candidate) =>
+    candidate.agentId === agent.id && candidate.versionId === version.id
+  );
+  if (!instance) {
+    instance = await client.project(
+      projectId,
+      `/agent-garden/agents/${encodeURIComponent(gardenAgent.id)}/instances`,
+      { method: "POST", body: JSON.stringify({ versionId: version.id }) },
+    );
+    garden = await client.project(projectId, "/agent-garden");
+    instance = garden.instances.find((candidate) => candidate.id === instance.id) ?? instance;
+  }
+  if (instance.status !== "READY" || !instance.endpoint || !instance.agentCardUrl) {
+    throw new Error(`Instance is ${instance.status}; its A2A interface is not ready.`);
+  }
 
   console.log(JSON.stringify({
     projectId,
-    agent: { id: agent.id, slug },
-    regression: {
-      id: regression.id,
-      revision: regression.workingCopyRevision,
-      status: regression.status,
-      suiteCount: regression.evidence?.evaluationSuites?.length ?? 0,
-    },
-    candidate: {
-      id: candidate.id,
-      digest: candidate.contentDigest,
-      validations: validations.map(({ kind, status }) => ({ kind, status })),
-    },
-    version: {
-      id: version.id,
-      releaseId: version.releaseId,
-      digest: version.contentDigest,
-    },
-    activation: {
-      id: activation.id,
-      queuedStatus: activation.status,
-      deploymentStatus: active.deployment.status,
-      deploymentRevision: active.deployment.revision,
-      activeVersionId: active.deployment.activeVersionId,
+    agent: { id: agent.id, slug, revision: detail.revision },
+    test: { id: testRun.id, status: testRun.status, contentDigest: testRun.contentDigest },
+    publish: { versionId: version.id, versionNumber: version.versionNumber, contentDigest: version.contentDigest },
+    agentGarden: { agentId: gardenAgent.id, source: gardenAgent.source },
+    instance: {
+      id: instance.id,
+      status: instance.status,
+      endpoint: instance.endpoint,
+      agentCardUrl: instance.agentCardUrl,
     },
   }, null, 2));
 }

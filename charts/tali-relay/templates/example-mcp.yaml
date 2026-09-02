@@ -75,6 +75,13 @@ spec:
                 secretKeyRef:
                   name: {{ $name }}-auth
                   key: password
+            {{- with .Values.exampleMcp.githubTokenSecret.name }}
+            - name: GITHUB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ . | quote }}
+                  key: {{ required "exampleMcp.githubTokenSecret.key is required when its name is set" $.Values.exampleMcp.githubTokenSecret.key | quote }}
+            {{- end }}
           readinessProbe:
             httpGet:
               path: /healthz

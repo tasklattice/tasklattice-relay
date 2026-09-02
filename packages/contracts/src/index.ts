@@ -2013,12 +2013,17 @@ export const projectAgentRuntimeInstanceSchema = a2aAgentInstanceSchema
   })
   .strict();
 
+export const agentGardenRuntimeInstanceSchema = z.union([
+  a2aAgentInstanceSchema,
+  projectAgentRuntimeInstanceSchema,
+]);
+
 /** @deprecated Use a2aAgentInstanceSchema. */
 export const managedA2aInstanceSchema = a2aAgentInstanceSchema;
 
 export const agentGardenSnapshotSchema = z.object({
   agents: z.array(agentGardenEntrySchema),
-  instances: z.array(a2aAgentInstanceSchema),
+  instances: z.array(agentGardenRuntimeInstanceSchema),
 }).strict();
 
 export const resourceKindSchema = z.enum([
@@ -2343,6 +2348,9 @@ export interface AgentMarketplaceBrief {
   requirements: string[];
 }
 export type AgentGardenSnapshot = z.infer<typeof agentGardenSnapshotSchema>;
+export type AgentGardenRuntimeInstance = z.infer<
+  typeof agentGardenRuntimeInstanceSchema
+>;
 export type A2aAgentInstance = z.infer<typeof a2aAgentInstanceSchema>;
 /** @deprecated Use A2aAgentInstance. */
 export type ManagedA2aInstance = A2aAgentInstance;

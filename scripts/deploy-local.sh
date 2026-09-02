@@ -75,6 +75,8 @@ fi
 if [[ "$action" == "delete" ]]; then
   if helm --kube-context "$kube_context" --namespace "$namespace" status "$release_name" >/dev/null 2>&1; then
     helm --kube-context "$kube_context" --namespace "$namespace" uninstall "$release_name"
+    kubectl --context "$kube_context" --namespace "$namespace" delete secret \
+      "$release_name-example-mcp-github" --ignore-not-found >/dev/null
   else
     echo "Helm release does not exist: $namespace/$release_name"
   fi
@@ -117,9 +119,7 @@ images=(
   "$image_registry/tali-expert-agent-runtime:$image_tag"
   "$image_registry/tali-litellm:$image_tag"
   "$image_registry/demo-test:$image_tag"
-  "$image_registry/tali-nemoclaw-sandbox:$image_tag"
   "$image_registry/tali-nemoclaw-hermes-sandbox:$image_tag"
-  "$image_registry/tali-nemoclaw-deepagents-sandbox:$image_tag"
 )
 missing_images=()
 for image_name in "${images[@]}"; do
@@ -188,6 +188,24 @@ control_helm_args=(--set-string "control.publicUrl=$control_public_url")
 example_mcp_helm_args=()
 if [[ "$enable_example_mcp" == "true" ]]; then
   example_mcp_helm_args+=(--set exampleMcp.enabled=true)
+  github_token="${GITHUB_TOKEN:-}"
+  if [[ -z "$github_token" ]] && command -v gh >/dev/null 2>&1; then
+    github_token="$(gh auth token 2>/dev/null || true)"
+  fi
+  if [[ -n "$github_token" ]]; then
+    example_mcp_github_secret="$release_name-example-mcp-github"
+    kubectl --context "$kube_context" create namespace "$namespace" \
+      --dry-run=client --output=yaml | kubectl --context "$kube_context" apply -f - >/dev/null
+    kubectl --context "$kube_context" --namespace "$namespace" create secret generic \
+      "$example_mcp_github_secret" --from-literal=GITHUB_TOKEN="$github_token" \
+      --dry-run=client --output=yaml | kubectl --context "$kube_context" apply -f - >/dev/null
+    example_mcp_helm_args+=(
+      --set-string "exampleMcp.githubTokenSecret.name=$example_mcp_github_secret"
+    )
+    echo "Configured the example MCP GitHub tool with a Secret-backed local credential."
+  else
+    echo "No GITHUB_TOKEN or authenticated gh CLI was found; GitHub API rate limits may block the example MCP tool." >&2
+  fi
 fi
 
 bash "$repository_root/scripts/prepare-helm-dependencies.sh"

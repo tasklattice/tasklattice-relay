@@ -183,6 +183,24 @@ export default defineMiddleware(async (event) => {
   }
 
   try {
+    if (admission.requiredActiveRole) {
+      const membership = await prisma().projectMember.findUnique({
+        where: {
+          projectId_userId: { projectId: scopedProjectId, userId: actorId },
+        },
+        include: membershipAccessInclude,
+      });
+      const activeRole = membership && membershipHasAccess(membership)
+        ? activeRoleForMembership(membership, preferredRole)
+        : undefined;
+      if (activeRole !== admission.requiredActiveRole) {
+        return problemResponse(
+          403,
+          "Agent definition and development require the active Agent Developer role.",
+          { code: "agent_developer_role_required" },
+        );
+      }
+    }
     const ownershipResult = await ownership(
       event.req,
       actorId,

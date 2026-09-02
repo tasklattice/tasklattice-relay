@@ -354,6 +354,7 @@ export class ExpertAgentTestService {
       traceId,
       outcome: result.outcome,
       text: result.text,
+      data: result.data,
       durationMs,
       toolCallCount: recorded.toolCalls.length,
       knowledgeSourceCount: recorded.sourceIds.length,

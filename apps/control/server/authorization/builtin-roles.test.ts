@@ -140,7 +140,7 @@ describe("builtin Project roles", () => {
     expect(capabilities.filter((capability) => mutations.test(capability))).toEqual([]);
   });
 
-  it("limits Agent Developer to owned or maintained lifecycle operations", async () => {
+  it("gives Agent Developer a shared Project authoring workspace", async () => {
     const role = await builtinRole("ROLE_AGENT_DEVELOPER", database);
     expect(role.relations).toEqual([
       "PROJECT_ANY",
@@ -178,8 +178,19 @@ describe("builtin Project roles", () => {
       ]),
     );
     expect(grants.get("CAP_PROJECT_QUOTA_VIEW")).toEqual(["PROJECT_ANY"]);
+    expect(grants.get("CAP_AGENT_REGISTRATION_VIEW")).toEqual([
+      "PROJECT_ANY", "OWNER", "MAINTAINER",
+    ]);
+    expect(grants.get("CAP_AGENT_REGISTRATION_UPDATE")).toEqual([
+      "PROJECT_ANY", "OWNER", "MAINTAINER",
+    ]);
+    expect(grants.get("CAP_AGENT_INSTANCE_CONFIG_VIEW")).toEqual([
+      "PROJECT_ANY", "OWNER", "MAINTAINER",
+    ]);
     expect(grants.get("CAP_AGENT_INSTANCE_DELETE")).toEqual(["OWNER", "MAINTAINER"]);
-    expect(grants.get("CAP_TRACE_VIEW")).toEqual(["OWNER", "MAINTAINER"]);
+    expect(grants.get("CAP_TRACE_VIEW")).toEqual([
+      "PROJECT_ANY", "OWNER", "MAINTAINER",
+    ]);
     expect(grants.get("CAP_AGENT_SESSION_MESSAGE_SEND")).toEqual([
       "SESSION_PARTICIPANT",
     ]);
