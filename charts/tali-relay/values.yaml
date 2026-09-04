@@ -362,6 +362,10 @@ litellm:
   # Keep request-log errors concise. Full tracebacks remain available in the
   # LiteLLM container logs for operator diagnostics.
   maximumTracebackLinesToLog: 0
+  # Optional PEM-encoded CA bundle for HTTPS endpoints signed by a private CA.
+  # When set, the Chart creates a Secret and mounts it at /etc/ssl/certs only
+  # in the LiteLLM Pod.
+  caCertificate: ""
   service:
     type: ClusterIP
     port: 4000

@@ -101,6 +101,14 @@ function litellmContainerFrom(collection) {
     );
 }
 
+function litellmDeploymentFrom(collection) {
+  return collection.find(
+    (object) =>
+      object.kind === "Deployment"
+      && object.metadata?.labels?.["app.kubernetes.io/component"] === "litellm",
+  );
+}
+
 function envValue(container, name) {
   return container?.env?.find((entry) => entry.name === name)?.value;
 }
@@ -115,6 +123,50 @@ if (
 }
 if (envValue(defaultLiteLLMContainer, "LITELLM_LOCAL_MODEL_COST_MAP") !== "True") {
   throw new Error("LiteLLM must default to the model cost map bundled in its image.");
+}
+if (
+  objects.some(
+    (object) =>
+      object.kind === "Secret"
+      && object.metadata?.name === `${releaseName}-litellm-ca`,
+  )
+) {
+  throw new Error("LiteLLM must not mount a custom CA when caCertificate is empty.");
+}
+
+const customCaCertificate = "TEST PRIVATE CA CERTIFICATE";
+const customCaObjects = parseObjects(
+  renderChart([
+    "--set-string",
+    `litellm.caCertificate=${customCaCertificate}`,
+  ]),
+);
+const customCaSecret = customCaObjects.find(
+  (object) =>
+    object.kind === "Secret"
+    && object.metadata?.name === `${releaseName}-litellm-ca`,
+);
+const customCaDeployment = litellmDeploymentFrom(customCaObjects);
+const customCaContainer = litellmContainerFrom(customCaObjects);
+const customCaVolume = customCaDeployment?.spec?.template?.spec?.volumes?.find(
+  (volume) => volume.name === "litellm-ca",
+);
+const customCaMount = customCaContainer?.volumeMounts?.find(
+  (mount) => mount.name === "litellm-ca",
+);
+if (
+  customCaSecret?.stringData?.["ca.crt"] !== customCaCertificate
+  || customCaSecret?.metadata?.annotations?.["argocd.argoproj.io/sync-wave"] !== "10"
+  || customCaVolume?.secret?.secretName !== `${releaseName}-litellm-ca`
+  || customCaVolume?.secret?.items?.[0]?.key !== "ca.crt"
+  || customCaVolume?.secret?.items?.[0]?.path !== "ca.crt"
+  || customCaMount?.mountPath !== "/etc/ssl/certs"
+  || customCaMount?.readOnly !== true
+  || envValue(customCaContainer, "SSL_CERT_FILE")
+  || envValue(customCaContainer, "REQUESTS_CA_BUNDLE")
+  || !customCaDeployment?.spec?.template?.metadata?.annotations?.["checksum/litellm-ca"]
+) {
+  throw new Error("LiteLLM custom CA Secret, mount, or rollout checksum is invalid.");
 }
 
 const connectedLiteLLMContainer = litellmContainerFrom(

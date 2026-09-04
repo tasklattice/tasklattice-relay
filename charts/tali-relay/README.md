@@ -195,6 +195,26 @@ the model deployment itself.
 exceptions remain available in the LiteLLM container logs. Increase this value
 only when request-level tracebacks are required for gateway diagnostics.
 
+To trust HTTPS endpoints signed by a private CA, provide a PEM-encoded CA bundle
+through `litellm.caCertificate`. The Chart creates a release-scoped Secret,
+mounts it at `/etc/ssl/certs` only in the LiteLLM Pod, and triggers a LiteLLM
+rollout when the certificate changes. For example:
+
+```yaml
+litellm:
+  caCertificate: |
+    -----BEGIN CERTIFICATE-----
+    ...
+    -----END CERTIFICATE-----
+```
+
+The certificate can also be supplied without copying it into a values file:
+
+```sh
+helm upgrade --install tali-relay charts/tali-relay \
+  --set-file litellm.caCertificate=/path/to/ca.crt
+```
+
 The dependency preparation step applies the small OpenShell overlay in
 `patches/openshell.patch`, which applies the configured
 `openshell.resources` to its pre-install certificate-generation Job. Keep or

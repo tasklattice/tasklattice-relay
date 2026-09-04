@@ -1,0 +1,15 @@
+{{- if .Values.litellm.caCertificate }}
+{{- $component := "litellm-ca" -}}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ include "tali.componentName" (dict "root" . "component" $component) }}
+  labels:
+    {{- include "tali.componentLabels" (dict "root" . "component" $component) | nindent 4 }}
+  annotations:
+    {{- include "tali.resourceAnnotations" (dict "root" . "wave" "foundation") | nindent 4 }}
+type: Opaque
+stringData:
+  ca.crt: |-
+{{ .Values.litellm.caCertificate | indent 4 }}
+{{- end }}

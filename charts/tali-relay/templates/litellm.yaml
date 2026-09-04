@@ -21,6 +21,9 @@ spec:
         {{- include "tali.selectorLabels" (dict "root" . "component" $component) | nindent 8 }}
       annotations:
         checksum/litellm-secret: {{ include "tali.litellmSecretChecksum" . }}
+        {{- if .Values.litellm.caCertificate }}
+        checksum/litellm-ca: {{ .Values.litellm.caCertificate | sha256sum }}
+        {{- end }}
         {{- with .Values.global.rolloutRevision }}
         tali.ai/rollout-revision: {{ . | quote }}
         {{- end }}
@@ -115,6 +118,11 @@ spec:
               mountPath: /etc/litellm/config.yaml
               subPath: config.yaml
               readOnly: true
+            {{- if .Values.litellm.caCertificate }}
+            - name: litellm-ca
+              mountPath: /etc/ssl/certs
+              readOnly: true
+            {{- end }}
           startupProbe:
             httpGet:
               path: /health/liveliness
@@ -146,6 +154,14 @@ spec:
             items:
               - key: litellm-config.yaml
                 path: config.yaml
+        {{- if .Values.litellm.caCertificate }}
+        - name: litellm-ca
+          secret:
+            secretName: {{ include "tali.componentName" (dict "root" . "component" "litellm-ca") }}
+            items:
+              - key: ca.crt
+                path: ca.crt
+        {{- end }}
 ---
 apiVersion: v1
 kind: Service
