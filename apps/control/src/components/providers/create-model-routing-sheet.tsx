@@ -1,16 +1,13 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  complianceDomainCatalog,
   type ModelDeployment,
   type ModelRoutingPolicy,
 } from "@tali/contracts";
 import {
-  Activity,
   Check,
   CircleAlert,
   Info,
-  KeyRound,
   Plus,
   Route,
   ShieldCheck,
@@ -303,7 +300,7 @@ export function CreateModelRoutingSheet({
       onOpenChange={(next) => !mutation.isPending && onOpenChange(next)}
       eyebrow="Routing"
       title="Create Routing"
-      description="Create one stable model identity with routing, resilience, and data residency controls."
+      description="Choose models and configure how requests are routed."
       width="lg"
       footer={
         <>
@@ -408,7 +405,7 @@ export function CreateModelRoutingSheet({
               placeholder="Choose a text generation model"
               help={
                 primaryModel
-                  ? `${primaryModel.providerName} · ${boundaryLabel(primaryModel)}`
+                  ? primaryModel.providerName
                   : "Only validated text generation models are shown."
               }
               invalid={attempted && !primaryModel}
@@ -498,8 +495,8 @@ export function CreateModelRoutingSheet({
         <section className="space-y-4 border-t pt-5">
           <SectionTitle
             icon={ShieldCheck}
-            title="Resilience & boundary"
-            description="Keep retries and failover inside the same declared data boundary."
+            title="Retries & fallback"
+            description="Choose how to retry failed requests and when to use a fallback model."
           />
           <div className="grid items-start gap-4 sm:grid-cols-2">
             <ModelField
@@ -538,27 +535,6 @@ export function CreateModelRoutingSheet({
                 </SelectContent>
               </Select>
             </Field>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-3">
-            <PolicyFact
-              icon={ShieldCheck}
-              label="Data boundary"
-              value={
-                primaryModel
-                  ? boundaryLabel(primaryModel)
-                  : "Choose a model"
-              }
-            />
-            <PolicyFact
-              icon={KeyRound}
-              label="Credentials"
-              value="Isolated per Instance"
-            />
-            <PolicyFact
-              icon={Activity}
-              label="Audit"
-              value="Control plane + requests"
-            />
           </div>
           <button
             type="button"
@@ -859,30 +835,4 @@ function Field({
       </p>
     </div>
   );
-}
-
-function PolicyFact({
-  icon: Icon,
-  label,
-  value,
-}: {
-  icon: typeof ShieldCheck;
-  label: string;
-  value: string;
-}) {
-  return (
-    <div className="flex min-h-20 gap-3 border p-3">
-      <Icon className="size-4 shrink-0 text-primary" />
-      <span>
-        <span className="block text-xs text-muted-foreground">{label}</span>
-        <strong className="mt-1 block text-xs font-medium">{value}</strong>
-      </span>
-    </div>
-  );
-}
-
-function boundaryLabel(model: ModelDeployment): string {
-  return complianceDomainCatalog.find(
-    (domain) => domain.id === model.complianceDomain,
-  )?.label ?? model.complianceDomain;
 }

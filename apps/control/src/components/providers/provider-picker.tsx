@@ -5,17 +5,19 @@ import {
 } from "@tali/contracts";
 import { ChevronDown, Plus, Search } from "lucide-react";
 import { ProviderIcon } from "./provider-icon";
+import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 
-// Product-maintained common-provider order, independent of residency policy.
-const providerOrder: readonly ProviderKind[] = [
-  "openai", "anthropic", "gemini", "deepseek", "qwen", "openrouter",
-  "moonshot", "zai", "minimax", "azure-openai", "aws-bedrock", "vertex-ai",
-  "volcengine", "baidu-qianfan", "huggingface", "nvidia-nim", "ollama", "vllm",
-  "custom-openai-compatible", "custom-anthropic-compatible",
-];
+// Display order uses catalog categories, not a second provider-ID registry.
+const providerGroups = [
+  { category: "Popular", label: "Popular" },
+  { category: "Chinese Providers", label: "Chinese providers" },
+  { category: "Infrastructure", label: "Cloud & infrastructure" },
+  { category: "Self-Hosted / Custom", label: "Self hosted" },
+] as const;
 
 interface ProviderPickerProps {
   disabled?: boolean;
@@ -32,8 +34,7 @@ export const ProviderPicker = forwardRef<HTMLButtonElement, ProviderPickerProps>
   const selected = providerPresets.find((provider) => provider.id === value);
   const visibleProviders = useMemo(() => {
     const query = search.trim().toLowerCase();
-    return [...providerPresets]
-      .sort((a, b) => providerOrder.indexOf(a.id) - providerOrder.indexOf(b.id))
+    return providerPresets
       .filter((provider) => !query || `${provider.name} ${provider.description} ${provider.category}`.toLowerCase().includes(query));
   }, [search]);
 
@@ -43,9 +44,12 @@ export const ProviderPicker = forwardRef<HTMLButtonElement, ProviderPickerProps>
   };
 
   return (
-    <Popover open={open} onOpenChange={(next) => { setOpen(next); if (!next) setSearch(""); }}>
+    // A modal popover owns its scroll lock, allowing its portaled list to scroll
+    // inside a modal Drawer/Dialog while keeping the underlying page locked.
+    <Popover modal open={open} onOpenChange={(next) => { setOpen(next); if (!next) setSearch(""); }}>
       <PopoverTrigger asChild>
-        <button
+        <Button
+          variant="outline"
           id="provider-picker"
           ref={ref}
           type="button"
@@ -66,7 +70,7 @@ export const ProviderPicker = forwardRef<HTMLButtonElement, ProviderPickerProps>
             </span>
           </span>
           <ChevronDown className={cn("size-4 shrink-0 text-muted-foreground transition-transform", open && "rotate-180")} />
-        </button>
+        </Button>
       </PopoverTrigger>
       <PopoverContent
         align="start"
@@ -74,14 +78,14 @@ export const ProviderPicker = forwardRef<HTMLButtonElement, ProviderPickerProps>
         collisionPadding={10}
         className="!z-[100] flex max-h-[min(36rem,var(--radix-popover-content-available-height))] w-[var(--radix-popover-trigger-width)] flex-col overflow-hidden rounded-lg p-0"
       >
-        <div className="border-b p-3">
+        <div className="shrink-0 border-b p-3">
           <div className="mb-3 flex items-baseline justify-between gap-3">
             <div>
               <p className="text-sm font-medium">
                 Providers
               </p>
               <p className="mt-0.5 text-xs text-muted-foreground">
-                Popular providers first
+                Browse by provider group
               </p>
             </div>
             <span className="text-xs tabular-nums text-muted-foreground">
@@ -106,35 +110,45 @@ export const ProviderPicker = forwardRef<HTMLButtonElement, ProviderPickerProps>
             />
           </div>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-          <div className="grid gap-1.5 p-3 sm:grid-cols-2">
-            {visibleProviders.map((provider) => (
-              <button
-                key={provider.id}
-                type="button"
-                aria-pressed={value === provider.id}
-                onClick={() => { onChange(provider.id); close(); }}
-                className={cn(
-                  "flex min-h-16 max-w-full items-start gap-2.5 rounded-md border border-transparent px-2.5 py-2 text-left text-sm transition-colors hover:border-border hover:bg-muted/50 focus-visible:border-ring focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/20",
-                  value === provider.id && "border-primary/30 bg-primary/5",
-                )}
-              >
-                <ProviderIcon presetId={provider.id} className="mt-0.5 size-7 shrink-0 [&_img]:size-5" />
-                <span className="min-w-0">
-                  <span className="block truncate font-medium">
-                    {provider.name}
-                  </span>
-                  <span className="mt-0.5 line-clamp-2 block text-xs leading-4 text-muted-foreground">
-                    {provider.description}
-                  </span>
-                </span>
-              </button>
-            ))}
-          </div>
+        <ScrollArea className="min-h-0" viewportClassName="max-h-[min(28rem,calc(var(--radix-popover-content-available-height)-8rem))] overscroll-contain">
+          {providerGroups.map((group) => {
+            const providers = visibleProviders.filter((provider) => provider.category === group.category);
+            if (!providers.length) return null;
+            return (
+              <section key={group.category} aria-label={group.label} className="border-b p-3 last:border-b-0">
+                <h3 className="mb-2 px-2.5 text-xs font-semibold text-muted-foreground">{group.label}</h3>
+                <div className="grid gap-1.5 sm:grid-cols-2">
+                  {providers.map((provider) => (
+                    <Button
+                      variant="ghost"
+                      key={provider.id}
+                      type="button"
+                      aria-pressed={value === provider.id}
+                      onClick={() => { onChange(provider.id); close(); }}
+                      className={cn(
+                        "flex h-auto min-h-16 w-full min-w-0 max-w-full items-start justify-start whitespace-normal text-foreground gap-2.5 rounded-md border border-transparent px-2.5 py-2 text-left text-sm transition-colors hover:border-border hover:bg-muted/50 focus-visible:border-ring focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/20",
+                        value === provider.id && "border-primary/30 bg-primary/5",
+                      )}
+                    >
+                      <ProviderIcon presetId={provider.id} className="mt-0.5 size-7 shrink-0 [&_img]:size-5" />
+                      <span className="min-w-0">
+                        <span className="block font-medium">
+                          {provider.name}
+                        </span>
+                        <span className="mt-0.5 block text-xs leading-4 text-muted-foreground">
+                          {provider.description}
+                        </span>
+                      </span>
+                    </Button>
+                  ))}
+                </div>
+              </section>
+            );
+          })}
           {!visibleProviders.length ? (
             <p className="px-4 py-8 text-center text-sm text-muted-foreground">No providers match “{search}”.</p>
           ) : null}
-        </div>
+        </ScrollArea>
       </PopoverContent>
     </Popover>
   );

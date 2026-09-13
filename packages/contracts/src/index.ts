@@ -1006,7 +1006,7 @@ export const providerPresets = [
   {
     id: "huggingface",
     name: "Hugging Face",
-    category: "Self-Hosted / Custom",
+    category: "Infrastructure",
     description: "Serverless providers or a dedicated Hugging Face endpoint.",
     endpoint: null,
     icon: "/assets/providers/huggingface.webp",

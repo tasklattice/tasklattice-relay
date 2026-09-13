@@ -349,18 +349,9 @@ function ProviderIdentity({ account }: { account: ProviderAccount }) {
 }
 
 function ProviderEndpoint({ account }: { account: ProviderAccount }) {
-  let host = account.endpoint;
-  try {
-    host = new URL(account.endpoint).host;
-  } catch {
-    // Preserve the configured value when it is not a URL-shaped endpoint.
-  }
   return (
-    <span className="min-w-0 text-xs">
-      <span className="block truncate font-mono">{host}</span>
-      <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">
-        {account.endpointRegion}
-      </span>
+    <span className="block min-w-0 max-w-sm text-sm">
+      <span className="block break-all">{account.endpoint}</span>
       {account.skipTlsVerify ? (
         <span className="mt-1 block text-[11px] font-medium text-amber-700 dark:text-amber-300">
           TLS verification disabled

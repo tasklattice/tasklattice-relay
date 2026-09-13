@@ -221,7 +221,7 @@ print(json.dumps(document))
     });
   });
 
-  it("enables dynamic Project Vector Database tools without storing a catalog snapshot", () => {
+  it.each([false, true])("enables dynamic Project Vector Database tools without storing a catalog snapshot (empty registry: %s)", (emptyRegistry) => {
     const program = `
 import importlib.util
 import json
@@ -245,7 +245,7 @@ module.configure_vector_databases(
   document,
   "http://runtime-bridge.project.svc.cluster.local/v1/hermes/vector-databases?coordinatorInstanceId=hermes",
   "coordinator-token",
-  registry,
+  {"vector_databases": {}} if ${emptyRegistry ? "True" : "False"} else registry,
 )
 print(json.dumps(document))
 `;

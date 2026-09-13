@@ -58,7 +58,11 @@ export class ProjectVectorDatabaseRuntimeService {
 
   async list(coordinatorInstanceId: string): Promise<ProjectVectorDatabase[]> {
     await this.requireHermesCoordinator(coordinatorInstanceId);
-    await this.requireEmbeddingModel();
+    // Hermes discovers optional Project tools during bootstrap, including when
+    // native memory is used without an embedding model.
+    if (!hasValidatedEmbeddingModel(await this.store.listModelDeployments())) {
+      return [];
+    }
     return (await this.store.listKnowledgeSourceDefinitions())
       .filter(availableVectorDatabase)
       .map(publicVectorDatabase);
