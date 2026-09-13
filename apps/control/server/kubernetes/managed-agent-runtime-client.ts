@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { readProjectNamespaceOwner, withNamespaceOwner } from "./project-resource-ownership";
 import {
   AppsV1Api,
   CoreV1Api,
@@ -431,8 +432,9 @@ export class KubernetesManagedAgentRuntimeClient
     input: ManagedAgentRuntimeInput,
   ): Promise<ManagedAgentRuntimeResult> {
     await this.assertExistingOwnership(input);
-    await this.apply(serviceResource(input));
-    await this.apply(deploymentResource(input, input.image));
+    const owner = await readProjectNamespaceOwner(input.namespace, input.projectId);
+    await this.apply(withNamespaceOwner(serviceResource(input), owner));
+    await this.apply(withNamespaceOwner(deploymentResource(input, input.image), owner));
     let readyPod = await this.waitUntilReady(input, input.image);
     const imageId = imageIdFromPod(readyPod);
     const localDevelopmentImage = isDevelopmentImage(input.image)
@@ -446,7 +448,7 @@ export class KubernetesManagedAgentRuntimeClient
       );
     }
     if (pinnedImage !== input.image) {
-      await this.apply(deploymentResource(input, pinnedImage));
+      await this.apply(withNamespaceOwner(deploymentResource(input, pinnedImage), owner));
       readyPod = await this.waitUntilReady(input, pinnedImage);
     }
 

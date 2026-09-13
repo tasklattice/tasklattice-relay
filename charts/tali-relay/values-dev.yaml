@@ -50,8 +50,7 @@ litellm:
     type: LoadBalancer
 
 openshell:
-  # OpenShell 0.0.106 has one fixed sandbox Namespace per Gateway. Local
-  # development exercises the Project-isolated compatibility topology.
+  # Development uses the same Project Gateway topology as UAT.
   enabled: false
   # Keep the two Project Gateways and their certificate hooks schedulable on
   # the constrained single-node development cluster. Production defaults stay
@@ -60,8 +59,6 @@ openshell:
     requests:
       cpu: 10m
       memory: 32Mi
-  service:
-    type: LoadBalancer
   server:
     sandboxImagePullPolicy: IfNotPresent
 

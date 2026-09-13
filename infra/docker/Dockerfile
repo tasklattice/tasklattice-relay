@@ -78,6 +78,7 @@ COPY --from=build /app/apps/control/.output ./apps/control/.output
 COPY --from=build /app/artifacts/skills/vendor ./artifacts/skills/vendor
 COPY dist/control-plane-chart/tali-relay.tgz /opt/tali/helm/tali-relay.tgz
 COPY charts/tali-relay/charts/openshell-*.tgz /opt/tali/helm/openshell.tgz
+COPY --chmod=0555 scripts/project-openshell-owner.mjs /app/scripts/project-openshell-owner.mjs
 USER 10001
 EXPOSE 8080
 CMD ["node", "apps/control/.output/server/index.mjs"]

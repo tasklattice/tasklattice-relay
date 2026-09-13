@@ -26,6 +26,38 @@ const requiredResources = [
   ["limits", "memory"],
 ];
 
+// The Control chart installs no Gateway; runtime resources belong to Projects.
+const defaults = parseObjects(execFileSync("helm", ["template", releaseName, chartPath,
+  "--namespace", releaseNamespace, "--kube-version", "1.29.0"], { encoding: "utf8" }));
+if (defaults.some((o) => o.kind === "StatefulSet" && o.metadata?.labels?.["app.kubernetes.io/name"] === "openshell")) {
+  throw new Error("Default Control Plane must not contain a shared OpenShell Gateway.");
+}
+const defaultRunnerEnv = defaults.find((o) => o.kind === "Deployment"
+  && o.metadata?.labels?.["app.kubernetes.io/component"] === "runner")?.spec.template.spec.containers[0].env;
+if (defaultRunnerEnv?.find((e) => e.name === "OPENSHELL_PROJECT_TARGET_ROUTING")?.value !== "true"
+  || defaultRunnerEnv?.some((e) => e.name === "OPENSHELL_GATEWAY_ENDPOINT")) {
+  throw new Error("Default Runner must route only to Project Gateways.");
+}
+const defaultControlEnv = defaults.find((o) => o.kind === "Deployment"
+  && o.metadata?.labels?.["app.kubernetes.io/component"] === "control")?.spec.template.spec.containers[0].env;
+for (const name of ["PROJECT_OPENSHELL_GATEWAYS_ENABLED", "PROJECT_RESOURCE_OWNERSHIP_ENABLED"]) {
+  if (defaultControlEnv?.find((e) => e.name === name)?.value !== "true") throw new Error(`${name} must default to true.`);
+}
+const argoTrackingId = "relay:apps/Deployment:tali/relay-control";
+const argoConfigured = parseObjects(renderChart([
+  "--set-string", `projectRuntimeNamespaces.argocd.sourceTrackingId=${argoTrackingId}`,
+  "--set-string", "projectRuntimeNamespaces.argocd.installationId=internal",
+]));
+for (const component of ["control", "control-worker"]) {
+  const env = argoConfigured.find((o) => o.kind === "Deployment"
+    && o.metadata?.labels?.["app.kubernetes.io/component"] === component)
+    ?.spec.template.spec.containers.find((c) => c.name === component)?.env ?? [];
+  if (env.find((e) => e.name === "PROJECT_ARGOCD_SOURCE_TRACKING_ID")?.value !== argoTrackingId
+    || env.find((e) => e.name === "PROJECT_ARGOCD_INSTALLATION_ID")?.value !== "internal") {
+    throw new Error(`Argo CD deployment values must reach ${component} reconciliation.`);
+  }
+}
+
 function templateArguments(extraArguments = []) {
   return [
     "template",
@@ -193,29 +225,14 @@ const arbitraryReleaseNamespace = "tali-arbitrary-release-validation";
 const arbitraryReleaseObjects = parseObjects(
   renderNamedChart(arbitraryReleaseName, arbitraryReleaseNamespace),
 );
-const arbitraryOpenShellService = arbitraryReleaseObjects.find(
-  (object) =>
-    object.kind === "Service"
-    && object.metadata?.labels?.["app.kubernetes.io/name"] === "openshell",
-);
 const arbitraryRunner = arbitraryReleaseObjects.find(
-  (object) =>
-    object.kind === "Deployment"
+  (object) => object.kind === "Deployment"
     && object.metadata?.labels?.["app.kubernetes.io/component"] === "runner",
-);
-const arbitraryGatewayEndpoint = arbitraryRunner?.spec?.template?.spec?.containers
-  ?.find((container) => container.name === "runner")
-  ?.env?.find((entry) => entry.name === "OPENSHELL_GATEWAY_ENDPOINT")?.value;
-const expectedArbitraryGatewayEndpoint = arbitraryOpenShellService
-  ? `http://${arbitraryOpenShellService.metadata.name}.${arbitraryReleaseNamespace}.svc.cluster.local:8080`
-  : undefined;
-if (
-  !expectedArbitraryGatewayEndpoint
-  || arbitraryGatewayEndpoint !== expectedArbitraryGatewayEndpoint
-) {
-  throw new Error(
-    "The Runner OpenShell endpoint must resolve to the dependency-owned Service for arbitrary Helm release names.",
-  );
+)?.spec.template.spec.containers.find((container) => container.name === "runner");
+if (envValue(arbitraryRunner, "OPENSHELL_GATEWAY_ENDPOINT_TEMPLATE")
+    !== "http://openshell-{namespace}.{namespace}.svc.cluster.local:8080"
+  || arbitraryRunner?.env?.some((entry) => ["OPENSHELL_GATEWAY_ENDPOINT", "OPENSHELL_WORKSPACE"].includes(entry.name))) {
+  throw new Error("Runner must derive Gateway and workspace from the Project, independent of the Control release name.");
 }
 
 for (const kind of ["Deployment", "ServiceAccount"]) {
@@ -503,7 +520,6 @@ if (
 }
 
 for (const [kind, name] of [
-  ["StatefulSet", `${releaseName}-openshell`],
   ["Deployment", "agent-sandbox-controller"],
 ]) {
   const dependencyWave = requireObject(kind, name).metadata?.annotations?.[
@@ -520,26 +536,6 @@ for (const object of objects) {
   if (object.metadata?.annotations?.["argocd.argoproj.io/hook"] != null) {
     throw new Error(
       `${object.kind}/${object.metadata?.name} must not replace upstream Helm hook annotations with Argo CD hooks.`,
-    );
-  }
-}
-
-for (const [kind, expectedWeight] of [
-  ["ServiceAccount", "-30"],
-  ["Role", "-30"],
-  ["RoleBinding", "-30"],
-  ["Job", "-20"],
-]) {
-  const annotations = requireObject(
-    kind,
-    `${releaseName}-openshell-certgen`,
-  ).metadata?.annotations;
-  if (
-    annotations?.["helm.sh/hook"] !== "pre-install,pre-upgrade" ||
-    annotations?.["helm.sh/hook-weight"] !== expectedWeight
-  ) {
-    throw new Error(
-      `${kind}/${releaseName}-openshell-certgen must preserve its upstream Helm hook and weight ${expectedWeight}.`,
     );
   }
 }
@@ -840,6 +836,18 @@ if (
   );
 }
 
+const gatewayInstallerRules = [
+  { apiGroups: [""], resources: ["configmaps", "persistentvolumeclaims", "secrets", "serviceaccounts", "services"], verbs: ["get", "list", "watch", "create", "update", "patch", "delete"] },
+  { apiGroups: [""], resources: ["events", "pods"], verbs: ["get", "list", "watch"] },
+  { apiGroups: [""], resources: ["nodes"], verbs: ["get", "list", "watch"] },
+  { apiGroups: ["authentication.k8s.io"], resources: ["tokenreviews"], verbs: ["create"] },
+  { apiGroups: ["agents.x-k8s.io"], resources: ["sandboxes", "sandboxes/status"], verbs: ["get", "list", "watch", "create", "update", "patch", "delete"] },
+  { apiGroups: ["apps"], resources: ["deployments", "replicasets", "statefulsets"], verbs: ["get", "list", "watch", "create", "update", "patch", "delete"] },
+  { apiGroups: ["networking.k8s.io"], resources: ["networkpolicies"], verbs: ["get", "list", "watch", "create", "update", "patch", "delete"] },
+  { apiGroups: ["batch"], resources: ["jobs"], verbs: ["get", "list", "watch", "create", "update", "patch", "delete"] },
+  { apiGroups: ["rbac.authorization.k8s.io"], resources: ["roles", "rolebindings", "clusterroles", "clusterrolebindings"], verbs: ["get", "list", "watch", "create", "update", "patch", "delete"] },
+];
+
 const runtimeControlRole = requireObject(
   "ClusterRole",
   runtimeControlClusterRoleName,
@@ -871,10 +879,11 @@ if (
       resources: ["deployments"],
       verbs: ["get", "create", "patch", "delete"],
     },
+    ...gatewayInstallerRules,
   ])
 ) {
   throw new Error(
-    "The Control Plane must be limited to Project Namespace metadata, managed Agent workloads, and read-only Pod logs.",
+    "Control must use the reviewed Project Namespace, workload and Gateway installer permissions.",
   );
 }
 
@@ -895,40 +904,16 @@ if (
   );
 }
 
-const runtimeDisabledObjects = parseObjects(
-  renderChart(["--set", "projectRuntimeNamespaces.enabled=false"]),
-);
-for (const [kind, name] of [
-  ["ClusterRole", runtimeControlClusterRoleName],
-  ["ClusterRoleBinding", runtimeControlClusterRoleName],
-  ["ServiceAccount", controlWorkerName],
-  ["ClusterRole", controlWorkerClusterRoleName],
-  ["ClusterRoleBinding", controlWorkerClusterRoleName],
+for (const [setting, message] of [
+  ["openshell.enabled=true", "OpenShell is installed only in Project Namespaces"],
+  ["projectOpenShell.enabled=false", "Project Gateways are required"],
+  ["runner.projectTargetRouting.enabled=false", "Project routing is required"],
+  ["projectRuntimeNamespaces.enabled=false", "Project Namespaces are required"],
 ]) {
-  if (
-    !runtimeDisabledObjects.some(
-      (object) => object.kind === kind && object.metadata?.name === name,
-    )
-  ) {
-    throw new Error(
-      `${kind}/${name} must remain available so Platform validation can enable Runtime Namespaces online.`,
-    );
+  const result = spawnSync("helm", templateArguments(["--set", setting]), { encoding: "utf8" });
+  if (result.status === 0 || !result.stderr.includes(message)) {
+    throw new Error(`Unsupported topology must fail explicitly: ${setting}`);
   }
-}
-const runtimeDisabledControlWorker = runtimeDisabledObjects.find(
-  (object) =>
-    object.kind === "Deployment" &&
-    object.metadata?.name === controlWorkerName,
-);
-if (
-  runtimeDisabledControlWorker?.spec?.template?.spec?.serviceAccountName !==
-    controlWorkerName ||
-  runtimeDisabledControlWorker?.spec?.template?.spec
-    ?.automountServiceAccountToken !== true
-) {
-  throw new Error(
-    "The Control Worker must retain its dedicated identity when Runtime Namespaces are disabled in the initial Platform setting.",
-  );
 }
 
 const controlWorkerRole = requireObject(
@@ -957,10 +942,11 @@ if (
       resources: ["networkpolicies"],
       verbs: ["get", "create", "patch", "delete"],
     },
+    ...gatewayInstallerRules,
   ])
 ) {
   throw new Error(
-    "The Control Worker identity must be limited to Project Namespaces and version-pinned Expert Agent Runtime resources.",
+    "Control Worker must use the reviewed Project cleanup, runtime and Gateway installer permissions.",
   );
 }
 

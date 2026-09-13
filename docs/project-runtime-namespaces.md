@@ -12,7 +12,7 @@ Project creation is synchronous:
 2. Before returning a successful API response, the Control Plane uses
    server-side apply to ensure that the mapped Namespace exists with the
    Relay-owned labels and annotations.
-3. In the OpenShell 0.0.106 compatibility topology, it reconciles the pinned
+3. It reconciles the pinned
    official OpenShell Helm chart into that Namespace and waits for readiness.
 4. If Namespace or Gateway creation fails, Project creation fails and Relay compensates by
    deleting the new database Project.
@@ -23,7 +23,7 @@ backoff, delayed execution, and safe work distribution across Worker replicas.
 The periodic maintenance task fans out one idempotent job per stale Project;
 it does not reconcile the entire platform in one long-running job.
 
-An operator can still repair historical or partially created mappings with the
+An operator can repair partially created mappings with the
 one-shot command packaged in the Control Plane image:
 
 ```bash
@@ -117,13 +117,10 @@ stored `cluster_id` differs from the current configuration, preventing an
 accidental cluster switch from acting on a same-named Namespace. Moving targets
 between clusters requires an explicit data-plane migration.
 
-When the feature is disabled, Relay still stores the runtime-target mapping but
-does not create or delete a Namespace. Background maintenance does not enqueue
-Namespace reconciliation jobs until the saved Platform setting enables the
-feature. This keeps local development independent from Kubernetes and
-preserves the desired mapping for a later rollout.
+Project Namespaces and Project Gateway routing are required by the Control
+Chart. Test environments use the same topology as UAT.
 
-## OpenShell 0.0.106 compatibility topology
+## Project Gateway topology
 
 OpenShell 0.0.106 fixes the Kubernetes sandbox Namespace at the Gateway level.
 Relay therefore deploys one official OpenShell Gateway release inside every
@@ -134,7 +131,7 @@ terminal, and service routing all reach the matching Gateway. A `ready`
 Runtime Target means both the Namespace and its Gateway release reconciled.
 
 The Gateway is a private, unauthenticated plaintext `ClusterIP` because this
-compatibility path is restricted to the trusted in-cluster network. Do not
+Gateway is restricted to the trusted in-cluster network. Do not
 publish it directly. The central Runner service proxy validates the
 workspace-qualified hostname and forwards browser traffic to the derived
 Gateway Service; it does not trust an endpoint supplied by the caller.
@@ -148,25 +145,8 @@ rollout interrupted a prior operation, it rolls the release back to the latest
 deployed revision (or removes an incomplete first install) before reconciling
 the desired values.
 
-Runtime Targets created by older previews with names outside the current
-`tp-<16-character-base32>` contract require an explicit data-plane migration.
-The Project Gateway adapter refuses to install into those legacy Namespaces so
-it cannot silently claim compatibility with a workspace name that OpenShell
-0.0.106 cannot route.
-
-## Migration to a newer OpenShell
-
-The Project-to-Namespace mapping and Control-to-Runner `{ namespace }` contract
-are topology-neutral. OpenShell 0.0.111 support does not require Relay to share
-a Gateway: dedicated Gateway-per-Project remains a valid deployment choice for
-customers that need a stronger failure domain, independent upgrade window, or
-higher SLA. Standard-SLA customers may instead use a validated shared Gateway.
-
-The dedicated mode keeps the per-Project provisioner and Namespace-derived
-endpoint template. Shared mode replaces only the Gateway provisioner with the
-shared Gateway/operator adapter and points
-`runner.projectTargetRouting.gatewayEndpointTemplate` at that Service. Agent
-APIs, lifecycle ownership, Runtime Target data, workspace identity, and the
-central Runner remain unchanged in both modes. The later 0.0.111-compatible
-path is therefore an adapter/version update and an operator-selected topology,
-not a tenant-routing redesign.
+Project Namespaces must follow the `tp-<16-character-base32>` contract.
+Control installs one OpenShell Gateway per Project, and the central Runner routes
+all business requests by the Project Runtime Target. The Control Chart does not
+support a shared Gateway deployment or a fallback to a default workspace.
+Upstream OpenShell upgrades keep this Project isolation boundary.

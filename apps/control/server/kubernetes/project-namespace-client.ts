@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { projectArgoAnnotations } from "./project-resource-ownership";
 import {
   CoreV1Api,
   KubeConfig,
@@ -71,6 +72,7 @@ export function projectNamespaceResource(
       name: input.namespace,
       labels: managedLabels(input.projectName),
       annotations: {
+        ...projectArgoAnnotations(input.namespace),
         "tali.io/project-id": input.projectId,
         "tali.io/project-name": input.projectName,
       },

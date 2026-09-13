@@ -22,6 +22,8 @@
     "test:matrix:summary": "node scripts/testing/render-test-matrix.mjs",
     "test:e2e:live": "node --env-file-if-exists=.env scripts/testing/live-hermes-golden-path.mjs",
     "test:e2e:native-memory": "node scripts/testing/live-native-memory.mjs",
+    "test:project-resource-ownership": "node --test scripts/testing/project-openshell-owner.test.mjs",
+    "test:e2e:project-resource-ownership": "node --import tsx scripts/testing/live-project-resource-ownership.mts",
     "test:e2e:expert-agents": "node --env-file-if-exists=.env scripts/testing/live-expert-agent-release0.mjs",
     "test:e2e:expert-agents:preflight": "node --env-file-if-exists=.env scripts/testing/live-expert-agent-release0.mjs --preflight",
     "test:e2e:expert-agents:configure-model": "node --env-file-if-exists=.env scripts/testing/configure-live-expert-agent-model.mjs",

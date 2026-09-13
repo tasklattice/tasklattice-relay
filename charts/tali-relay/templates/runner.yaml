@@ -1,9 +1,5 @@
 {{- $component := "runner" -}}
 {{- $name := include "tali.componentName" (dict "root" . "component" $component) -}}
-{{- $gatewayEndpoint := .Values.runner.gatewayEndpoint -}}
-{{- if and (not $gatewayEndpoint) .Values.openshell.enabled -}}
-{{- $gatewayEndpoint = printf "http://%s.%s.svc.cluster.local:8080" (include "openshell.fullname" .Subcharts.openshell) .Release.Namespace -}}
-{{- end -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -64,11 +60,6 @@ spec:
                 secretKeyRef:
                   name: {{ include "tali.secretName" . }}
                   key: runner-token
-            {{- if not .Values.runner.projectTargetRouting.enabled }}
-            - name: OPENSHELL_GATEWAY_ENDPOINT
-              value: {{ required "runner.gatewayEndpoint is required when openshell.enabled=false and runner.projectTargetRouting.enabled=false" $gatewayEndpoint | quote }}
-            {{- end }}
-            {{- if or .Values.openshell.enabled .Values.projectOpenShell.enabled }}
             - name: OPENSHELL_GATEWAY_IMAGE
               value: {{ printf "%s:%s" .Values.openshell.image.repository .Values.openshell.image.tag | quote }}
             - name: OPENSHELL_SUPERVISOR_IMAGE
@@ -79,7 +70,6 @@ spec:
               value: {{ .Values.openshell.server.sandboxImagePullPolicy | quote }}
             - name: OPENSHELL_TLS_DISABLED
               value: {{ .Values.openshell.server.disableTls | quote }}
-            {{- end }}
             - name: OPENSHELL_PROJECT_TARGET_ROUTING
               value: {{ .Values.runner.projectTargetRouting.enabled | quote }}
             - name: OPENSHELL_GATEWAY_ENDPOINT_TEMPLATE
@@ -92,8 +82,6 @@ spec:
               value: {{ .Values.runner.projectTargetRouting.serviceProxy.port | quote }}
             - name: NEMOCLAW_VERSION
               value: {{ .Values.projectOpenShell.nemoclawVersion | quote }}
-            - name: OPENSHELL_WORKSPACE
-              value: {{ .Values.runner.workspace | quote }}
             - name: OPENSHELL_SERVICE_BASE_URL
               value: {{ .Values.runner.serviceBaseUrl | quote }}
             - name: OPENSHELL_SANDBOX_IMAGE

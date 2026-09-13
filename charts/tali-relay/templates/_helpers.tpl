@@ -329,6 +329,12 @@ initial_platform_administrator_password = {{ required "secrets.initialPlatformAd
 {{- define "tali.projectOpenShellReconcilerEnv" -}}
 - name: PROJECT_OPENSHELL_GATEWAYS_ENABLED
   value: {{ .Values.projectOpenShell.enabled | quote }}
+- name: PROJECT_RESOURCE_OWNERSHIP_ENABLED
+  value: {{ .Values.projectRuntimeNamespaces.resourceOwnership | quote }}
+- name: PROJECT_ARGOCD_SOURCE_TRACKING_ID
+  value: {{ .Values.projectRuntimeNamespaces.argocd.sourceTrackingId | quote }}
+- name: PROJECT_ARGOCD_INSTALLATION_ID
+  value: {{ .Values.projectRuntimeNamespaces.argocd.installationId | quote }}
 - name: PROJECT_OPENSHELL_TARGET_ROUTING_ENABLED
   value: {{ .Values.runner.projectTargetRouting.enabled | quote }}
 - name: PROJECT_OPENSHELL_HELM_CHART

@@ -23,12 +23,8 @@ global:
 openshift:
   enabled: false
   anyuidScc:
-    # Static TaskLattice Relay and OpenShell gateway pods use their image-defined
+    # Static Control Plane pods use their image-defined
     # non-root IDs. Enable this binding only when the cluster permits anyuid.
-    createRoleBinding: false
-  sandboxScc:
-    # This grants the OpenShell sandbox ServiceAccount access to OpenShift's
-    # privileged SCC. Enable only on a dedicated, trusted OpenShift project.
     createRoleBinding: false
   routes:
     control:
@@ -274,12 +270,16 @@ hindsight:
 projectRuntimeNamespaces:
   enabled: true
   clusterId: in-cluster
+  resourceOwnership: true
+  # Optional read-only Argo CD visibility. Copy an existing tracked resource's
+  # annotation verbatim; it must NOT identify the dynamically created Namespace.
+  # Requires annotation or annotation+label tracking on the Argo CD installation.
+  argocd:
+    sourceTrackingId: ""
+    installationId: ""
 
 runner:
   replicaCount: 1
-  gatewayEndpoint: ""
-  # Must match the OpenShell CLI workspace used for sandbox and service calls.
-  workspace: default
   serviceBaseUrl: http://openshell.localhost:8080
   kubernetesServiceCidrs: 10.0.0.0/8,172.16.0.0/12,192.168.0.0/16
   sandbox:
@@ -288,7 +288,7 @@ runner:
     cpuRequest: ""
     memory: 2Gi
   projectTargetRouting:
-    enabled: false
+    enabled: true
     gatewayEndpointTemplate: "http://openshell-{namespace}.{namespace}.svc.cluster.local:8080"
     serviceProxy:
       enabled: true
@@ -304,15 +304,11 @@ runner:
       memory: 384Mi
   extraEnv: []
 
-# Compatibility topology for OpenShell releases whose Kubernetes driver has
-# one fixed sandbox Namespace per Gateway. The Control Plane installs the
-# repository-pinned official OpenShell subchart once in each Project Runtime
-# Namespace; the central Runner routes by ProjectRuntimeTarget. Keep this
-# boundary stable when migrating later: 0.0.111+ may retain dedicated releases
-# for higher-SLA Projects or use a shared Gateway adapter for standard tiers.
+# The Control Plane installs the pinned OpenShell chart in each Project
+# Namespace. The central Runner routes by ProjectRuntimeTarget.
 # Gateway resources and pull Secrets reuse their openshell.* values.
 projectOpenShell:
-  enabled: false
+  enabled: true
   nemoclawVersion: 0.0.123
   releaseName: openshell
   serviceNamePrefix: openshell-
@@ -622,7 +618,9 @@ agentSandbox:
 # TaskLattice Relay's current trusted-cluster integration. Put the services behind an
 # authenticated ingress or configure OpenShell TLS/OIDC for shared clusters.
 openshell:
-  enabled: true
+  # Packaging gate only: this dependency is installed by Control in Projects.
+  # The Control chart rejects enabling it in its own namespace.
+  enabled: false
   imagePullSecrets: []
   image:
     repository: ghcr.io/nvidia/openshell/gateway

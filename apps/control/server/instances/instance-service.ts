@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
+import { reconcileSandboxOwnership } from "../kubernetes/project-resource-ownership";
 import {
   defaultNativeAgentMemoryConfiguration,
   getAgentPlatformDefinition,
@@ -1039,9 +1040,13 @@ export class InstanceService {
 
   private async getRunnerSandbox(agent: Agent): Promise<RunnerSandbox> {
     const target = await this.runnerRuntimeTarget();
-    return target
+    const observed = await (target
       ? this.runner.getSandbox(agent.sandboxName, agent.agentPlatform, target)
-      : this.runner.getSandbox(agent.sandboxName, agent.agentPlatform);
+      : this.runner.getSandbox(agent.sandboxName, agent.agentPlatform));
+    if (target && (observed.phase === "PROVISIONING" || observed.phase === "READY")) {
+      await reconcileSandboxOwnership(target.namespace, this.store.projectId, agent.sandboxName);
+    }
+    return observed;
   }
 
   private async destroyRunnerSandbox(agent: Agent): Promise<RunnerSandbox> {

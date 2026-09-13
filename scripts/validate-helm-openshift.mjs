@@ -164,26 +164,9 @@ if (!keycloakRoute) {
   violations.push("The Keycloak Route must use Argo CD sync wave 50.");
 }
 
-const privilegedBinding = objects.find(
-  (object) =>
-    object.kind === "RoleBinding" &&
-    object.roleRef?.name === "system:openshift:scc:privileged" &&
-    object.subjects?.some(
-      (subject) =>
-        subject.kind === "ServiceAccount" &&
-        subject.name === `${releaseName}-openshell-sandbox`,
-    ),
-);
-if (!privilegedBinding) {
-  violations.push(
-    "The OpenShift profile must bind the OpenShell sandbox ServiceAccount to the privileged SCC.",
-  );
-} else if (
-  privilegedBinding.metadata?.annotations?.[syncWaveAnnotation] !== "-10"
-) {
-  violations.push(
-    "The OpenShift privileged SCC RoleBinding must use Argo CD sync wave -10.",
-  );
+if (objects.some((object) => object.kind === "RoleBinding"
+  && object.roleRef?.name === "system:openshift:scc:privileged")) {
+  violations.push("The Control namespace must not contain business Sandbox SCC bindings.");
 }
 
 const anyuidBinding = objects.find(
@@ -200,7 +183,6 @@ if (anyuidBinding?.metadata?.annotations?.[syncWaveAnnotation] !== "-10") {
 for (const serviceAccount of [
   `${releaseName}-runtime`,
   `${releaseName}-control`,
-  `${releaseName}-openshell`,
   `${releaseName}-control-worker`,
 ]) {
   if (
@@ -215,17 +197,6 @@ for (const serviceAccount of [
       `The OpenShift anyuid SCC RoleBinding must include ServiceAccount/${serviceAccount}.`,
     );
   }
-}
-
-const gatewayConfig = objects.find(
-  (object) =>
-    object.kind === "ConfigMap" &&
-    object.metadata?.name === `${releaseName}-openshell-config`,
-);
-if (gatewayConfig?.data?.["gateway.toml"]?.includes("app_armor_profile")) {
-  violations.push(
-    "The OpenShift profile must omit OpenShell's structured AppArmor field.",
-  );
 }
 
 if (checkedContainers === 0) {

@@ -10,6 +10,7 @@ import {
   type V1Service,
 } from "@kubernetes/client-node";
 import { createHash } from "node:crypto";
+import { readProjectNamespaceOwner, withNamespaceOwner } from "./project-resource-ownership";
 import type { ExpertAgentRuntimeEnvelope } from "@tali/contracts";
 import { PROJECT_RUNTIME_BRIDGE_NAME } from "./project-runtime-bridge-client";
 
@@ -300,9 +301,10 @@ implements ExpertAgentRuntimeClient {
       throw new Error("Expert Agent Runtime deployments are disabled.");
     }
     const name = expertAgentRuntimeResourceName(input.instanceId);
+    const owner = await readProjectNamespaceOwner(input.namespace, input.projectId);
     for (const resource of expertAgentRuntimeResources(input, this.configuration)) {
       await this.objects.patch(
-        resource,
+        withNamespaceOwner(resource, owner),
         undefined,
         undefined,
         FIELD_MANAGER,

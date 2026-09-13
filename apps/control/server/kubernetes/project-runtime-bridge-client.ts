@@ -10,6 +10,7 @@ import {
   type V1Service,
 } from "@kubernetes/client-node";
 import { createHash } from "node:crypto";
+import { readProjectNamespaceOwner, withNamespaceOwner } from "./project-resource-ownership";
 import type { ProjectNamespaceInput } from "./project-namespace-client";
 
 const FIELD_MANAGER = "tali-control-project-runtime-bridge";
@@ -301,9 +302,10 @@ export class KubernetesProjectRuntimeBridgeClient
     if (!input.controlUrl) {
       throw new Error("Control internal URL is required for Project Runtime Bridge reconciliation.");
     }
+    const owner = await readProjectNamespaceOwner(input.namespace, input.projectId);
     for (const resource of projectRuntimeBridgeResources(input, this.configuration)) {
       await this.objects.patch(
-        resource,
+        withNamespaceOwner(resource, owner),
         undefined,
         undefined,
         FIELD_MANAGER,
