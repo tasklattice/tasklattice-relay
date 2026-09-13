@@ -32,6 +32,26 @@ const defaults = parseObjects(execFileSync("helm", ["template", releaseName, cha
 if (defaults.some((o) => o.kind === "StatefulSet" && o.metadata?.labels?.["app.kubernetes.io/name"] === "openshell")) {
   throw new Error("Default Control Plane must not contain a shared OpenShell Gateway.");
 }
+// Exercise the smoke script's actual values: Kind has no LoadBalancer controller.
+const smokeResources = parseObjects(execFileSync("bash", ["scripts/helm-kind-smoke.sh", "render"], {
+  encoding: "utf8",
+  env: {
+    ...process.env,
+    HELM_CHART_PATH: chartPath,
+    HELM_DEPENDENCIES_PREPARED: "true",
+    HELM_RELEASE_NAME: releaseName,
+    HELM_NAMESPACE: releaseNamespace,
+  },
+}));
+const smokeServices = smokeResources.filter((resource) => resource.kind === "Service");
+const pendingLoadBalancers = smokeServices.filter((service) => service.spec?.type === "LoadBalancer");
+if (pendingLoadBalancers.length) {
+  throw new Error(`Kind smoke Services cannot require external load balancers: ${pendingLoadBalancers.map((service) => service.metadata.name).join(", ")}`);
+}
+const smokeProxy = smokeServices.find((service) => service.metadata?.name.endsWith("-runner-openshell-services"));
+if (smokeProxy?.spec?.type !== "ClusterIP" || !smokeProxy.spec.ports?.length) {
+  throw new Error("Kind smoke must keep the Runner OpenShell proxy enabled as a ClusterIP Service.");
+}
 const defaultRunnerEnv = defaults.find((o) => o.kind === "Deployment"
   && o.metadata?.labels?.["app.kubernetes.io/component"] === "runner")?.spec.template.spec.containers[0].env;
 if (defaultRunnerEnv?.find((e) => e.name === "OPENSHELL_PROJECT_TARGET_ROUTING")?.value !== "true"
