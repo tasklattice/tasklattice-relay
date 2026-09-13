@@ -41,6 +41,8 @@ import {
   bindableDurableMemories,
   supportsDurableMemoryPlatform,
   supportsNativeMemoryPlatform,
+  nativeMemorySelection,
+  instanceMemoryInput,
 } from "@/components/agents/durable-memory-selection";
 import {
   getSpecialization,
@@ -296,7 +298,7 @@ export function CreateInstanceSheet({
   const [skillsTouched, setSkillsTouched] = useState(false);
   const [mcpsTouched, setMcpsTouched] = useState(false);
   const [knowledgeSourcesTouched, setKnowledgeSourcesTouched] = useState(false);
-  const [durableMemoryId, setDurableMemoryId] = useState("");
+  const [durableMemoryId, setDurableMemoryId] = useState<string>(nativeMemorySelection);
   const [capabilitiesInitialized, setCapabilitiesInitialized] = useState(false);
   const [draftFormValues, setDraftFormValues] =
     useState<CreateInstanceFormValues>({
@@ -396,15 +398,7 @@ export function CreateInstanceSheet({
         knowledgeSourceIds: embeddingModelReady
           ? selectedIds(selectedKnowledgeSources)
           : [],
-        ...(durableMemoryAvailable
-          && supportsDurableMemoryPlatform(value.agentPlatform)
-          && durableMemoryId
-          ? { durableMemoryId }
-          : {}),
-        ...(!durableMemoryAvailable
-          && supportsNativeMemoryPlatform(value.agentPlatform)
-          ? { memory: { mode: "native", citations: "auto" } as const }
-          : {}),
+        ...instanceMemoryInput(value.agentPlatform, durableMemoryAvailable, durableMemoryId),
       } satisfies CreateInstanceInput);
     },
   });
@@ -415,7 +409,7 @@ export function CreateInstanceSheet({
 
   useEffect(() => {
     if (!modelDeployments.isPending && !durableMemoryAvailable) {
-      setDurableMemoryId("");
+      setDurableMemoryId(nativeMemorySelection);
     }
   }, [durableMemoryAvailable, modelDeployments.isPending]);
 
@@ -839,25 +833,17 @@ export function CreateInstanceSheet({
                 {([name, agentPlatform]) => {
                   const instanceName = String(name).trim();
                   const selectedPlatform = agentPlatform as AgentPlatformId;
-                  const memoryReadinessPending = durableMemoryFeatureEnabled
-                    && supportsNativeMemoryPlatform(selectedPlatform)
-                    && modelDeployments.isPending;
                   const unavailableMemory = durableMemoryAvailable
                     && supportsDurableMemoryPlatform(
                       selectedPlatform,
                     )
+                    && durableMemoryId !== nativeMemorySelection
                     && Boolean(durableMemoryId)
                     && !availableDurableMemories.some(
                       (item) => item.id === durableMemoryId,
                     );
                   const reason = instanceName.length < 3
                     ? "Enter a Supervisor name using 3–64 characters."
-                    : memoryReadinessPending
-                      ? "Checking Project embedding model availability…"
-                      : durableMemoryFeatureEnabled
-                        && supportsNativeMemoryPlatform(selectedPlatform)
-                        && modelDeployments.error
-                        ? "Embedding model availability could not be checked."
                     : unavailableMemory
                       ? "Choose an available Memory or create a new one."
                       : "";
@@ -1711,7 +1697,9 @@ export function CreateInstanceSheet({
                             value={
                               !supportsNativeMemoryPlatform(values.agentPlatform)
                                 ? "Not available"
-                                : durableMemoryAvailable && durableMemoryId
+                                : durableMemoryId === nativeMemorySelection || !supportsDurableMemoryPlatform(values.agentPlatform)
+                                  ? "Native Memory"
+                                  : durableMemoryAvailable && durableMemoryId
                                   ? `Continue · ${availableDurableMemories.find((item) => item.id === durableMemoryId)?.displayName ?? "Existing Memory"}`
                                   : durableMemoryAvailable
                                     ? "Durable Memory · automatic"

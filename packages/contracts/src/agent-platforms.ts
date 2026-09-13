@@ -97,7 +97,7 @@ export const agentPlatforms = [
       canDelegate: true,
       acceptsDelegation: false,
       embeddedRunTelemetry: false,
-      memory: "none",
+      memory: "native",
     },
     catalog: {
       id: "deepagents-code",

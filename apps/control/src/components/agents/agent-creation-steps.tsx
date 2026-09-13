@@ -20,6 +20,7 @@ import {
   ServerCog,
   X,
 } from "lucide-react";
+import { nativeMemorySelection, supportsNativeMemoryPlatform, supportsDurableMemoryPlatform } from "./durable-memory-selection";
 import { AgentSelect } from "@/components/agents/agent-select";
 import { EmbeddingModelSetupNotice } from "@/components/providers/embedding-model-setup-notice";
 import { Badge } from "@/components/ui/badge";
@@ -496,8 +497,9 @@ function MemoryCapabilityRow({
   onDurableMemoryIdChange: (memoryId: string) => void;
   projectId: string;
 }) {
-  const supportsNative = agentPlatform === "openclaw" || agentPlatform === "hermes";
-  const supportsDurable = durableMemoryAvailable && supportsNative;
+  const supportsNative = supportsNativeMemoryPlatform(agentPlatform);
+  const supportsDurable = durableMemoryAvailable && supportsDurableMemoryPlatform(agentPlatform);
+  const usesDurable = supportsDurable && durableMemoryId !== nativeMemorySelection;
   const newMemoryValue = "new-memory";
   const sourceValue = durableMemoryId || newMemoryValue;
 
@@ -515,16 +517,16 @@ function MemoryCapabilityRow({
             <PopoverContent align="start" className="w-[min(90vw,22rem)] p-4">
               <h4 className="text-sm font-semibold">Memory tips</h4>
               <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                {supportsDurable
+                {usesDurable
                   ? "Economy uses the Project's managed low-cost Memory defaults. A new Memory is prepared automatically unless you select an existing one."
                   : "Native Memory stores text inside this Supervisor's Sandbox and does not require an embedding model."}
               </p>
               <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                {supportsDurable
+                {usesDurable
                   ? "Durable Memory remains available after Instance deletion and can be attached to another supported Instance."
                   : "Native Memory is deleted with the Instance and cannot be attached to a replacement Agent."}
               </p>
-              {supportsDurable ? (
+              {usesDurable ? (
                 <Button asChild variant="link" size="sm" className="mt-2 h-auto min-h-0 p-0">
                   <Link to="/$projectId/memory" params={{ projectId }}>Manage Memory</Link>
                 </Button>
@@ -532,8 +534,8 @@ function MemoryCapabilityRow({
             </PopoverContent>
           </Popover>
         </div>
-        <Badge variant={supportsDurable ? "secondary" : "outline"} className="font-normal">
-          {supportsDurable ? "Durable" : supportsNative ? "Native" : "Not available"}
+        <Badge variant={usesDurable ? "secondary" : "outline"} className="font-normal">
+          {usesDurable ? "Durable" : supportsNative ? "Native" : "Not available"}
         </Badge>
       </div>
 
@@ -544,13 +546,13 @@ function MemoryCapabilityRow({
             <Select
               value={sourceValue}
               onValueChange={(value) => onDurableMemoryIdChange(value === newMemoryValue ? "" : value)}
-              disabled={durableMemoriesLoading}
             >
               <SelectTrigger id="durable-memory-selection" className="min-h-11 w-full">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={newMemoryValue}>New Memory · automatic</SelectItem>
+                <SelectItem value={nativeMemorySelection}>Native Memory · no embedding required</SelectItem>
+                <SelectItem value={newMemoryValue} disabled={durableMemoriesLoading}>New Durable Memory · automatic</SelectItem>
                 {durableMemories.map((item) => {
                   const inUse = Boolean(item.activeBinding);
 
@@ -577,13 +579,13 @@ function MemoryCapabilityRow({
           </div>
 
           <div className="space-y-2">
-            <Label>Capture policy</Label>
+            <Label>{usesDurable ? "Capture policy" : "Storage"}</Label>
             <div
-              aria-label="Economy capture policy, lowest cost"
+              aria-label={usesDurable ? "Economy capture policy, lowest cost" : "Native Memory in the Sandbox"}
               className="flex min-h-11 items-center justify-between gap-3 rounded-md border bg-muted/10 px-3"
             >
-              <span className="text-sm font-medium">Economy</span>
-              <Badge variant="outline" className="font-normal">Lowest cost</Badge>
+              <span className="text-sm font-medium">{usesDurable ? "Economy" : "Native text Memory"}</span>
+              <Badge variant="outline" className="font-normal">{usesDurable ? "Lowest cost" : "No embedding"}</Badge>
             </div>
           </div>
         </div>
@@ -599,7 +601,7 @@ function MemoryCapabilityRow({
             <p role="alert" className="text-xs text-destructive">
               Embedding readiness could not be checked: {embeddingModelsError.message}
             </p>
-          ) : durableMemoryFeatureEnabled ? (
+          ) : durableMemoryFeatureEnabled && supportsDurableMemoryPlatform(agentPlatform) ? (
             <EmbeddingModelSetupNotice
               canManageProject={canManageProject}
               className="mt-3"

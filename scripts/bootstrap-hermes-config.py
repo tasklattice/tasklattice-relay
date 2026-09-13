@@ -312,6 +312,14 @@ def configure_durable_memory(validated: dict, provider: str) -> None:
     memory["provider"] = provider
 
 
+def configure_native_memory(validated: dict) -> None:
+    """Hermes' built-in text stores do not need an external memory provider."""
+    memory = validated.setdefault("memory", {})
+    if not isinstance(memory, dict):
+        memory = validated["memory"] = {}
+    memory.update(memory_enabled=True, user_profile_enabled=True, provider="")
+
+
 def enable_run_telemetry(validated: dict) -> None:
     """Keep Relay's bundled lifecycle plugin enabled in the managed config."""
     plugins = validated.get("plugins")
@@ -493,6 +501,11 @@ def main() -> None:
             original_env,
             "TALI_DURABLE_MEMORY_ENDPOINT",
             args.durable_memory_endpoint,
+        )
+    else:
+        configure_native_memory(validated)
+        updated_env = set_environment_value(
+            original_env, "TALI_DURABLE_MEMORY_ENDPOINT", "",
         )
     updated = yaml.safe_dump(
         validated,

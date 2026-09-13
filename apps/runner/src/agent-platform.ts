@@ -55,7 +55,7 @@ const openClawBootstrapScript = (
   durableMemoryEnabled = false,
 ) => {
   const memoryPayload = Buffer.from(
-    JSON.stringify(memory ?? null),
+    JSON.stringify(memory ?? { mode: "native", citations: "auto" }),
     "utf8",
   ).toString("base64");
   const durableMemoryEndpoint =

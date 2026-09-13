@@ -6,7 +6,7 @@ the internal Hindsight Durable Memory provider, OpenShell, and the Agent
 Sandbox controller.
 Its Chart, package, and default Helm release name is `tali-relay`; the examples
 use the product-level `tali` Kubernetes namespace.
-The Release Workflow selects OpenShell 0.0.106, NemoClaw v0.0.114, and Agent
+The Release Workflow selects OpenShell 0.0.106, NemoClaw v0.0.123, and Agent
 Sandbox v1.0.2 by explicit upstream tags and does not follow `latest`. Builds
 use the content currently published under those tags. Their upstream source is
 not copied into this repository, while the released TaskLattice Relay archive

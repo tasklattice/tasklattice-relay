@@ -331,7 +331,7 @@ describe("Instance Access Policy lifecycle", () => {
     }, "local-admin")).rejects.toThrow("not enabled for this Project");
   });
 
-  it.each(["openclaw", "hermes"] as const)(
+  it.each(["openclaw", "hermes", "deepagents"] as const)(
     "falls back to Native text Memory for %s when the Project has no embedding model",
     async (agentPlatform) => {
       const setup = await configuredService({
@@ -352,6 +352,24 @@ describe("Instance Access Policy lifecycle", () => {
           memory: { mode: "native", citations: "auto" },
         }),
       );
+    },
+  );
+
+  it.each(["openclaw", "hermes", "deepagents"] as const)(
+    "honors explicit Native Memory for %s even when embedding models are available",
+    async (agentPlatform) => {
+      const setup = await configuredService();
+      const agent = await createConfiguredInstance(setup, {
+        agentPlatform,
+        memory: { mode: "native", citations: "auto" },
+        knowledgeSourceIds: [],
+      });
+      expect(agent.memory).toEqual({ mode: "native", citations: "auto" });
+      expect(agent.durableMemoryId).toBeUndefined();
+      expect(setup.memoryProvider.bankCount()).toBe(0);
+      expect(setup.runner.createSandbox).toHaveBeenCalledWith(expect.objectContaining({
+        durableMemoryEnabled: false, memory: { mode: "native", citations: "auto" },
+      }));
     },
   );
 

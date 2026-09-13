@@ -21,6 +21,7 @@
     "test:modules:config": "node --test scripts/testing/test-modules.test.mjs",
     "test:matrix:summary": "node scripts/testing/render-test-matrix.mjs",
     "test:e2e:live": "node --env-file-if-exists=.env scripts/testing/live-hermes-golden-path.mjs",
+    "test:e2e:native-memory": "node scripts/testing/live-native-memory.mjs",
     "test:e2e:expert-agents": "node --env-file-if-exists=.env scripts/testing/live-expert-agent-release0.mjs",
     "test:e2e:expert-agents:preflight": "node --env-file-if-exists=.env scripts/testing/live-expert-agent-release0.mjs --preflight",
     "test:e2e:expert-agents:configure-model": "node --env-file-if-exists=.env scripts/testing/configure-live-expert-agent-model.mjs",

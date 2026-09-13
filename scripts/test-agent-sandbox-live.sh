@@ -51,7 +51,7 @@ for attempt in {1..15}; do
   sleep 2
 done
 cli sandbox create --name "$sandbox_name" \
-  --from ghcr.io/nvidia/nemoclaw/sandbox-base:v0.0.114 --cpu 500m --memory 1Gi \
+  --from ghcr.io/nvidia/nemoclaw/sandbox-base:v0.0.123 --cpu 500m --memory 1Gi \
   --no-tty --no-auto-providers -- sh -c 'echo agent-sandbox-v1.0.2 > /sandbox/compat-marker'
 k wait sandbox/"$resource_name" --for=condition=Ready --timeout=120s
 k get sandbox "$resource_name" -o json | jq -e '

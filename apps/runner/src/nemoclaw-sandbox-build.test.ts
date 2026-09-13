@@ -7,10 +7,6 @@ import { afterEach, describe, expect, it } from "vitest";
 const temporaryDirectories: string[] = [];
 const repositoryRoot = resolve(import.meta.dirname, "../../..");
 const buildScript = join(repositoryRoot, "scripts/build-nemoclaw-sandbox.sh");
-const deepAgentsProfilePatchScript = join(
-  repositoryRoot,
-  "scripts/patch-nemoclaw-deepagents-kubernetes-profile.mjs",
-);
 const deepAgentsInferencePatchScript = join(
   repositoryRoot,
   "scripts/patch-nemoclaw-deepagents-provider-v2-inference.mjs",
@@ -23,17 +19,6 @@ const deepAgentsWrapper = join(
   repositoryRoot,
   "infra/docker/Dockerfile.nemoclaw-deepagents",
 );
-const upstreamDeepAgentsVerifier = `verify_dcode_login_profile() {
-  [ -d /sandbox ] \\
-    && [ ! -L /sandbox ] \\
-    && [ -f "$NEMOCLAW_DCODE_LOGIN_PROFILE_SOURCE" ] \\
-    && [ ! -L "$NEMOCLAW_DCODE_LOGIN_PROFILE_SOURCE" ] \\
-    && [ "$(stat -c '%U:%G:%a' "$NEMOCLAW_DCODE_LOGIN_PROFILE_SOURCE" 2>/dev/null || true)" = "root:root:444" ] \\
-    && [ ! -L /sandbox/.bash_profile ] \\
-    && [ "$(stat -c '%U:%G:%a' /sandbox 2>/dev/null || true)" = "root:sandbox:1775" ] \\
-    && [ "$(stat -c '%U:%G:%a' /sandbox/.bash_profile 2>/dev/null || true)" = "root:root:444" ] \\
-    && cmp -s "$NEMOCLAW_DCODE_LOGIN_PROFILE_SOURCE" /sandbox/.bash_profile
-}`;
 const upstreamManagedInferenceFunction = `def managed_inference_base_url() -> str:
     """Read and validate the root-owned inference route baked into the image."""
     path = _INFERENCE_BASE_URL_FILE
@@ -143,15 +128,15 @@ exit 0
     expect(result.status, result.stderr).toBe(0);
     const commands = (await readFile(log, "utf8")).trim().split("\n");
     const builds = commands.filter((line) => line.startsWith("build "));
-    const upstreamImage = "tali-nemoclaw-openclaw-upstream:0.0.114";
+    const upstreamImage = "tali-nemoclaw-openclaw-upstream:0.0.123";
 
     expect(commands[0]).toBe(
-      "pull ghcr.io/nvidia/nemoclaw/sandbox-base:v0.0.114",
+      "pull ghcr.io/nvidia/nemoclaw/sandbox-base:v0.0.123",
     );
     expect(builds).toHaveLength(2);
     expect(builds[0]).toMatch(/^build --pull --file .*\/Dockerfile /);
     expect(builds[0]).toContain(
-      "--build-arg BASE_IMAGE=ghcr.io/nvidia/nemoclaw/sandbox-base:v0.0.114",
+      "--build-arg BASE_IMAGE=ghcr.io/nvidia/nemoclaw/sandbox-base:v0.0.123",
     );
     expect(builds[0]).toContain(`--tag ${upstreamImage}`);
     expect(builds[1]).toBe(
@@ -269,7 +254,7 @@ exit 0
     const runtimeFixture = join(root, "managed-dcode-runtime.py");
     const configPatchFixture = join(root, "patch-managed-deepagents-code.py");
     await mkdir(bin);
-    await writeFile(startFixture, `${upstreamDeepAgentsVerifier}\n`, "utf8");
+    await writeFile(startFixture, "#!/usr/bin/env bash\nexec dcode\n", "utf8");
     await writeFile(runtimeFixture, upstreamManagedRuntimeFixture, "utf8");
     await writeFile(configPatchFixture, upstreamManagedConfigPatchFixture, "utf8");
 
@@ -317,82 +302,21 @@ exit 0
     expect(result.status, result.stderr).toBe(0);
     const commands = (await readFile(log, "utf8")).trim().split("\n");
     const builds = commands.filter((line) => line.startsWith("build "));
-    const upstreamImage = "tali-nemoclaw-deepagents-upstream:0.0.114";
+    const upstreamImage = "tali-nemoclaw-deepagents-upstream:0.0.123";
 
     expect(commands[0]).toBe(
-      "pull ghcr.io/nvidia/nemoclaw/langchain-deepagents-code-sandbox-base:v0.0.114",
+      "pull ghcr.io/nvidia/nemoclaw/langchain-deepagents-code-sandbox-base:v0.0.123",
     );
     expect(builds).toHaveLength(2);
     expect(builds[0]).toMatch(
       /^build --pull --file .*\/agents\/langchain-deepagents-code\/Dockerfile /,
     );
     expect(builds[0]).toContain(
-      "--build-arg BASE_IMAGE=ghcr.io/nvidia/nemoclaw/langchain-deepagents-code-sandbox-base:v0.0.114",
+      "--build-arg BASE_IMAGE=ghcr.io/nvidia/nemoclaw/langchain-deepagents-code-sandbox-base:v0.0.123",
     );
     expect(builds[0]).toContain(`--tag ${upstreamImage}`);
     expect(builds[1]).toBe(
       `build --file ${deepAgentsWrapper} --build-arg BASE_IMAGE=${upstreamImage} --tag ${finalImage} ${repositoryRoot}`,
-    );
-  });
-});
-
-describe("NemoClaw Deep Agents Kubernetes profile patch", () => {
-  it("adds the scoped OpenShell workspace verifier without removing the upstream verifier", async () => {
-    const root = await mkdtemp(join(tmpdir(), "tali-deepagents-profile-patch-"));
-    temporaryDirectories.push(root);
-    const target = join(root, "start.sh");
-    await writeFile(target, `before\n${upstreamDeepAgentsVerifier}\nafter\n`, "utf8");
-
-    const result = spawnSync(process.execPath, [deepAgentsProfilePatchScript, target], {
-      encoding: "utf8",
-    });
-
-    expect(result.status, result.stderr).toBe(0);
-    const patched = await readFile(target, "utf8");
-    expect(patched).toContain("verify_tali_kubernetes_dcode_login_profile");
-    expect(patched).toContain('[ -n "${OPENSHELL_SANDBOX:-}" ]');
-    expect(patched).toContain('= "$current_uid:$current_gid:2777"');
-    expect(patched).toContain('= "root:sandbox:1775"');
-    expect(patched).toContain(
-      'cmp -s "$NEMOCLAW_DCODE_LOGIN_PROFILE_SOURCE" /sandbox/.bash_profile',
-    );
-  });
-
-  it("fails closed when upstream changes the verifier or already includes the compatibility path", async () => {
-    const root = await mkdtemp(join(tmpdir(), "tali-deepagents-profile-drift-"));
-    temporaryDirectories.push(root);
-    const drifted = join(root, "drifted.sh");
-    const patched = join(root, "patched.sh");
-    await writeFile(
-      drifted,
-      upstreamDeepAgentsVerifier.replace("root:sandbox:1775", "root:sandbox:1755"),
-      "utf8",
-    );
-    await writeFile(patched, `${upstreamDeepAgentsVerifier}\n`, "utf8");
-
-    const driftResult = spawnSync(
-      process.execPath,
-      [deepAgentsProfilePatchScript, drifted],
-      { encoding: "utf8" },
-    );
-    expect(driftResult.status).not.toBe(0);
-    expect(driftResult.stderr).toContain(
-      "expected one upstream DCode login-profile verifier, found 0",
-    );
-
-    expect(
-      spawnSync(process.execPath, [deepAgentsProfilePatchScript, patched], {
-        encoding: "utf8",
-      }).status,
-    ).toBe(0);
-    const duplicateResult = spawnSync(
-      process.execPath,
-      [deepAgentsProfilePatchScript, patched],
-      { encoding: "utf8" },
-    );
-    expect(duplicateResult.status).not.toBe(0);
-    expect(duplicateResult.stderr).toContain(
-      "compatibility path is already present",
     );
   });
 });

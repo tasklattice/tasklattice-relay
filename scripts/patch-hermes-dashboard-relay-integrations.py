@@ -38,7 +38,9 @@ _RELAY_REGISTRIES = {
 
 def _normalized_relay_integrations(gateway: dict) -> dict:
     """Return only Relay-owned tool, plugin, and scoped registry settings."""
-    toolsets = gateway.get("toolsets")
+    # Hermes defaults to its built-in CLI tools when no optional Relay
+    # integrations were selected. Native Memory does not require a registry.
+    toolsets = gateway.get("toolsets", ["hermes-cli"])
     plugins = gateway.get("plugins")
     if (
         not isinstance(toolsets, list)

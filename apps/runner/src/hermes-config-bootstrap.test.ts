@@ -28,6 +28,65 @@ afterEach(async () => {
 });
 
 describe("Hermes config bootstrap", () => {
+  it("seeds the native Hermes Dashboard without optional Relay tool registries", () => {
+    const patch = resolve(import.meta.dirname, "../../../scripts/patch-hermes-dashboard-relay-integrations.py");
+    const program = `
+from __future__ import annotations
+import importlib.util
+import sys
+spec = importlib.util.spec_from_file_location("integrations_patch", sys.argv[1])
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+scope = {"InvalidDashboardSeedDocumentError": ValueError}
+source = module.FUNCTION_REPLACEMENT
+exec(source[source.index("_RELAY_TOOLSETS ="):source.index("def _set_policy_value")], scope)
+normalize = scope["_normalized_relay_integrations"]
+assert normalize({"plugins": {"enabled": ["nemoclaw", "tali-run-telemetry"]}}) == {
+    "toolsets": ["hermes-cli"], "plugins": ["nemoclaw", "tali-run-telemetry"]}
+for toolsets in (None, [], ["unapproved"]):
+    try:
+        normalize({"toolsets": toolsets, "plugins": {"enabled": ["tali-run-telemetry"]}})
+    except ValueError:
+        pass
+    else:
+        raise AssertionError(f"invalid tools accepted: {toolsets}")
+`;
+    const result = spawnSync("python3", ["-c", program, patch], { encoding: "utf8" });
+    expect(result.status, result.stderr).toBe(0);
+  });
+
+  it("allows native and Relay Dashboard memory while rejecting unknown providers and invalid flags", () => {
+    const patch = resolve(import.meta.dirname, "../../../scripts/patch-hermes-dashboard-relay-memory.py");
+    const program = `
+from __future__ import annotations
+import importlib.util
+import sys
+spec = importlib.util.spec_from_file_location("memory_patch", sys.argv[1])
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+scope = {"InvalidDashboardSeedDocumentError": ValueError}
+source = module.FUNCTION_REPLACEMENT
+exec(source[source.index("def _normalized_relay_memory"):source.index("def _set_policy_value")], scope)
+normalize = scope["_normalized_relay_memory"]
+assert normalize({}) is None
+for provider in (None, "", "tali_relay"):
+    memory = {"memory_enabled": True, "user_profile_enabled": True}
+    if provider is not None:
+        memory["provider"] = provider
+    result = normalize({"memory": memory})
+    assert result == {**memory, "provider": provider or ""}
+for memory in ({"provider": "unknown"}, {"memory_enabled": "true"}, []):
+    try:
+        normalize({"memory": memory})
+    except ValueError:
+        pass
+    else:
+        raise AssertionError(f"invalid memory accepted: {memory}")
+`;
+    const result = spawnSync("python3", ["-c", program, patch], { encoding: "utf8" });
+    expect(result.status, result.stderr).toBe(0);
+  });
+
   it("enables the bundled Run telemetry plugin", () => {
     const program = `
 import importlib.util
@@ -52,6 +111,25 @@ print(json.dumps(document))
         disabled: ["other"],
       },
     });
+  });
+
+  it("enables built-in text memory without an external provider or embedding model", () => {
+    const program = `
+import importlib.util
+import json
+import sys
+spec = importlib.util.spec_from_file_location("tali_bootstrap", sys.argv[1])
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+document = {"memory": {"provider": "tali_relay", "memory_enabled": False, "memory_char_limit": 4000}}
+module.configure_native_memory(document)
+print(json.dumps(document))
+`;
+    const result = spawnSync("python3", ["-c", program, bootstrap], { encoding: "utf8" });
+    expect(result.status, result.stderr).toBe(0);
+    expect(JSON.parse(result.stdout)).toEqual({ memory: {
+      provider: "", memory_enabled: true, user_profile_enabled: true, memory_char_limit: 4000,
+    } });
   });
 
   it("selects Relay's scoped MemoryProvider without persisting Runtime credentials", () => {

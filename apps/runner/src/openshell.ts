@@ -870,7 +870,7 @@ export function openShellSandboxCreateArguments(
   const runtime = getAgentPlatformRuntime(input.agentPlatform);
   const capabilities = getAgentPlatformDefinition(input.agentPlatform)
     .capabilities;
-  const nemoClawVersion = (process.env.NEMOCLAW_VERSION ?? "0.0.114")
+  const nemoClawVersion = (process.env.NEMOCLAW_VERSION ?? "0.0.123")
     .replace(/^v/, "");
   const cpuLimit = input.sandboxResources?.cpu
     ?? process.env.OPENSHELL_SANDBOX_CPU

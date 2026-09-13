@@ -289,7 +289,8 @@ export class InstanceService {
     const durableMemoryAvailable = durableMemoryEnabled
       && embeddingModelAvailable;
     const memoryConfiguration = input.memory
-      ?? (durableRuntime && !durableMemoryAvailable
+      ?? ((!durableRuntime || !durableMemoryAvailable)
+        && getAgentPlatformDefinition(input.agentPlatform).capabilities.memory !== "none"
         ? defaultNativeAgentMemoryConfiguration
         : undefined);
     await this.resolveMemory(

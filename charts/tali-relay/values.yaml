@@ -313,7 +313,7 @@ runner:
 # Gateway resources and pull Secrets reuse their openshell.* values.
 projectOpenShell:
   enabled: false
-  nemoclawVersion: 0.0.114
+  nemoclawVersion: 0.0.123
   releaseName: openshell
   serviceNamePrefix: openshell-
   helmChart: /opt/tali/helm/openshell.tgz
@@ -644,9 +644,9 @@ openshell:
       cpu: "1"
       memory: 1Gi
   server:
-    # NemoClaw v0.0.114 declares OpenShell 0.0.106 as its supported runtime.
+    # NemoClaw v0.0.123 declares OpenShell 0.0.106 as its supported runtime.
     # Use the matching versioned NemoClaw base instead of a moving :latest tag.
-    sandboxImage: ghcr.io/nvidia/nemoclaw/sandbox-base:v0.0.114
+    sandboxImage: ghcr.io/nvidia/nemoclaw/sandbox-base:v0.0.123
     sandboxImagePullPolicy: IfNotPresent
     sandboxImagePullSecrets: []
     telemetryEnabled: false

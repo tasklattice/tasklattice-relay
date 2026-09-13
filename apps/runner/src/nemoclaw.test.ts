@@ -224,7 +224,7 @@ describe("OpenShell Kubernetes command contract", () => {
     expect(args).toContain("ghcr.io/tasklattice/tali-nemoclaw-sandbox:dev");
     expect(args).toContain("tali.ai/managed=true");
     expect(args).toContain("tali.io/runtime-provider=nemoclaw");
-    expect(args).toContain("tali.io/nemoclaw-version=0.0.114");
+    expect(args).toContain("tali.io/nemoclaw-version=0.0.123");
     expect(args).toContain(
       "/tmp/AGENTS.md:/sandbox/.openclaw/workspace/AGENTS.md",
     );
@@ -258,7 +258,7 @@ describe("OpenShell Kubernetes command contract", () => {
   });
 
   it("normalizes a release-tag NemoClaw version in the Sandbox label", () => {
-    vi.stubEnv("NEMOCLAW_VERSION", "v0.0.114");
+    vi.stubEnv("NEMOCLAW_VERSION", "v0.0.123");
     try {
       const args = openShellSandboxCreateArguments(
         input,
@@ -267,8 +267,8 @@ describe("OpenShell Kubernetes command contract", () => {
         "/tmp/openshell-policy.yaml",
       );
 
-      expect(args).toContain("tali.io/nemoclaw-version=0.0.114");
-      expect(args).not.toContain("tali.io/nemoclaw-version=v0.0.114");
+      expect(args).toContain("tali.io/nemoclaw-version=0.0.123");
+      expect(args).not.toContain("tali.io/nemoclaw-version=v0.0.123");
     } finally {
       vi.unstubAllEnvs();
     }
@@ -711,6 +711,14 @@ describe("OpenShell Kubernetes command contract", () => {
     ).toString("base64"));
     expect(bootstrap).not.toContain("bankId");
     expect(bootstrap).not.toContain("providerRef");
+  });
+
+  it("uses Deep Agents' native memory path rather than OpenClaw memory instructions", () => {
+    const instructions = agentMemoryInstructions({ mode: "native", citations: "auto" }, "deepagents");
+    expect(instructions).toContain("/sandbox/.deepagents/agent/AGENTS.md");
+    expect(instructions).toContain("no embedding model is required");
+    expect(instructions).not.toContain("OpenClaw");
+    expect(instructions).not.toContain("MEMORY.md");
   });
 
   it("configures Hybrid Memory through the Instance LiteLLM endpoint", () => {

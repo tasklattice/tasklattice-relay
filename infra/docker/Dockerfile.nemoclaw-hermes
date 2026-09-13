@@ -1,7 +1,7 @@
 ARG BASE_IMAGE=tali-nemoclaw-hermes-upstream:local
 FROM ${BASE_IMAGE}
 
-# NemoClaw v0.0.114 already has 124 filesystem layers. Stage every Relay
+# NemoClaw v0.0.123 already has 124 filesystem layers. Stage every Relay
 # overlay input in one layer, then install it together with the identity fix so
 # the final image remains runnable by containerd/OrbStack's 127-layer limit.
 COPY scripts/bootstrap-hermes-config.py \

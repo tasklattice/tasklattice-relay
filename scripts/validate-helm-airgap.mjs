@@ -12,7 +12,7 @@ const chartPath = process.env.TALI_CHART_PATH ?? "charts/tali-relay";
 const expectedRegistry = "registry.airgap.example.com/";
 const expectedPullSecret = "airgap-registry";
 const expectedOpenShellVersion = process.env.OPENSHELL_VERSION ?? "0.0.106";
-const expectedNemoClawVersion = process.env.NEMOCLAW_VERSION ?? "v0.0.114";
+const expectedNemoClawVersion = process.env.NEMOCLAW_VERSION ?? "v0.0.123";
 const forbiddenRegistries = [
   "docker.io/",
   "ghcr.io/",
