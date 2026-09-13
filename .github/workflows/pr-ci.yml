@@ -209,6 +209,13 @@ jobs:
       - uses: ./.github/actions/setup-node-workspace
       - name: Build shared contracts
         run: npm run build --workspace @tali/contracts
+      - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+        if: matrix.module == 'openshell-isolation'
+        with:
+          version: v3.18.4
+      - name: Prepare OpenShell chart for ownership tests
+        if: matrix.module == 'openshell-isolation'
+        run: npm run helm:dependencies
       - name: Prepare Hermes proxy test environment
         if: matrix.module == 'runtime-integrations'
         shell: bash
