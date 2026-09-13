@@ -78,6 +78,8 @@ jobs:
               - 'package.json'
               - 'package-lock.json'
               - 'apps/example-mcp-server/**'
+              - 'packages/contracts/**'
+              - 'apps/expert-agent-runtime/**'
               - 'apps/control/server/agent-garden/**'
               - 'apps/control/server/runtime-bridge/project-agent-runtime-service.ts'
               - 'apps/runner/src/hermes-a2a-plugin*'

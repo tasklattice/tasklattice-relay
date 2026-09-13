@@ -40,7 +40,7 @@ function removeNetwork(name) {
 
 function embeddingFor(value) {
   const digest = createHash("sha256").update(String(value)).digest();
-  const vector = Array.from({ length:  Dimensions }, (_, index) => {
+  const vector = Array.from({ length: embeddingDimensions }, (_, index) => {
     const byte = digest[index % digest.length];
     return ((byte ?? 128) - 127.5) / 127.5;
   });
@@ -78,8 +78,7 @@ async function startEmbeddingServer() {
         requestCount += 1;
         const body = await readJson(request);
         const inputs = Array.isArray(body.input) ? body.input : [body.input ?? ""];
-        response.writeHead(200, { "Content-Type": "application/json" });
-        response.end(JSON.stringify({
+        const payload = JSON.stringify({
           object: "list",
           model: body.model ?? "integration-embedding",
           data: inputs.map((input, index) => ({
@@ -88,7 +87,9 @@ async function startEmbeddingServer() {
             embedding: embeddingFor(input),
           })),
           usage: { prompt_tokens: inputs.length, total_tokens: inputs.length },
-        }));
+        });
+        response.writeHead(200, { "Content-Type": "application/json" });
+        response.end(payload);
         return;
       }
       if (request.method === "GET" && url.pathname === "/v1/models") {
@@ -102,6 +103,10 @@ async function startEmbeddingServer() {
       response.writeHead(404, { "Content-Type": "application/json" });
       response.end(JSON.stringify({ error: { message: "Not found" } }));
     })().catch((error) => {
+      if (response.headersSent) {
+        response.destroy(error);
+        return;
+      }
       response.writeHead(500, { "Content-Type": "application/json" });
       response.end(JSON.stringify({ error: { message: String(error) } }));
     });

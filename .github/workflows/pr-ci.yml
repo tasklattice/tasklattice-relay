@@ -59,6 +59,7 @@ jobs:
               - 'tsconfig.base.json'
               - 'packages/contracts/**'
               - 'apps/control/**'
+              - 'apps/expert-agent-runtime/**'
               - 'artifacts/skills/**'
               - 'scripts/package-vendor-skills.py'
             runner:
@@ -84,6 +85,8 @@ jobs:
               - 'package-lock.json'
               - 'tsconfig.base.json'
               - 'apps/example-mcp-server/**'
+              - 'packages/contracts/**'
+              - 'apps/expert-agent-runtime/**'
             litellm:
               - '.dockerignore'
               - '.github/workflows/pr-ci.yml'
@@ -151,6 +154,8 @@ jobs:
         run: npm run build --workspace @tali/contracts
       - name: Verify packaged Skill artifacts
         run: npm run skills:check
+      - name: Build shared runtime
+        run: npm run build --workspace @tali/expert-agent-runtime
       - name: Typecheck control
         run: npm run typecheck --workspace @tali/control
       - name: Build control
@@ -240,6 +245,8 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/setup-node-workspace
+      - name: Build shared dependencies
+        run: npm run build:shared
       - name: Test example MCP server
         run: npm run test --workspace @tali/example-mcp-server
       - name: Typecheck example MCP server

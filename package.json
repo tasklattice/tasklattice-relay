@@ -15,7 +15,7 @@
     "dev": "npm run dev --workspace @tali/control",
     "dev:control": "npm run dev --workspace @tali/control",
     "dev:runner": "npm run dev --workspace @tali/runner",
-    "pretest": "npm run build --workspace @tali/contracts",
+    "pretest": "npm run build:shared",
     "test": "npm run test --workspaces --if-present",
     "test:module": "node scripts/testing/run-test-module.mjs",
     "test:modules:config": "node --test scripts/testing/test-modules.test.mjs",
@@ -70,7 +70,11 @@
     "k8s:deploy:openshell": "npm run helm:deploy:dev",
     "k8s:delete": "npm run helm:delete:dev",
     "k8s:delete:openshell": "npm run helm:delete:dev",
-    "validate:core": "node --env-file-if-exists=.env scripts/validate-core-flow.mjs"
+    "validate:core": "node --env-file-if-exists=.env scripts/validate-core-flow.mjs",
+    "build:shared": "npm run build --workspace @tali/contracts && npm run build --workspace @tali/expert-agent-runtime",
+    "pretest:module": "npm run build:shared",
+    "pretest:matrix:summary": "npm run build:shared",
+    "pretest:integration:a2a": "npm run build:shared"
   },
   "devDependencies": {
     "yaml": "^2.8.1"
