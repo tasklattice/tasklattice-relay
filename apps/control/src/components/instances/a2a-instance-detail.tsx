@@ -1,11 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
-import type { A2aStandardAgentInstanceDetail } from "@tali/contracts";
+import type {
+  A2aStandardAgentInstanceDetail,
+  AgentInstanceRole,
+  ProjectAgentInstanceDetail,
+} from "@tali/contracts";
 import {
   ArrowLeft,
   ArrowRight,
   FileJson,
   MoreHorizontal,
+  PencilLine,
   RefreshCw,
   ShieldCheck,
   SquareTerminal,
@@ -45,7 +50,11 @@ import {
   InstanceWorkModeBadges,
 } from "./instance-agent-profile";
 
-function workProfileLabel(role: A2aStandardAgentInstanceDetail["role"]) {
+type ServiceAgentInstanceDetail =
+  | A2aStandardAgentInstanceDetail
+  | ProjectAgentInstanceDetail;
+
+function workProfileLabel(role: AgentInstanceRole) {
   if (role === "HYBRID") return "Coordination and specialist work profile";
   if (role === "SUPERVISOR") return "Coordination work profile";
   return "Specialist work profile";
@@ -58,7 +67,7 @@ function A2aHeader({
   onRefresh,
   onDelete,
 }: {
-  detail: A2aStandardAgentInstanceDetail;
+  detail: ServiceAgentInstanceDetail;
   canManage: boolean;
   refreshing: boolean;
   onRefresh: () => void;
@@ -92,6 +101,10 @@ function A2aHeader({
               <InstanceStatusBadge status={detail.status} />
             </div>
             <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+              <span>{detail.form === "SERVICE" ? "Service Agent" : detail.form === "INTERACTIVE" ? "Interactive Agent" : "Hybrid Agent"}</span>
+              <span aria-hidden="true">·</span>
+              <span>{detail.role === "SUPERVISOR" ? "Supervisor role" : detail.role === "SPECIALIST" ? "Specialist role" : "Hybrid role"}</span>
+              <span aria-hidden="true">·</span>
               <span>{detail.platform.name}</span>
               <span aria-hidden="true">·</span>
               <span>
@@ -100,7 +113,7 @@ function A2aHeader({
                   : "External runtime"}
               </span>
               <span aria-hidden="true">·</span>
-              <span>A2A 1.0</span>
+              <span>A2A {detail.protocols[0]?.direction.join(" + ") ?? "Server"}</span>
               <span aria-hidden="true">·</span>
               <span>
                 Updated <RelativeTime value={detail.updatedAt} />
@@ -115,16 +128,27 @@ function A2aHeader({
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2 pl-14 sm:pl-[7.5rem] lg:pl-0">
-          <Button
-            type="button"
-            variant="outline"
-            className="min-h-11"
-            disabled={!canManage || refreshing}
-            onClick={onRefresh}
-          >
-            <RefreshCw className={refreshing ? "animate-spin" : ""} />
-            {refreshing ? "Rediscovering…" : "Rediscover Agent Card"}
-          </Button>
+          {detail.kind === "PROJECT_AGENT" ? (
+            <Button asChild variant="outline" className="min-h-11">
+              <Link
+                to="/$projectId/agents/$agentId"
+                params={{ projectId, agentId: detail.definition.id }}
+              >
+                <PencilLine /> Open in Agent Developer
+              </Link>
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              variant="outline"
+              className="min-h-11"
+              disabled={!canManage || refreshing}
+              onClick={onRefresh}
+            >
+              <RefreshCw className={refreshing ? "animate-spin" : ""} />
+              {refreshing ? "Rediscovering…" : "Rediscover Agent Card"}
+            </Button>
+          )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" className="min-h-11">
@@ -132,23 +156,36 @@ function A2aHeader({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuItem asChild>
-                <Link
-                  to="/$projectId/agent-garden/$agentId"
-                  params={{ projectId, agentId: detail.definition.id }}
-                >
-                  <FileJson />
-                  View definition
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                className="text-destructive focus:text-destructive"
-                disabled={!canManage}
-                onSelect={onDelete}
-              >
-                <Trash2 /> Remove Instance
-              </DropdownMenuItem>
+              {detail.kind === "PROJECT_AGENT" ? (
+                <DropdownMenuItem asChild>
+                  <Link
+                    to="/$projectId/agents/$agentId"
+                    params={{ projectId, agentId: detail.definition.id }}
+                  >
+                    <PencilLine /> Open development workspace
+                  </Link>
+                </DropdownMenuItem>
+              ) : (
+                <>
+                  <DropdownMenuItem asChild>
+                    <Link
+                      to="/$projectId/agent-garden/$agentId"
+                      params={{ projectId, agentId: detail.definition.id }}
+                    >
+                      <FileJson />
+                      View definition
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    className="text-destructive focus:text-destructive"
+                    disabled={!canManage}
+                    onSelect={onDelete}
+                  >
+                    <Trash2 /> Remove Instance
+                  </DropdownMenuItem>
+                </>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -157,7 +194,7 @@ function A2aHeader({
   );
 }
 
-function A2aOverview({ detail }: { detail: A2aStandardAgentInstanceDetail }) {
+function A2aOverview({ detail }: { detail: ServiceAgentInstanceDetail }) {
   const projectId = useCurrentProjectId();
   const protocol = detail.protocols[0];
   const discoverable =
@@ -200,6 +237,7 @@ function A2aOverview({ detail }: { detail: A2aStandardAgentInstanceDetail }) {
         }
         facts={[
           { label: "Profile", value: workProfileLabel(detail.role) },
+          { label: "Product form", value: detail.form === "SERVICE" ? "Service Agent" : detail.form === "INTERACTIVE" ? "Interactive Agent" : "Hybrid Agent" },
           { label: "Advertised skills", value: protocol?.skills.length ?? 0 },
           { label: "Runtime", value: detail.runtimeView.type },
           { label: "Protocol", value: `A2A ${protocol?.version ?? "1.0"}` },
@@ -294,7 +332,7 @@ function A2aOverview({ detail }: { detail: A2aStandardAgentInstanceDetail }) {
 function A2aConfiguration({
   detail,
 }: {
-  detail: A2aStandardAgentInstanceDetail;
+  detail: ServiceAgentInstanceDetail;
 }) {
   const protocol = detail.protocols[0];
   return (
@@ -314,6 +352,8 @@ function A2aConfiguration({
               { label: "Agent name", value: detail.name },
               { label: "Description", value: detail.description || "—" },
               { label: "Work profile", value: workProfileLabel(detail.role) },
+              { label: "Product form", value: detail.form === "SERVICE" ? "Service Agent" : detail.form === "INTERACTIVE" ? "Interactive Agent" : "Hybrid Agent" },
+              { label: "Execution strategy", value: detail.executionStrategy ?? "Runtime-defined" },
               {
                 label: "Definition ID",
                 value: <CopyableValue value={detail.definition.id} />,
@@ -402,7 +442,7 @@ function A2aConfiguration({
 function A2aCapabilities({
   detail,
 }: {
-  detail: A2aStandardAgentInstanceDetail;
+  detail: ServiceAgentInstanceDetail;
 }) {
   const protocol = detail.protocols[0];
   return (
@@ -463,7 +503,7 @@ function A2aLogs({
   detail,
   canViewLogs,
 }: {
-  detail: A2aStandardAgentInstanceDetail;
+  detail: ServiceAgentInstanceDetail;
   canViewLogs: boolean;
 }) {
   const unavailableReason = !canViewLogs
@@ -472,8 +512,8 @@ function A2aLogs({
       ? "Relay can show stdout and stderr only for Agents hosted in its managed runtime."
       : detail.status !== "READY"
         ? "Runtime logs become available after the managed Agent is ready."
-        : !detail.runtimeView.podName
-          ? "The managed Agent Pod is not currently available."
+        : !detail.runtimeView.podName && !detail.runtimeView.workloadName
+          ? "The managed Agent workload is not currently available."
           : undefined;
 
   return (
@@ -482,10 +522,10 @@ function A2aLogs({
         title="Agent logs"
         description="Follow standard output and standard error for Agents hosted by Relay."
       />
-      {!unavailableReason && detail.runtimeView.podName ? (
+      {!unavailableReason && (detail.runtimeView.podName || detail.runtimeView.workloadName) ? (
         <AgentLiveLogs
           instanceId={detail.id}
-          podName={detail.runtimeView.podName}
+          podName={detail.runtimeView.podName ?? detail.runtimeView.workloadName!}
         />
       ) : (
         <Card>
@@ -535,7 +575,7 @@ export function A2aInstanceDetail({
   activeTab: InstanceDetailTab;
   canManage: boolean;
   canViewLogs: boolean;
-  detail: A2aStandardAgentInstanceDetail;
+  detail: ServiceAgentInstanceDetail;
 }) {
   const projectId = useCurrentProjectId();
   const scope = useProjectQueryScope();
@@ -549,16 +589,20 @@ export function A2aInstanceDetail({
     retry: 1,
     staleTime: 5_000,
   });
-  const observedDetail: A2aStandardAgentInstanceDetail = {
+  const observedDetail = {
     ...detail,
     instance: {
       ...detail.instance,
       logs: storedLogs.data?.logs ?? [],
       error: storedLogs.data?.error ?? null,
     },
-  };
+  } as ServiceAgentInstanceDetail;
   const refresh = useMutation({
-    mutationFn: () => api.discoverGardenAgent(detail.definition.id),
+    mutationFn: async () => {
+      if (detail.kind === "A2A") {
+        await api.discoverGardenAgent(detail.definition.id);
+      }
+    },
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({
@@ -569,10 +613,14 @@ export function A2aInstanceDetail({
     },
   });
   const remove = useMutation({
-    mutationFn: () =>
-      detail.definition.source === "BUILT_IN"
+    mutationFn: () => {
+      if (detail.kind !== "A2A") {
+        return Promise.reject(new Error("Project Agents are managed in Agent Developer."));
+      }
+      return detail.definition.source === "BUILT_IN"
         ? api.removeGardenInstance(detail.id)
-        : api.removeGardenAgent(detail.definition.id),
+        : api.removeGardenAgent(detail.definition.id);
+    },
     onSuccess: async () => {
       await queryClient.invalidateQueries({
         queryKey: scope.key("agent-garden"),
@@ -637,7 +685,7 @@ export function A2aInstanceDetail({
       {activeTab === "terminal" ? (
         <DisabledTerminal reason={terminal.disabledReason} />
       ) : null}
-      {canManage ? (
+      {canManage && detail.kind === "A2A" ? (
         <DeleteInstanceSheet
           open={deleteOpen}
           onOpenChange={setDeleteOpen}

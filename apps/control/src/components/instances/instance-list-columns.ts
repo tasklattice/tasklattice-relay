@@ -1,9 +1,11 @@
-export const INSTANCE_COLUMNS_STORAGE_KEY = "tali.instances.hidden-columns.v1";
+export const INSTANCE_COLUMNS_STORAGE_KEY = "tali.instances.hidden-columns.v2";
 
 export const instanceListColumns = [
+  { id: "source", label: "Source", track: "minmax(7rem,.7fr)" },
   { id: "runtime", label: "Runtime", track: "minmax(8rem,.9fr)" },
+  { id: "version", label: "Active version", track: "minmax(7rem,.7fr)" },
+  { id: "ownedBy", label: "Owned by", track: "minmax(8rem,.75fr)" },
   { id: "createdBy", label: "Created by", track: "minmax(8rem,.75fr)" },
-  { id: "createdAt", label: "Created", track: "minmax(7.5rem,.65fr)" },
   { id: "updatedAt", label: "Modified", track: "minmax(7.5rem,.65fr)" },
   { id: "status", label: "Status", track: "8rem" },
   { id: "access", label: "Access", track: "3.5rem" },

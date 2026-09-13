@@ -1,9 +1,12 @@
-{{- if and .Values.projectOpenShell.enabled (not .Values.runner.projectTargetRouting.enabled) -}}
-{{- fail "projectOpenShell.enabled requires runner.projectTargetRouting.enabled=true" -}}
+{{- if not .Values.projectOpenShell.enabled -}}
+{{- fail "Project Gateways are required: projectOpenShell.enabled must be true" -}}
 {{- end -}}
-{{- if and .Values.runner.projectTargetRouting.enabled (not .Values.projectRuntimeNamespaces.enabled) -}}
-{{- fail "runner.projectTargetRouting.enabled requires projectRuntimeNamespaces.enabled=true" -}}
+{{- if not .Values.runner.projectTargetRouting.enabled -}}
+{{- fail "Project routing is required: runner.projectTargetRouting.enabled must be true" -}}
 {{- end -}}
-{{- if and .Values.projectOpenShell.enabled .Values.openshell.enabled -}}
-{{- fail "projectOpenShell.enabled and the legacy shared openshell.enabled topology are mutually exclusive" -}}
+{{- if not .Values.projectRuntimeNamespaces.enabled -}}
+{{- fail "Project Namespaces are required: projectRuntimeNamespaces.enabled must be true" -}}
+{{- end -}}
+{{- if .Values.openshell.enabled -}}
+{{- fail "OpenShell is installed only in Project Namespaces; openshell.enabled must be false in the Control chart" -}}
 {{- end -}}

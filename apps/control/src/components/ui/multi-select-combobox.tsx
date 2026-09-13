@@ -28,6 +28,7 @@ type MultiSelectComboboxProps = {
   onValueChange: (value: string[]) => void;
   options: readonly MultiSelectOption[];
   placeholder?: string;
+  required?: boolean;
   searchPlaceholder?: string;
   value: readonly string[];
 };
@@ -45,6 +46,7 @@ export function MultiSelectCombobox({
   onValueChange,
   options,
   placeholder = "Select options…",
+  required = false,
   searchPlaceholder = "Filter by name…",
   value,
 }: MultiSelectComboboxProps) {
@@ -158,6 +160,7 @@ export function MultiSelectCombobox({
             aria-expanded={open}
             aria-haspopup="listbox"
             aria-label={ariaLabel}
+            aria-required={required}
             autoComplete="off"
             className="h-8 min-w-32 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed"
             disabled={disabled}

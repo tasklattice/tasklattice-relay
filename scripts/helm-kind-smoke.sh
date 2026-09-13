@@ -17,8 +17,8 @@ helm_timeout="${HELM_TIMEOUT:-30m}"
 chart_path="${HELM_CHART_PATH:-$repository_root/charts/tali-relay}"
 helm_dependencies_prepared="${HELM_DEPENDENCIES_PREPARED:-false}"
 
-if [[ "$operation" != "install" && "$operation" != "list-images" ]]; then
-  echo "Usage: $0 [install|list-images]" >&2
+if [[ "$operation" != "install" && "$operation" != "list-images" && "$operation" != "render" ]]; then
+  echo "Usage: $0 [install|list-images|render]" >&2
   exit 2
 fi
 
@@ -58,14 +58,23 @@ helm_values=(
   --set-string "images.deepagentsSandbox.tag=$image_tag" \
   --set "control.service.type=ClusterIP" \
   --set "litellm.service.type=ClusterIP" \
-  --set "openshell.service.type=ClusterIP"
+  --set "runner.projectTargetRouting.serviceProxy.type=ClusterIP"
 )
 
-if [[ "$operation" == "list-images" ]]; then
+render_chart() {
   helm template "$release_name" "$chart_path" \
     --namespace "$namespace" \
     --kube-version 1.32.0 \
-    "${helm_values[@]}" \
+    "${helm_values[@]}"
+}
+
+if [[ "$operation" == "render" ]]; then
+  render_chart
+  exit 0
+fi
+
+if [[ "$operation" == "list-images" ]]; then
+  render_chart \
     | sed -nE 's/^[[:space:]]*image:[[:space:]]*"?([^"[:space:]]+)"?[[:space:]]*$/\1/p' \
     | sort -u
   exit 0

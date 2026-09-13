@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createFileRoute,
@@ -41,7 +41,9 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { StatusDot } from "@/components/shared/status-dot";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { api } from "@/lib/api";
 import { formatPlatformDateTime } from "@/lib/platform-preferences";
 import { useCurrentProjectId } from "@/hooks/use-project";
@@ -80,6 +82,7 @@ function AgentMarketplaceDetail() {
     queryFn: api.getAgentGarden,
   });
   const [tryOpen, setTryOpen] = useState(false);
+  const [selectedVersionId, setSelectedVersionId] = useState("");
   const agent = garden.data?.agents.find(
     (candidate) => candidate.id === agentId,
   );
@@ -88,6 +91,14 @@ function AgentMarketplaceDetail() {
   );
   const brief = agent ? agentMarketplaceBrief(agent) : undefined;
   const preview = agent ? isPreviewAgent(agent) : false;
+  const versionBundle = agent?.distribution?.type === "VERSION_BUNDLE"
+    ? agent.distribution
+    : null;
+  useEffect(() => {
+    if (versionBundle && !selectedVersionId) {
+      setSelectedVersionId(versionBundle.defaultVersionId);
+    }
+  }, [selectedVersionId, versionBundle]);
   const workflow = parseStringArray(agent?.configuration.workflow);
   const exampleTasks = useMemo(
     () =>
@@ -111,7 +122,8 @@ function AgentMarketplaceDetail() {
   );
 
   const instantiate = useMutation({
-    mutationFn: api.instantiateGardenAgent,
+    mutationFn: ({ id, versionId }: { id: string; versionId?: string }) =>
+      api.instantiateGardenAgent(id, versionId),
     onSuccess: async (created) => {
       await queryClient.invalidateQueries({
         queryKey: scope.key("agent-garden"),
@@ -126,14 +138,17 @@ function AgentMarketplaceDetail() {
   const createInstance = () => {
     if (!agent) return;
     if (agent.integrationType === "a2a") {
-      if (instance) {
+      if (instance && agent.source !== "PROJECT_DEVELOPED") {
         void navigate({
           to: "/$projectId/instances/$instanceId",
           params: { projectId, instanceId: instance.id },
         });
         return;
       }
-      instantiate.mutate(agent.id);
+      instantiate.mutate({
+        id: agent.id,
+        ...(versionBundle ? { versionId: selectedVersionId || versionBundle.defaultVersionId } : {}),
+      });
       return;
     }
     if (!isAgentPlatformId(agent.integrationType)) return;
@@ -241,7 +256,9 @@ function AgentMarketplaceDetail() {
               </strong>
               <span aria-hidden="true"> · </span>
               Version{" "}
-              {agent.configuration.marketplaceVersion ?? "1.0.0"}
+              {versionBundle
+                ? `v${versionBundle.versions.find((version) => version.id === versionBundle.defaultVersionId)?.versionNumber ?? 1}`
+                : agent.configuration.marketplaceVersion ?? "1.0.0"}
               <span aria-hidden="true"> · </span>
               Updated{" "}
               {agent.updatedAt
@@ -253,8 +270,10 @@ function AgentMarketplaceDetail() {
 
         <MarketplaceActions
           agent={agent}
-          canManage={permissions.canManageResources}
+          canManage={permissions.canManageResources || agent.source === "PROJECT_DEVELOPED"}
           instanceId={instance?.id}
+          selectedVersionId={selectedVersionId}
+          onSelectVersion={setSelectedVersionId}
           onCreateInstance={createInstance}
           onTry={() => setTryOpen(true)}
         />
@@ -438,16 +457,23 @@ function MarketplaceActions({
   agent,
   canManage,
   instanceId,
+  onSelectVersion,
   onCreateInstance,
   onTry,
+  selectedVersionId,
 }: {
   agent: AgentGardenEntry;
   canManage: boolean;
   instanceId: string | undefined;
+  onSelectVersion: (versionId: string) => void;
   onCreateInstance: () => void;
   onTry: () => void;
+  selectedVersionId: string;
 }) {
   const projectId = useCurrentProjectId();
+  const versionBundle = agent.distribution?.type === "VERSION_BUNDLE"
+    ? agent.distribution
+    : null;
   return (
     <div className="border bg-muted/15 p-4">
       <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
@@ -461,6 +487,17 @@ function MarketplaceActions({
         )}
       </div>
       <div className="mt-4 grid gap-2">
+        {versionBundle ? (
+          <div className="mb-2 space-y-2">
+            <Label htmlFor="garden-version">Version</Label>
+            <Select value={selectedVersionId || versionBundle.defaultVersionId} onValueChange={onSelectVersion}>
+              <SelectTrigger id="garden-version" className="h-11 w-full"><SelectValue /></SelectTrigger>
+              <SelectContent>{versionBundle.versions.map((version) => (
+                <SelectItem key={version.id} value={version.id}>v{version.versionNumber} · {version.instanceCount} instance{version.instanceCount === 1 ? "" : "s"}</SelectItem>
+              ))}</SelectContent>
+            </Select>
+          </div>
+        ) : null}
         {instanceId ? (
           <Button asChild variant="outline" className="h-11 w-full">
             <Link
@@ -471,14 +508,14 @@ function MarketplaceActions({
             </Link>
           </Button>
         ) : null}
-        {agent.usageCapabilities.acceptsDelegation && !instanceId ? (
+        {agent.usageCapabilities.acceptsDelegation && (!instanceId || agent.source === "PROJECT_DEVELOPED") ? (
           <Button
             type="button"
             className="h-11 w-full"
             disabled={!canManage || agent.status !== "READY"}
             onClick={onCreateInstance}
           >
-            Create Instance <ArrowRight />
+            {agent.source === "PROJECT_DEVELOPED" ? "Release Instance" : "Create Instance"} <ArrowRight />
           </Button>
         ) : null}
         {isPreviewAgent(agent) ? (
@@ -507,8 +544,8 @@ function MarketplaceActions({
         ) : null}
       </div>
       <p className="mt-3 text-xs leading-5 text-muted-foreground">
-        READY callable Instances are automatically discoverable by compatible
-        Supervisors in this Project through the Runtime Bridge.
+        Release creates a running Instance pinned to the selected published Version.
+        READY callable Instances are discoverable through the Project Runtime Bridge.
       </p>
     </div>
   );

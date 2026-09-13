@@ -16,7 +16,6 @@ import {
 } from "lucide-react";
 import { ProviderIcon } from "./provider-icon";
 import { useInferenceManagement } from "./inference-management-context";
-import { DataBoundaryLabel } from "@/components/shared/data-boundary-label";
 import { DeleteEntitySheet } from "@/components/shared/delete-entity-sheet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -70,7 +69,7 @@ export function ProviderManagement({
           </div>
           <p className="mt-1 max-w-2xl text-xs leading-5 text-muted-foreground">
             Configured model sources owned by this {scopeLabel}. Each Provider
-            supplies credentials, an endpoint, and a data boundary for its
+            supplies credentials and an endpoint for its
             registered models.
           </p>
         </div>
@@ -115,7 +114,6 @@ export function ProviderManagement({
                   <th className="px-4 py-2.5 font-medium">Endpoint</th>
                   <th className="px-4 py-2.5 font-medium">Registered models</th>
                   <th className="px-4 py-2.5 font-medium">Status</th>
-                  <th className="px-4 py-2.5 font-medium">Boundary</th>
                   <th className="w-14">
                     <span className="sr-only">Actions</span>
                   </th>
@@ -147,9 +145,6 @@ export function ProviderManagement({
                       </td>
                       <td className="px-4 py-3">
                         <ProviderStatus status={account.status} />
-                      </td>
-                      <td className="px-4 py-3 text-xs">
-                        <DataBoundaryLabel domain={account.complianceDomain} />
                       </td>
                       <td className="px-2 py-3">
                         <ProviderActions
@@ -195,10 +190,7 @@ export function ProviderManagement({
                   </p>
                   <div className="flex items-center justify-between border-t pt-3 text-xs">
                     <ProviderStatus status={account.status} />
-                    <DataBoundaryLabel
-                      className="text-muted-foreground"
-                      domain={account.complianceDomain}
-                    />
+
                   </div>
                 </article>
               );
@@ -357,18 +349,9 @@ function ProviderIdentity({ account }: { account: ProviderAccount }) {
 }
 
 function ProviderEndpoint({ account }: { account: ProviderAccount }) {
-  let host = account.endpoint;
-  try {
-    host = new URL(account.endpoint).host;
-  } catch {
-    // Preserve the configured value when it is not a URL-shaped endpoint.
-  }
   return (
-    <span className="min-w-0 text-xs">
-      <span className="block truncate font-mono">{host}</span>
-      <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">
-        {account.endpointRegion}
-      </span>
+    <span className="block min-w-0 max-w-sm text-sm">
+      <span className="block break-all">{account.endpoint}</span>
       {account.skipTlsVerify ? (
         <span className="mt-1 block text-[11px] font-medium text-amber-700 dark:text-amber-300">
           TLS verification disabled

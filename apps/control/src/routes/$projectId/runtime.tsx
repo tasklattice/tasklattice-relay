@@ -114,7 +114,7 @@ function OpenShellRuntimePage() {
               <EmptyState
                 icon={Box}
                 title="No Sandboxes observed"
-                description="Create an Instance to provision its Sandbox boundary."
+                description="Create a Supervisor to provision its Sandbox boundary."
               />
             )}
           </CardContent>

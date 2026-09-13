@@ -1,5 +1,5 @@
 import { PatchStrategy, type V1Namespace } from "@kubernetes/client-node";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { KubernetesProjectNamespaceClient } from "./project-namespace-client";
 
 function apiError(code: number, message: string) {
@@ -49,6 +49,28 @@ const input = {
 };
 
 describe("KubernetesProjectNamespaceClient", () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("adds deployment-configured Argo visibility to an existing Project without recreating it", async () => {
+    vi.stubEnv("PROJECT_ARGOCD_SOURCE_TRACKING_ID", "relay:apps/Deployment:tali/relay-control");
+    vi.stubEnv("PROJECT_ARGOCD_INSTALLATION_ID", "internal");
+    const fake = client();
+    await fake.client.reconcile(input);
+    expect(fake.core.createNamespace).not.toHaveBeenCalled();
+    expect(fake.core.deleteNamespace).not.toHaveBeenCalled();
+    expect(fake.objects.patch).toHaveBeenCalledWith(expect.objectContaining({
+      metadata: expect.objectContaining({
+        name: input.namespace,
+        annotations: expect.objectContaining({
+          "argocd.argoproj.io/tracking-id": "relay:apps/Deployment:tali/relay-control",
+          "argocd.argoproj.io/installation-id": "internal",
+          "argocd.argoproj.io/sync-options": "Prune=false,Delete=false",
+        }),
+      }),
+    }), undefined, undefined, "tali-control-project-runtime", false, PatchStrategy.ServerSideApply);
+    expect(fake.objects.patch.mock.calls[0]?.[0]?.metadata?.ownerReferences).toBeUndefined();
+  });
+
   it("creates a missing Namespace through the typed Core API", async () => {
     const fake = client({
       readNamespace: vi.fn(async () => {

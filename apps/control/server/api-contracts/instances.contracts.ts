@@ -5,6 +5,7 @@ import {
   createTerminalSessionInputSchema,
   updateAccessPolicySchema,
   updateInstanceAccessPoliciesSchema,
+  runtimeInventoryResponseSchema,
 } from "@tali/contracts";
 import { z } from "zod";
 import { defineContracts } from "./contract";
@@ -88,6 +89,11 @@ export const instanceContracts = defineContracts([
     method: "get", path: "/access-policies/{policyId}/versions", operationId: "listAccessPolicyVersions",
     summary: "List access policy versions", tags: ["Access policies"], request: { params: accessPolicyParamsSchema },
     responses: { 200: response("Access policy versions", z.object({ data: domainCollectionSchema })) },
+  }),
+  projectRoute({
+    method: "get", path: "/runtime-inventory", operationId: "listRuntimeInventory",
+    summary: "List the unified Project Runtime Inventory", tags: ["Instances"],
+    responses: { 200: response("Unified Runtime Inventory", runtimeInventoryResponseSchema) },
   }),
   projectRoute({
     method: "get", path: "/instances", operationId: "listInstances",

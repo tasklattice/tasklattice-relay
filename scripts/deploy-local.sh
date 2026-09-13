@@ -75,32 +75,41 @@ fi
 if [[ "$action" == "delete" ]]; then
   if helm --kube-context "$kube_context" --namespace "$namespace" status "$release_name" >/dev/null 2>&1; then
     helm --kube-context "$kube_context" --namespace "$namespace" uninstall "$release_name"
+    kubectl --context "$kube_context" --namespace "$namespace" delete secret \
+      "$release_name-example-mcp-github" --ignore-not-found >/dev/null
   else
     echo "Helm release does not exist: $namespace/$release_name"
   fi
   exit 0
 fi
 
-agent_sandbox_crds=(
-  sandboxes.agents.x-k8s.io
-  sandboxclaims.extensions.agents.x-k8s.io
-  sandboxtemplates.extensions.agents.x-k8s.io
-  sandboxwarmpools.extensions.agents.x-k8s.io
-)
-existing_agent_sandbox_crds=0
-for crd_name in "${agent_sandbox_crds[@]}"; do
-  if kubectl --context "$kube_context" get crd "$crd_name" >/dev/null 2>&1; then
-    ((existing_agent_sandbox_crds += 1))
-  fi
-done
-
-crd_helm_args=()
-if (( existing_agent_sandbox_crds == ${#agent_sandbox_crds[@]} )); then
-  echo "Reusing the existing Agent Sandbox CRDs."
-  crd_helm_args+=(--skip-crds)
-elif (( existing_agent_sandbox_crds > 0 )); then
-  echo "Agent Sandbox CRDs are only partially installed; refusing to skip or overwrite them." >&2
+# A separately installed controller is selected explicitly; do not infer
+# controller ownership from CRD presence alone.
+agent_sandbox_enabled="${AGENT_SANDBOX_ENABLED:-true}"
+if [[ "$agent_sandbox_enabled" != "true" && "$agent_sandbox_enabled" != "false" ]]; then
+  echo "AGENT_SANDBOX_ENABLED must be true or false." >&2
   exit 1
+fi
+agent_sandbox_helm_args=(--set "agentSandbox.enabled=$agent_sandbox_enabled")
+crd_helm_args=()
+if [[ "$agent_sandbox_enabled" == "false" ]]; then
+  kubectl --context "$kube_context" get crd sandboxes.agents.x-k8s.io -o json |
+    jq -e 'any(.spec.versions[]; .name == "v1beta1" and .served)' >/dev/null || {
+      echo "The external controller requires the Agent Sandbox v1beta1 CRD." >&2
+      exit 1
+    }
+  crd_helm_args+=(--skip-crds)
+else
+  kubectl --context "$kube_context" get deployments -A -o json |
+    jq -e --arg namespace "$namespace" --arg release "$release_name" '
+      [.items[] | select(any(.spec.template.spec.containers[];
+        .name == "agent-sandbox-controller" or (.image | contains("agent-sandbox-controller")))) |
+        select(.metadata.namespace != $namespace or
+          .metadata.annotations["meta.helm.sh/release-name"] != $release)] | length == 0
+    ' >/dev/null || {
+      echo "Another Agent Sandbox controller exists; set AGENT_SANDBOX_ENABLED=false to reuse it." >&2
+      exit 1
+    }
 fi
 
 # Helm 4 uses server-side apply and can encounter a managed-fields conflict
@@ -114,11 +123,10 @@ fi
 images=(
   "$image_registry/tali-control:$image_tag"
   "$image_registry/tali-openshell-runner:$image_tag"
+  "$image_registry/tali-expert-agent-runtime:$image_tag"
   "$image_registry/tali-litellm:$image_tag"
   "$image_registry/demo-test:$image_tag"
-  "$image_registry/tali-nemoclaw-sandbox:$image_tag"
   "$image_registry/tali-nemoclaw-hermes-sandbox:$image_tag"
-  "$image_registry/tali-nemoclaw-deepagents-sandbox:$image_tag"
 )
 missing_images=()
 for image_name in "${images[@]}"; do
@@ -162,7 +170,6 @@ if [[ "$enable_keycloak" == "true" ]]; then
       echo "Unable to find an IPv4 InternalIP for the OrbStack Kubernetes node." >&2
       exit 1
     fi
-    control_public_url="${CONTROL_PUBLIC_URL:-http://tali.localhost:${control_service_port}}"
     keycloak_public_url="${KEYCLOAK_PUBLIC_URL:-http://keycloak.localhost:${keycloak_service_port}}"
     keycloak_helm_args+=(
       --set-string "control.hostAliases[0].ip=$node_ip"
@@ -188,11 +195,47 @@ control_helm_args=(--set-string "control.publicUrl=$control_public_url")
 example_mcp_helm_args=()
 if [[ "$enable_example_mcp" == "true" ]]; then
   example_mcp_helm_args+=(--set exampleMcp.enabled=true)
+  github_token="${GITHUB_TOKEN:-}"
+  if [[ -z "$github_token" ]] && command -v gh >/dev/null 2>&1; then
+    github_token="$(gh auth token 2>/dev/null || true)"
+  fi
+  if [[ -n "$github_token" ]]; then
+    example_mcp_github_secret="$release_name-example-mcp-github"
+    kubectl --context "$kube_context" create namespace "$namespace" \
+      --dry-run=client --output=yaml | kubectl --context "$kube_context" apply -f - >/dev/null
+    kubectl --context "$kube_context" --namespace "$namespace" create secret generic \
+      "$example_mcp_github_secret" --from-literal=GITHUB_TOKEN="$github_token" \
+      --dry-run=client --output=yaml | kubectl --context "$kube_context" apply -f - >/dev/null
+    example_mcp_helm_args+=(
+      --set-string "exampleMcp.githubTokenSecret.name=$example_mcp_github_secret"
+    )
+    echo "Configured the example MCP GitHub tool with a Secret-backed local credential."
+  else
+    echo "No GITHUB_TOKEN or authenticated gh CLI was found; GitHub API rate limits may block the example MCP tool." >&2
+  fi
 fi
 
 bash "$repository_root/scripts/prepare-helm-dependencies.sh"
+if [[ "$agent_sandbox_enabled" == "true" ]]; then
+  for crd_file in "$repository_root"/.helm-dependencies/agent-sandbox/crds/*.yaml; do
+    crd_name="$(kubectl --context "$kube_context" create --dry-run=client -f "$crd_file" -o jsonpath='{.metadata.name}')"
+    existing_crd="$(kubectl --context "$kube_context" get crd "$crd_name" --ignore-not-found -o json)"
+    if [[ -n "$existing_crd" ]] && ! jq -e '
+      all(.status.storedVersions[]; . == "v1beta1") and
+      all(.spec.versions[]; .name == "v1beta1")
+    ' <<< "$existing_crd" >/dev/null; then
+      echo "$crd_name contains legacy APIs; use a fresh test cluster or the upstream migration guide." >&2
+      exit 1
+    fi
+  done
+  # Helm skips CRD updates, so install the pinned v1beta1 schemas explicitly.
+  kubectl --context "$kube_context" apply --server-side --field-manager=tali-agent-sandbox-crds \
+    -f "$repository_root/.helm-dependencies/agent-sandbox/crds/"
+  crd_helm_args+=(--skip-crds)
+fi
 helm lint "$repository_root/charts/tali-relay" \
   --values "$repository_root/charts/tali-relay/values-dev.yaml" \
+  "${agent_sandbox_helm_args[@]}" \
   ${control_helm_args[@]+"${control_helm_args[@]}"} \
   ${keycloak_helm_args[@]+"${keycloak_helm_args[@]}"} \
   ${example_mcp_helm_args[@]+"${example_mcp_helm_args[@]}"}
@@ -203,6 +246,7 @@ helm upgrade --install "$release_name" "$repository_root/charts/tali-relay" \
   --values "$repository_root/charts/tali-relay/values-dev.yaml" \
   --set-string "global.rolloutRevision=$rollout_revision" \
   --set "control.service.port=$control_service_port" \
+  "${agent_sandbox_helm_args[@]}" \
   ${control_helm_args[@]+"${control_helm_args[@]}"} \
   ${keycloak_helm_args[@]+"${keycloak_helm_args[@]}"} \
   ${example_mcp_helm_args[@]+"${example_mcp_helm_args[@]}"} \

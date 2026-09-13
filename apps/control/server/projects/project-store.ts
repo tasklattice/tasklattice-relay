@@ -229,6 +229,7 @@ export function routingDeploymentIds(routing: ModelRouting): Set<string> {
 
 export class ProjectStore {
   private readonly costs: CostAnalyticsStore;
+  protected transactional = false;
   readonly projectId: string;
   private readonly db: PrismaClient;
 
@@ -239,6 +240,19 @@ export class ProjectStore {
     this.projectId = projectId;
     this.db = db ?? prisma();
     this.costs = new CostAnalyticsStore(this.db, this.projectId);
+  }
+
+  protected transactionStore(transaction: Prisma.TransactionClient): ProjectStore {
+    const store = new ProjectStore(this.projectId, transaction as PrismaClient);
+    store.transactional = true;
+    return store;
+  }
+
+  // The callback must perform database work only. External requests run before
+  // this boundary so registration cannot monopolize the shared auth pool.
+  async providerTransaction<T>(operation: (store: ProjectStore) => Promise<T>): Promise<T> {
+    if (this.transactional) return operation(this);
+    return this.db.$transaction((transaction) => operation(this.transactionStore(transaction)));
   }
 
   costAnalytics(): CostAnalyticsStore {
@@ -531,6 +545,7 @@ export class ProjectStore {
           ...create,
           kind: "SUPERVISOR",
           ownerUserId,
+          createdByUserId: ownerUserId,
         },
         update: {
           payload: agentPayload(agent),
@@ -570,6 +585,13 @@ export class ProjectStore {
             },
           },
         },
+        creatorMembership: {
+          select: {
+            user: {
+              select: { id: true, displayName: true, username: true },
+            },
+          },
+        },
         accessPolicyBindings: {
           orderBy: { accessPolicyId: "asc" },
           select: { accessPolicyId: true },
@@ -580,7 +602,9 @@ export class ProjectStore {
       ? parseCurrentAgent(
           row.payload,
           row.accessPolicyBindings.map((binding) => binding.accessPolicyId),
-          agentCreator(row.ownerMembership.user),
+          agentCreator(
+            row.creatorMembership?.user ?? row.ownerMembership.user,
+          ),
         )
       : undefined;
   }
@@ -633,6 +657,13 @@ export class ProjectStore {
             },
           },
         },
+        creatorMembership: {
+          select: {
+            user: {
+              select: { id: true, displayName: true, username: true },
+            },
+          },
+        },
         accessPolicyBindings: {
           orderBy: { accessPolicyId: "asc" },
           select: { accessPolicyId: true },
@@ -643,7 +674,9 @@ export class ProjectStore {
       const agent = parseCurrentAgent(
         row.payload,
         row.accessPolicyBindings.map((binding) => binding.accessPolicyId),
-        agentCreator(row.ownerMembership.user),
+        agentCreator(
+          row.creatorMembership?.user ?? row.ownerMembership.user,
+        ),
       );
       return agent ? [agent] : [];
     });
@@ -710,6 +743,13 @@ export class ProjectStore {
               },
             },
           },
+          creatorMembership: {
+            select: {
+              user: {
+                select: { id: true, displayName: true, username: true },
+              },
+            },
+          },
           accessPolicyBindings: {
             orderBy: { accessPolicyId: "asc" },
             select: { accessPolicyId: true },
@@ -719,7 +759,9 @@ export class ProjectStore {
       return parseAgent(
         updated.payload,
         updated.accessPolicyBindings.map((binding) => binding.accessPolicyId),
-        agentCreator(updated.ownerMembership.user),
+        agentCreator(
+          updated.creatorMembership?.user ?? updated.ownerMembership.user,
+        ),
       );
     });
   }
@@ -828,6 +870,9 @@ export class ProjectStore {
   }
 
   async saveModelDeployment(deployment: ModelDeployment): Promise<ModelDeployment> {
+    if (!this.transactional) {
+      return this.providerTransaction((store) => store.saveModelDeployment(deployment));
+    }
     if (deployment.origin?.scope === "DEPARTMENT") {
       throw new Error("Inherited Department Models are read-only in this Project.");
     }

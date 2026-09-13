@@ -175,8 +175,8 @@ export function CreateProjectSheet({
     >
       <div className="space-y-7">
         <div className="space-y-2">
-          <Label htmlFor="new-project-department">Department</Label>
-          <Select value={departmentId} onValueChange={setDepartmentId}>
+          <Label htmlFor="new-project-department" required>Department</Label>
+          <Select value={departmentId} onValueChange={setDepartmentId} required>
             <SelectTrigger
               id="new-project-department"
               size="lg"
@@ -218,7 +218,7 @@ export function CreateProjectSheet({
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="new-project-name">Project name</Label>
+          <Label htmlFor="new-project-name" required>Project name</Label>
           <Input
             id="new-project-name"
             className="h-11"

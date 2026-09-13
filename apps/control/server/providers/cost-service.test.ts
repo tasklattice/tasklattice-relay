@@ -22,6 +22,7 @@ function client(logs: LiteLLMSpendLog[]): LiteLLMAdminClient {
   return {
     baseUrl: "http://litellm:4000",
     registerModel: vi.fn(),
+    deleteModelById: vi.fn(async () => undefined),
     deleteModel: vi.fn(),
     probeModel: vi.fn(),
     createInstanceKey: vi.fn(),

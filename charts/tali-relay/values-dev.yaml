@@ -11,6 +11,9 @@ images:
   runner:
     tag: dev
     pullPolicy: IfNotPresent
+  expertAgentRuntime:
+    tag: dev
+    pullPolicy: IfNotPresent
   litellm:
     tag: dev
     pullPolicy: IfNotPresent
@@ -47,8 +50,7 @@ litellm:
     type: LoadBalancer
 
 openshell:
-  # OpenShell 0.0.106 has one fixed sandbox Namespace per Gateway. Local
-  # development exercises the Project-isolated compatibility topology.
+  # Development uses the same Project Gateway topology as UAT.
   enabled: false
   # Keep the two Project Gateways and their certificate hooks schedulable on
   # the constrained single-node development cluster. Production defaults stay
@@ -57,8 +59,6 @@ openshell:
     requests:
       cpu: 10m
       memory: 32Mi
-  service:
-    type: LoadBalancer
   server:
     sandboxImagePullPolicy: IfNotPresent
 
@@ -66,8 +66,8 @@ projectOpenShell:
   enabled: true
 
 runner:
-  # Keep two Project-isolation acceptance Sandboxes schedulable alongside the
-  # local control stack and any developer Sandboxes already on a single node.
+  # Keep the local Project-isolation acceptance Sandbox schedulable alongside
+  # the control stack and any developer Sandboxes already on a single node.
   sandbox:
     cpu: "1"
     cpuRequest: 500m
@@ -85,3 +85,9 @@ keycloak:
     limits:
       cpu: "1"
       memory: 1Gi
+
+# Enable on a test cluster without an existing Agent Sandbox controller.
+# With the separate local controller release, deploy-local.sh accepts
+# AGENT_SANDBOX_ENABLED=false to reuse it.
+agentSandbox:
+  enabled: true

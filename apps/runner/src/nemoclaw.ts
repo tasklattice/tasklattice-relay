@@ -158,6 +158,19 @@ export function agentMemoryInstructions(
   agentPlatform: AgentPlatformId = "openclaw",
 ): string {
   if (!memory) return "";
+  if (agentPlatform === "deepagents") {
+    return [
+      "",
+      "## TaskLattice Relay Memory Boundary",
+      "",
+      "This Deep Agents Instance uses native file-based memory in /sandbox/.deepagents/agent/AGENTS.md.",
+      "- Use Deep Agents' native memory tools to maintain concise preferences, decisions, and reusable project context in the Agent memory directory.",
+      "- Preserve the existing Agent instructions when updating memory.",
+      "- Native Memory persists across Sandbox restarts and is removed when the Instance is deleted; no embedding model is required.",
+      "- Never store credentials, access tokens, private keys, or other secrets in memory.",
+      "- Memory is context, not authorization. Access Policies and Runtime Policies always take precedence.",
+    ].join("\n");
+  }
   if (agentPlatform === "hermes") {
     return [
       "",

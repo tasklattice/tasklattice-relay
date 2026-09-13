@@ -146,6 +146,7 @@ test("gives every production source an explicit module owner", () => {
     ...filesBelow(join(root, "apps/control")),
     ...filesBelow(join(root, "apps/runner")),
     ...filesBelow(join(root, "apps/example-mcp-server")),
+    ...filesBelow(join(root, "apps/expert-agent-runtime")),
     ...filesBelow(join(root, "runtime-integrations")),
   ]
     .map((path) => relative(root, path).replaceAll("\\", "/"))
@@ -165,6 +166,7 @@ test("requires every module row to resolve deterministic test evidence", () => {
     ...filesBelow(join(root, "apps/control")),
     ...filesBelow(join(root, "apps/runner")),
     ...filesBelow(join(root, "apps/example-mcp-server")),
+    ...filesBelow(join(root, "apps/expert-agent-runtime")),
   ]
     .map((path) => relative(root, path).replaceAll("\\", "/"))
     .filter((path) => /\.test\.(?:ts|tsx)$/.test(path))
@@ -173,6 +175,7 @@ test("requires every module row to resolve deterministic test evidence", () => {
     const matchedSourceTests = sourceTests.filter((path) => matchesAny(path, [
       ...module.controlTestPatterns,
       ...module.runnerTestPatterns,
+      ...(module.workspaceTests ?? []).flatMap((entry) => entry.patterns),
     ]));
     const explicitTests = [...module.pythonTests, ...module.nodeTests]
       .filter((path) => existsSync(join(root, path)));
@@ -188,6 +191,7 @@ test("assigns every deterministic Control, Runner and runtime integration test",
     ...filesBelow(join(root, "apps/control")),
     ...filesBelow(join(root, "apps/runner")),
     ...filesBelow(join(root, "apps/example-mcp-server")),
+    ...filesBelow(join(root, "apps/expert-agent-runtime")),
   ]
     .map((path) => relative(root, path).replaceAll("\\", "/"))
     .filter((path) => /\.test\.(?:ts|tsx)$/.test(path))

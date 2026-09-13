@@ -209,6 +209,7 @@ describe("Better Auth platform authentication", () => {
 
     expect(await publicAuthConfig()).toEqual({
       authRequired: true,
+      canonicalOrigin: "http://tali.local",
       developmentDefaults: false,
       localEnabled: true,
       mode: "local-sso",
@@ -249,6 +250,7 @@ describe("Better Auth platform authentication", () => {
 
     expect(await publicAuthConfig()).toEqual({
       authRequired: true,
+      canonicalOrigin: "http://tali.local",
       developmentDefaults: false,
       localEnabled: true,
       mode: "local-sso",

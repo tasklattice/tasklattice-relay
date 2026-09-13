@@ -234,7 +234,7 @@ function VectorDatabaseForm({ draft, embeddingModels, onChange, validationAttemp
   return (
     <div className="space-y-4">
       <div className="space-y-2">
-        <Label htmlFor="vector-name">Name</Label>
+        <Label htmlFor="vector-name" required>Name</Label>
         <Input
           id="vector-name"
           className="h-11"
@@ -257,7 +257,7 @@ function VectorDatabaseForm({ draft, embeddingModels, onChange, validationAttemp
         />
       </div>
       <div className="space-y-2">
-        <Label htmlFor="vector-description">Description</Label>
+        <Label htmlFor="vector-description" required>Description</Label>
         <Input
           id="vector-description"
           className="h-11"
@@ -279,10 +279,10 @@ function VectorDatabaseForm({ draft, embeddingModels, onChange, validationAttemp
           count={`${draft.description.trim().length}/${vectorDatabaseFormLimits.description.max}`}
         />
       </div>
-      <div className="space-y-2"><Label htmlFor="vector-provider">Provider</Label><VectorStoreProviderSelect id="vector-provider" value={draft.provider} onValueChange={(provider) => onChange({ ...draft, provider, embeddingModelDeploymentId: undefined, embeddingModel: undefined, embeddingDimensions: undefined })} /></div>
+      <div className="space-y-2"><Label htmlFor="vector-provider" required>Provider</Label><VectorStoreProviderSelect id="vector-provider" required value={draft.provider} onValueChange={(provider) => onChange({ ...draft, provider, embeddingModelDeploymentId: undefined, embeddingModel: undefined, embeddingDimensions: undefined })} /></div>
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
-          <Label htmlFor="vector-id">Vector Database ID</Label>
+          <Label htmlFor="vector-id" required>Vector Database ID</Label>
           <Input
             id="vector-id"
             className="h-11 font-mono"
@@ -305,7 +305,7 @@ function VectorDatabaseForm({ draft, embeddingModels, onChange, validationAttemp
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="vector-top-k">Default Top K</Label>
+          <Label htmlFor="vector-top-k" required>Default Top K</Label>
           <Input
             id="vector-top-k"
             className="h-11"
@@ -336,7 +336,7 @@ function VectorDatabaseForm({ draft, embeddingModels, onChange, validationAttemp
         <div className="space-y-3 border bg-muted/20 p-4">
           <div><strong className="text-sm">Built-in foundation</strong><p className="mt-1 text-xs leading-5 text-muted-foreground">Documents are parsed by Docling, embedded through the selected Project model, and stored in Project-isolated PGVector.</p></div>
           <div className="space-y-2">
-            <Label htmlFor="vector-embedding">Embedding model</Label>
+            <Label htmlFor="vector-embedding" required>Embedding model</Label>
             <Select required value={draft.embeddingModelDeploymentId ?? ""} onValueChange={(id) => {
               const model = embeddingModels.find((item) => item.id === id);
               touch("embeddingModelDeploymentId");
@@ -367,7 +367,7 @@ function VectorDatabaseForm({ draft, embeddingModels, onChange, validationAttemp
       ) : (
         <>
           <div className="space-y-2">
-            <Label htmlFor="vector-api-base">Provider API base</Label>
+            <Label htmlFor="vector-api-base" required={providerConnectionRequired}>Provider API base</Label>
             <Input
               id="vector-api-base"
               className="h-11 font-mono"
@@ -388,7 +388,7 @@ function VectorDatabaseForm({ draft, embeddingModels, onChange, validationAttemp
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="vector-credential">Credential reference</Label>
+            <Label htmlFor="vector-credential" required={providerConnectionRequired}>Credential reference</Label>
             <Input
               id="vector-credential"
               className="h-11 font-mono"
@@ -414,7 +414,7 @@ function VectorDatabaseForm({ draft, embeddingModels, onChange, validationAttemp
       {draft.provider === "elasticsearch" ? (
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
-            <Label htmlFor="vector-semantic-field">semantic_text field</Label>
+            <Label htmlFor="vector-semantic-field" required>semantic_text field</Label>
             <Input
               id="vector-semantic-field"
               className="h-11 font-mono"
@@ -435,7 +435,7 @@ function VectorDatabaseForm({ draft, embeddingModels, onChange, validationAttemp
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="vector-content-field">Content field</Label>
+            <Label htmlFor="vector-content-field" required>Content field</Label>
             <Input
               id="vector-content-field"
               className="h-11 font-mono"

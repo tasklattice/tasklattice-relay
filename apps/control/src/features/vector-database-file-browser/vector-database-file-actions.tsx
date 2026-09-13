@@ -9,7 +9,6 @@ import type {
 import {
   AlertTriangle,
   ChevronDown,
-  FileText,
   FileUp,
   Folder,
   LoaderCircle,
@@ -30,7 +29,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Label, RequiredMark } from "@/components/ui/label";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   Select,
@@ -52,6 +51,7 @@ import { Switch } from "@/components/ui/switch";
 import { useProjectQueryScope } from "@/hooks/use-project-query-scope";
 import { api } from "@/lib/api";
 import { filePath, formatBytes } from "./file-browser-utils";
+import { VectorFileIcon } from "./vector-file-visuals";
 
 export function NewFolderDialog({ error, name, open, pending, onNameChange, onOpenChange, onSubmit }: {
   error: string;
@@ -70,8 +70,8 @@ export function NewFolderDialog({ error, name, open, pending, onNameChange, onOp
           <DialogDescription>Create a logical TaskLattice folder in the current Vector Database directory.</DialogDescription>
         </DialogHeader>
         <div className="space-y-3 px-6 py-5">
-          <Label htmlFor="new-vector-folder-name">Folder name</Label>
-          <Input id="new-vector-folder-name" className="h-11" autoFocus value={name} onChange={(event) => onNameChange(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && name.trim()) onSubmit(); }} />
+          <Label htmlFor="new-vector-folder-name" required>Folder name</Label>
+          <Input id="new-vector-folder-name" className="h-11" autoFocus required value={name} onChange={(event) => onNameChange(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && name.trim()) onSubmit(); }} />
           {error ? <ErrorMessage>{error}</ErrorMessage> : null}
         </div>
         <DialogFooter>
@@ -239,15 +239,17 @@ export function UploadFilesSheet({
         <div className="flex-1 space-y-5 overflow-y-auto px-5 py-5">
           <label className="flex min-h-40 cursor-pointer flex-col items-center justify-center rounded-sm border border-dashed text-center hover:bg-muted/20 focus-within:ring-2 focus-within:ring-ring">
             <FileUp className="size-7 text-primary" />
-            <strong className="mt-3 text-sm">Choose files</strong>
+            <strong className="mt-3 inline-flex items-baseline gap-1 text-sm">
+              Choose files <RequiredMark />
+            </strong>
             <span className="mt-1 text-xs text-muted-foreground">PDF, Office, HTML, Markdown, text, or images · 25 MiB each</span>
-            <input key={inputKey} className="sr-only" type="file" multiple accept=".pdf,.docx,.pptx,.xlsx,.html,.htm,.md,.txt,.png,.jpg,.jpeg,.tif,.tiff" onChange={(event) => onFiles([...event.target.files ?? []])} />
+            <input key={inputKey} className="sr-only" type="file" multiple required accept=".pdf,.docx,.pptx,.xlsx,.html,.htm,.md,.txt,.png,.jpg,.jpeg,.tif,.tiff" onChange={(event) => onFiles([...event.target.files ?? []])} />
           </label>
           {files.length ? (
             <div className="divide-y rounded-sm border">
               {files.map((file, index) => (
                 <div key={`${file.name}:${index}`} className="flex min-h-14 items-center gap-3 px-4 py-3">
-                  <FileText className="size-4 shrink-0 text-muted-foreground" />
+                  <VectorFileIcon filename={file.name} mediaType={file.type} size="sm" />
                   <span className="min-w-0 flex-1"><strong className="block truncate text-sm">{file.name}</strong><span className="text-xs text-muted-foreground">{formatBytes(file.size)}</span></span>
                 </div>
               ))}

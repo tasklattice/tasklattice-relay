@@ -1,16 +1,13 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  complianceDomainCatalog,
   type ModelDeployment,
   type ModelRoutingPolicy,
 } from "@tali/contracts";
 import {
-  Activity,
   Check,
   CircleAlert,
   Info,
-  KeyRound,
   Plus,
   Route,
   ShieldCheck,
@@ -303,7 +300,7 @@ export function CreateModelRoutingSheet({
       onOpenChange={(next) => !mutation.isPending && onOpenChange(next)}
       eyebrow="Routing"
       title="Create Routing"
-      description="Create one stable model identity with routing, resilience, and data residency controls."
+      description="Choose models and configure how requests are routed."
       width="lg"
       footer={
         <>
@@ -340,6 +337,7 @@ export function CreateModelRoutingSheet({
             <Field
               label="Routing name"
               htmlFor="routing-name"
+              required
               help={
                 attempted && !nameValid
                   ? "Enter at least 2 characters."
@@ -349,6 +347,7 @@ export function CreateModelRoutingSheet({
             >
               <Input
                 id="routing-name"
+                required
                 value={name}
                 aria-invalid={attempted && !nameValid}
                 onChange={(event) => setName(event.target.value)}
@@ -368,9 +367,11 @@ export function CreateModelRoutingSheet({
             <Field
               label="Routing method"
               htmlFor="routing-routing-method"
+              required
               help={routingModeDescriptions[routingMode]}
             >
               <Select
+                required
                 value={routingMode}
                 onValueChange={(value) =>
                   setRoutingMode(value as RoutingMode)
@@ -404,7 +405,7 @@ export function CreateModelRoutingSheet({
               placeholder="Choose a text generation model"
               help={
                 primaryModel
-                  ? `${primaryModel.providerName} · ${boundaryLabel(primaryModel)}`
+                  ? primaryModel.providerName
                   : "Only validated text generation models are shown."
               }
               invalid={attempted && !primaryModel}
@@ -494,8 +495,8 @@ export function CreateModelRoutingSheet({
         <section className="space-y-4 border-t pt-5">
           <SectionTitle
             icon={ShieldCheck}
-            title="Resilience & boundary"
-            description="Keep retries and failover inside the same declared data boundary."
+            title="Retries & fallback"
+            description="Choose how to retry failed requests and when to use a fallback model."
           />
           <div className="grid items-start gap-4 sm:grid-cols-2">
             <ModelField
@@ -518,9 +519,10 @@ export function CreateModelRoutingSheet({
             <Field
               label="Retries"
               htmlFor="routing-retries"
+              required
               help="Attempts on the selected model before fallback is used."
             >
-              <Select value={retries} onValueChange={setRetries}>
+              <Select value={retries} onValueChange={setRetries} required>
                 <SelectTrigger id="routing-retries">
                   <SelectValue />
                 </SelectTrigger>
@@ -533,27 +535,6 @@ export function CreateModelRoutingSheet({
                 </SelectContent>
               </Select>
             </Field>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-3">
-            <PolicyFact
-              icon={ShieldCheck}
-              label="Data boundary"
-              value={
-                primaryModel
-                  ? boundaryLabel(primaryModel)
-                  : "Choose a model"
-              }
-            />
-            <PolicyFact
-              icon={KeyRound}
-              label="Credentials"
-              value="Isolated per Instance"
-            />
-            <PolicyFact
-              icon={Activity}
-              label="Audit"
-              value="Control plane + requests"
-            />
           </div>
           <button
             type="button"
@@ -670,9 +651,10 @@ function SemanticRoutesEditor({
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor={`semantic-intent-${route.id}`}>Intent key</Label>
+                <Label htmlFor={`semantic-intent-${route.id}`} required>Intent key</Label>
                 <Input
                   id={`semantic-intent-${route.id}`}
+                  required
                   value={route.intent}
                   aria-invalid={attempted && !valid}
                   placeholder="coding"
@@ -682,10 +664,11 @@ function SemanticRoutesEditor({
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor={`semantic-model-${route.id}`}>
+                <Label htmlFor={`semantic-model-${route.id}`} required>
                   Target model
                 </Label>
                 <Select
+                  required
                   value={route.modelDeploymentId}
                   onValueChange={(value) =>
                     update(route.id, { modelDeploymentId: value })
@@ -705,11 +688,12 @@ function SemanticRoutesEditor({
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor={`semantic-description-${route.id}`}>
+              <Label htmlFor={`semantic-description-${route.id}`} required>
                 Description
               </Label>
               <Input
                 id={`semantic-description-${route.id}`}
+                required
                 value={route.description}
                 placeholder="Programming and debugging requests"
                 onChange={(event) =>
@@ -718,12 +702,13 @@ function SemanticRoutesEditor({
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor={`semantic-examples-${route.id}`}>
+              <Label htmlFor={`semantic-examples-${route.id}`} required>
                 Example user messages
               </Label>
               <Textarea
                 id={`semantic-examples-${route.id}`}
                 className="min-h-24 font-mono text-xs"
+                required
                 value={route.utterances}
                 placeholder={"Help me debug this function\nDesign a REST API"}
                 onChange={(event) =>
@@ -780,8 +765,8 @@ function ModelField({
   value: string;
 }) {
   return (
-    <Field label={label} htmlFor={id} help={help} invalid={invalid}>
-      <Select value={value} onValueChange={onChange}>
+    <Field label={label} htmlFor={id} help={help} invalid={invalid} required={!allowNone}>
+      <Select value={value} onValueChange={onChange} required={!allowNone}>
         <SelectTrigger id={id} aria-invalid={invalid}>
           <SelectValue placeholder={placeholder} />
         </SelectTrigger>
@@ -827,16 +812,18 @@ function Field({
   htmlFor,
   invalid,
   label,
+  required = false,
 }: {
   children: ReactNode;
   help: string;
   htmlFor?: string;
   invalid?: boolean;
   label: string;
+  required?: boolean;
 }) {
   return (
     <div className="space-y-2">
-      <Label htmlFor={htmlFor}>{label}</Label>
+      <Label htmlFor={htmlFor} required={required}>{label}</Label>
       {children}
       <p
         className={cn(
@@ -848,30 +835,4 @@ function Field({
       </p>
     </div>
   );
-}
-
-function PolicyFact({
-  icon: Icon,
-  label,
-  value,
-}: {
-  icon: typeof ShieldCheck;
-  label: string;
-  value: string;
-}) {
-  return (
-    <div className="flex min-h-20 gap-3 border p-3">
-      <Icon className="size-4 shrink-0 text-primary" />
-      <span>
-        <span className="block text-xs text-muted-foreground">{label}</span>
-        <strong className="mt-1 block text-xs font-medium">{value}</strong>
-      </span>
-    </div>
-  );
-}
-
-function boundaryLabel(model: ModelDeployment): string {
-  return complianceDomainCatalog.find(
-    (domain) => domain.id === model.complianceDomain,
-  )?.label ?? model.complianceDomain;
 }

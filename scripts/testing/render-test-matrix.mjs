@@ -47,6 +47,7 @@ const vitest = [
   ...listVitest("apps/control", "vitest.config.ts"),
   ...listVitest("apps/runner"),
   ...listVitest("apps/example-mcp-server"),
+  ...listVitest("apps/expert-agent-runtime"),
 ];
 
 const rows = testModules.map((module) => {

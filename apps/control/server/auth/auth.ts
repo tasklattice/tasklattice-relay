@@ -1,6 +1,7 @@
 import { prisma } from "../db/prisma";
 import type { BuiltinRoleId, PlatformCapability } from "@tali/contracts";
 import { RoleCatalogService } from "../authorization/role-catalog";
+import { getControlConfig } from "../config/control-config";
 import { jsonResponse, problemResponse } from "../http/responses";
 import { PlatformSettingsService } from "../platform/platform-settings-service";
 import { auth } from "./better-auth";
@@ -147,6 +148,7 @@ export async function publicAuthConfig() {
   const runtime = await new PlatformSettingsService().authRuntimeSettings();
   return {
     authRequired: true,
+    canonicalOrigin: new URL(getControlConfig().server.public_url!).origin,
     developmentDefaults:
       !process.env.TALI_CONFIG && process.env.NODE_ENV !== "production",
     localEnabled: runtime.localAuthenticationEnabled,

@@ -6,7 +6,7 @@ set -euo pipefail
 readonly AGENT_PLATFORM="${NEMOCLAW_AGENT_PLATFORM:-openclaw}"
 readonly BUILD_OUTPUT="${NEMOCLAW_BUILD_OUTPUT:-local}"
 readonly REPOSITORY_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-readonly NEMOCLAW_VERSION="${NEMOCLAW_VERSION:-v0.0.114}"
+readonly NEMOCLAW_VERSION="${NEMOCLAW_VERSION:-v0.0.123}"
 
 case "$AGENT_PLATFORM" in
   openclaw)
@@ -102,8 +102,6 @@ if [ "$AGENT_PLATFORM" = "openclaw" ]; then
   node "$REPOSITORY_ROOT/scripts/patch-nemoclaw-openclaw-no-proxy.mjs" \
     "$build_context/scripts/nemoclaw-start.sh"
 elif [ "$AGENT_PLATFORM" = "deepagents" ]; then
-  node "$REPOSITORY_ROOT/scripts/patch-nemoclaw-deepagents-kubernetes-profile.mjs" \
-    "$build_context/agents/langchain-deepagents-code/start.sh"
   node "$REPOSITORY_ROOT/scripts/patch-nemoclaw-deepagents-provider-v2-inference.mjs" \
     "$build_context/agents/langchain-deepagents-code/managed-dcode-runtime.py" \
     "$build_context/agents/langchain-deepagents-code/patch-managed-deepagents-code.py"

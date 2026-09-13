@@ -14,6 +14,7 @@ import {
 
 import { AccessPolicyEditorSheet } from "@/components/access/access-policy-editor-sheet";
 import { PageHeader } from "@/components/layout/page-header";
+import { RuntimeStatusBadge, StatusBadge } from "@/components/shared/status";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -110,11 +111,10 @@ export function AccessPolicyDetail({
         title={current.name}
         badge={
           <div className="flex items-center gap-2">
-            <Badge
-              variant={current.status === "ACTIVE" ? "secondary" : "outline"}
-            >
-              {current.status}
-            </Badge>
+            <StatusBadge
+              label={current.status === "ACTIVE" ? "Active" : "Draft"}
+              tone={current.status === "ACTIVE" ? "info" : "neutral"}
+            />
             <Badge variant="outline">v{current.revision}</Badge>
           </div>
         }
@@ -376,7 +376,7 @@ export function AccessPolicyDetail({
                         </span>
                       </span>
                     </span>
-                    <Badge variant="outline">{instance.status}</Badge>
+                    <RuntimeStatusBadge status={instance.status} />
                   </Link>
                 ))
               )}

@@ -3,10 +3,23 @@ import { Label as LabelPrimitive } from "radix-ui"
 
 import { cn } from "@/lib/utils"
 
+function RequiredMark() {
+  return (
+    <>
+      <span className="text-destructive" aria-hidden="true">*</span>
+      <span className="sr-only">Required</span>
+    </>
+  )
+}
+
 function Label({
+  children,
   className,
+  required = false,
   ...props
-}: React.ComponentProps<typeof LabelPrimitive.Root>) {
+}: React.ComponentProps<typeof LabelPrimitive.Root> & {
+  required?: boolean
+}) {
   return (
     <LabelPrimitive.Root
       data-slot="label"
@@ -15,8 +28,13 @@ function Label({
         className
       )}
       {...props}
-    />
+    >
+      {children}
+      {required ? (
+        <span className="-ml-1 inline-flex"><RequiredMark /></span>
+      ) : null}
+    </LabelPrimitive.Root>
   )
 }
 
-export { Label }
+export { Label, RequiredMark }

@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 
 export interface SecretStore {
+  referenceFor(projectId: string, resourceId: string): string;
   put(projectId: string, resourceId: string, secret: string): Promise<string>;
   get(reference: string): Promise<string>;
   delete(reference: string): Promise<void>;
@@ -9,17 +10,33 @@ export interface SecretStore {
 
 const memorySecrets = new Map<string, string>();
 
+function kubernetesSlug(value: string, fallback: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/^-+|-+$/g, "") || fallback;
+}
+
 function kubernetesSecretName(projectId: string, resourceId: string): string {
-  const slug = (value: string, fallback: string) =>
-    value.toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/^-+|-+$/g, "") || fallback;
   const digest = createHash("sha256")
     .update(`${projectId}:${resourceId}`)
     .digest("hex")
     .slice(0, 10);
-  return `tali-secret-${slug(projectId, "project").slice(0, 12)}-${slug(resourceId, "resource").slice(0, 24)}-${digest}`;
+  return `tali-secret-${kubernetesSlug(projectId, "project").slice(0, 12)}-${kubernetesSlug(resourceId, "resource").slice(0, 24)}-${digest}`;
+}
+
+export function kubernetesSecretLabels(
+  projectId: string,
+  resourceId: string,
+): Record<string, string> {
+  return {
+    "app.kubernetes.io/managed-by": "tali",
+    "tali.io/project-id": kubernetesSlug(projectId, "project").slice(0, 63),
+    "tali.io/resource-id": kubernetesSlug(resourceId, "resource").slice(0, 63),
+  };
 }
 
 export class DevelopmentSecretStore implements SecretStore {
+  referenceFor(projectId: string, resourceId: string): string {
+    return `memory://${projectId}/${resourceId}`;
+  }
   async put(
     projectId: string,
     resourceId: string,
@@ -30,7 +47,7 @@ export class DevelopmentSecretStore implements SecretStore {
         "Secret storage failed: Kubernetes Secret storage is required in production.",
       );
     }
-    const reference = `memory://${projectId}/${resourceId}`;
+    const reference = this.referenceFor(projectId, resourceId);
     memorySecrets.set(reference, secret);
     return reference;
   }
@@ -55,6 +72,10 @@ export class KubernetesSecretStore implements SecretStore {
   private readonly api = `https://${process.env.KUBERNETES_SERVICE_HOST}:${process.env.KUBERNETES_SERVICE_PORT_HTTPS ?? "443"}`;
   private token?: string;
 
+  referenceFor(projectId: string, resourceId: string): string {
+    return `k8s://${this.namespace}/${kubernetesSecretName(projectId, resourceId)}#CREDENTIAL`;
+  }
+
   async put(
     projectId: string,
     resourceId: string,
@@ -68,11 +89,7 @@ export class KubernetesSecretStore implements SecretStore {
       metadata: {
         name,
         namespace: this.namespace,
-        labels: {
-          "app.kubernetes.io/managed-by": "tali",
-          "tali.io/project-id": projectId.slice(0, 63),
-          "tali.io/resource-id": resourceId.slice(0, 63),
-        },
+        labels: kubernetesSecretLabels(projectId, resourceId),
       },
       type: "Opaque",
       data: { CREDENTIAL: Buffer.from(secret).toString("base64") },
@@ -99,7 +116,7 @@ export class KubernetesSecretStore implements SecretStore {
         }),
       },
     );
-    return `k8s://${this.namespace}/${name}#CREDENTIAL`;
+    return this.referenceFor(projectId, resourceId);
   }
 
   async get(reference: string): Promise<string> {

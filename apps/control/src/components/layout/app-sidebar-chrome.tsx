@@ -55,7 +55,7 @@ export function AppSidebarUtilityFooter({
   const helpActive = pathname.replace(/\/$/, "") === `/${encodeURIComponent(projectId)}/help`;
 
   return (
-    <SidebarFooter className="border-t border-sidebar-border p-2">
+    <SidebarFooter className="border-t border-sidebar-border px-3 py-3">
       <SidebarMenu>
         <SidebarMenuItem>
           <SidebarMenuButton
@@ -76,7 +76,7 @@ export function AppSidebarUtilityFooter({
           </SidebarMenuButton>
         </SidebarMenuItem>
       </SidebarMenu>
-      <div className="mt-1 border-t border-sidebar-border pt-2">
+      <div className="mt-2 border-t border-sidebar-border pt-3">
         <AccountMenu
           collapsed={collapsed}
           onLogout={logout}

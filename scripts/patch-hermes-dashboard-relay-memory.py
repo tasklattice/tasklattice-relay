@@ -21,12 +21,14 @@ def _normalized_relay_memory(gateway: dict) -> dict | None:
     memory = gateway.get("memory")
     if memory is None:
         return None
-    if not isinstance(memory, dict) or memory.get("provider") != "tali_relay":
+    if not isinstance(memory, dict) or memory.get("provider") not in (None, "", "tali_relay"):
         raise InvalidDashboardSeedDocumentError(
             "gateway config has an invalid Relay Memory provider"
         )
 
-    normalized = {"provider": "tali_relay"}
+    # An empty provider selects Hermes' built-in text stores. Keep the same
+    # selection in the Dashboard instead of requiring an external Memory bank.
+    normalized = {"provider": memory.get("provider") or ""}
     for flag in ("memory_enabled", "user_profile_enabled"):
         if flag not in memory:
             continue

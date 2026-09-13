@@ -330,7 +330,7 @@ export function MemoryListPage() {
         width="md"
         footer={<><Button variant="outline" disabled={create.isPending} onClick={() => setCreateOpen(false)}>Cancel</Button><Button disabled={!embeddingModelReady || !createName.trim() || create.isPending} onClick={() => create.mutate()}>{create.isPending ? "Creating…" : "Create Memory"}</Button></>}
       >
-        <div className="space-y-2"><Label htmlFor="memory-create-name">Name</Label><Input id="memory-create-name" autoFocus className="h-11" value={createName} onChange={(event) => setCreateName(event.target.value)} placeholder="Customer Support Memory" maxLength={120} /></div>
+        <div className="space-y-2"><Label htmlFor="memory-create-name" required>Name</Label><Input id="memory-create-name" autoFocus className="h-11" required value={createName} onChange={(event) => setCreateName(event.target.value)} placeholder="Customer Support Memory" maxLength={120} /></div>
         <p className="mt-3 text-xs leading-5 text-muted-foreground">The Memory remains available when its Agent Instance is deleted or replaced.</p>
         {create.error ? <div className="mt-4"><MemoryNotice tone="error">{errorMessage(create.error)}</MemoryNotice></div> : null}
       </EntitySheet>

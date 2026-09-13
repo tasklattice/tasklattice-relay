@@ -25,6 +25,7 @@ const candidateTests = [
   ...filesBelow(join(root, "apps/control")),
   ...filesBelow(join(root, "apps/runner")),
   ...filesBelow(join(root, "apps/example-mcp-server")),
+  ...filesBelow(join(root, "apps/expert-agent-runtime")),
 ]
   .map((path) => relative(root, path).replaceAll("\\", "/"))
   .filter((path) => /\.test\.(?:ts|tsx)$/.test(path))

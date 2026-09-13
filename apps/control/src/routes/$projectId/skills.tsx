@@ -30,7 +30,7 @@ import { DeleteEntitySheet } from "@/components/shared/delete-entity-sheet";
 import { StatusDot } from "@/components/shared/status-dot";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Label, RequiredMark } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -600,37 +600,38 @@ function SkillCatalog() {
             title="About"
             description="The short identity people use while browsing the catalog."
           >
-            <div className="space-y-2"><Label htmlFor="skill-name">Name</Label><Input id="skill-name" className="h-11" value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} placeholder="Release Notes" autoFocus /></div>
-            <div className="space-y-2"><Label htmlFor="skill-description">Summary</Label><Textarea id="skill-description" className="min-h-24" value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} placeholder="A concise description shown on the Skill card." /></div>
-            <div className="space-y-2"><Label htmlFor="skill-author">Author</Label><Input id="skill-author" className="h-11" value={draft.author} onChange={(event) => setDraft({ ...draft, author: event.target.value })} placeholder="Team or package author" /></div>
+            <div className="space-y-2"><Label htmlFor="skill-name" required>Name</Label><Input id="skill-name" className="h-11" required value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} placeholder="Release Notes" autoFocus /></div>
+            <div className="space-y-2"><Label htmlFor="skill-description" required>Summary</Label><Textarea id="skill-description" className="min-h-24" required value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} placeholder="A concise description shown on the Skill card." /></div>
+            <div className="space-y-2"><Label htmlFor="skill-author" required>Author</Label><Input id="skill-author" className="h-11" required value={draft.author} onChange={(event) => setDraft({ ...draft, author: event.target.value })} placeholder="Team or package author" /></div>
           </SkillFormSection>
 
           <SkillFormSection
             title="Capability guidance"
             description="Help operators decide when this Skill is appropriate and how to invoke it safely."
           >
-            <div className="space-y-2"><Label htmlFor="skill-problem">Problem it solves</Label><Textarea id="skill-problem" className="min-h-24" value={draft.problemStatement} onChange={(event) => setDraft({ ...draft, problemStatement: event.target.value })} placeholder="What recurring problem does this Skill remove?" /></div>
+            <div className="space-y-2"><Label htmlFor="skill-problem" required>Problem it solves</Label><Textarea id="skill-problem" className="min-h-24" required value={draft.problemStatement} onChange={(event) => setDraft({ ...draft, problemStatement: event.target.value })} placeholder="What recurring problem does this Skill remove?" /></div>
             <div className="space-y-2">
-              <Label htmlFor="skill-use-cases">Use cases</Label>
-              <Textarea id="skill-use-cases" className="min-h-28" value={draft.useCasesText} onChange={(event) => setDraft({ ...draft, useCasesText: event.target.value })} placeholder={"Prepare a release summary\nCompare approved change records"} />
+              <Label htmlFor="skill-use-cases" required>Use cases</Label>
+              <Textarea id="skill-use-cases" className="min-h-28" required value={draft.useCasesText} onChange={(event) => setDraft({ ...draft, useCasesText: event.target.value })} placeholder={"Prepare a release summary\nCompare approved change records"} />
               <p className="text-xs text-muted-foreground">One scenario per line, up to eight.</p>
             </div>
-            <div className="space-y-2"><Label htmlFor="skill-usage-guide">How to use</Label><Textarea id="skill-usage-guide" className="min-h-32" value={draft.usageGuide} onChange={(event) => setDraft({ ...draft, usageGuide: event.target.value })} placeholder="Required context, connections, expected output, and review steps." /></div>
+            <div className="space-y-2"><Label htmlFor="skill-usage-guide" required>How to use</Label><Textarea id="skill-usage-guide" className="min-h-32" required value={draft.usageGuide} onChange={(event) => setDraft({ ...draft, usageGuide: event.target.value })} placeholder="Required context, connections, expected output, and review steps." /></div>
           </SkillFormSection>
 
           <SkillFormSection
             title="Distribution"
             description="Package location, runtime support, and trust classification."
           >
-            <div className="space-y-2"><Label htmlFor="skill-endpoint">Remote package endpoint</Label><Input id="skill-endpoint" className="h-11" value={draft.endpoint} onChange={(event) => setDraft({ ...draft, endpoint: event.target.value })} placeholder="https://…/bundle.tar.zst" /></div>
+            <div className="space-y-2"><Label htmlFor="skill-endpoint" required>Remote package endpoint</Label><Input id="skill-endpoint" className="h-11" required value={draft.endpoint} onChange={(event) => setDraft({ ...draft, endpoint: event.target.value })} placeholder="https://…/bundle.tar.zst" /></div>
             <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-2"><Label htmlFor="skill-version">Version</Label><Input id="skill-version" className="h-11" value={draft.version} onChange={(event) => setDraft({ ...draft, version: event.target.value })} /></div>
-              <div className="space-y-2"><Label htmlFor="skill-category">Category</Label><select id="skill-category" className="flex h-11 w-full rounded-md border border-input bg-background px-3 text-sm" value={draft.category} onChange={(event) => setDraft({ ...draft, category: event.target.value as SkillDefinition["category"] })}>{skillCategories.map((item) => <option key={item}>{item}</option>)}</select></div>
+              <div className="space-y-2"><Label htmlFor="skill-version" required>Version</Label><Input id="skill-version" className="h-11" required value={draft.version} onChange={(event) => setDraft({ ...draft, version: event.target.value })} /></div>
+              <div className="space-y-2"><Label htmlFor="skill-category" required>Category</Label><select id="skill-category" required className="flex h-11 w-full rounded-md border border-input bg-background px-3 text-sm" value={draft.category} onChange={(event) => setDraft({ ...draft, category: event.target.value as SkillDefinition["category"] })}>{skillCategories.map((item) => <option key={item}>{item}</option>)}</select></div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="skill-trust">Trust</Label>
+              <Label htmlFor="skill-trust" required>Trust</Label>
               <select
                 id="skill-trust"
+                required
                 className="flex h-11 w-full rounded-md border border-input bg-background px-3 text-sm"
                 value={draft.trustLevel}
                 onChange={(event) => setDraft({ ...draft, trustLevel: event.target.value as SkillTrustLevel })}
@@ -645,7 +646,7 @@ function SkillCatalog() {
               ) : null}
             </div>
             <fieldset className="space-y-2">
-              <legend className="text-sm font-medium">Agent compatibility</legend>
+              <legend className="flex items-center gap-1 text-sm font-medium">Agent compatibility <RequiredMark /></legend>
               <div className="flex flex-wrap gap-2">
                 {skillCompatibilityTargets.map((target) => {
                   const active = draft.compatibleAgents.includes(target);

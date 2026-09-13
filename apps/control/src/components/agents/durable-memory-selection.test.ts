@@ -4,6 +4,8 @@ import {
   bindableDurableMemories,
   supportsDurableMemoryPlatform,
   supportsNativeMemoryPlatform,
+  instanceMemoryInput,
+  nativeMemorySelection,
 } from "./durable-memory-selection";
 
 function memory(
@@ -24,6 +26,25 @@ function memory(
 }
 
 describe("Durable Memory selection for Agent creation", () => {
+  it.each(["hermes", "openclaw", "deepagents"] as const)(
+    "creates %s with Native Memory independently of embedding readiness",
+    (platform) => {
+      for (const available of [false, true]) {
+        expect(instanceMemoryInput(platform, available, nativeMemorySelection))
+          .toEqual({ memory: { mode: "native", citations: "auto" } });
+      }
+      expect(instanceMemoryInput(platform, false, "old-memory-selection"))
+        .toEqual({ memory: { mode: "native", citations: "auto" } });
+    },
+  );
+
+  it("keeps explicitly selected Durable Memory separate from Native Memory", () => {
+    expect(instanceMemoryInput("hermes", true, "memory-a"))
+      .toEqual({ durableMemoryId: "memory-a" });
+    expect(instanceMemoryInput("openclaw", true, "")).toEqual({});
+    expect(instanceMemoryInput("deepagents", true, ""))
+      .toEqual({ memory: { mode: "native", citations: "auto" } });
+  });
   it("supports both OpenClaw and Hermes without enabling unrelated platforms", () => {
     expect(supportsDurableMemoryPlatform("openclaw")).toBe(true);
     expect(supportsDurableMemoryPlatform("hermes")).toBe(true);
@@ -33,7 +54,7 @@ describe("Durable Memory selection for Agent creation", () => {
   it("uses Native text Memory as the fallback only for supported runtimes", () => {
     expect(supportsNativeMemoryPlatform("openclaw")).toBe(true);
     expect(supportsNativeMemoryPlatform("hermes")).toBe(true);
-    expect(supportsNativeMemoryPlatform("deepagents")).toBe(false);
+    expect(supportsNativeMemoryPlatform("deepagents")).toBe(true);
   });
 
   it("offers only ready or unbound Memories without an active binding", () => {

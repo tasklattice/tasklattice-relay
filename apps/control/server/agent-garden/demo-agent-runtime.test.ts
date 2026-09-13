@@ -6,6 +6,7 @@ import {
   hermesMvpA2aAgentIds,
   runDemoAgentMessage,
 } from "./demo-agent-runtime";
+import { databaseAgentCatalog } from "./database-agent-catalog";
 
 describe("demo Agent runtime", () => {
   it("uses the deployed Control Service origin for callable examples", () => {
@@ -47,20 +48,31 @@ describe("demo Agent runtime", () => {
     );
   });
 
-  it("selects two standard A2A examples for the Hermes MVP", () => {
+  it("selects independently deployable A2A examples for the Hermes MVP", () => {
     expect(hermesMvpA2aAgentIds).toEqual([
       "a2a-github-daily-triage",
       "a2a-pull-request-risk-scanner",
+      "langgraph-support-escalation-router",
     ]);
     expect(
       hermesMvpA2aAgentIds.map((id) =>
         demoAgentDefinitions.find((agent) => agent.id === id)?.platformLabel
       ),
-    ).toEqual(["A2A Standard", "A2A Standard"]);
+    ).toEqual(["A2A Standard", "A2A Standard", "LangGraph / A2A"]);
+    expect(
+      databaseAgentCatalog.find(
+        (agent) => agent.id === "langgraph-support-escalation-router",
+      )?.configuration,
+    ).toMatchObject({
+      onboardingSource: "CONTAINER_IMAGE",
+      imageReference: expect.any(String),
+      args: JSON.stringify(["a2a", "langgraph-support-escalation-router"]),
+      runtimeOwnership: "PROJECT_MANAGED_INSTANCE",
+    });
   });
 
-  it("returns a deterministic A2A message with an interaction trace", () => {
-    const response = runDemoAgentMessage(
+  it("executes the LangGraph demo and returns its structured runtime logs", async () => {
+    const response = await runDemoAgentMessage(
       "langgraph-support-escalation-router",
       {
         jsonrpc: "2.0",
@@ -78,6 +90,7 @@ describe("demo Agent runtime", () => {
           },
         },
       },
+      () => undefined,
     );
 
     expect(response).toMatchObject({
@@ -90,18 +103,46 @@ describe("demo Agent runtime", () => {
             demo: true,
             protocol: "A2A 1.0",
             framework: "LangGraph",
+            executionRuntime: "LANGGRAPH_STATE_GRAPH",
+            simulatedBehavior: false,
             trace: [
-              "Classify",
-              "Policy check",
-              "Approval gate",
-              "Response handoff",
+              "normalize-input",
+              "classify-case",
+              "policy-check",
+              "approval-gate",
+              "response-handoff",
+              "end",
             ],
           },
         },
       },
     });
     expect(response.result.message.parts[0]?.text).toContain(
-      "LangGraph workflow preview",
+      "LangGraph support routing result",
+    );
+    expect(response.result.message.parts[0]?.text).toContain("Priority: P1");
+    expect(response.result.message.metadata.traceEvents).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        step: "policy-check",
+        status: "COMPLETED",
+        attributes: expect.objectContaining({
+          framework: "langgraph",
+          outcome: "APPROVAL_REQUIRED",
+        }),
+      }),
+    ]));
+    expect(response.result.message.metadata.runtimeLogs.map((line) => JSON.parse(line))).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ event: "agent.demo.run.started" }),
+        expect.objectContaining({ event: "agent.demo.trace", step: "approval-gate" }),
+        expect.objectContaining({
+          event: "agent.demo.run.finished",
+          executionRuntime: "LANGGRAPH_STATE_GRAPH",
+        }),
+      ]),
+    );
+    expect(response.result.message.metadata.runtimeLogs.join("\n")).not.toContain(
+      "Route an enterprise billing outage.",
     );
   });
 });

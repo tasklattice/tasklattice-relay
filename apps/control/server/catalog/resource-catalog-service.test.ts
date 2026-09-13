@@ -14,6 +14,7 @@ function adapter(
   return {
     baseUrl: "http://litellm.test",
     registerModel: vi.fn(),
+    deleteModelById: vi.fn(async () => undefined),
     deleteModel: vi.fn(),
     probeModel: vi.fn(),
     createInstanceKey: vi.fn(),
@@ -355,6 +356,21 @@ describe("ResourceCatalogService", () => {
     expect(refreshed.lastDiscoveredAt).toBe(created.lastDiscoveredAt);
   });
 
+  it("re-registers a Catalog MCP Server when LiteLLM lost its runtime state", async () => {
+    const updateMcpServer = vi.fn(async () => undefined);
+    const registerMcpServer = vi.fn(async () => undefined);
+    const { service } = serviceWithAdapter({ updateMcpServer, registerMcpServer });
+    const created = await service.createMcpServer(connection);
+    updateMcpServer.mockRejectedValueOnce(new Error("MCP server not found"));
+    registerMcpServer.mockClear();
+
+    const reconciled = await service.reconcileMcpServer(created.id);
+
+    expect(reconciled.status).toBe("HEALTHY");
+    expect(updateMcpServer).toHaveBeenCalledOnce();
+    expect(registerMcpServer).toHaveBeenCalledOnce();
+  });
+
   it("rejects arbitrary stdio commands before they reach the LiteLLM host", async () => {
     const { service, litellm } = serviceWithAdapter();
 
@@ -406,6 +422,7 @@ describe("ResourceCatalogService", () => {
     markEmbeddingReady(store);
     const litellm = adapter();
     const secrets: SecretStore = {
+      referenceFor: (projectId, resourceId) => `memory://${projectId}/${resourceId}`,
       put: vi.fn(),
       get: vi.fn(async () => "pgvector-secret"),
       delete: vi.fn(),
@@ -472,7 +489,7 @@ describe("ResourceCatalogService", () => {
         provider: "pg_vector",
         metadata: expect.objectContaining({ tali_provider: "postgresql" }),
         litellmParams: expect.objectContaining({
-          api_base: "http://127.0.0.1:8080/api/internal/vector-stores/individual",
+          api_base: "http://localhost:5173/api/internal/vector-stores/individual",
           api_key: expect.any(String),
         }),
       }),
@@ -566,6 +583,7 @@ describe("ResourceCatalogService", () => {
     markEmbeddingReady(store);
     const litellm = adapter();
     const secrets: SecretStore = {
+      referenceFor: (projectId, resourceId) => `memory://${projectId}/${resourceId}`,
       put: vi.fn(),
       get: vi.fn(async () => "elastic-api-key"),
       delete: vi.fn(),
@@ -599,7 +617,7 @@ describe("ResourceCatalogService", () => {
         }),
         litellmParams: expect.objectContaining({
           api_base:
-            "http://127.0.0.1:8080/api/internal/vector-stores/individual",
+            "http://localhost:5173/api/internal/vector-stores/individual",
           api_key: expect.any(String),
         }),
       }),
@@ -684,7 +702,10 @@ describe("ResourceCatalogService", () => {
         },
       }],
     });
-    const secrets: SecretStore = { put: vi.fn(), get: vi.fn(), delete: vi.fn() };
+    const secrets: SecretStore = {
+      referenceFor: (projectId, resourceId) => `memory://${projectId}/${resourceId}`,
+      put: vi.fn(), get: vi.fn(), delete: vi.fn(),
+    };
     const service = new ResourceCatalogService(
       store,
       new ProjectQuotaService(store, litellm),

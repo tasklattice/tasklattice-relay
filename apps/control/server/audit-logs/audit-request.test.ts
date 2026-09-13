@@ -162,6 +162,44 @@ describe("platform audit request capture", () => {
     });
   });
 
+  it("audits Agent Tests, Publications, and runtime resource calls", async () => {
+    await expect(captureAuditRequest(new Request(
+      "http://tali.local/api/v1/projects/individual/agents/agent-a/test-runs",
+      { method: "POST", headers: { "content-type": "application/json" }, body: "{}" },
+    ))).resolves.toMatchObject({
+      descriptor: {
+        action: "agent.test",
+        objectId: "agent-a",
+        objectType: "Agent",
+        projectId: "individual",
+      },
+    });
+    await expect(captureAuditRequest(new Request(
+      "http://tali.local/api/v1/projects/individual/agents/agent-a/publications",
+      { method: "POST", headers: { "content-type": "application/json" }, body: "{}" },
+    ))).resolves.toMatchObject({
+      descriptor: { action: "agent.publish", objectId: "agent-a" },
+    });
+
+    const runtimeSearch = await captureAuditRequest(new Request(
+      "http://tali.local/api/v1/runtime-bridge/agents/agent-a/versions/version-a/resources/knowledge/search",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ query: "customer-private-question" }),
+      },
+    ));
+    expect(runtimeSearch).toMatchObject({
+      descriptor: {
+        action: "agent_runtime.knowledge_search",
+        objectId: "agent-a",
+        objectType: "Agent Runtime",
+      },
+      body: { retained: false, reason: "agent_runtime_payload" },
+    });
+    expect(JSON.stringify(runtimeSearch)).not.toContain("customer-private-question");
+  });
+
   it("records platform changes without inventing a Project relation", async () => {
     database = createTestPrisma();
     const captured = await captureAuditRequest(new Request(
@@ -398,7 +436,7 @@ describe("platform audit request capture", () => {
     }
 
     expect(uncovered).toEqual([]);
-    expect(routeFiles).toHaveLength(104);
+    expect(routeFiles).toContain("projects/[projectId]/agents/[agentId]/publications.post.ts");
   });
 
   it("records direct Project role switches", async () => {

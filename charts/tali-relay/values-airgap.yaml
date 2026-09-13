@@ -35,7 +35,7 @@ images:
 agentSandbox:
   image:
     repository: registry.airgap.example.com/third-party/agent-sandbox-controller
-    tag: v0.5.1
+    tag: v1.0.2
   imagePullSecrets:
     - name: airgap-registry
 
@@ -50,6 +50,6 @@ openshell:
       repository: registry.airgap.example.com/third-party/openshell-supervisor
       tag: 0.0.106
   server:
-    sandboxImage: registry.airgap.example.com/third-party/nemoclaw-sandbox-base:v0.0.114
+    sandboxImage: registry.airgap.example.com/third-party/nemoclaw-sandbox-base:v0.0.123
     sandboxImagePullSecrets:
       - name: airgap-registry

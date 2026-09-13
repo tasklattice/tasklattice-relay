@@ -2,15 +2,24 @@
 
 This chart installs the complete TaskLattice Relay stack: control/UI, Control
 Worker, Docling Serve, OpenShell runner, LiteLLM, PostgreSQL with pgvector,
-the internal Hindsight Durable Memory provider, OpenShell, and the Agent
-Sandbox controller.
+the internal Hindsight Durable Memory provider, and the optional Agent Sandbox
+controller. OpenShell Gateways are provisioned dynamically in Project Namespaces;
+the default control-plane release does not deploy a shared Gateway in `tali`.
 Its Chart, package, and default Helm release name is `tali-relay`; the examples
 use the product-level `tali` Kubernetes namespace.
-The Release Workflow selects OpenShell 0.0.106, NemoClaw v0.0.114, and Agent
-Sandbox v0.5.1 by explicit upstream tags and does not follow `latest`. Builds
+The Release Workflow selects OpenShell 0.0.106, NemoClaw v0.0.123, and Agent
+Sandbox v1.0.2 by explicit upstream tags and does not follow `latest`. Builds
 use the content currently published under those tags. Their upstream source is
 not copied into this repository, while the released TaskLattice Relay archive
 remains self-contained.
+
+Agent Sandbox uses the v1.0.2 source tag and controller image; upstream's Helm
+Chart version is still `0.1.0`. Set `agentSandbox.enabled=false` to reuse an
+existing cluster controller (see `values-uat.yaml`). Keep it `true` only when
+this release owns the cluster-wide controller. For a separate local release,
+run `npm run helm:deploy:agent-sandbox`, then deploy Relay with
+`AGENT_SANDBOX_ENABLED=false`. See the
+[upgrade comparison, configuration, and compatibility tests](../../docs/agent-sandbox-v1.0.2.md).
 
 Prepare the dependency archives before rendering the source Chart:
 
@@ -87,22 +96,20 @@ Workspace, service route base, service CIDRs, OpenShell Gateway/Supervisor/base
 images, pull policy, and TLS mode are also reported to the page, but remain
 read-only deployment topology.
 
-`projectRuntimeNamespaces` seeds the initial Platform Infrastructure setting
-when the database has no runtime configuration. After bootstrap, change
-Namespace enablement and cluster identity under **Platform Setting ->
-Infrastructure**; validation checks Kubernetes access and existing Runtime
-Targets before save. The Chart always installs the reviewed runtime RBAC so the
-feature can be enabled online. When enabled, Project creation synchronously
-ensures an opaque, stable `tp-<16-character-base32>` Namespace before the API
-returns success. The exact Project name is stored as an annotation and a
-DNS-safe form is stored as a label.
+Every Project has an opaque, stable `tp-<16-character-base32>` Namespace.
+Project creation ensures the Namespace before returning success. Its annotations
+preserve the exact Project name; a DNS-safe name is also stored as a label.
+`projectRuntimeNamespaces.clusterId` seeds the initial Platform Infrastructure
+setting when the database has no runtime configuration.
 
-When `projectOpenShell.enabled=true`, the same reconciliation installs the
-repository-pinned official OpenShell chart as a separate Helm release in that
-Project Namespace. It sets the Gateway's fixed sandbox Namespace to the
-Project Namespace, uses a private `ClusterIP` Service and NetworkPolicy, and
-reuses `openshell.resources`, image pull Secrets, images, and workspace storage
-settings. Relay does not create a tenant ServiceAccount, quota, or LimitRange.
+The Chart requires `projectOpenShell.enabled=true`,
+`runner.projectTargetRouting.enabled=true`, `projectRuntimeNamespaces.enabled=true`,
+and `openshell.enabled=false`. Control installs the pinned official OpenShell
+chart as a separate Helm release in each Project Namespace. The Gateway uses that
+Namespace for Sandboxes, with a private `ClusterIP` Service and NetworkPolicy.
+Its image, resources and pull Secrets come from `openshell.*` values. The
+OpenShell dependency remains packaged for this purpose; it is never deployed
+in the Control namespace.
 
 The main Control Plane ServiceAccount can ensure Namespaces and reconcile the
 official per-Project OpenShell releases. The separate Control Worker uses a
@@ -116,33 +123,63 @@ kubectl -n <control-namespace> exec deployment/<release>-control -- \
 ```
 
 OpenShell 0.0.106 fixes one Kubernetes sandbox Namespace per Gateway. The
-compatibility topology therefore runs one Gateway per Project but keeps one
-central Runner. Every Agent lifecycle, audit, terminal, and Web UI operation
+architecture runs one Gateway per Project and one central Runner. Every Agent lifecycle, audit, terminal, and Web UI operation
 carries the stable Project Runtime Target; the Runner derives the trusted
 Gateway Service address from `runner.projectTargetRouting.gatewayEndpointTemplate`.
 It never accepts a Gateway URL from an API request. Browser service hostnames
 are forwarded by the central Runner's workspace-aware service proxy.
 
-The routing contract does not require Gateways to be shared. A validated
-OpenShell 0.0.111-or-newer deployment can continue using the same dedicated
-Gateway-per-Project topology for higher-SLA tenants, or disable the
-per-Project provisioner and point the endpoint template at a shared Gateway for
-standard-SLA tenants. Both choices preserve Project Namespace/workspace
-identity and the centralized Runner; only the Gateway provisioner and endpoint
-resolution policy differ.
-
-`projectOpenShell.enabled`, the legacy shared `openshell.enabled` topology, and
-`runner.projectTargetRouting.enabled` are validated together at Helm render
-time. Runtime Namespace disablement is also rejected by Platform Setting while
-Project target routing is deployment-enabled. See
+Helm rejects configurations that disable Project routing or enable a shared
+Gateway in the Control namespace. See
 [Project Runtime Namespaces](../../docs/project-runtime-namespaces.md).
 
-The Control-to-Runner contract intentionally contains only the Project
-Namespace. After a newer OpenShell/NemoClaw compatibility set is validated,
-the per-Project Helm provisioner can be replaced by a shared Gateway/operator
-adapter and the endpoint template can point to that shared service. Project
-and Agent APIs, runtime-target rows, Sandbox identity, and central Runner
-deployment do not need a topology rewrite.
+### Project resource tree and read-only Argo CD visibility
+
+`projectRuntimeNamespaces.resourceOwnership` defaults to `true`. Project roots
+(OpenShell workloads and its dedicated RBAC, Runtime Bridge, managed/expert Agent
+workloads, Sandbox CRs, and unowned PVCs) reference the actual Project Namespace
+UID. Existing controller references are preserved: Gateway Pods belong to their
+StatefulSet, and Agent Pods and workspace PVCs belong to their Sandbox. No new CRD is introduced.
+Sandbox ownership is reconciled when Control observes provisioning or ready
+Instances; it also repairs existing Instances during normal observation.
+
+To show API-created Project Namespaces in an existing Argo CD Application, copy
+the **exact tracking annotation of an existing visible resource** into this value:
+
+```yaml
+projectRuntimeNamespaces:
+  resourceOwnership: true
+  argocd:
+    sourceTrackingId: "tali:/Namespace:/tali" # Example only; use your actual source ID.
+    installationId: "" # Match Argo CD's installation ID when configured.
+```
+
+This opt-in integration requires Argo CD's `annotation` or `annotation+label`
+tracking mode and permission to watch the Project Namespaces and resource kinds.
+The copied tracking ID deliberately identifies the existing source, not the new
+Project Namespace. Argo CD's documented non-self-referencing behavior makes the
+Namespace visible without comparing or pruning it. `Prune=false,Delete=false`
+adds explicit deletion protection. Children use Kubernetes ownership, not copied
+Application labels. Argo CD users should have viewing permissions only for these
+business resources; these annotations do not grant or restrict UI RBAC.
+
+All business creation/deletion remains with Relay APIs. `ownerReferences` still
+participates in Kubernetes garbage collection: deleting the Project Namespace
+deletes its dependents. Namespace containment alone does not make a Namespace
+appear in an Argo Application. With an empty `sourceTrackingId`, no Argo tracking
+annotations are written; existing namespace tracking can be used instead.
+
+OpenShell ownership uses the Helm 3 post-renderer bundled in the Control image
+(Helm 3.19.0). Gateway PVC metadata is reconciled after Helm installation to avoid
+changing immutable StatefulSet claim templates. It retains the normal storage
+lifetime across Pod replacement. The provisioner also reconciles certgen hook
+RBAC and generated Secrets, which Helm excludes from post-rendering.
+See [Argo CD resource tracking](https://argo-cd.readthedocs.io/en/stable/user-guide/resource_tracking/#non-self-referencing-annotations).
+
+Run `npm run test:project-resource-ownership` for chart ownership checks. Local
+cluster acceptance uses `HELM_BIN=/path/to/helm3 KUBE_CONTEXT=orbstack npm run
+test:e2e:project-resource-ownership`; it creates and removes an isolated Project
+Namespace and requires an installed Sandbox controller and cached Runner image.
 
 Workload rollout checksums are component-scoped. Updating Control-only
 settings such as `control.publicUrl` restarts the Control Deployment but does
@@ -151,19 +188,18 @@ not restart application Pods.
 
 ## Argo CD sync order
 
-The parent chart owns the Argo CD sync-wave policy. It does not patch or add
-Argo CD annotations to the OpenShell and Agent Sandbox dependency charts, so
-their regular resources keep Argo CD's default sync wave `0`. OpenShell's
-certificate-generation resources also retain their upstream Helm
-`pre-install,pre-upgrade` hooks and hook weights; Argo CD maps those hooks to
-its `PreSync` phase.
+The parent chart owns the Control Plane's Argo CD sync-wave policy. Agent
+Sandbox dependency resources keep the default sync wave `0`. Project OpenShell
+releases are installed separately by Control through Helm, including their
+upstream `pre-install,pre-upgrade` certificate hooks. They do not participate in
+the Control Application's sync sequence.
 
 TaskLattice Relay resources are deliberately later than the dependencies:
 
 | Wave | Resources |
 | ---: | --- |
 | `-10` | Namespace `LimitRange` and optional OpenShift SCC RoleBindings required by dependency admission |
-| `0` | OpenShell and Agent Sandbox dependency resources (unmodified default) |
+| `0` | Agent Sandbox dependency resources (unmodified default) |
 | `10` | TaskLattice Relay ServiceAccounts, RBAC, Secrets, ConfigMaps, and Services, including the internal Hindsight Service |
 | `20` | PostgreSQL StatefulSet and the version-scoped Hindsight migration Job |
 | `30` | LiteLLM and optional Keycloak Deployments |
@@ -195,6 +231,26 @@ the model deployment itself.
 exceptions remain available in the LiteLLM container logs. Increase this value
 only when request-level tracebacks are required for gateway diagnostics.
 
+To trust HTTPS endpoints signed by a private CA, provide a PEM-encoded CA bundle
+through `litellm.caCertificate`. The Chart creates a release-scoped Secret,
+mounts it at `/etc/ssl/certs` only in the LiteLLM Pod, and triggers a LiteLLM
+rollout when the certificate changes. For example:
+
+```yaml
+litellm:
+  caCertificate: |
+    -----BEGIN CERTIFICATE-----
+    ...
+    -----END CERTIFICATE-----
+```
+
+The certificate can also be supplied without copying it into a values file:
+
+```sh
+helm upgrade --install tali-relay charts/tali-relay \
+  --set-file litellm.caCertificate=/path/to/ca.crt
+```
+
 The dependency preparation step applies the small OpenShell overlay in
 `patches/openshell.patch`, which applies the configured
 `openshell.resources` to its pre-install certificate-generation Job. Keep or
@@ -214,13 +270,8 @@ LiteLLM, internal Control, and Runtime Namespace values as one-time bootstrap
 environment values; Control imports them into the Platform database. Later
 changes are made under **Platform Setting -> Infrastructure**, where the
 complete draft must validate before save. Local authentication policy, OIDC,
-and SMTP are also configured after sign-in from Platform Setting. Set
-`runner.gatewayEndpoint` when both `openshell.enabled=false` and
-`runner.projectTargetRouting.enabled=false` and the Gateway is managed outside
-this release. Set `runner.workspace` to the same OpenShell workspace used by
-that Gateway; service routes include this value as their first hostname
-segment. In Project target-routing mode, the Project Namespace is also the
-workspace and those two legacy settings are not used for target selection.
+and SMTP are also configured after sign-in from Platform Setting. The Runner
+derives the Gateway and workspace from the Project Namespace.
 
 To deliver Project invitations, sign in as a Platform Administrator and
 configure **Platform Setting -> Email delivery**. Port 587 uses STARTTLS; use
@@ -292,19 +343,17 @@ use the `.tgz` embedded in the released Control Plane image.
 Use `values-openshift.yaml` when the OpenShift administrator permits the
 `anyuid` SCC. The images retain their tested, non-root UID/GID values; no
 arbitrary-UID `HOME=/tmp` image adaptation is required. The profile binds the
-release's dedicated Runtime, Control, and OpenShell gateway ServiceAccounts to
+release's dedicated Runtime, Control, and Control Worker ServiceAccounts to
 `anyuid`, changes externally facing Services to `ClusterIP`, creates an
-edge-terminated Control Route, omits OpenShell's structured AppArmor field,
-and applies restrictive security contexts to the Agent Sandbox controller.
+edge-terminated Control Route, and applies restrictive security contexts to
+the Agent Sandbox controller.
 
-OpenShell sandbox pods are the intentional exception. They require root,
-network/process capabilities, and the `privileged` SCC. The OpenShift profile
-therefore creates a namespaced RoleBinding to
-`system:openshift:scc:privileged`. This is suitable only for an isolated,
-trusted evaluation project, and the Helm installer must be allowed to bind
-that ClusterRole. Set `openshift.anyuidScc.createRoleBinding=false` and/or
-`openshift.sandboxScc.createRoleBinding=false` when a cluster administrator
-manages the corresponding SCC grants separately.
+Business OpenShell SCC grants belong in each Project Namespace and must be
+provided there by the OpenShift platform. The Control Chart creates no Gateway
+or Sandbox SCC binding in its own namespace. Set
+`openshift.anyuidScc.createRoleBinding=false` when the platform manages the
+Control namespace's grant separately. This profile validates the static Control
+Plane; it does not certify dynamically provisioned Project workloads for OpenShift.
 
 The Chart also installs CRDs, ClusterRoles, ClusterRoleBindings, and the Agent
 Sandbox controller in the release namespace. A cluster administrator must perform the first
@@ -516,7 +565,7 @@ The repository's local deployment script performs this mapping automatically:
 npm run helm:deploy:dev:keycloak
 ```
 
-Every local deployment idempotently creates `isolation-1` and `isolation-2`
+Every local deployment idempotently ensures `proj1` and `isolation-1` exist
 under `dep1` from `config/development-projects.json`. The Keycloak command also
 signs in to Control with the local development administrator,
 validates and saves the embedded Keycloak provider through the Control API,
@@ -580,9 +629,10 @@ managed identity provider for production.
 ## Example MCP Server for integration tests
 
 Set `exampleMcp.enabled=true` to deploy a test-only, in-cluster Streamable HTTP
-MCP Server. It exposes three deterministic tools: `echo_message`,
-`calculate_sum`, and `get_platform_status`. The Service is not exposed outside
-the cluster, requires HTTP Basic authentication, and is available to LiteLLM at:
+MCP Server. It exposes the read-only `list_commits` GitHub tool plus three
+deterministic tools: `echo_message`, `calculate_sum`, and
+`get_platform_status`. The Service is not exposed outside the cluster, requires
+HTTP Basic authentication, and is available to LiteLLM at:
 
 ```text
 http://tali-relay-example-mcp:3000/mcp
@@ -604,6 +654,12 @@ Build and deploy the local example together with Keycloak:
 npm run images:build:dev:demo-test
 npm run helm:deploy:dev:keycloak:example-mcp
 ```
+
+The GitHub tool accepts a token from
+`exampleMcp.githubTokenSecret.name`/`.key`. The local deployment script creates
+that Secret from `GITHUB_TOKEN`, or from the authenticated `gh` CLI when one is
+available. The token is never passed as a Helm value or stored in Helm release
+metadata.
 
 Register the endpoint as a custom HTTP MCP Server in a Project. TaskLattice Relay
 then asks LiteLLM to discover the tools and stores the resulting names,

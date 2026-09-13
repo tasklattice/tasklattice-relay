@@ -20,17 +20,26 @@ marketing expression.
 ## Visual intent
 
 - Temperament: operational, precise, direct, and calm.
-- Brand signal: `#4339ff` is the action and navigation accent. The lattice logo
-  uses a restrained cyan signal node to preserve the orchestration identity
-  without turning every component into brand decoration.
-- Neutral system: the reference-derived `#fafafa` field, `#191a1b` ink,
-  `#f2f2f2` secondary planes, and low-opacity ink washes.
-- Typography: `Noto Serif SC` for display and section headings; `PingFang SC`,
-  `Noto Sans SC`, and `Hanken Grotesk` for interface text; `Chivo Mono` and
-  `JetBrains Mono` for identifiers and operational evidence.
-- Shape: one-pixel rules, square working surfaces, and zero-radius controls.
-  Hierarchy comes from serif display type, spacing, density, and section lines
-  rather than shadows or a wall of equal cards.
+- Brand signal: cobalt is the single interactive brand color. It owns primary
+  actions, navigation selection, focus, and links; primary actions must never
+  silently fall back to graphite. Information blue, success green, warning
+  amber, and danger red remain distinct semantic roles.
+- Neutral system: light mode uses a cool `#f7f8fb` canvas, white working
+  surfaces, and a `#f4f6fa` sidebar. Dark mode uses a deep navy canvas and
+  slightly lighter raised surfaces. One-pixel cool-gray rules make ownership
+  and boundaries explicit; subtle elevation is reserved for raised controls
+  and overlays.
+- Typography: `Inter` with `Noto Sans SC` / `Noto Sans TC` fallbacks for display
+  and interface text; `Chivo Mono` for identifiers and operational evidence.
+- Shape: one-pixel rules, 10-pixel functional controls, and 14-pixel grouped
+  panels. Compact state badges may be pill-shaped. Hierarchy comes from type,
+  spacing, density, and section lines rather than heavy shadows or a wall of
+  equal cards.
+- Vendor identity: model providers, MCP products, databases, Agent frameworks,
+  and delivery channels use their official full-color asset where available.
+  Monochrome product marks remain monochrome only when that is the vendor's
+  canonical identity. Generic Lucide icons are reserved for product-neutral
+  capabilities and unknown/custom integrations.
 - Motion: short state transitions only. Honor `prefers-reduced-motion`.
 
 ### Logo contract

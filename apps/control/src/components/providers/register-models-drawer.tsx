@@ -1,18 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  complianceDomainCatalog,
   modelCapabilities,
   modelTypes,
   providerConnectionDraftSchema,
   providerPresets,
-  providerSupportsComplianceDomain,
-  type ComplianceDomain,
   type ModelCapability,
   type ModelDeployment,
   type ModelType,
   type ProviderAccount,
   type ProviderConnectionDraft,
+  type ProviderConnectionCreationResult,
   type ProviderDiscoveryResult,
   type ProviderKind,
   type ProviderModelSelection,
@@ -23,8 +21,6 @@ import {
   Check,
   CheckCircle2,
   Copy,
-  Globe2,
-  Info,
   KeyRound,
   Minus,
   Plus,
@@ -42,6 +38,7 @@ import {
   CreationFlow,
   type CreationStep,
 } from "@/components/shared/creation-flow";
+import { StatusBadge } from "@/components/shared/status";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -54,7 +51,7 @@ import {
   DrawerTitle,
 } from "@/components/ui/drawer";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Label, RequiredMark } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -64,11 +61,6 @@ import {
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { useInferenceManagement } from "./inference-management-context";
 import { cn } from "@/lib/utils";
 
@@ -107,7 +99,7 @@ type Step = "source" | "models" | "complete";
 type CredentialMode = "existing" | "new";
 
 const registrationSteps: readonly CreationStep[] = [
-  { label: "Provider", description: "Choose source and boundary" },
+  { label: "Provider", description: "Choose Provider and credentials" },
   { label: "Review models", description: "Select discovered deployments" },
   { label: "Complete", description: "Review registration results" },
 ];
@@ -118,8 +110,10 @@ interface RegistrationSummary {
   failures: Array<{ model: ProviderModelSelection; message: string }>;
 }
 
+const emptyAccounts: ProviderAccount[] = [];
+
 export function RegisterModelsDrawer({
-  accounts = [],
+  accounts = emptyAccounts,
   initialAccount,
   initialMode,
   intent = "register-models",
@@ -160,8 +154,6 @@ export function RegisterModelsDrawer({
   const [models, setModels] = useState<ProviderModelSelection[]>([]);
   const [manualModelId, setManualModelId] = useState("");
   const [manualModelType, setManualModelType] = useState<ModelType>("llm");
-  const [complianceDomain, setComplianceDomain] =
-    useState<ComplianceDomain | "">("");
   const [summary, setSummary] = useState<RegistrationSummary>();
 
   const activeAccount = availableAccounts.find(
@@ -181,13 +173,12 @@ export function RegisterModelsDrawer({
   const register = useMutation({
     mutationFn: async (): Promise<RegistrationSummary> => {
       if (credentialMode === "new") {
-        if (!complianceDomain) {
-          throw new Error("Choose a data boundary before configuring a Provider.");
-        }
         const result = await client.registerProviderAccount({
           connection: draft,
           models,
-          complianceDomain,
+          // Preserve the legacy registration contract until Routing owns policy.
+          complianceDomain: (draft.provider === "qwen" || draft.provider === "moonshot")
+            && draft.config.region === "cn" ? "CN_MAINLAND" : "GLOBAL",
         });
         return {
           providerName: result.models[0]?.providerName
@@ -197,27 +188,30 @@ export function RegisterModelsDrawer({
         };
       }
       if (!activeAccount) throw new Error("Choose saved Provider credentials.");
-      const results = await Promise.all(
-        models.map(async (model) => {
-          const created = await client.registerModelDeployment({
-            providerAccountId: activeAccount.id,
-            ...model,
-          });
-          return { created, source: model };
-        }),
+      const results = await Promise.allSettled(
+        models.map((model) => client.registerModelDeployment({
+          providerAccountId: activeAccount.id,
+          ...model,
+        })),
       );
+      const registered: ModelDeployment[] = [];
+      const failures: ProviderConnectionCreationResult["failures"] = [];
+      results.forEach((result, index) => {
+        if (result.status === "fulfilled" && result.value.status === "VALIDATED") {
+          registered.push(result.value);
+        } else {
+          failures.push({
+            model: models[index]!,
+            message: result.status === "rejected"
+              ? result.reason instanceof Error ? result.reason.message : "Model registration failed."
+              : result.value.validationMessage,
+          });
+        }
+      });
       return {
-        providerName: results[0]?.created.providerName
-          ?? providerLabel(activeAccount.providerKind),
-        models: results
-          .filter(({ created }) => created.status === "VALIDATED")
-          .map(({ created }) => created),
-        failures: results
-          .filter(({ created }) => created.status !== "VALIDATED")
-          .map(({ created, source }) => ({
-            model: source,
-            message: created.validationMessage,
-          })),
+        providerName: registered[0]?.providerName ?? providerLabel(activeAccount.providerKind),
+        models: registered,
+        failures,
       };
     },
     onSuccess: async (result) => {
@@ -246,7 +240,6 @@ export function RegisterModelsDrawer({
     setDiscovery(undefined);
     setModels([]);
     setManualModelId("");
-    setComplianceDomain("");
     setSummary(undefined);
     discover.reset();
     register.reset();
@@ -256,7 +249,6 @@ export function RegisterModelsDrawer({
     if (
       !open
       || credentialMode !== "new"
-      || !complianceDomain
       || providerSelected
     ) return;
     const timer = window.setTimeout(
@@ -264,34 +256,20 @@ export function RegisterModelsDrawer({
       100,
     );
     return () => window.clearTimeout(timer);
-  }, [complianceDomain, credentialMode, open, providerSelected]);
+  }, [credentialMode, open, providerSelected]);
 
   const pending = discover.isPending || register.isPending;
   const selectProvider = (kind: ProviderKind) => {
-    if (!complianceDomain) return;
-    setDraft(createProviderDraft(kind, complianceDomain));
+    setDraft(createProviderDraft(kind));
     setProviderSelected(true);
     setErrors({});
-  };
-  const changeComplianceDomain = () => {
-    setComplianceDomain("");
-    setProviderSelected(false);
-    setDraft(createProviderDraft("openai"));
-    setErrors({});
-    discover.reset();
   };
   const validateAndDiscover = () => {
     if (credentialMode === "existing") {
       if (activeAccount) discover.mutate();
       return;
     }
-    if (!providerSelected || !complianceDomain) return;
-    if (!providerSupportsComplianceDomain(draft.provider, complianceDomain)) {
-      setErrors({
-        form: "This Provider is not available inside the selected compliance boundary.",
-      });
-      return;
-    }
+    if (!providerSelected) return;
     const parsed = providerConnectionDraftSchema.safeParse(draft);
     if (!parsed.success) {
       setErrors(
@@ -314,14 +292,6 @@ export function RegisterModelsDrawer({
       (provider) => provider.id === discovery?.providerKind,
     )?.modelTypes ?? modelTypes
   ) as readonly ModelType[];
-  const selectedComplianceDomain = complianceDomainCatalog.find(
-    (domain) => domain.id === complianceDomain,
-  );
-  const availableProviderCount = complianceDomain
-    ? providerPresets.filter((provider) =>
-        providerSupportsComplianceDomain(provider.id, complianceDomain)
-      ).length
-    : 0;
   const currentWizardStep = step === "source" ? 0 : step === "models" ? 1 : 2;
   const changeWizardStep = (next: number) => {
     if (next === 0) setStep("source");
@@ -393,8 +363,8 @@ export function RegisterModelsDrawer({
 
               {credentialMode === "existing" ? (
                 <div className="space-y-2">
-                  <Label htmlFor="provider-credentials">Saved credentials</Label>
-                  <Select value={accountId} onValueChange={setAccountId}>
+                  <Label htmlFor="provider-credentials" required>Saved credentials</Label>
+                  <Select value={accountId} onValueChange={setAccountId} required>
                     <SelectTrigger id="provider-credentials">
                       <SelectValue placeholder="Choose credentials" />
                     </SelectTrigger>
@@ -402,11 +372,7 @@ export function RegisterModelsDrawer({
                       {availableAccounts.map((account) => (
                         <SelectItem key={account.id} value={account.id}>
                           {providerLabel(account.providerKind)} ·{" "}
-                          {
-                            complianceDomainCatalog.find(
-                              (domain) => domain.id === account.complianceDomain,
-                            )?.label
-                          }
+                          {account.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -426,108 +392,20 @@ export function RegisterModelsDrawer({
               ) : (
                 <div className="space-y-5">
                   <section className="space-y-3 border-b pb-5">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex min-w-0 items-start gap-2.5">
-                        <Globe2
-                          aria-hidden
-                          className="mt-0.5 size-4 shrink-0 text-muted-foreground"
-                        />
-                        <div>
-                          <div className="flex items-center gap-1.5">
-                            <h3 className="text-sm font-semibold">
-                              Compliance boundary
-                            </h3>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Info className="size-3.5 text-muted-foreground" />
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                A routing constraint, not a legal certification.
-                                Routing only combines models inside the same
-                                boundary.
-                              </TooltipContent>
-                            </Tooltip>
-                          </div>
-                          <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                            Choose where Provider endpoints and routing fallbacks
-                            are allowed to operate.
-                          </p>
-                        </div>
-                      </div>
-                      {providerSelected ? (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="shrink-0"
-                          disabled={pending}
-                          onClick={changeComplianceDomain}
-                        >
-                          Change
-                        </Button>
-                      ) : null}
-                    </div>
-                    <select
-                      id="provider-compliance-boundary"
-                      aria-label="Compliance boundary"
-                      required
-                      value={complianceDomain}
-                      disabled={pending || providerSelected}
-                      onChange={(event) => {
-                        setComplianceDomain(
-                          event.target.value as ComplianceDomain,
-                        );
-                        setProviderSelected(false);
-                        setErrors({});
-                      }}
-                      className="flex min-h-11 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground shadow-xs outline-none transition-colors focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/20 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      <option value="" disabled>
-                        Select a compliance boundary
-                      </option>
-                      {complianceDomainCatalog.map((domain) => (
-                        <option key={domain.id} value={domain.id}>
-                          {domain.label}
-                        </option>
-                      ))}
-                    </select>
-                    <div
-                      className={cn(
-                        "border-l-2 px-3 py-2 text-xs leading-5",
-                        selectedComplianceDomain
-                          ? "border-primary bg-primary/5 text-foreground"
-                          : "border-border bg-muted/20 text-muted-foreground",
-                      )}
-                    >
-                      {selectedComplianceDomain
-                        ? selectedComplianceDomain.description
-                        : "TaskLattice Relay uses this boundary to filter Provider configurations before credentials are entered."}
-                    </div>
-                  </section>
-
-                  <section className="space-y-3 border-b pb-5">
                     <div className="flex items-start gap-2.5">
                       <ServerCog
                         aria-hidden
-                        className={cn(
-                          "mt-0.5 size-4 shrink-0",
-                          complianceDomain
-                            ? "text-foreground"
-                            : "text-muted-foreground",
-                        )}
+                        className="mt-0.5 size-4 shrink-0 text-muted-foreground"
                       />
                       <div>
-                        <h3 className="text-sm font-semibold">Provider</h3>
+                        <h3 className="flex items-center gap-1 text-sm font-semibold">Provider <RequiredMark /></h3>
                         <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                          {complianceDomain
-                            ? `${availableProviderCount} Provider configurations are available in ${selectedComplianceDomain?.label}.`
-                            : "Select a compliance boundary to unlock the Provider catalog."}
+                          Choose your Provider, then enter credentials to discover models.
                         </p>
                       </div>
                     </div>
                     <ProviderPicker
                       ref={providerTriggerRef}
-                      complianceDomain={complianceDomain || undefined}
                       disabled={pending}
                       value={providerSelected ? draft.provider : undefined}
                       onChange={selectProvider}
@@ -546,8 +424,8 @@ export function RegisterModelsDrawer({
                             Credentials & endpoint
                           </h3>
                           <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                            Credentials are stored server-side. The endpoint
-                            defaults to the selected compliance boundary.
+                            Credentials are stored server-side. Review the endpoint
+                            and enter the credentials for your Provider.
                           </p>
                         </div>
                       </div>
@@ -659,7 +537,7 @@ export function RegisterModelsDrawer({
                   pending
                   || (credentialMode === "existing"
                     ? !activeAccount
-                    : !providerSelected || !complianceDomain)
+                    : !providerSelected)
                 }
               >
                 {discover.isPending ? <Spinner /> : null}
@@ -1106,7 +984,7 @@ function SummaryStep({
                   {model.modelId}
                 </span>
               </span>
-              <Badge variant="secondary">Ready</Badge>
+              <StatusBadge label="Ready" tone="success" />
             </div>
           ))}
         </div>

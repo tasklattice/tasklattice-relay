@@ -111,6 +111,7 @@ export const updatedCountSchema = z.object({ updatedCount: z.number().int().nonn
 
 export const authConfigSchema = z.object({
   authRequired: z.literal(true),
+  canonicalOrigin: z.url(),
   developmentDefaults: z.boolean(),
   localEnabled: z.boolean(),
   mode: z.enum(["local", "local-sso"]),

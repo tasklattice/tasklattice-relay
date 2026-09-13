@@ -1,9 +1,12 @@
 import {
+  expertAgentVersionSnapshotSchema,
   getAgentPlatformDefinition,
+  projectAgentRuntimeInstanceSchema,
   type A2aStandardAgentInstanceDetail,
   type AgentGardenUsageCapabilities,
   type AgentInstanceDetail,
   type AgentInstanceRole,
+  type ProjectAgentInstanceDetail,
   type SupervisorAgentInstanceDetail,
 } from "@tali/contracts";
 import { AgentGardenStore } from "../agent-garden/agent-garden-store";
@@ -33,7 +36,9 @@ export class AgentInstanceDetailService {
         id: supervisor.id,
         name: supervisor.name,
         description: supervisor.description,
-        role: "SUPERVISOR",
+        form: "INTERACTIVE",
+        role: roleFor(platform.capabilities),
+        executionStrategy: null,
         status: supervisor.status,
         platform: { id: platform.id, name: platform.name },
         runtimeView: {
@@ -79,10 +84,124 @@ export class AgentInstanceDetailService {
     }
 
     const instance = await this.garden.getManagedInstance(id);
-    if (!instance) return undefined;
-    const definition = await this.garden.getAgent(instance.agentId);
-    if (!definition) return undefined;
-    return this.a2aDetail(instance, definition);
+    if (instance) {
+      const definition = await this.garden.getAgent(instance.agentId);
+      if (!definition) return undefined;
+      return this.a2aDetail(instance, definition);
+    }
+
+    return this.projectAgentDetail(id);
+  }
+
+  private async projectAgentDetail(
+    id: string,
+  ): Promise<ProjectAgentInstanceDetail | undefined> {
+    const row = await this.garden.database().agentRecord.findFirst({
+      where: {
+        projectId: this.garden.projectId,
+        id,
+        kind: "PROJECT_AGENT",
+        deletedAt: null,
+      },
+      include: {
+        developedAgent: true,
+        agentVersion: true,
+        ownerMembership: { include: { user: true } },
+        creatorMembership: { include: { user: true } },
+      },
+    });
+    if (!row?.developedAgent || !row.agentVersion) return undefined;
+    const creatorUser = row.creatorMembership?.user ?? row.ownerMembership.user;
+    const createdBy = {
+      id: creatorUser.id,
+      displayName: creatorUser.displayName,
+      username: creatorUser.username ?? creatorUser.displayName,
+    };
+    const instance = projectAgentRuntimeInstanceSchema.parse({
+      ...(row.payload as object),
+      createdBy,
+    });
+    const snapshot = expertAgentVersionSnapshotSchema.parse(row.agentVersion.snapshot);
+    const enabledDelegations = snapshot.delegations.filter(
+      (delegation) => delegation.enabled,
+    );
+    const canDelegate = enabledDelegations.length > 0;
+    const skills = snapshot.product.capabilities.map((capability, index) => ({
+      id: `capability-${index + 1}`,
+      name: capability,
+      description: capability,
+      tags: ["Project Agent"],
+    }));
+    return {
+      resourceType: "AGENT_INSTANCE",
+      kind: "PROJECT_AGENT",
+      id: instance.id,
+      name: instance.name,
+      description: instance.description,
+      form: "SERVICE",
+      role: canDelegate ? "HYBRID" : "SPECIALIST",
+      executionStrategy: row.developedAgent.executionMode,
+      status: instance.status,
+      platform: { id: "agent-developer", name: "Agent Developer" },
+      runtimeView: {
+        type: "KUBERNETES",
+        managed: true,
+        ...(instance.runtimeNamespace ? { namespace: instance.runtimeNamespace } : {}),
+        ...(instance.deploymentName
+          ? { workloadName: instance.deploymentName }
+          : {}),
+        ...(instance.serviceName ? { serviceName: instance.serviceName } : {}),
+      },
+      protocols: [{
+        type: "A2A",
+        version: "1.0",
+        direction: canDelegate ? ["CLIENT", "SERVER"] : ["SERVER"],
+        binding: "JSONRPC",
+        ...(instance.endpoint ? { endpoint: instance.endpoint } : {}),
+        ...(instance.agentCardUrl ? { agentCardUrl: instance.agentCardUrl } : {}),
+        agentCardStatus: instance.status === "READY" && instance.endpoint
+          ? "VALID"
+          : "UNCHECKED",
+        capabilities: {
+          streaming: false,
+          pushNotifications: false,
+          extendedAgentCard: false,
+          defaultInputModes: ["text/plain"],
+          defaultOutputModes: ["application/json"],
+        },
+        skills,
+      }],
+      capabilities: {
+        interactive: false,
+        canPlan: row.developedAgent.executionMode === "AGENTIC",
+        canDelegate,
+        acceptsDelegation: true,
+        terminal: false,
+        liveLogs: Boolean(instance.runtimeNamespace && instance.deploymentName),
+      },
+      observability: {
+        logSources: ["RUNTIME", "PROTOCOL"],
+        terminal: {
+          supported: false,
+          reason: "Project Agent runtimes expose read-only logs and traces, not an executable terminal.",
+        },
+      },
+      createdBy,
+      createdAt: instance.createdAt,
+      updatedAt: instance.updatedAt,
+      instance,
+      definition: {
+        id: row.developedAgent.id,
+        slug: row.developedAgent.slug,
+        source: "AGENT_DEVELOPER",
+        executionStrategy: row.developedAgent.executionMode,
+        activeVersion: {
+          id: row.agentVersion.id,
+          versionNumber: row.agentVersion.versionNumber,
+          contentDigest: row.agentVersion.contentDigest,
+        },
+      },
+    };
   }
 
   private a2aDetail(
@@ -98,7 +217,11 @@ export class AgentInstanceDetailService {
       id: instance.id,
       name: instance.name,
       description: instance.description,
+      form: definition.usageMode === "CALLABLE"
+        ? "SERVICE"
+        : definition.usageMode,
       role: roleFor(definition.usageCapabilities),
+      executionStrategy: null,
       status: instance.status,
       platform: { id: "custom", name: definition.platformLabel },
       runtimeView: {

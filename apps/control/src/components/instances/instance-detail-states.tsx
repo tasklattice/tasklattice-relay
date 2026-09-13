@@ -1,4 +1,4 @@
-import { AlertTriangle, ArrowLeft, SearchX } from "lucide-react";
+import { AlertTriangle, ArrowLeft, SearchX, ShieldX } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -39,4 +39,8 @@ export function InstanceDetailErrorState({ onRetry }: { onRetry: () => void }) {
 
 export function InstanceNotFoundState() {
   return <State icon={SearchX} title="Instance not found" description="The Instance may have been deleted or you may not have access." />;
+}
+
+export function InstanceAccessDeniedState() {
+  return <State icon={ShieldX} title="Instance access denied" description="Your active access role does not permit viewing this Instance. Switch access or return to the Instances list." />;
 }

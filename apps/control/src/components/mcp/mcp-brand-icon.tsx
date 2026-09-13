@@ -69,7 +69,7 @@ export function McpBrandIcon({
   );
 }
 
-type BrandableServer = Pick<McpServerDefinition, "endpoint" | "name" | "templateId">;
+type BrandableServer = Pick<McpServerDefinition, "endpoint" | "name" | "sourceUrl" | "templateId">;
 
 function normalizedEndpoint(endpoint: string | undefined): string {
   return endpoint?.trim().replace(/\/+$/, "").toLowerCase() ?? "";
@@ -84,19 +84,42 @@ export function resolveMcpServerBrand(
   server: BrandableServer,
   templates: readonly McpServerTemplate[],
 ): string {
-  const matchingTemplate = templates.find((template) => template.id === server.templateId)
-    ?? templates.find((template) =>
+  const referencedTemplate = templates.find((template) => template.id === server.templateId);
+  if (referencedTemplate) return referencedTemplate.logo;
+
+  const declaredIdentity = `${server.name} ${server.sourceUrl ?? ""}`.toLowerCase();
+  const declaredBrand = inferKnownBrand(declaredIdentity);
+  if (declaredBrand) return declaredBrand;
+
+  const matchingTemplate = templates.find((template) =>
       Boolean(template.endpointPlaceholder)
       && normalizedEndpoint(template.endpointPlaceholder) === normalizedEndpoint(server.endpoint));
 
   if (matchingTemplate) return matchingTemplate.logo;
 
-  const identity = `${server.name} ${server.endpoint ?? ""}`.toLowerCase();
+  const identity = `${declaredIdentity} ${server.endpoint ?? ""}`.toLowerCase();
+  const endpointBrand = inferKnownBrand(identity);
+  if (endpointBrand) return endpointBrand;
   if (identity.includes("tali") || identity.includes("tali-example-mcp")) {
     return "tali";
   }
 
   return "";
+}
+
+function inferKnownBrand(identity: string): string {
+  const knownBrands: ReadonlyArray<[brand: string, signals: readonly string[]]> = [
+    ["github", ["github", "githubcopilot"]],
+    ["cloudflare", ["cloudflare"]],
+    ["atlassian", ["atlassian", "jira", "confluence"]],
+    ["slack", ["slack"]],
+    ["postgresql", ["postgresql", "postgres", "pgvector"]],
+    ["mysql", ["mysql"]],
+    ["redis", ["redis"]],
+    ["context7", ["context7", "upstash"]],
+    ["deepwiki", ["deepwiki"]],
+  ];
+  return knownBrands.find(([, signals]) => signals.some((signal) => identity.includes(signal)))?.[0] ?? "";
 }
 
 function SlackMark({ className }: { className?: string | undefined }) {

@@ -1,14 +1,10 @@
 # OpenShift profile for clusters where the administrator permits anyuid.
 #
-# OpenShell sandbox pods are an explicit exception: their network/process
-# isolation needs capabilities that require the privileged SCC. This profile
-# creates namespaced anyuid and privileged SCC RoleBindings, so the Helm
-# installer must have permission to bind both cluster roles.
+# This profile configures the Control namespace. Business OpenShell SCC grants
+# are managed separately by the platform in each Project Namespace.
 openshift:
   enabled: true
   anyuidScc:
-    createRoleBinding: true
-  sandboxScc:
     createRoleBinding: true
   routes:
     control:
@@ -22,16 +18,10 @@ keycloak:
   service:
     type: ClusterIP
 
-# AppArmor's structured field is unavailable before Kubernetes 1.30 and is not
-# needed on the SELinux-based OpenShift worker nodes.
-openshell:
-  service:
-    type: ClusterIP
-  securityContext:
-    seccompProfile:
-      type: RuntimeDefault
-  server:
-    appArmorProfile: ""
+runner:
+  projectTargetRouting:
+    serviceProxy:
+      type: ClusterIP
 
 agentSandbox:
   podSecurityContext:

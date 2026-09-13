@@ -224,7 +224,7 @@ describe("OpenShell Kubernetes command contract", () => {
     expect(args).toContain("ghcr.io/tasklattice/tali-nemoclaw-sandbox:dev");
     expect(args).toContain("tali.ai/managed=true");
     expect(args).toContain("tali.io/runtime-provider=nemoclaw");
-    expect(args).toContain("tali.io/nemoclaw-version=0.0.114");
+    expect(args).toContain("tali.io/nemoclaw-version=0.0.123");
     expect(args).toContain(
       "/tmp/AGENTS.md:/sandbox/.openclaw/workspace/AGENTS.md",
     );
@@ -258,7 +258,7 @@ describe("OpenShell Kubernetes command contract", () => {
   });
 
   it("normalizes a release-tag NemoClaw version in the Sandbox label", () => {
-    vi.stubEnv("NEMOCLAW_VERSION", "v0.0.114");
+    vi.stubEnv("NEMOCLAW_VERSION", "v0.0.123");
     try {
       const args = openShellSandboxCreateArguments(
         input,
@@ -267,8 +267,8 @@ describe("OpenShell Kubernetes command contract", () => {
         "/tmp/openshell-policy.yaml",
       );
 
-      expect(args).toContain("tali.io/nemoclaw-version=0.0.114");
-      expect(args).not.toContain("tali.io/nemoclaw-version=v0.0.114");
+      expect(args).toContain("tali.io/nemoclaw-version=0.0.123");
+      expect(args).not.toContain("tali.io/nemoclaw-version=v0.0.123");
     } finally {
       vi.unstubAllEnvs();
     }
@@ -489,18 +489,19 @@ describe("OpenShell Kubernetes command contract", () => {
         hermesInput.agentPlatform,
       ).at(-1),
     ).toContain("127.0.0.1:8642/health");
-    expect(
-      openShellTerminalArguments(
-        hermesInput.name,
-        hermesInput.agentPlatform,
-      ).at(-1),
-    ).toBe("exec hermes --tui");
-    expect(
-      nemoClawTerminalArguments(
-        hermesInput.name,
-        hermesInput.agentPlatform,
-      ).at(-1),
-    ).toBe("exec hermes --tui");
+    const openShellTerminal = openShellTerminalArguments(
+      hermesInput.name,
+      hermesInput.agentPlatform,
+    ).at(-1);
+    const nemoClawTerminal = nemoClawTerminalArguments(
+      hermesInput.name,
+      hermesInput.agentPlatform,
+    ).at(-1);
+    expect(openShellTerminal).toContain(
+      "TALI_DURABLE_MEMORY_TOKEN=\"${TALI_DURABLE_MEMORY_TOKEN:-${TALI_PROJECT_RUNTIME_BRIDGE_TOKEN:-}}\"",
+    );
+    expect(openShellTerminal).toContain("exec hermes --tui");
+    expect(nemoClawTerminal).toBe(openShellTerminal);
 
     const bootstrap = getAgentPlatformRuntime("hermes").bootstrapScript(
       "https://hermes.example.test",
@@ -525,6 +526,7 @@ describe("OpenShell Kubernetes command contract", () => {
       '--vector-database-registry-token "$TALI_PROJECT_RUNTIME_BRIDGE_TOKEN"',
     );
     expect(bootstrap).toContain("--durable-memory-provider tali_relay");
+    expect(bootstrap).toContain("--durable-memory-endpoint");
     expect(bootstrap).toContain("TALI_DURABLE_MEMORY_ENDPOINT");
     expect(bootstrap).not.toContain("tali_prc_v1.test-payload.test-signature");
     expect(bootstrap).toContain(
@@ -709,6 +711,14 @@ describe("OpenShell Kubernetes command contract", () => {
     ).toString("base64"));
     expect(bootstrap).not.toContain("bankId");
     expect(bootstrap).not.toContain("providerRef");
+  });
+
+  it("uses Deep Agents' native memory path rather than OpenClaw memory instructions", () => {
+    const instructions = agentMemoryInstructions({ mode: "native", citations: "auto" }, "deepagents");
+    expect(instructions).toContain("/sandbox/.deepagents/agent/AGENTS.md");
+    expect(instructions).toContain("no embedding model is required");
+    expect(instructions).not.toContain("OpenClaw");
+    expect(instructions).not.toContain("MEMORY.md");
   });
 
   it("configures Hybrid Memory through the Instance LiteLLM endpoint", () => {

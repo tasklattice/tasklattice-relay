@@ -74,6 +74,17 @@ rules:
   - apiGroups: [""]
     resources: ["namespaces"]
     verbs: ["get", "create", "patch", "delete"]
+  {{- if and .Values.projectRuntimeNamespaces.enabled .Values.expertAgentRuntime.enabled }}
+  - apiGroups: [""]
+    resources: ["configmaps", "secrets", "services"]
+    verbs: ["get", "create", "patch", "delete"]
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "create", "patch", "delete"]
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["networkpolicies"]
+    verbs: ["get", "create", "patch", "delete"]
+  {{- end }}
   {{- if .Values.projectOpenShell.enabled }}
   {{- include "tali.projectOpenShellControllerRules" . | nindent 2 }}
   {{- end }}

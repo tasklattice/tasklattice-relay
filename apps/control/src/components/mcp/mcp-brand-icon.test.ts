@@ -40,6 +40,14 @@ describe("resolveMcpServerBrand", () => {
     }, templates)).toBe("tali");
   });
 
+  it("keeps the vendor brand when a local gateway exposes vendor tools", () => {
+    expect(resolveMcpServerBrand({
+      name: "Release 0 Read-only GitHub",
+      endpoint: "http://tali-relay-example-mcp:3000/mcp",
+      sourceUrl: "https://github.com/tasklattice/tasklattice-relay",
+    }, templates)).toBe("github");
+  });
+
   it("keeps unknown custom servers on the generic fallback", () => {
     expect(resolveMcpServerBrand({
       name: "Private tools",

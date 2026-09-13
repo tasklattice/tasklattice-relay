@@ -1,6 +1,0 @@
-ALTER TABLE tasklattice.skills
-  RENAME CONSTRAINT extension_skills_project_id_fkey TO skills_project_id_fkey;
-ALTER TABLE tasklattice.mcp_servers
-  RENAME CONSTRAINT extension_mcp_servers_project_id_fkey TO mcp_servers_project_id_fkey;
-ALTER TABLE tasklattice.knowledge_sources
-  RENAME CONSTRAINT extension_knowledge_sources_project_id_fkey TO knowledge_sources_project_id_fkey;

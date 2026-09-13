@@ -14,6 +14,8 @@ const tagDescriptions: Record<string, string> = {
   Costs: "Project inference cost analytics.",
   Departments: "Organization and budget grouping. Department roles do not grant Project business access.",
   "Demo Agents": "Public deterministic Agent endpoints used for product demonstrations.",
+  "Agent Developer": "Direct Agent development, exact-digest testing, and immutable Version publication to Agent Garden.",
+  "Agent Runtime": "Version-pinned resource access and runtime telemetry for materialized Agent Instances.",
   "Inference gateways": "Project-bound LiteLLM gateway projections.",
   Instances: "Business runtime Instances provisioned inside a Project.",
   "Model routing": "Project model routing and its consumer bindings.",
@@ -201,6 +203,14 @@ function operation(contract: (typeof apiContracts)[number]) {
             projectRuntimeBridgeBearer: [],
             projectRuntimeCoordinatorToken: [],
           }]
+        : contract.auth === "expert-agent-runtime"
+          ? [{
+              projectRuntimeBridgeBearer: [],
+              projectRuntimeExpertAgentToken: [],
+              projectRuntimeExpertAgentId: [],
+              projectRuntimeExpertAgentVersionId: [],
+              projectRuntimeExpertAgentContentDigest: [],
+            }]
         : [{ sessionCookie: [] }],
     ...(pathParameters.length || queryParameters.length
       ? { parameters: [...pathParameters, ...queryParameters] }
@@ -265,6 +275,30 @@ export function createOpenApiDocument() {
           in: "header",
           name: "x-tali-coordinator-token",
           description: "Project, Runtime Namespace, and Coordinator Instance scoped HMAC token provisioned only to that Supervisor.",
+        },
+        projectRuntimeExpertAgentToken: {
+          type: "apiKey",
+          in: "header",
+          name: "x-tali-expert-agent-token",
+          description: "Project, Runtime Namespace, Agent, immutable Version, and content digest scoped HMAC token.",
+        },
+        projectRuntimeExpertAgentId: {
+          type: "apiKey",
+          in: "header",
+          name: "x-tali-expert-agent-id",
+          description: "Agent identity bound into the Agent Runtime token.",
+        },
+        projectRuntimeExpertAgentVersionId: {
+          type: "apiKey",
+          in: "header",
+          name: "x-tali-expert-agent-version-id",
+          description: "Immutable Version identity bound into the Agent Runtime token.",
+        },
+        projectRuntimeExpertAgentContentDigest: {
+          type: "apiKey",
+          in: "header",
+          name: "x-tali-expert-agent-content-digest",
+          description: "Immutable Version content digest bound into the Agent Runtime token.",
         },
       },
       schemas: componentSchemas(),

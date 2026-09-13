@@ -15,6 +15,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { createUuid } from "@/lib/uuid";
 
 interface DemoResult {
+  executionRuntime: string;
+  runtimeLogs: string[];
+  simulatedBehavior: boolean;
   output: string;
   trace: string[];
 }
@@ -75,7 +78,12 @@ export function TryDemoAgentSheet({
         detail?: string;
         result?: {
           message?: {
-            metadata?: { trace?: string[] };
+            metadata?: {
+              executionRuntime?: string;
+              runtimeLogs?: string[];
+              simulatedBehavior?: boolean;
+              trace?: string[];
+            };
             parts?: Array<{ text?: string }>;
           };
         };
@@ -88,6 +96,15 @@ export function TryDemoAgentSheet({
       )?.text;
       if (!output) throw new Error("The demo Agent returned no text.");
       setResult({
+        executionRuntime:
+          payload.result?.message?.metadata?.executionRuntime
+          ?? "UNKNOWN",
+        runtimeLogs:
+          payload.result?.message?.metadata?.runtimeLogs
+          ?? [],
+        simulatedBehavior:
+          payload.result?.message?.metadata?.simulatedBehavior
+          ?? true,
         output,
         trace: payload.result?.message?.metadata?.trace ?? [],
       });
@@ -164,7 +181,9 @@ export function TryDemoAgentSheet({
               Safe interaction sample
             </strong>
             The response and execution trace use deterministic sample data.
-            No repository, ticket, or external Agent is read or changed.
+            {agent.configuration.framework === "LangGraph"
+              ? " The workflow itself runs on a real LangGraph StateGraph."
+              : ""} No repository, ticket, or external Agent is read or changed.
           </p>
 
           <section className="space-y-3">
@@ -235,7 +254,7 @@ export function TryDemoAgentSheet({
                 <CheckCircle2 className="size-4 text-emerald-600" />
                 <h3 className="text-sm font-semibold">Completed</h3>
                 <Badge variant="outline" className="ml-auto">
-                  Preview
+                  {result.simulatedBehavior ? "Sample runtime" : "Real StateGraph"}
                 </Badge>
               </div>
               {result.trace.length ? (
@@ -262,6 +281,26 @@ export function TryDemoAgentSheet({
                   {result.output}
                 </pre>
               </div>
+              {result.runtimeLogs.length ? (
+                <div className="overflow-hidden border bg-[#0b0f0e] text-white">
+                  <div className="flex min-h-11 items-center gap-2 border-b border-white/10 px-4 text-xs font-semibold">
+                    <Play className="size-3.5 text-emerald-400" />
+                    Runtime logs
+                    <Badge
+                      variant="outline"
+                      className="ml-auto border-white/15 bg-white/5 font-mono text-[10px] text-white/70"
+                    >
+                      {result.executionRuntime}
+                    </Badge>
+                  </div>
+                  <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-all px-4 py-4 font-mono text-[11px] leading-5 text-white/70">
+                    {result.runtimeLogs.join("\n")}
+                  </pre>
+                  <p className="border-t border-white/10 px-4 py-2 text-[11px] text-white/50">
+                    Structured preview logs omit prompt text and credentials.
+                  </p>
+                </div>
+              ) : null}
             </section>
           ) : null}
         </div>

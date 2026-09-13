@@ -101,7 +101,7 @@ describe("Instance lifecycle reconciliation", () => {
     sandboxName: "tali-research",
     status: "PROVISIONING",
     provisioningStage: "QUEUED",
-    policyId: "restricted",
+    policyId: "managed-runtime",
     systemPrompt: "Research the request and report the resulting evidence.",
     createdAt: now,
     updatedAt: now,
@@ -186,7 +186,7 @@ describe("Agent selection", () => {
     runtime: "openshell" as const,
     accessPolicyIds: [accessPolicyId],
     modelRoutingId: "routing-a",
-    policyId: "restricted" as const,
+    policyId: "managed-runtime" as const,
     systemPrompt: "Research the request and report the resulting evidence.",
   };
 
@@ -308,7 +308,7 @@ describe("Instance Access Policy lifecycle", () => {
       accessPolicyIds: [setup.policy.id],
       modelRoutingId: "routing-a",
       agentPlatform: "openclaw",
-      policyId: "restricted",
+      policyId: "managed-runtime",
       systemPrompt: "Research the request and report the resulting evidence.",
       knowledgeSourceIds: ["engineering-handbook"],
     }, "local-admin");
@@ -325,13 +325,13 @@ describe("Instance Access Policy lifecycle", () => {
       modelRoutingId: "routing-a",
       agentPlatform: "openclaw",
       durableMemoryId: "memory-a",
-      policyId: "restricted",
+      policyId: "managed-runtime",
       systemPrompt: "Research the request and report the resulting evidence.",
       knowledgeSourceIds: ["engineering-handbook"],
     }, "local-admin")).rejects.toThrow("not enabled for this Project");
   });
 
-  it.each(["openclaw", "hermes"] as const)(
+  it.each(["openclaw", "hermes", "deepagents"] as const)(
     "falls back to Native text Memory for %s when the Project has no embedding model",
     async (agentPlatform) => {
       const setup = await configuredService({
@@ -355,6 +355,24 @@ describe("Instance Access Policy lifecycle", () => {
     },
   );
 
+  it.each(["openclaw", "hermes", "deepagents"] as const)(
+    "honors explicit Native Memory for %s even when embedding models are available",
+    async (agentPlatform) => {
+      const setup = await configuredService();
+      const agent = await createConfiguredInstance(setup, {
+        agentPlatform,
+        memory: { mode: "native", citations: "auto" },
+        knowledgeSourceIds: [],
+      });
+      expect(agent.memory).toEqual({ mode: "native", citations: "auto" });
+      expect(agent.durableMemoryId).toBeUndefined();
+      expect(setup.memoryProvider.bankCount()).toBe(0);
+      expect(setup.runner.createSandbox).toHaveBeenCalledWith(expect.objectContaining({
+        durableMemoryEnabled: false, memory: { mode: "native", citations: "auto" },
+      }));
+    },
+  );
+
   it("rejects assigning a Vector Database when the Project has no embedding model", async () => {
     const setup = await configuredService({
       includeValidatedEmbeddingModel: false,
@@ -367,7 +385,7 @@ describe("Instance Access Policy lifecycle", () => {
       accessPolicyIds: [setup.policy.id],
       modelRoutingId: "routing-a",
       agentPlatform: "hermes",
-      policyId: "restricted",
+      policyId: "managed-runtime",
       systemPrompt: "Research the request and report the resulting evidence.",
       knowledgeSourceIds: ["engineering-handbook"],
     }, "local-admin")).rejects.toThrow(
@@ -384,7 +402,7 @@ describe("Instance Access Policy lifecycle", () => {
       accessPolicyIds: [setup.policy.id],
       modelRoutingId: "routing-a",
       agentPlatform: "openclaw",
-      policyId: "restricted",
+      policyId: "managed-runtime",
       systemPrompt: "Research the request and report the resulting evidence.",
       knowledgeSourceIds: ["engineering-handbook"],
     };
@@ -419,7 +437,7 @@ describe("Instance Access Policy lifecycle", () => {
         accessPolicyIds: [setup.policy.id],
         modelRoutingId: "routing-a",
         agentPlatform: "openclaw",
-        policyId: "restricted",
+        policyId: "managed-runtime",
         systemPrompt: "Research the request and report the resulting evidence.",
         knowledgeSourceIds: ["engineering-handbook"],
       },
@@ -486,6 +504,7 @@ describe("Instance Access Policy lifecycle", () => {
       "a2a-release-notes-composer",
       "local-admin",
     );
+    if (release.kind !== "A2A") throw new Error("Expected an A2A catalog Instance.");
     await garden.store.saveManagedInstance({
       ...release,
       status: "FAILED",
@@ -710,7 +729,7 @@ describe("Instance Access Policy lifecycle", () => {
   });
 
   it("binds a validated same-boundary embedding model for hybrid Memory", async () => {
-    const setup = await configuredService();
+    const setup = await configuredService({ includeValidatedEmbeddingModel: false });
     const now = new Date().toISOString();
     const embeddingModelDeploymentId = "22222222-2222-4222-8222-222222222222";
     await setup.store.saveModelDeployment({

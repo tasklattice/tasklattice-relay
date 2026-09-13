@@ -1,5 +1,7 @@
-from typing import TYPE_CHECKING, Literal, Optional, Type
+from typing import TYPE_CHECKING, Any, AsyncGenerator, Literal, Optional, Type
 
+from fastapi import HTTPException
+from litellm.exceptions import APIError
 from litellm.integrations.custom_guardrail import log_guardrail_information
 from litellm.litellm_core_utils.credential_accessor import CredentialAccessor
 from litellm.llms.custom_httpx.http_handler import get_async_httpx_client
@@ -11,6 +13,8 @@ from litellm.types.proxy.guardrails.guardrail_hooks.tasklattice_guard import (
     TaskLatticeGuardConfigModel,
 )
 from litellm.types.utils import GenericGuardrailAPIInputs
+
+from .streaming import ProtectedStreamError, protected_output_stream
 
 if TYPE_CHECKING:
     from litellm.litellm_core_utils.litellm_logging import Logging as LiteLLMLoggingObj
@@ -81,6 +85,31 @@ class TaskLatticeGuard(GenericGuardrailAPI):
             input_type=input_type,
             logging_obj=logging_obj,
         )
+
+    async def async_post_call_streaming_iterator_hook(
+        self, user_api_key_dict: Any, response: Any, request_data: dict,
+    ) -> AsyncGenerator[Any, None]:
+        # A concrete iterator override opts only this Provider out of LiteLLM's
+        # generic sample-after-yield path. Other Providers remain unchanged.
+        stream = protected_output_stream(self, response, request_data, user_api_key_dict)
+        try:
+            async for chunk in stream:
+                yield chunk
+        except HTTPException as error:
+            # LiteLLM re-raises FastAPI HTTPException from its SSE generator,
+            # which breaks an already-started HTTP response. Use its native
+            # API error path so clients receive an explicit terminal error frame
+            # instead of a truncated socket. Never include upstream exception
+            # bodies or protected content in the public message.
+            raise APIError(
+                status_code=error.status_code,
+                message=error.detail["message"] if isinstance(error, ProtectedStreamError) else
+                    "TaskLattice Guard could not complete protected streaming; unchecked output was withheld.",
+                llm_provider="tasklattice_guard",
+                model=request_data.get("model") or "unknown",
+            ) from None
+        finally:
+            await stream.aclose()
 
     @classmethod
     def get_config_model(cls) -> Optional[Type[TaskLatticeGuardConfigModel]]:

@@ -359,6 +359,7 @@ describe("AgentGardenService", () => {
       })),
     };
     const secrets: SecretStore = {
+      referenceFor: (projectId, resourceId) => `memory://${projectId}/${resourceId}`,
       put: vi.fn(async () => "memory://test/secret"),
       get: vi.fn(async () => "secret"),
       delete: vi.fn(async () => undefined),
@@ -461,6 +462,7 @@ describe("AgentGardenService", () => {
       })),
     };
     const secrets: SecretStore = {
+      referenceFor: (projectId, resourceId) => `memory://${projectId}/${resourceId}`,
       put: vi.fn(async () => "memory://test/secret"),
       get: vi.fn(async () => "secret"),
       delete: vi.fn(async () => undefined),

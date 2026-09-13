@@ -12,6 +12,13 @@ export function a2aInstanceConfigurationView(
   return { ...instance, logs: [], error: null };
 }
 
+export function agentServiceInstanceConfigurationView<Instance extends {
+  error: string | null;
+  logs: string[];
+}>(instance: Instance): Instance {
+  return { ...instance, logs: [], error: null };
+}
+
 /**
  * Configuration reads must not disclose the browser endpoint. Runtime Web UI
  * URLs may contain a gateway credential or short-lived access token, so
@@ -78,7 +85,7 @@ export function instanceRuntimeLogView(agent: Agent): InstanceRuntimeLogView {
 }
 
 export function a2aInstanceRuntimeLogView(
-  instance: A2aAgentInstance,
+  instance: Pick<A2aAgentInstance, "id" | "logs" | "error">,
 ): InstanceRuntimeLogView {
   return {
     instanceId: instance.id,

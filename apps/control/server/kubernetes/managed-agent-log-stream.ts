@@ -11,7 +11,10 @@ import type {
 } from "@tali/contracts";
 import { redactRuntimeDiagnostic } from "../instances/instance-http-view";
 
-type ManagedAgentLogCoreApi = Pick<CoreV1Api, "readNamespacedPod">;
+type ManagedAgentLogCoreApi = Pick<
+  CoreV1Api,
+  "readNamespacedPod" | "listNamespacedPod"
+>;
 type ManagedAgentLogApi = Pick<Log, "log">;
 
 export interface ManagedAgentLogHandle {
@@ -42,6 +45,26 @@ function assertOwnedAgentPod(
   }
   if (!pod.spec?.containers.some((container) => container.name === "agent")) {
     throw new Error("The managed Agent Pod does not contain the expected agent container.");
+  }
+}
+
+function assertOwnedProjectAgentPod(
+  pod: V1Pod,
+  projectId: string,
+  agentId: string,
+): void {
+  const annotations = pod.metadata?.annotations;
+  if (
+    annotations?.["tali.io/project-id"] !== projectId
+    || annotations?.["tali.io/agent-id"] !== agentId
+    || pod.metadata?.labels?.["tali.io/runtime-kind"] !== "expert-agent-a2a"
+  ) {
+    throw new Error(
+      "Refusing to read Pod logs because the Project Agent ownership metadata does not match.",
+    );
+  }
+  if (!pod.spec?.containers.some((container) => container.name === "expert-agent")) {
+    throw new Error("The Project Agent Pod does not contain the expected runtime container.");
   }
 }
 
@@ -117,6 +140,52 @@ export class KubernetesManagedAgentLogStream {
     const pod = await this.core.readNamespacedPod({ name: podName, namespace });
     assertOwnedAgentPod(pod, projectId, instance);
 
+    return this.openPod(
+      namespace,
+      podName,
+      "agent",
+      options,
+      callbacks,
+    );
+  }
+
+  async openProjectAgent(
+    projectId: string,
+    target: {
+      agentId: string;
+      namespace: string;
+      workloadName: string;
+    },
+    options: CreateInstanceLogSessionInput,
+    callbacks: ManagedAgentLogStreamCallbacks,
+  ): Promise<ManagedAgentLogHandle> {
+    const pods = await this.core.listNamespacedPod({
+      namespace: target.namespace,
+      labelSelector: `app.kubernetes.io/instance=${target.workloadName}`,
+    });
+    const pod = pods.items.find((item) => item.status?.phase === "Running")
+      ?? pods.items[0];
+    const podName = pod?.metadata?.name;
+    if (!pod || !podName) {
+      throw new Error("The Project Agent has no active Kubernetes Pod.");
+    }
+    assertOwnedProjectAgentPod(pod, projectId, target.agentId);
+    return this.openPod(
+      target.namespace,
+      podName,
+      "expert-agent",
+      options,
+      callbacks,
+    );
+  }
+
+  private async openPod(
+    namespace: string,
+    podName: string,
+    containerName: string,
+    options: CreateInstanceLogSessionInput,
+    callbacks: ManagedAgentLogStreamCallbacks,
+  ): Promise<ManagedAgentLogHandle> {
     const stream = new RedactingLogWritable(callbacks);
     let ended = false;
     const end = () => {
@@ -128,7 +197,7 @@ export class KubernetesManagedAgentLogStream {
     stream.once("close", end);
     stream.once("error", (error) => callbacks.onError(error));
 
-    const abort = await this.logs.log(namespace, podName, "agent", stream, {
+    const abort = await this.logs.log(namespace, podName, containerName, stream, {
       follow: true,
       previous: options.previous,
       tailLines: options.tailLines,

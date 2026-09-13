@@ -50,7 +50,7 @@ export function VectorStoreProviderIcon({
   const item = getVectorStoreProvider(provider);
   if ("icon" in item) {
     return (
-      <span className={cn("grid size-10 shrink-0 place-items-center rounded-md border bg-background shadow-xs", className)}>
+      <span className={cn("grid size-10 shrink-0 place-items-center rounded-md border border-border bg-card shadow-xs", className)}>
         <svg
           aria-hidden="true"
           className="size-6"
@@ -75,17 +75,20 @@ export function VectorStoreProviderSelect({
   disabled,
   id,
   onValueChange,
+  required = false,
   value,
 }: {
   disabled?: boolean;
   id: string;
   onValueChange: (value: VectorStoreProvider) => void;
+  required?: boolean;
   value: VectorStoreProvider;
 }) {
   const selected = getVectorStoreProvider(value);
   return (
     <Select
       disabled={Boolean(disabled)}
+      required={required}
       value={value}
       onValueChange={(next) => onValueChange(next as VectorStoreProvider)}
     >

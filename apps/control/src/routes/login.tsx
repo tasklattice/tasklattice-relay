@@ -74,13 +74,13 @@ function LoginPage() {
           <p className="mt-3 text-sm leading-6 text-muted-foreground">{t("panel.description")}</p>
 
           {error || configError ? (
-            <div role="alert" className="mt-7 border-l-2 border-destructive bg-destructive/5 px-4 py-3 text-sm text-destructive">
+            <div role="alert" className="mt-7 rounded-md border border-destructive-border bg-destructive-surface px-4 py-3 text-sm text-destructive">
               <strong className="block font-semibold">{t("errorTitle")}</strong>
               <span className="mt-1 block">{error || configError}</span>
             </div>
           ) : null}
           {config?.developmentDefaults ? (
-            <div className="mt-7 border-l-2 border-primary bg-primary/5 px-4 py-3 text-sm text-foreground">
+            <div className="mt-7 rounded-md border border-info-border bg-info-surface px-4 py-3 text-sm text-foreground">
               {t("developmentAccount.before")} <strong>admin / password</strong>.{" "}
               {t("developmentAccount.after")}
             </div>
@@ -89,26 +89,26 @@ function LoginPage() {
           <form onSubmit={submit} className="mt-8 space-y-5">
             <label className="block text-sm font-medium">
               {t("form.username")}
-              <span className="mt-2 flex min-h-12 items-center gap-3 border border-input bg-background px-4 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/15">
+              <span className="mt-2 flex min-h-12 items-center gap-3 rounded-md border border-input bg-background px-4 transition-colors focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/20">
                 <UserRound className="size-4 text-muted-foreground" />
                 <input value={username} onChange={(event) => setUsername(event.target.value)} autoComplete="username" className="h-11 min-w-0 flex-1 bg-transparent text-sm outline-none" placeholder={t("form.usernamePlaceholder")} required />
               </span>
             </label>
             <label className="block text-sm font-medium">
               {t("form.password")}
-              <span className="mt-2 flex min-h-12 items-center gap-3 border border-input bg-background px-4 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/15">
+              <span className="mt-2 flex min-h-12 items-center gap-3 rounded-md border border-input bg-background px-4 transition-colors focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/20">
                 <KeyRound className="size-4 text-muted-foreground" />
                 <input value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" className="h-11 min-w-0 flex-1 bg-transparent text-sm outline-none" placeholder={t("form.passwordPlaceholder")} required type={showPassword ? "text" : "password"} />
-                <button type="button" onClick={() => setShowPassword((value) => !value)} className="grid size-11 place-items-center text-muted-foreground hover:bg-muted focus-visible:outline-2" aria-label={showPassword ? t("form.hidePassword") : t("form.showPassword")}>
+                <button type="button" onClick={() => setShowPassword((value) => !value)} className="grid size-11 place-items-center rounded-md text-muted-foreground hover:bg-muted focus-visible:outline-2" aria-label={showPassword ? t("form.hidePassword") : t("form.showPassword")}>
                   {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
                 </button>
               </span>
             </label>
             <label className="flex min-h-11 items-center gap-3 text-sm text-muted-foreground">
-              <input type="checkbox" checked={remember} onChange={(event) => setRemember(event.target.checked)} className="size-4 accent-[#4339ff]" />
+              <input type="checkbox" checked={remember} onChange={(event) => setRemember(event.target.checked)} className="size-4 accent-link" />
               {t("form.keepSignedIn")}
             </label>
-            <button disabled={submitting || loading} type="submit" className="flex min-h-12 w-full items-center justify-center gap-2 bg-primary px-6 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-60">
+            <button disabled={submitting || loading} type="submit" className="flex min-h-12 w-full items-center justify-center gap-2 rounded-md bg-primary px-6 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-60">
               {submitting ? <LoaderCircle className="size-4 animate-spin" /> : null}
               {submitting ? t("form.signingIn") : t("form.signIn")}
             </button>
@@ -124,7 +124,7 @@ function LoginPage() {
               <a
                 href={`/api/auth/sso?callbackURL=${encodeURIComponent(redirect)}`}
                 aria-describedby="sso-login-description"
-                className="mt-6 flex min-h-12 w-full items-center justify-center gap-2 border border-input bg-background px-6 text-sm font-medium transition-colors hover:border-foreground focus-visible:outline-2 focus-visible:outline-offset-2"
+                className="mt-6 flex min-h-12 w-full items-center justify-center gap-2 rounded-md border border-input bg-background px-6 text-sm font-medium transition-colors hover:border-foreground/25 hover:bg-secondary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
               >
                 <LockKeyhole className="size-4" />
                 {t("sso.login")}
@@ -134,7 +134,7 @@ function LoginPage() {
                 type="button"
                 aria-describedby="sso-login-description"
                 disabled
-                className="mt-6 flex min-h-12 w-full cursor-not-allowed items-center justify-center gap-2 border border-input bg-muted/50 px-6 text-sm font-medium text-muted-foreground"
+                className="mt-6 flex min-h-12 w-full cursor-not-allowed items-center justify-center gap-2 rounded-md border border-input bg-muted/50 px-6 text-sm font-medium text-muted-foreground"
               >
                 <LockKeyhole className="size-4" />
                 {t("sso.login")}

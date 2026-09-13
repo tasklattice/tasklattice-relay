@@ -15,7 +15,7 @@ export function AgentPlatformIcon({
     <span
       aria-hidden="true"
       className={cn(
-        "grid size-11 shrink-0 place-items-center rounded-md border bg-background shadow-xs",
+        "grid size-11 shrink-0 place-items-center rounded-md border border-border bg-card shadow-xs",
         className,
       )}
     >

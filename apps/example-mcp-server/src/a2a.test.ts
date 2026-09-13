@@ -24,8 +24,8 @@ describe("demo-test A2A runtime", () => {
     });
   });
 
-  it("runs the selected Agent as an independent A2A service", () => {
-    const response = runDemoA2aMessage("a2a-pull-request-risk-scanner", {
+  it("runs the selected Agent as an independent A2A service", async () => {
+    const response = await runDemoA2aMessage("a2a-pull-request-risk-scanner", {
       jsonrpc: "2.0",
       id: "request-1",
       method: "SendMessage",
@@ -52,6 +52,51 @@ describe("demo-test A2A runtime", () => {
       },
     });
     expect(response.result.message.parts[0]?.text).toContain("Risk: Medium");
+    expect(response.result.message.metadata.runtimeLogs.map((line) => JSON.parse(line))).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ event: "agent.demo.run.started" }),
+        expect.objectContaining({ event: "agent.demo.trace", step: "Score risk" }),
+        expect.objectContaining({ event: "agent.demo.run.finished", status: "SUCCEEDED" }),
+      ]),
+    );
+    expect(response.result.message.metadata.runtimeLogs.join("\n")).not.toContain(
+      "Assess PR #142.",
+    );
+  });
+
+  it("runs the Support Router through a real LangGraph StateGraph", async () => {
+    const response = await runDemoA2aMessage("langgraph-support-escalation-router", {
+      jsonrpc: "2.0",
+      id: "request-langgraph-1",
+      method: "SendMessage",
+      params: {
+        message: {
+          messageId: "message-langgraph-1",
+          role: "ROLE_USER",
+          parts: [{ text: "Route an enterprise billing outage." }],
+        },
+      },
+    });
+
+    expect(response.result.message.metadata).toMatchObject({
+      framework: "LangGraph",
+      executionRuntime: "LANGGRAPH_STATE_GRAPH",
+      simulatedBehavior: false,
+      data: {
+        category: "BILLING",
+        priority: "P1",
+        approvalRequired: true,
+      },
+    });
+    expect(response.result.message.metadata.traceEvents).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        step: "policy-check",
+        attributes: expect.objectContaining({ outcome: "APPROVAL_REQUIRED" }),
+      }),
+    ]));
+    expect(response.result.message.parts[0]?.text).toContain(
+      "Enterprise Support → Billing Operations",
+    );
   });
 
   it("rejects an unknown startup Agent", () => {

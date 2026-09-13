@@ -12,7 +12,7 @@ const chartPath = process.env.TALI_CHART_PATH ?? "charts/tali-relay";
 const expectedRegistry = "registry.airgap.example.com/";
 const expectedPullSecret = "airgap-registry";
 const expectedOpenShellVersion = process.env.OPENSHELL_VERSION ?? "0.0.106";
-const expectedNemoClawVersion = process.env.NEMOCLAW_VERSION ?? "v0.0.114";
+const expectedNemoClawVersion = process.env.NEMOCLAW_VERSION ?? "v0.0.123";
 const forbiddenRegistries = [
   "docker.io/",
   "ghcr.io/",
@@ -201,28 +201,18 @@ for (const registry of forbiddenRegistries) {
   }
 }
 
-const gatewayConfig = objects.find(
-  (object) =>
-    object.kind === "ConfigMap" &&
-    object.metadata?.name === `${releaseName}-openshell-config`,
-);
-const gatewayToml = gatewayConfig?.data?.["gateway.toml"] ?? "";
-for (const [label, expectedValue] of [
-  [
-    "mirrored default sandbox image",
-    `"registry.airgap.example.com/third-party/nemoclaw-sandbox-base:${expectedNemoClawVersion}"`,
-  ],
-  [
-    "mirrored supervisor image",
-    `"registry.airgap.example.com/third-party/openshell-supervisor:${expectedOpenShellVersion}"`,
-  ],
-  [
-    "sandbox image pull Secret",
-    '["airgap-registry"]',
-  ],
+const controlEnv = objects.find((object) => object.kind === "Deployment"
+  && object.metadata?.labels?.["app.kubernetes.io/component"] === "control")
+  ?.spec.template.spec.containers.find((container) => container.name === "control")?.env ?? [];
+for (const [name, value] of [
+  ["PROJECT_OPENSHELL_GATEWAY_IMAGE", `registry.airgap.example.com/third-party/openshell-gateway:${expectedOpenShellVersion}`],
+  ["PROJECT_OPENSHELL_SUPERVISOR_IMAGE", `registry.airgap.example.com/third-party/openshell-supervisor:${expectedOpenShellVersion}`],
+  ["PROJECT_OPENSHELL_DEFAULT_SANDBOX_IMAGE", `registry.airgap.example.com/third-party/nemoclaw-sandbox-base:${expectedNemoClawVersion}`],
+  ["PROJECT_OPENSHELL_IMAGE_PULL_SECRETS_JSON", '[{"name":"airgap-registry"}]'],
+  ["PROJECT_OPENSHELL_SANDBOX_IMAGE_PULL_SECRETS_JSON", '[{"name":"airgap-registry"}]'],
 ]) {
-  if (!gatewayToml.includes(expectedValue)) {
-    violations.push(`OpenShell gateway config is missing ${label}.`);
+  if (controlEnv.find((entry) => entry.name === name)?.value !== value) {
+    violations.push(`Project Gateway provisioner must receive mirrored configuration: ${name}`);
   }
 }
 

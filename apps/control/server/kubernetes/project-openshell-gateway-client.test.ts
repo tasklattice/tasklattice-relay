@@ -34,6 +34,21 @@ const target = {
 };
 
 describe("HelmProjectOpenShellGatewayClient", () => {
+  it("passes a verified Namespace owner to the Helm post-renderer", async () => {
+    const owner = { apiVersion: "v1", kind: "Namespace", name: target.namespace,
+      uid: "namespace-uid", controller: false, blockOwnerDeletion: false };
+    const run = vi.fn(async (input: CommandInput) => input.args[0] === "status"
+      ? { exitCode: 1, stderr: "release: not found", stdout: "" }
+      : { exitCode: 0, stderr: "", stdout: "" });
+    const readOwner = vi.fn(async () => owner);
+    const reconcileStorage = vi.fn(async () => {});
+    await new HelmProjectOpenShellGatewayClient(configuration, run, readOwner, reconcileStorage).reconcile(target);
+    expect(reconcileStorage).toHaveBeenCalledWith(owner, `openshell-${target.namespace}`);
+    expect(readOwner).toHaveBeenCalledWith(target.namespace, target.projectId);
+    expect(run.mock.calls.find(([input]) => input.args[0] === "upgrade")?.[0].args)
+      .toEqual(expect.arrayContaining(["--post-renderer", "/app/scripts/project-openshell-owner.mjs",
+        "--post-renderer-args", JSON.stringify(owner)]));
+  });
   it("reuses the pinned official chart as one release in the Project Namespace", async () => {
     const commands: CommandInput[] = [];
     const run = vi.fn(async (input: CommandInput) => {

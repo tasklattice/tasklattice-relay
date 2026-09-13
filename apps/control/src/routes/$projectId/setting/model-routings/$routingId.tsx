@@ -45,7 +45,7 @@ function ModelRoutingDetailPage() {
         <span className={cn("grid size-8 shrink-0 place-items-center rounded-full", ready ? "bg-emerald-500/10 text-emerald-700" : "bg-amber-500/10 text-amber-700")}>{ready ? <CheckCircle2 className="size-[18px]" /> : <CircleAlert className="size-[18px]" />}</span>
         <div><h2 className="font-sans text-sm font-semibold">{ready ? "This routing is ready for Instances" : "This routing needs attention"}</h2><p className="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">{ready ? `${current.publicModelAlias} passed ${passingChecks} routing, compliance, and access checks. Each Instance receives its own isolated Virtual Key.` : current.validationMessage}</p></div>
       </div>
-      {ready ? <Button asChild className="shrink-0"><Link to="/$projectId/instances" params={{ projectId }} search={{ create: "instance" }}><Boxes />Create Instance</Link></Button> : <Button className="shrink-0" disabled title="Resolve the failed checks before using this model for a new Instance"><CircleAlert />Unavailable for new Instances</Button>}
+      {ready ? <Button asChild className="shrink-0"><Link to="/$projectId/instances" params={{ projectId }} search={{ create: "instance" }}><Boxes />Create Supervisor</Link></Button> : <Button className="shrink-0" disabled title="Resolve the failed checks before using this model for a new Supervisor"><CircleAlert />Unavailable for new Supervisors</Button>}
     </section>
     <Tabs value={tab} onValueChange={(value) => setTab(value as Tab)} className="gap-4">
       <div className="overflow-x-auto">

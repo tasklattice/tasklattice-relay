@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createTestStore } from "../test/store";
+import type { SecretStore } from "../secrets/secret-store";
 import type { LiteLLMAdminClient } from "./litellm-client";
 import { ProviderService } from "./provider-service";
 
@@ -32,7 +33,8 @@ function mockOpenAIEmbeddingCatalog(...modelIds: string[]): void {
 function liteLLM(): LiteLLMAdminClient {
   return {
     baseUrl: "http://litellm:4000",
-    registerModel: vi.fn(async () => "tali/account/deepseek-chat"),
+    registerModel: vi.fn(async ({ registrationId }) => `tali/account/${registrationId}`),
+    deleteModelById: vi.fn(async () => undefined),
     deleteModel: vi.fn(async () => undefined),
     probeModel: vi.fn(async () => undefined),
     createInstanceKey: vi.fn(async () => ({ secret: "sk-instance", tokenId: "hashed-token" })),
@@ -40,6 +42,27 @@ function liteLLM(): LiteLLMAdminClient {
     revokeKey: vi.fn(async () => undefined),
     listSpendLogs: vi.fn(async () => []),
   };
+}
+
+function managedSecrets(): { secrets: SecretStore; values: Map<string, string> } {
+  const values = new Map<string, string>();
+  const secrets: SecretStore = {
+    referenceFor: (projectId, resourceId) => `memory://${projectId}/${resourceId}`,
+    put: vi.fn(async (projectId, resourceId, value) => {
+      const reference = `memory://${projectId}/${resourceId}`;
+      values.set(reference, value);
+      return reference;
+    }),
+    get: vi.fn(async (reference) => {
+      const value = values.get(reference);
+      if (!value) throw new Error("Managed credential is unavailable.");
+      return value;
+    }),
+    delete: vi.fn(async (reference) => {
+      values.delete(reference);
+    }),
+  };
+  return { secrets, values };
 }
 
 describe("ProviderService", () => {
@@ -106,7 +129,8 @@ describe("ProviderService", () => {
     mockDeepSeekCatalog();
     const store = createTestStore();
     const litellm = liteLLM();
-    const service = new ProviderService(store, litellm);
+    const { secrets } = managedSecrets();
+    const service = new ProviderService(store, litellm, secrets);
     const { account } = await service.createConnection(deepSeekConnection);
     expect(account.status).toBe("VALIDATED");
     expect(account.discoveredModels).toContain("deepseek-chat");
@@ -118,7 +142,9 @@ describe("ProviderService", () => {
     expect(litellm.registerModel).toHaveBeenCalledTimes(2);
     expect(vi.mocked(litellm.registerModel).mock.calls[0]?.[0].litellmParams)
       .not.toHaveProperty("ssl_verify");
-    expect(JSON.parse((await store.getProviderAccountCredential(account.id))!)).toMatchObject({
+    const credentialReference = (await store.getProviderAccountCredential(account.id))!;
+    expect(credentialReference).toMatch(/^memory:\/\//);
+    expect(JSON.parse(await secrets.get(credentialReference))).toMatchObject({
       version: 1,
       provider: "deepseek",
       credentials: { apiKey: "provider-secret-value" },
@@ -130,7 +156,8 @@ describe("ProviderService", () => {
     mockDeepSeekCatalog();
     const store = createTestStore();
     const litellm = liteLLM();
-    const service = new ProviderService(store, litellm);
+    const { secrets } = managedSecrets();
+    const service = new ProviderService(store, litellm, secrets);
     const result = await service.createConnection({
       ...deepSeekConnection,
       connection: {
@@ -144,7 +171,8 @@ describe("ProviderService", () => {
     expect(litellm.registerModel).toHaveBeenCalledWith(expect.objectContaining({
       litellmParams: expect.objectContaining({ ssl_verify: false }),
     }));
-    expect(JSON.parse((await store.getProviderAccountCredential(result.account.id))!))
+    const credentialReference = (await store.getProviderAccountCredential(result.account.id))!;
+    expect(JSON.parse(await secrets.get(credentialReference)))
       .toMatchObject({ skipTlsVerify: true });
 
     vi.mocked(litellm.registerModel).mockClear();
@@ -157,17 +185,44 @@ describe("ProviderService", () => {
     }));
   });
 
+  it("moves a legacy inline credential into the managed Project Secret store on first use", async () => {
+    mockDeepSeekCatalog();
+    const store = createTestStore();
+    const { secrets } = managedSecrets();
+    const service = new ProviderService(store, liteLLM(), secrets);
+    const { account } = await service.createConnection({
+      ...deepSeekConnection,
+      models: [deepSeekConnection.models[0]!],
+    });
+    await store.saveProviderAccount(account, JSON.stringify({
+      version: 1,
+      provider: "deepseek",
+      config: deepSeekConnection.connection.config,
+      credentials: deepSeekConnection.connection.credentials,
+    }));
+
+    await expect(service.discoverAccount(account.id)).resolves.toBeDefined();
+    const migratedReference = (await store.getProviderAccountCredential(account.id))!;
+    expect(migratedReference).toMatch(/^memory:\/\//);
+    expect(JSON.parse(await secrets.get(migratedReference))).toMatchObject({
+      credentials: { apiKey: "provider-secret-value" },
+    });
+  });
+
   it("deletes an unused account and unregisters its LiteLLM models", async () => {
     mockDeepSeekCatalog();
     const store = createTestStore();
     const litellm = liteLLM();
-    const service = new ProviderService(store, litellm);
+    const { secrets } = managedSecrets();
+    const service = new ProviderService(store, litellm, secrets);
     const { account } = await service.createConnection(deepSeekConnection);
+    const credentialReference = (await store.getProviderAccountCredential(account.id))!;
 
     await expect(service.deleteAccount(account.id)).resolves.toBe(true);
-    expect(litellm.deleteModel).toHaveBeenCalledTimes(2);
+    expect(litellm.deleteModelById).toHaveBeenCalledTimes(2);
     expect(await service.listAccounts()).toEqual([]);
     expect(await service.listModels()).toEqual([]);
+    await expect(secrets.get(credentialReference)).rejects.toThrow("unavailable");
   });
 
   it("removes one unused model while keeping its saved Provider credentials", async () => {
@@ -180,8 +235,8 @@ describe("ProviderService", () => {
     await expect(
       service.deleteModelDeployment(models[0]!.id),
     ).resolves.toBe(true);
-    expect(litellm.deleteModel).toHaveBeenCalledWith(
-      models[0]!.litellmModelName,
+    expect(litellm.deleteModelById).toHaveBeenCalledWith(
+      models[0]!.litellmModelId,
     );
     expect(await service.listAccounts()).toHaveLength(1);
     expect(await service.listModels(account.id)).toEqual([
@@ -233,7 +288,7 @@ describe("ProviderService", () => {
       code: "embedding_model_dependency_conflict",
       status: 409,
     });
-    expect(litellm.deleteModel).not.toHaveBeenCalled();
+    expect(litellm.deleteModelById).not.toHaveBeenCalled();
 
     await service.registerModel({
       providerAccountId: account.id,
@@ -352,7 +407,7 @@ describe("ProviderService", () => {
     await expect(
       service.deleteModelDeployment(models[0]!.id),
     ).rejects.toThrow("in use by 1 Model Routing");
-    expect(litellm.deleteModel).not.toHaveBeenCalled();
+    expect(litellm.deleteModelById).not.toHaveBeenCalled();
   });
 
   it("does not persist a rejected Endpoint + key", async () => {
@@ -392,6 +447,8 @@ describe("ProviderService", () => {
     expect(result.models).toHaveLength(1);
     expect(result.failures).toEqual([expect.objectContaining({ message: "Embedding deployment is unavailable." })]);
     expect(await service.listAccounts()).toHaveLength(1);
-    expect(litellm.deleteModel).toHaveBeenCalledWith("tali/account/text-embedding-3-large");
+    expect(litellm.deleteModelById).toHaveBeenCalledWith(
+      vi.mocked(litellm.registerModel).mock.calls.find(([input]) => input.model.modelId === "text-embedding-3-large")![0].registrationId,
+    );
   });
 });

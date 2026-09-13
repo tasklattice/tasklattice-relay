@@ -67,6 +67,7 @@ function adapter(): LiteLLMAdminClient {
   return {
     baseUrl: "http://litellm.test",
     registerModel: vi.fn(),
+    deleteModelById: vi.fn(async () => undefined),
     deleteModel: vi.fn(),
     probeModel: vi.fn(),
     createInstanceKey: vi.fn(),

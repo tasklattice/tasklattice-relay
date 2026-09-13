@@ -34,6 +34,7 @@ import {
 import { requireDepartmentAdministrator } from "./departments/department-access";
 import { MemoryRepository } from "./memories/memory-repository";
 import { MemoryService } from "./memories/memory-service";
+import { RuntimeInventoryService } from "./runtime-inventory/runtime-inventory-service";
 
 interface ProjectServices {
   store: ProjectStore;
@@ -50,6 +51,7 @@ interface ProjectServices {
   auditLogs: AuditLogService;
   overview: ProjectOverviewService;
   memories: MemoryService;
+  runtimeInventory: RuntimeInventoryService;
 }
 
 const litellm = new LiteLLMClient();
@@ -86,6 +88,10 @@ function createServices(projectId: string): ProjectServices {
     undefined,
     memories,
   );
+  const agentGarden = new AgentGardenService(
+    new AgentGardenStore(projectId, store.database()),
+    store,
+  );
   return {
     store,
     auditLogs: new AuditLogService(projectId, store.database()),
@@ -96,9 +102,12 @@ function createServices(projectId: string): ProjectServices {
     ),
     overview: new ProjectOverviewService(store, instances),
     memories,
-    agentGarden: new AgentGardenService(
-      new AgentGardenStore(projectId, store.database()),
-      store,
+    agentGarden,
+    runtimeInventory: new RuntimeInventoryService(
+      projectId,
+      store.database(),
+      instances,
+      agentGarden,
     ),
     accessPolicies,
     provider: new ProviderService(store, litellm),
@@ -218,6 +227,12 @@ export async function getAgentGardenService(
   request?: Request,
 ): Promise<AgentGardenService> {
   return (await forRequest(request)).agentGarden;
+}
+
+export async function getRuntimeInventoryService(
+  request?: Request,
+): Promise<RuntimeInventoryService> {
+  return (await forRequest(request)).runtimeInventory;
 }
 
 export async function getProviderService(request?: Request): Promise<ProviderService> {

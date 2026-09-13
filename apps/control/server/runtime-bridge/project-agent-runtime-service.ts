@@ -1,17 +1,22 @@
 import {
   agentGardenEntrySchema,
   a2aAgentInstanceSchema,
+  expertAgentVersionSnapshotSchema,
   getAgentPlatformDefinition,
   isAgentPlatformId,
+  projectAgentRuntimeInstanceSchema,
   type A2aAgentInstance,
   type AgentGardenEntry,
   type AgentGardenSkill,
+  type ExpertAgentVersionSnapshot,
 } from "@tali/contracts";
+import { getControlConfig } from "../config/control-config";
 import { prisma } from "../db/prisma";
 import type { PrismaClient } from "../generated/prisma/client";
 import { createSecretStore, type SecretStore } from "../secrets/secret-store";
 import { AgentGardenStore } from "../agent-garden/agent-garden-store";
 import { databaseAgentCatalog } from "../agent-garden/database-agent-catalog";
+import { deriveProjectRuntimeExpertAgentA2aToken } from "./project-runtime-bridge-token";
 
 export interface ProjectA2aPeer {
   description: string;
@@ -20,11 +25,36 @@ export interface ProjectA2aPeer {
   protocolVersion: "1.0";
   skills: AgentGardenSkill[];
   timeoutSeconds: number;
+  delegation?: {
+    canRunIndependently: true;
+    receivesWhen: string[];
+    delegatesTo: string[];
+  };
 }
 
 interface ResolvedInstance {
   agent: AgentGardenEntry;
   instance: A2aAgentInstance;
+}
+
+interface ResolvedExpertAgent {
+  agentId: string;
+  contentDigest: string;
+  endpoint: string;
+  instanceId: string;
+  versionNumber: number;
+  versionId: string;
+  snapshot: ExpertAgentVersionSnapshot;
+}
+
+function expertDelegationMetadata(snapshot: ExpertAgentVersionSnapshot) {
+  return {
+    canRunIndependently: true as const,
+    receivesWhen: snapshot.product.delegationGuidance ?? [],
+    delegatesTo: snapshot.delegations
+      .filter((delegation) => delegation.enabled)
+      .map((delegation) => delegation.expertAgentId),
+  };
 }
 
 const MAX_A2A_RESPONSE_BYTES = 1024 * 1024;
@@ -89,8 +119,11 @@ export class ProjectAgentRuntimeService {
   ) {}
 
   async listPeers(coordinatorInstanceId: string): Promise<ProjectA2aPeer[]> {
-    const instances = await this.instances(coordinatorInstanceId);
-    return instances.map(({ agent, instance }) => {
+    const [instances, experts] = await Promise.all([
+      this.instances(coordinatorInstanceId),
+      this.expertAgents(coordinatorInstanceId),
+    ]);
+    return [...instances.map(({ agent, instance }) => {
       return {
         id: instance.id,
         name: instance.name,
@@ -99,7 +132,39 @@ export class ProjectAgentRuntimeService {
         timeoutSeconds: 120,
         skills: instance.skills.length ? instance.skills : agent.skills,
       };
-    });
+    }), ...experts.map((expert) => ({
+      id: expert.instanceId,
+      name: expert.snapshot.product.name,
+      description: expert.snapshot.product.purpose,
+      protocolVersion: "1.0" as const,
+      timeoutSeconds: Math.ceil(expert.snapshot.execution.timeoutMs / 1_000),
+      delegation: expertDelegationMetadata(expert.snapshot),
+      skills: expert.snapshot.product.capabilities.map((capability, index) => ({
+        id: `capability-${index + 1}`,
+        name: capability.slice(0, 200),
+        description: capability,
+        tags: [expert.snapshot.execution.mode.toLowerCase()],
+      })),
+    }))];
+  }
+
+  async listExpertPeers(
+    coordinatorInstanceId: string,
+  ): Promise<ProjectA2aPeer[]> {
+    return (await this.expertAgents(coordinatorInstanceId)).map((expert) => ({
+      id: expert.instanceId,
+      name: expert.snapshot.product.name,
+      description: expert.snapshot.product.purpose,
+      protocolVersion: "1.0" as const,
+      timeoutSeconds: Math.ceil(expert.snapshot.execution.timeoutMs / 1_000),
+      delegation: expertDelegationMetadata(expert.snapshot),
+      skills: expert.snapshot.product.capabilities.map((capability, index) => ({
+        id: `capability-${index + 1}`,
+        name: capability.slice(0, 200),
+        description: capability,
+        tags: [expert.snapshot.execution.mode.toLowerCase()],
+      })),
+    }));
   }
 
   async agentCard(
@@ -107,6 +172,40 @@ export class ProjectAgentRuntimeService {
     agentId: string,
     publicEndpoint: string,
   ): Promise<unknown> {
+    const expert = await this.expertAgent(coordinatorInstanceId, agentId);
+    if (expert) {
+      return {
+        name: expert.snapshot.product.name,
+        description: expert.snapshot.product.purpose,
+        version: `v${expert.versionNumber}`,
+        supportedInterfaces: [{
+          url: publicEndpoint,
+          protocolBinding: "JSONRPC",
+          protocolVersion: "1.0",
+        }],
+        capabilities: {
+          streaming: false,
+          pushNotifications: false,
+          extendedAgentCard: false,
+        },
+        defaultInputModes: ["text/plain"],
+        defaultOutputModes: ["text/plain", "application/json"],
+        metadata: {
+          tali: {
+            agentId: expert.agentId,
+            instanceId: expert.instanceId,
+            versionId: expert.versionId,
+            ...expertDelegationMetadata(expert.snapshot),
+          },
+        },
+        skills: expert.snapshot.product.capabilities.map((capability, index) => ({
+          id: `capability-${index + 1}`,
+          name: capability.slice(0, 200),
+          description: capability,
+          tags: [expert.snapshot.execution.mode.toLowerCase()],
+        })),
+      };
+    }
     const { agent, instance } = await this.instance(
       coordinatorInstanceId,
       agentId,
@@ -138,6 +237,8 @@ export class ProjectAgentRuntimeService {
     agentId: string,
     payload: unknown,
   ): Promise<{ body: unknown; status: number }> {
+    const expert = await this.expertAgent(coordinatorInstanceId, agentId);
+    if (expert) return this.sendExpertMessage(expert, payload);
     const { agent, instance } = await this.instance(
       coordinatorInstanceId,
       agentId,
@@ -220,12 +321,72 @@ export class ProjectAgentRuntimeService {
     return { status: response.status, body };
   }
 
-  private async instances(
-    coordinatorInstanceId: string,
-  ): Promise<ResolvedInstance[]> {
-    await new AgentGardenStore(this.projectId, this.db).ensureAgents(
-      databaseAgentCatalog,
-    );
+  async sendExpertAgentMessage(
+    instanceId: string,
+    payload: unknown,
+  ): Promise<{ body: unknown; status: number }> {
+    const expert = await this.activeExpertAgent(instanceId);
+    if (!expert) throw new Error("Agent Instance A2A Runtime was not found.");
+    return this.sendExpertMessage(expert, payload);
+  }
+
+  private async sendExpertMessage(
+    expert: ResolvedExpertAgent,
+    payload: unknown,
+  ): Promise<{ body: unknown; status: number }> {
+    const token = deriveProjectRuntimeExpertAgentA2aToken({
+      projectId: this.projectId,
+      namespace: await this.runtimeNamespace(),
+      agentId: expert.agentId,
+      versionId: expert.versionId,
+      contentDigest: expert.contentDigest,
+    }, getControlConfig().auth.secret);
+    const response = await fetch(expert.endpoint, {
+      method: "POST",
+      headers: {
+        accept: "application/a2a+json, application/json",
+        authorization: `Bearer ${token}`,
+        "content-type": "application/json",
+        "a2a-version": "1.0",
+      },
+      body: JSON.stringify(payload),
+      redirect: "error",
+      signal: AbortSignal.timeout(Math.min(
+        900_000,
+        Math.max(1_000, expert.snapshot.execution.timeoutMs),
+      )),
+    });
+    const text = await limitedResponseText(response);
+    let body: unknown = text;
+    try {
+      body = text ? JSON.parse(text) : null;
+    } catch {
+      if (response.ok) {
+        return {
+          status: 502,
+          body: jsonRpcError(
+            requestId(payload),
+            -32002,
+            "The Expert Agent returned a non-JSON response.",
+          ),
+        };
+      }
+    }
+    return { status: response.status, body };
+  }
+
+  private async runtimeNamespace(): Promise<string> {
+    const target = await this.db.projectRuntimeTarget.findUnique({
+      where: { projectId: this.projectId },
+      select: { namespace: true, status: true },
+    });
+    if (!target || target.status !== "ready") {
+      throw new Error("Project Runtime Namespace is not ready.");
+    }
+    return target.namespace;
+  }
+
+  private async requireCoordinator(coordinatorInstanceId: string): Promise<void> {
     const coordinator = await this.db.agentRecord.findFirst({
       where: {
         projectId: this.projectId,
@@ -249,6 +410,75 @@ export class ProjectAgentRuntimeService {
     ) {
       throw new Error("This Instance runtime cannot delegate A2A tasks.");
     }
+  }
+
+  private async expertAgents(
+    coordinatorInstanceId: string,
+  ): Promise<ResolvedExpertAgent[]> {
+    await this.requireCoordinator(coordinatorInstanceId);
+    return this.activeExpertAgents();
+  }
+
+  private async activeExpertAgents(): Promise<ResolvedExpertAgent[]> {
+    const rows = await this.db.agentRecord.findMany({
+      where: {
+        projectId: this.projectId,
+        kind: "PROJECT_AGENT",
+        developedAgentId: { not: null },
+        agentVersionId: { not: null },
+        deletedAt: null,
+        developedAgent: { deletedAt: null },
+      },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      include: {
+        agentVersion: true,
+      },
+    });
+    return rows.flatMap((row) => {
+      if (!row.agentVersion || !row.developedAgentId) return [];
+      const parsedInstance = projectAgentRuntimeInstanceSchema.safeParse(row.payload);
+      if (
+        !parsedInstance.success
+        || parsedInstance.data.status !== "READY"
+        || !parsedInstance.data.endpoint
+      ) return [];
+      const snapshot = expertAgentVersionSnapshotSchema.parse(row.agentVersion.snapshot);
+      return [{
+        instanceId: row.id,
+        agentId: row.developedAgentId,
+        contentDigest: row.agentVersion.contentDigest,
+        endpoint: parsedInstance.data.endpoint,
+        versionNumber: row.agentVersion.versionNumber,
+        versionId: row.agentVersion.id,
+        snapshot,
+      }];
+    });
+  }
+
+  private async activeExpertAgent(
+    instanceId: string,
+  ): Promise<ResolvedExpertAgent | undefined> {
+    return (await this.activeExpertAgents()).find(
+      (expert) => expert.instanceId === instanceId,
+    );
+  }
+
+  private async expertAgent(
+    coordinatorInstanceId: string,
+    instanceId: string,
+  ): Promise<ResolvedExpertAgent | undefined> {
+    return (await this.expertAgents(coordinatorInstanceId)).find(
+      (expert) => expert.instanceId === instanceId,
+    );
+  }
+
+  private async instances(
+    coordinatorInstanceId: string,
+  ): Promise<ResolvedInstance[]> {
+    await new AgentGardenStore(this.projectId, this.db).ensureAgents(
+      databaseAgentCatalog,
+    );
+    await this.requireCoordinator(coordinatorInstanceId);
     const rows = await this.db.agentRecord.findMany({
       where: {
         projectId: this.projectId,

@@ -28,6 +28,65 @@ afterEach(async () => {
 });
 
 describe("Hermes config bootstrap", () => {
+  it("seeds the native Hermes Dashboard without optional Relay tool registries", () => {
+    const patch = resolve(import.meta.dirname, "../../../scripts/patch-hermes-dashboard-relay-integrations.py");
+    const program = `
+from __future__ import annotations
+import importlib.util
+import sys
+spec = importlib.util.spec_from_file_location("integrations_patch", sys.argv[1])
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+scope = {"InvalidDashboardSeedDocumentError": ValueError}
+source = module.FUNCTION_REPLACEMENT
+exec(source[source.index("_RELAY_TOOLSETS ="):source.index("def _set_policy_value")], scope)
+normalize = scope["_normalized_relay_integrations"]
+assert normalize({"plugins": {"enabled": ["nemoclaw", "tali-run-telemetry"]}}) == {
+    "toolsets": ["hermes-cli"], "plugins": ["nemoclaw", "tali-run-telemetry"]}
+for toolsets in (None, [], ["unapproved"]):
+    try:
+        normalize({"toolsets": toolsets, "plugins": {"enabled": ["tali-run-telemetry"]}})
+    except ValueError:
+        pass
+    else:
+        raise AssertionError(f"invalid tools accepted: {toolsets}")
+`;
+    const result = spawnSync("python3", ["-c", program, patch], { encoding: "utf8" });
+    expect(result.status, result.stderr).toBe(0);
+  });
+
+  it("allows native and Relay Dashboard memory while rejecting unknown providers and invalid flags", () => {
+    const patch = resolve(import.meta.dirname, "../../../scripts/patch-hermes-dashboard-relay-memory.py");
+    const program = `
+from __future__ import annotations
+import importlib.util
+import sys
+spec = importlib.util.spec_from_file_location("memory_patch", sys.argv[1])
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+scope = {"InvalidDashboardSeedDocumentError": ValueError}
+source = module.FUNCTION_REPLACEMENT
+exec(source[source.index("def _normalized_relay_memory"):source.index("def _set_policy_value")], scope)
+normalize = scope["_normalized_relay_memory"]
+assert normalize({}) is None
+for provider in (None, "", "tali_relay"):
+    memory = {"memory_enabled": True, "user_profile_enabled": True}
+    if provider is not None:
+        memory["provider"] = provider
+    result = normalize({"memory": memory})
+    assert result == {**memory, "provider": provider or ""}
+for memory in ({"provider": "unknown"}, {"memory_enabled": "true"}, []):
+    try:
+        normalize({"memory": memory})
+    except ValueError:
+        pass
+    else:
+        raise AssertionError(f"invalid memory accepted: {memory}")
+`;
+    const result = spawnSync("python3", ["-c", program, patch], { encoding: "utf8" });
+    expect(result.status, result.stderr).toBe(0);
+  });
+
   it("enables the bundled Run telemetry plugin", () => {
     const program = `
 import importlib.util
@@ -54,6 +113,25 @@ print(json.dumps(document))
     });
   });
 
+  it("enables built-in text memory without an external provider or embedding model", () => {
+    const program = `
+import importlib.util
+import json
+import sys
+spec = importlib.util.spec_from_file_location("tali_bootstrap", sys.argv[1])
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+document = {"memory": {"provider": "tali_relay", "memory_enabled": False, "memory_char_limit": 4000}}
+module.configure_native_memory(document)
+print(json.dumps(document))
+`;
+    const result = spawnSync("python3", ["-c", program, bootstrap], { encoding: "utf8" });
+    expect(result.status, result.stderr).toBe(0);
+    expect(JSON.parse(result.stdout)).toEqual({ memory: {
+      provider: "", memory_enabled: true, user_profile_enabled: true, memory_char_limit: 4000,
+    } });
+  });
+
   it("selects Relay's scoped MemoryProvider without persisting Runtime credentials", () => {
     const program = `
 import importlib.util
@@ -75,6 +153,28 @@ print(json.dumps(document))
     });
     expect(result.stdout).not.toContain("token");
     expect(result.stdout).not.toContain("bank");
+  });
+
+  it("persists only the validated Durable Memory endpoint in the managed environment", () => {
+    const program = `
+import importlib.util
+import sys
+spec = importlib.util.spec_from_file_location("tali_bootstrap", sys.argv[1])
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+endpoint = "http://runtime-bridge.project.svc.cluster.local:8080/v1/memory/coordinators/agent-a"
+module.validate_durable_memory_endpoint(endpoint)
+print(module.set_environment_value(b"HERMES_HOME=/sandbox/.hermes\\n", "TALI_DURABLE_MEMORY_ENDPOINT", endpoint).decode(), end="")
+`;
+    const result = spawnSync("python3", ["-c", program, bootstrap], {
+      encoding: "utf8",
+    });
+    expect(result.status, result.stderr).toBe(0);
+    expect(result.stdout).toContain("HERMES_HOME=/sandbox/.hermes");
+    expect(result.stdout).toContain(
+      "TALI_DURABLE_MEMORY_ENDPOINT=http://runtime-bridge.project.svc.cluster.local:8080/v1/memory/coordinators/agent-a",
+    );
+    expect(result.stdout).not.toContain("TOKEN=");
   });
 
   it("enables the pinned Relay A2A plugin and Kanban for Bridge peers", () => {
@@ -121,7 +221,7 @@ print(json.dumps(document))
     });
   });
 
-  it("enables dynamic Project Vector Database tools without storing a catalog snapshot", () => {
+  it.each([false, true])("enables dynamic Project Vector Database tools without storing a catalog snapshot (empty registry: %s)", (emptyRegistry) => {
     const program = `
 import importlib.util
 import json
@@ -145,7 +245,7 @@ module.configure_vector_databases(
   document,
   "http://runtime-bridge.project.svc.cluster.local/v1/hermes/vector-databases?coordinatorInstanceId=hermes",
   "coordinator-token",
-  registry,
+  {"vector_databases": {}} if ${emptyRegistry ? "True" : "False"} else registry,
 )
 print(json.dumps(document))
 `;
@@ -223,6 +323,10 @@ custom_providers:
       "https://inference.local/v1",
       "--template-model",
       "deepseek-chat",
+      "--durable-memory-provider",
+      "tali_relay",
+      "--durable-memory-endpoint",
+      "http://runtime-bridge.project.svc.cluster.local:8080/v1/memory/coordinators/agent-a",
       "--mcp-digest-builder",
       builder,
       "--runtime-config-guard",
@@ -240,6 +344,13 @@ custom_providers:
     expect(document.providers.deepseek.api_key).toBe(managedCredentialPlaceholder);
     expect(document.custom_providers[0].api_key).toBe(managedCredentialPlaceholder);
     expect(document.plugins.enabled).toContain("tali-run-telemetry");
+    expect(document.memory.provider).toBe("tali_relay");
+    const migratedEnvironment = await readFile(environment, "utf8");
+    expect(migratedEnvironment).toContain(
+      "TALI_DURABLE_MEMORY_ENDPOINT=http://runtime-bridge.project.svc.cluster.local:8080/v1/memory/coordinators/agent-a",
+    );
+    expect(migratedEnvironment).not.toContain("TALI_DURABLE_MEMORY_TOKEN");
+    expect(migratedEnvironment).not.toContain("TALI_PROJECT_RUNTIME_BRIDGE_TOKEN");
 
     const rotatedPlaceholder =
       "openshell:resolve:env:v123457_OPENAI_API_KEY";
@@ -253,6 +364,7 @@ custom_providers:
     expect(rotated.model.api_key).toBe(rotatedPlaceholder);
     expect(rotated.providers.deepseek.api_key).toBe(rotatedPlaceholder);
     expect(rotated.custom_providers[0].api_key).toBe(rotatedPlaceholder);
+    expect(await readFile(environment, "utf8")).toBe(migratedEnvironment);
     expect(await readFile(anchor, "utf8")).toContain(
       `${digest(rerun)}  ${config}`,
     );

@@ -47,6 +47,7 @@ function liteLLMAdapter(): LiteLLMAdminClient {
   return {
     baseUrl: "http://litellm:4000",
     registerModel: vi.fn(),
+    deleteModelById: vi.fn(async () => undefined),
     deleteModel: vi.fn(),
     probeModel: vi.fn(),
     createInstanceKey: vi.fn(async () => ({
@@ -268,7 +269,7 @@ export async function createConfiguredInstance(
       accessPolicyIds: [setup.policy.id],
       modelRoutingId: "routing-a",
       agentPlatform: "openclaw",
-      policyId: "restricted",
+      policyId: "managed-runtime",
       systemPrompt: "Research the request and report the resulting evidence.",
       knowledgeSourceIds: ["engineering-handbook"],
       ...overrides,

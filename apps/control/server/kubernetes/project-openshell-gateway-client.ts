@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { projectRuntimeNamespaceSchema } from "@tali/contracts";
 import { stringify } from "yaml";
+import { readProjectNamespaceOwner, reconcileGatewayOwnership } from "./project-resource-ownership";
 import type { ProjectNamespaceInput } from "./project-namespace-client";
 
 export interface ProjectOpenShellGatewayClient {
@@ -194,11 +195,14 @@ export class HelmProjectOpenShellGatewayClient
   constructor(
     private readonly configuration = configurationFromEnvironment(),
     private readonly run: CommandRunner = defaultCommandRunner,
+    private readonly readOwner = readProjectNamespaceOwner,
+    private readonly reconcileOwnership = reconcileGatewayOwnership,
   ) {}
 
   async reconcile(input: ProjectNamespaceInput): Promise<void> {
     if (!this.configuration.enabled) return;
     projectRuntimeNamespaceSchema.parse(input.namespace);
+    const owner = await this.readOwner(input.namespace, input.projectId);
     await this.recoverInterruptedRelease(input.namespace);
     const serviceName = dnsLabel(
       `${this.configuration.serviceNamePrefix}${input.namespace}`,
@@ -263,6 +267,9 @@ export class HelmProjectOpenShellGatewayClient
         "3",
         "--values",
         "-",
+        ...(owner ? ["--post-renderer", process.env.PROJECT_OPENSHELL_OWNER_RENDERER
+          ?? "/app/scripts/project-openshell-owner.mjs", "--post-renderer-args", JSON.stringify(owner),
+          "--post-renderer-args", serviceName] : []),
       ],
       command: process.env.HELM_BIN ?? "helm",
       stdin: values,
@@ -273,6 +280,7 @@ export class HelmProjectOpenShellGatewayClient
         `Project OpenShell Gateway reconciliation failed: ${(result.stderr || result.stdout).trim().slice(-4_000)}`,
       );
     }
+    if (owner) await this.reconcileOwnership(owner, serviceName);
   }
 
   private async recoverInterruptedRelease(namespace: string): Promise<void> {

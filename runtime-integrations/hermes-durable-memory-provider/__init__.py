@@ -28,6 +28,15 @@ class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
 _OPENER = urllib.request.build_opener(_NoRedirectHandler())
 
 
+def _runtime_token() -> str:
+    """Prefer a dedicated token and fall back to OpenShell's scoped Bridge token."""
+    return (
+        os.environ.get("TALI_DURABLE_MEMORY_TOKEN")
+        or os.environ.get("TALI_PROJECT_RUNTIME_BRIDGE_TOKEN")
+        or ""
+    )
+
+
 def _validated_endpoint(value: str) -> str:
     parsed = urllib.parse.urlparse(value)
     loopback_allowed = os.environ.get(
@@ -98,14 +107,14 @@ class RelayMemoryProvider(MemoryProvider):
     def is_available(self) -> bool:
         return bool(
             os.environ.get("TALI_DURABLE_MEMORY_ENDPOINT")
-            and os.environ.get("TALI_DURABLE_MEMORY_TOKEN")
+            and _runtime_token()
         )
 
     def initialize(self, session_id: str, **kwargs) -> None:  # noqa: ARG002
         self._endpoint = _validated_endpoint(
             os.environ.get("TALI_DURABLE_MEMORY_ENDPOINT", "")
         )
-        self._token = os.environ.get("TALI_DURABLE_MEMORY_TOKEN", "")
+        self._token = _runtime_token()
         if not self._token or "\r" in self._token or "\n" in self._token:
             raise RuntimeError("Memory Gateway credential is invalid")
         self._session_id = session_id

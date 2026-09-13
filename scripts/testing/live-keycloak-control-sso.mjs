@@ -113,7 +113,18 @@ async function main() {
   if (!contextResponse.ok || !context.options?.length) {
     throw new Error("SSO role binding did not produce any selectable Control access context.");
   }
-  const selected = context.options.find((option) => option.level === "project") ?? context.options[0];
+  const expectedProjectId = process.env.TALI_SSO_EXPECTED_PROJECT_ID;
+  const expectedRoleId = process.env.TALI_SSO_EXPECTED_ROLE_ID;
+  const selected = expectedProjectId
+    ? context.options.find((option) =>
+      option.level === "project"
+      && option.resourceId === expectedProjectId
+      && (!expectedRoleId || option.roleId === expectedRoleId)
+    )
+    : context.options.find((option) => option.level === "project") ?? context.options[0];
+  if (!selected) {
+    throw new Error(`SSO Role binding did not produce a Project context for ${expectedProjectId}.`);
+  }
   const switchResponse = await request(new URL("/api/v1/access-context", baseUrl), {
     method: "PUT",
     headers: { "content-type": "application/json" },
@@ -128,16 +139,84 @@ async function main() {
     throw new Error(`SSO Role switch failed: ${JSON.stringify(switched)}`);
   }
 
+  const expectedAgentSlugs = (process.env.TALI_SSO_EXPECTED_AGENT_SLUGS ?? "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+  const minimumProjectAgentInstances = Number.parseInt(
+    process.env.TALI_SSO_MIN_PROJECT_AGENT_INSTANCES ?? "0",
+    10,
+  );
+  let developerSurface;
+  if (expectedAgentSlugs.length || minimumProjectAgentInstances > 0) {
+    const [agentsResponse, inventoryResponse] = await Promise.all([
+      request(new URL(`/api/v1/projects/${encodeURIComponent(selected.resourceId)}/agents`, baseUrl)),
+      request(new URL(`/api/v1/projects/${encodeURIComponent(selected.resourceId)}/runtime-inventory`, baseUrl)),
+    ]);
+    const [agentsPayload, inventoryPayload] = await Promise.all([
+      agentsResponse.json(),
+      inventoryResponse.json(),
+    ]);
+    if (!agentsResponse.ok) {
+      throw new Error(`Developer Agent list returned HTTP ${agentsResponse.status}: ${JSON.stringify(agentsPayload)}`);
+    }
+    if (!inventoryResponse.ok) {
+      throw new Error(`Developer Runtime Inventory returned HTTP ${inventoryResponse.status}: ${JSON.stringify(inventoryPayload)}`);
+    }
+    const agents = Array.isArray(agentsPayload?.data) ? agentsPayload.data : [];
+    const missingAgentSlugs = expectedAgentSlugs.filter(
+      (slug) => !agents.some((agent) => agent.slug === slug),
+    );
+    if (missingAgentSlugs.length) {
+      throw new Error(`Developer Agent list omitted ${missingAgentSlugs.join(", ")}.`);
+    }
+    const inventory = Array.isArray(inventoryPayload?.data) ? inventoryPayload.data : [];
+    const projectAgentInstances = inventory.filter(
+      (item) => item.sourceType === "PROJECT_AGENT",
+    );
+    if (projectAgentInstances.length < minimumProjectAgentInstances) {
+      throw new Error(
+        `Developer Runtime Inventory exposed ${projectAgentInstances.length} Project Agent Instances; expected at least ${minimumProjectAgentInstances}.`,
+      );
+    }
+    const detailResponses = await Promise.all([
+      ...agents
+        .filter((agent) => expectedAgentSlugs.includes(agent.slug))
+        .map((agent) => request(new URL(
+          `/api/v1/projects/${encodeURIComponent(selected.resourceId)}/agents/${encodeURIComponent(agent.id)}`,
+          baseUrl,
+        ))),
+      ...projectAgentInstances.map((instance) => request(new URL(
+        `/api/v1/projects/${encodeURIComponent(selected.resourceId)}/instances/${encodeURIComponent(instance.sourceId)}`,
+        baseUrl,
+      ))),
+    ]);
+    const inaccessibleDetail = detailResponses.find((response) => !response.ok);
+    if (inaccessibleDetail) {
+      throw new Error(
+        `Developer detail route ${inaccessibleDetail.url} returned HTTP ${inaccessibleDetail.status}: ${await inaccessibleDetail.text()}`,
+      );
+    }
+    developerSurface = {
+      agentCount: agents.length,
+      expectedAgentSlugs,
+      projectAgentInstanceCount: projectAgentInstances.length,
+      accessibleDetailCount: detailResponses.length,
+    };
+  }
+
   console.log(JSON.stringify({
     result: "PASS",
     level: "L4-live-no-model",
     module: "access",
     evidence: {
       accessContext: switched.active.id,
+      projectId: switched.active.resourceId,
       groupCount: profile.ssoIdentity.groups.length,
       issuer: profile.ssoIdentity.issuer,
       providerId: profile.ssoIdentity.providerId,
       username: profile.username,
+      ...(developerSurface ? { developerSurface } : {}),
     },
   }, null, 2));
 }

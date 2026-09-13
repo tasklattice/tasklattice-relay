@@ -2,7 +2,7 @@ import { defineHandler } from "nitro";
 import { instanceParamsSchema } from "../../../../../../../api-contracts/schemas";
 import { requireAuth, unauthorizedResponse } from "../../../../../../../auth/auth";
 import { errorResponse, jsonResponse, problemResponse } from "../../../../../../../http/responses";
-import { getInstanceService } from "../../../../../../../services";
+import { getAgentGardenService, getInstanceService } from "../../../../../../../services";
 
 export default defineHandler(async (event) => {
   try {
@@ -21,7 +21,8 @@ export default defineHandler(async (event) => {
           status: memory.status,
         })).catch(() => null)
       : null;
-    const destroyed = await service.destroy(id);
+    const destroyed = await service.destroy(id)
+      || await (await getAgentGardenService(event.req)).removeInstance(id);
     return destroyed
       ? jsonResponse(
           { id, status: "DESTROYING", accepted: true, retainedMemory },

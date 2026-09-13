@@ -193,10 +193,20 @@ export interface LiteLLMVectorStoreInput {
   litellmParams: Record<string, unknown>;
 }
 
+export interface LiteLLMStructuredCompletionInput {
+  model: string;
+  system: string;
+  user: string;
+  responseJsonSchema: Record<string, unknown>;
+  temperature: number;
+  maxTokens?: number;
+}
+
 export interface LiteLLMAdminClient {
   readonly baseUrl: string;
   connectionBaseUrl?(): Promise<string>;
   registerModel(input: {
+    registrationId: string;
     accountId: string;
     providerKind: ProviderKind;
     model: ProviderModelSelection;
@@ -205,6 +215,7 @@ export interface LiteLLMAdminClient {
     endpointRegion: string;
   }): Promise<string>;
   deleteModel(modelName: string): Promise<void>;
+  deleteModelById(modelId: string): Promise<void>;
   probeModel(modelName: string, modelType: ModelType): Promise<void>;
   createInstanceKey(input: { agentId: string; alias: string; modelName: string }): Promise<LiteLLMVirtualKey>;
   blockKey(tokenId: string): Promise<void>;
@@ -228,6 +239,11 @@ export interface LiteLLMAdminClient {
   updateMcpServer?(input: LiteLLMMcpServerInput): Promise<void>;
   deleteMcpServer?(serverId: string): Promise<void>;
   discoverMcpTools?(serverId: string): Promise<McpToolDefinition[]>;
+  callMcpTool?(
+    serverId: string,
+    toolName: string,
+    args: Record<string, unknown>,
+  ): Promise<unknown>;
   registerVectorStore?(input: LiteLLMVectorStoreInput): Promise<void>;
   updateVectorStore?(input: LiteLLMVectorStoreInput): Promise<void>;
   deleteVectorStore?(vectorStoreId: string): Promise<void>;
@@ -237,6 +253,9 @@ export interface LiteLLMAdminClient {
     input: string[],
     inputType?: "query" | "passage",
   ): Promise<number[][]>;
+  completeStructuredModel?(
+    input: LiteLLMStructuredCompletionInput,
+  ): Promise<unknown>;
   testConnection?(): Promise<{ ok: boolean; version?: string }>;
 }
 
@@ -276,7 +295,59 @@ export class LiteLLMClient implements LiteLLMAdminClient {
     );
   }
 
+  async callMcpTool(
+    serverId: string,
+    toolName: string,
+    args: Record<string, unknown>,
+  ): Promise<unknown> {
+    return this.request("/mcp-rest/tools/call", {
+      method: "POST",
+      body: JSON.stringify({
+        server_id: serverId,
+        name: toolName,
+        arguments: args,
+      }),
+    });
+  }
+
+  async completeStructuredModel(
+    input: LiteLLMStructuredCompletionInput,
+  ): Promise<unknown> {
+    const response = await this.request<{
+      choices?: Array<{ message?: { content?: unknown } }>;
+    }>("/chat/completions", {
+      method: "POST",
+      body: JSON.stringify({
+        model: input.model,
+        messages: [
+          { role: "system", content: input.system },
+          { role: "user", content: input.user },
+        ],
+        temperature: input.temperature,
+        max_tokens: input.maxTokens ?? 2_000,
+        response_format: {
+          type: "json_schema",
+          json_schema: {
+            name: "expert_agent_response",
+            strict: true,
+            schema: input.responseJsonSchema,
+          },
+        },
+      }),
+    });
+    const content = response.choices?.[0]?.message?.content;
+    if (typeof content !== "string" || !content.trim()) {
+      throw new Error("LiteLLM returned an empty structured completion.");
+    }
+    try {
+      return JSON.parse(content);
+    } catch {
+      throw new Error("LiteLLM returned invalid JSON for a structured completion.");
+    }
+  }
+
   async registerModel(input: {
+    registrationId: string;
     accountId: string;
     providerKind: ProviderKind;
     model: ProviderModelSelection;
@@ -285,7 +356,7 @@ export class LiteLLMClient implements LiteLLMAdminClient {
     endpointRegion: string;
   }): Promise<string> {
     this.assertConfigured();
-    const modelName = `tali/${input.accountId.slice(0, 8)}/${input.model.modelId}`;
+    const modelName = `tali/${input.accountId}/${input.registrationId}`;
     await this.request("/model/new", {
       method: "POST",
       body: JSON.stringify({
@@ -300,6 +371,7 @@ export class LiteLLMClient implements LiteLLMAdminClient {
             : {}),
         },
         model_info: {
+          id: input.registrationId,
           taliProviderAccountId: input.accountId,
           providerKind: input.providerKind,
           compliance_domain: input.complianceDomain,
@@ -320,14 +392,24 @@ export class LiteLLMClient implements LiteLLMAdminClient {
     const response = await this.request<{
       data?: Array<{ model_name?: string; model_info?: { id?: string } }>;
     }>("/model/info");
-    const modelId = response.data?.find(
-      (model) => model.model_name === modelName,
-    )?.model_info?.id;
+    const matches = response.data?.filter((model) => model.model_name === modelName) ?? [];
+    if (matches.length > 1) throw new Error("Ambiguous LiteLLM model alias; deletion requires a model ID.");
+    const modelId = matches[0]?.model_info?.id;
     if (!modelId) return;
-    await this.request("/model/delete", {
-      method: "POST",
-      body: JSON.stringify({ id: modelId }),
-    });
+    await this.deleteModelById(modelId);
+  }
+
+  async deleteModelById(modelId: string): Promise<void> {
+    try {
+      await this.request("/model/delete", { method: "POST", body: JSON.stringify({ id: modelId }) });
+    } catch (error) {
+      if (error instanceof LiteLLMRequestError && (
+        error.status === 404
+        // The pinned LiteLLM 1.87 API reports an already absent model as 400.
+        || (error.status === 400 && error.detail.includes(`Model with id=${modelId} not found in db`))
+      )) return;
+      throw error;
+    }
   }
 
   async createEmbeddings(

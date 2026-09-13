@@ -60,7 +60,9 @@ export function AgentGardenCard({
           <span className="block text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
             {agent.source === "BUILT_IN"
               ? "Built-in"
-              : "Project"}
+              : agent.source === "PROJECT_DEVELOPED"
+                ? "Developed"
+                : "Registered"}
           </span>
           {preview ? (
             <span className="mt-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-primary">
@@ -176,7 +178,16 @@ export function AgentGardenCard({
               Create Instance <ArrowRight />
             </Button>
           ) : null}
-          {callableAction ? (
+          {agent.source === "PROJECT_DEVELOPED" ? (
+            <Button
+              type="button"
+              className="h-11"
+              onClick={onDetails}
+            >
+              Open Agent <ArrowRight />
+            </Button>
+          ) : null}
+          {callableAction && agent.source !== "PROJECT_DEVELOPED" ? (
             <Button
               type="button"
               className="h-11"

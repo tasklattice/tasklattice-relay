@@ -19,11 +19,6 @@ subjects:
   - kind: ServiceAccount
     name: {{ include "tali.serviceAccountName" . }}
     namespace: {{ .Release.Namespace }}
-  {{- if .Values.openshell.enabled }}
-  - kind: ServiceAccount
-    name: {{ include "openshell.serviceAccountName" .Subcharts.openshell }}
-    namespace: {{ .Release.Namespace }}
-  {{- end }}
   {{- if .Values.control.worker.enabled }}
   - kind: ServiceAccount
     name: {{ include "tali.controlWorkerServiceAccountName" . }}

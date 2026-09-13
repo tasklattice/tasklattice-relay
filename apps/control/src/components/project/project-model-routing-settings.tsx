@@ -1257,7 +1257,7 @@ function ModelTable({
   return (
     <>
       <div className="hidden overflow-x-auto border-t md:block">
-        <table className="w-full min-w-[980px] text-left">
+        <table className="w-full min-w-[800px] text-left">
           <thead className="border-b bg-muted/20 text-xs text-muted-foreground">
             <tr>
               <th className="px-5 py-2.5 font-medium">Model</th>
@@ -1269,7 +1269,6 @@ function ModelTable({
                 </span>
               </th>
               <th className="px-4 py-2.5 font-medium">Status</th>
-              <th className="px-4 py-2.5 font-medium">Boundary</th>
               <th className="px-5 py-2.5 text-right font-medium">Used by</th>
               <th className="w-36">
                 <span className="sr-only">Actions</span>
@@ -1312,9 +1311,6 @@ function ModelTable({
                   </td>
                   <td className="px-4 py-3">
                     <Availability model={model} />
-                  </td>
-                  <td className="px-4 py-3">
-                    <Boundary domain={model.complianceDomain} />
                   </td>
                   <td className="px-5 py-3 text-right text-xs tabular-nums">
                     {useCount} Routing{useCount === 1 ? "" : "s"}
@@ -1390,7 +1386,6 @@ function ModelTable({
               <ProviderCell model={model} />
               <ModelClassification model={model} />
               <div className="flex items-center justify-between gap-3 border-t pt-3">
-                <Boundary domain={model.complianceDomain} />
                 <span className="ml-auto text-xs text-muted-foreground">
                   Used by {useCount} Routing{useCount === 1 ? "" : "s"}
                 </span>

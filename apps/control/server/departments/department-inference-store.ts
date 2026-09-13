@@ -33,6 +33,12 @@ export class DepartmentInferenceStore extends ProjectStore {
     super(`department:${departmentId}`, departmentDb);
   }
 
+  protected override transactionStore(transaction: Prisma.TransactionClient): ProjectStore {
+    const store = new DepartmentInferenceStore(this.departmentId, transaction as PrismaClient);
+    store.transactional = true;
+    return store;
+  }
+
   private async departmentName(): Promise<string> {
     const department = await this.departmentDb.department.findUnique({
       where: { id: this.departmentId },

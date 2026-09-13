@@ -10,7 +10,6 @@ import {
   Waypoints,
 } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
-import { PreviewBadge } from "@/components/shared/preview-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -35,7 +34,7 @@ export const Route = createFileRoute("/$projectId/traces")({
 
 function TracePageSkeleton() {
   return (
-    <div className="space-y-3" aria-label="Loading sample traces">
+    <div className="space-y-3" aria-label="Loading traces">
       <Skeleton className="h-20 w-full" />
       <div className="overflow-hidden rounded-lg border">
         <Skeleton className="h-40 rounded-none" />
@@ -55,7 +54,7 @@ function TraceLoadError({ message, onRetry }: { message: string; onRetry: () => 
         <span className="mx-auto grid size-10 place-items-center rounded-full bg-destructive/10 text-destructive">
           <AlertTriangle className="size-4" />
         </span>
-        <h2 id="trace-load-error" className="mt-3 font-sans text-base font-semibold">Sample traces could not be loaded</h2>
+        <h2 id="trace-load-error" className="mt-3 font-sans text-base font-semibold">Traces could not be loaded</h2>
         <p className="mt-1 text-sm text-muted-foreground">{message}</p>
         <Button type="button" variant="outline" className="mt-4 h-11" onClick={onRetry}>
           <RefreshCw />
@@ -72,7 +71,7 @@ function TracesPage() {
   const navigate = Route.useNavigate();
   const [selectedTraceId, setSelectedTraceId] = useState(search.traceId ?? "");
   const traces = useQuery({
-    queryKey: scope.key("traces", "sample"),
+    queryKey: scope.key("traces"),
     queryFn: api.listTraces,
     retry: false,
   });
@@ -114,8 +113,7 @@ function TracesPage() {
     <div className="space-y-4">
       <PageHeader
         title="Traces"
-        badge={<PreviewBadge />}
-        description="Inspect how Agents, models, MCP tools and external systems collaborate during one execution."
+        description="Inspect relation-scoped Agent and Playbook runs, including branch outcomes, retries, evidence, latency, and failures."
       />
 
       {traces.isPending ? (
@@ -124,15 +122,15 @@ function TracesPage() {
         <TraceLoadError message={error.message} onRetry={retry} />
       ) : traces.data?.data.length ? (
         <>
-          <section className="flex flex-col gap-3 border border-border/70 bg-background px-4 py-3 sm:flex-row sm:items-center sm:justify-between" aria-label="Sample trace selection">
+          <section className="flex flex-col gap-3 border border-border/70 bg-background px-4 py-3 sm:flex-row sm:items-center sm:justify-between" aria-label="Trace selection">
             <div className="flex min-w-0 items-center gap-3">
               <span className="grid size-9 shrink-0 place-items-center rounded-md bg-primary/10 text-primary">
                 <Waypoints className="size-4" />
               </span>
               <div className="min-w-0">
-                <p className="text-xs font-medium">Sample execution</p>
+                <p className="text-xs font-medium">Agent execution</p>
                 <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
-                  Switch scenarios to inspect success, failure and partial telemetry.
+                  Select one owned or maintained Agent run to inspect its exact execution evidence.
                 </p>
               </div>
             </div>
@@ -147,8 +145,8 @@ function TracesPage() {
                 </div>
               ) : null}
               <Select value={selectedTraceId} onValueChange={selectTrace}>
-                <SelectTrigger size="lg" className="h-11 w-full bg-background sm:w-[21rem]" aria-label="Select sample trace">
-                  <SelectValue placeholder="Select sample trace" />
+                <SelectTrigger size="lg" className="h-11 w-full bg-background sm:w-[21rem]" aria-label="Select trace">
+                  <SelectValue placeholder="Select trace" />
                 </SelectTrigger>
                 <SelectContent align="end">
                   {traces.data.data.map((trace) => (
@@ -174,8 +172,8 @@ function TracesPage() {
         <section className="grid min-h-80 place-items-center border border-dashed px-6 text-center">
           <div>
             <FlaskConical className="mx-auto size-6 text-muted-foreground" />
-            <h2 className="mt-3 font-sans text-base font-semibold">No sample traces</h2>
-            <p className="mt-1 text-sm text-muted-foreground">The fixture trace source returned an empty result.</p>
+            <h2 className="mt-3 font-sans text-base font-semibold">No Agent traces yet</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Run an Agent you own or maintain; its relation-scoped Trace will appear here.</p>
           </div>
         </section>
       )}

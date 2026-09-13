@@ -20,6 +20,7 @@ import {
   ServerCog,
   X,
 } from "lucide-react";
+import { nativeMemorySelection, supportsNativeMemoryPlatform, supportsDurableMemoryPlatform } from "./durable-memory-selection";
 import { AgentSelect } from "@/components/agents/agent-select";
 import { EmbeddingModelSetupNotice } from "@/components/providers/embedding-model-setup-notice";
 import { Badge } from "@/components/ui/badge";
@@ -107,7 +108,7 @@ export function AgentFoundationStep({
       </CardHeader>
       <CardContent className="space-y-5">
         <div className="space-y-2">
-          <Label htmlFor="agent-name">Instance name</Label>
+          <Label htmlFor="agent-name" required>Supervisor name</Label>
           <div className="relative">
             <Input
               id="agent-name"
@@ -134,9 +135,10 @@ export function AgentFoundationStep({
         </div>
 
         <div className="space-y-2 border-t pt-5">
-          <Label htmlFor="instance-agent">Agent definition</Label>
+          <Label htmlFor="instance-agent" required>Agent definition</Label>
           <AgentSelect
             id="instance-agent"
+            required
             value={agentPlatform}
             onValueChange={onAgentPlatformChange}
           />
@@ -273,8 +275,9 @@ export function ToolboxStep({
         </CardHeader>
         <CardContent className="space-y-5">
           <div className="space-y-2">
-            <Label htmlFor="toolbox-preset">Toolbox preset</Label>
+            <Label htmlFor="toolbox-preset" required>Toolbox preset</Label>
             <Select
+              required
               value={specialization.id}
               onValueChange={(id) => onSpecializationChange(id as SpecializationId)}
             >
@@ -305,11 +308,12 @@ export function ToolboxStep({
 
           {specialization.id === "custom" ? (
             <div className="space-y-2 border-t pt-5">
-              <Label htmlFor="custom-system-prompt">Instructions</Label>
+              <Label htmlFor="custom-system-prompt" required>Instructions</Label>
               <Textarea
                 id="custom-system-prompt"
                 rows={5}
                 maxLength={8000}
+                required
                 value={customSystemPrompt}
                 onChange={(event) => onCustomSystemPromptChange(event.target.value)}
                 placeholder="Define how this Agent should behave, what evidence it should use, and when it should escalate."
@@ -333,7 +337,7 @@ export function ToolboxStep({
             <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
               <p className="flex items-start gap-2 text-xs leading-5 text-muted-foreground">
                 <Info className="mt-0.5 size-4 shrink-0" />
-                This preset supplies starting instructions and recommended tools. You can customize both for this Instance.
+                This preset supplies starting instructions and recommended tools. You can customize both for this Supervisor.
               </p>
               <Button
                 type="button"
@@ -409,7 +413,7 @@ export function ToolboxStep({
                   className="flex flex-wrap items-center gap-2 border-l-2 border-amber-500 bg-amber-500/5 px-3 py-2 text-xs text-amber-900 dark:text-amber-100"
                 >
                   <Info className="size-4" />
-                  {incompleteMcpServers.map((item) => item.name).join(", ")} requires connection or access before this Instance is ready.
+                  {incompleteMcpServers.map((item) => item.name).join(", ")} requires connection or access before this Supervisor is ready.
                   <Button
                     asChild
                     variant="link"
@@ -493,8 +497,9 @@ function MemoryCapabilityRow({
   onDurableMemoryIdChange: (memoryId: string) => void;
   projectId: string;
 }) {
-  const supportsNative = agentPlatform === "openclaw" || agentPlatform === "hermes";
-  const supportsDurable = durableMemoryAvailable && supportsNative;
+  const supportsNative = supportsNativeMemoryPlatform(agentPlatform);
+  const supportsDurable = durableMemoryAvailable && supportsDurableMemoryPlatform(agentPlatform);
+  const usesDurable = supportsDurable && durableMemoryId !== nativeMemorySelection;
   const newMemoryValue = "new-memory";
   const sourceValue = durableMemoryId || newMemoryValue;
 
@@ -512,16 +517,16 @@ function MemoryCapabilityRow({
             <PopoverContent align="start" className="w-[min(90vw,22rem)] p-4">
               <h4 className="text-sm font-semibold">Memory tips</h4>
               <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                {supportsDurable
+                {usesDurable
                   ? "Economy uses the Project's managed low-cost Memory defaults. A new Memory is prepared automatically unless you select an existing one."
-                  : "Native Memory stores text inside this Instance's Sandbox and does not require an embedding model."}
+                  : "Native Memory stores text inside this Supervisor's Sandbox and does not require an embedding model."}
               </p>
               <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                {supportsDurable
+                {usesDurable
                   ? "Durable Memory remains available after Instance deletion and can be attached to another supported Instance."
                   : "Native Memory is deleted with the Instance and cannot be attached to a replacement Agent."}
               </p>
-              {supportsDurable ? (
+              {usesDurable ? (
                 <Button asChild variant="link" size="sm" className="mt-2 h-auto min-h-0 p-0">
                   <Link to="/$projectId/memory" params={{ projectId }}>Manage Memory</Link>
                 </Button>
@@ -529,8 +534,8 @@ function MemoryCapabilityRow({
             </PopoverContent>
           </Popover>
         </div>
-        <Badge variant={supportsDurable ? "secondary" : "outline"} className="font-normal">
-          {supportsDurable ? "Durable" : supportsNative ? "Native" : "Not available"}
+        <Badge variant={usesDurable ? "secondary" : "outline"} className="font-normal">
+          {usesDurable ? "Durable" : supportsNative ? "Native" : "Not available"}
         </Badge>
       </div>
 
@@ -541,13 +546,13 @@ function MemoryCapabilityRow({
             <Select
               value={sourceValue}
               onValueChange={(value) => onDurableMemoryIdChange(value === newMemoryValue ? "" : value)}
-              disabled={durableMemoriesLoading}
             >
               <SelectTrigger id="durable-memory-selection" className="min-h-11 w-full">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={newMemoryValue}>New Memory · automatic</SelectItem>
+                <SelectItem value={nativeMemorySelection}>Native Memory · no embedding required</SelectItem>
+                <SelectItem value={newMemoryValue} disabled={durableMemoriesLoading}>New Durable Memory · automatic</SelectItem>
                 {durableMemories.map((item) => {
                   const inUse = Boolean(item.activeBinding);
 
@@ -574,13 +579,13 @@ function MemoryCapabilityRow({
           </div>
 
           <div className="space-y-2">
-            <Label>Capture policy</Label>
+            <Label>{usesDurable ? "Capture policy" : "Storage"}</Label>
             <div
-              aria-label="Economy capture policy, lowest cost"
+              aria-label={usesDurable ? "Economy capture policy, lowest cost" : "Native Memory in the Sandbox"}
               className="flex min-h-11 items-center justify-between gap-3 rounded-md border bg-muted/10 px-3"
             >
-              <span className="text-sm font-medium">Economy</span>
-              <Badge variant="outline" className="font-normal">Lowest cost</Badge>
+              <span className="text-sm font-medium">{usesDurable ? "Economy" : "Native text Memory"}</span>
+              <Badge variant="outline" className="font-normal">{usesDurable ? "Lowest cost" : "No embedding"}</Badge>
             </div>
           </div>
         </div>
@@ -596,7 +601,7 @@ function MemoryCapabilityRow({
             <p role="alert" className="text-xs text-destructive">
               Embedding readiness could not be checked: {embeddingModelsError.message}
             </p>
-          ) : durableMemoryFeatureEnabled ? (
+          ) : durableMemoryFeatureEnabled && supportsDurableMemoryPlatform(agentPlatform) ? (
             <EmbeddingModelSetupNotice
               canManageProject={canManageProject}
               className="mt-3"

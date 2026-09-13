@@ -78,7 +78,7 @@ export function ProjectInviteDialog({
         <form className="flex min-h-0 flex-1 flex-col" onSubmit={submit}>
           <div className="flex-1 space-y-5 overflow-y-auto px-6 py-6">
             <div className="space-y-2">
-              <Label htmlFor="project-invite-email">Email address</Label>
+              <Label htmlFor="project-invite-email" required>Email address</Label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
@@ -96,11 +96,12 @@ export function ProjectInviteDialog({
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="project-invite-role">Role</Label>
+              <Label htmlFor="project-invite-role" required>Role</Label>
               <Select
                 disabled={!canAssignRoles}
                 value={role}
                 onValueChange={(value) => setRole(value as ProjectRole)}
+                required
               >
                 <SelectTrigger
                   id="project-invite-role"

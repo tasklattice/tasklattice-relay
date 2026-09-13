@@ -11,7 +11,7 @@ export interface ContractResponse {
 }
 
 export interface RouteContract {
-  auth?: "public" | "runtime-bridge" | "session";
+  auth?: "expert-agent-runtime" | "public" | "runtime-bridge" | "session";
   description: string;
   method: HttpMethod;
   operationId: string;

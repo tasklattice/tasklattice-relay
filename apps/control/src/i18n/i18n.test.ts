@@ -45,14 +45,14 @@ describe("platform i18n", () => {
 
     expect(english).not.toBe(chinese);
     expect(english.t("agentFoundation.title", { ns: "createInstance" })).toBe(
-      "Agent Definition",
+      "Supervisor Definition",
     );
     expect(chinese.t("agentFoundation.title", { ns: "createInstance" })).toBe(
-      "Agent 定义",
+      "Supervisor 定义",
     );
     expect(
       traditionalChinese.t("agentFoundation.title", { ns: "createInstance" }),
-    ).toBe("Agent 定義");
+    ).toBe("Supervisor 定義");
   });
 
   it("keeps every supported language resource structurally complete", () => {
@@ -66,6 +66,23 @@ describe("platform i18n", () => {
     const t = instance.getFixedT("zh-CN", "sidebar");
     expect(t("account.openMenu", { displayName: "小林" })).toBe(
       "打开 小林 的账户菜单",
+    );
+  });
+
+  it("localizes the access gateway and built-in role presentation", () => {
+    const simplifiedChinese = createPlatformI18n("zh-CN");
+    const traditionalChinese = createPlatformI18n("zh-TW");
+
+    expect(simplifiedChinese.t("title", { ns: "access" })).toBe(
+      "选择进入方式",
+    );
+    expect(
+      simplifiedChinese.t("roles.projectAdministrator.label", {
+        ns: "access",
+      }),
+    ).toBe("项目管理员");
+    expect(traditionalChinese.t("actions.useAccess", { ns: "access" })).toBe(
+      "使用此身分",
     );
   });
 

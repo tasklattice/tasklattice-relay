@@ -125,15 +125,38 @@ describe("ProjectVectorDatabaseRuntimeService", () => {
     );
   });
 
-  it("blocks runtime discovery and retrieval without a Project embedding model", async () => {
-    const { runtime } = service({ embeddingReady: false });
+  it("returns an empty registry for native Hermes startup without an embedding model", async () => {
+    const { runtime, store } = service({ embeddingReady: false });
 
+    await expect(runtime.list(coordinator.id)).resolves.toEqual([]);
+    expect(store.listKnowledgeSourceDefinitions).not.toHaveBeenCalled();
+  });
+
+  it("discovers databases when an embedding model becomes available after startup", async () => {
+    const { runtime, store } = service({ embeddingReady: false });
+    await expect(runtime.list(coordinator.id)).resolves.toEqual([]);
+    store.listModelDeployments.mockResolvedValue([embeddingModel]);
+    await expect(runtime.list(coordinator.id)).resolves.toEqual([
+      expect.objectContaining({ id: registeredDatabase.id }),
+    ]);
+  });
+
+  it("still validates the coordinator without an embedding model", async () => {
+    const { runtime } = service({
+      embeddingReady: false,
+      agent: { ...coordinator, agentPlatform: "openclaw" },
+    });
     await expect(runtime.list(coordinator.id)).rejects.toThrow(
-      "require a validated text embedding model",
+      "available to Hermes Instances only",
     );
+  });
+
+  it("blocks retrieval without a Project embedding model", async () => {
+    const { runtime, catalog } = service({ embeddingReady: false });
     await expect(runtime.search(coordinator.id, "papers", {
       query: "test",
       topK: 8,
     })).rejects.toThrow("require a validated text embedding model");
+    expect(catalog.searchVectorDatabase).not.toHaveBeenCalled();
   });
 });

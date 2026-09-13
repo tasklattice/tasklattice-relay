@@ -329,6 +329,12 @@ initial_platform_administrator_password = {{ required "secrets.initialPlatformAd
 {{- define "tali.projectOpenShellReconcilerEnv" -}}
 - name: PROJECT_OPENSHELL_GATEWAYS_ENABLED
   value: {{ .Values.projectOpenShell.enabled | quote }}
+- name: PROJECT_RESOURCE_OWNERSHIP_ENABLED
+  value: {{ .Values.projectRuntimeNamespaces.resourceOwnership | quote }}
+- name: PROJECT_ARGOCD_SOURCE_TRACKING_ID
+  value: {{ .Values.projectRuntimeNamespaces.argocd.sourceTrackingId | quote }}
+- name: PROJECT_ARGOCD_INSTALLATION_ID
+  value: {{ .Values.projectRuntimeNamespaces.argocd.installationId | quote }}
 - name: PROJECT_OPENSHELL_TARGET_ROUTING_ENABLED
   value: {{ .Values.runner.projectTargetRouting.enabled | quote }}
 - name: PROJECT_OPENSHELL_HELM_CHART
@@ -377,6 +383,18 @@ initial_platform_administrator_password = {{ required "secrets.initialPlatformAd
 - name: PROJECT_RUNTIME_BRIDGE_STORAGE_CLASS
   value: {{ . | quote }}
 {{- end }}
+- name: EXPERT_AGENT_RUNTIMES_ENABLED
+  value: {{ and .Values.projectRuntimeNamespaces.enabled .Values.projectRuntimeBridge.enabled .Values.expertAgentRuntime.enabled | quote }}
+- name: EXPERT_AGENT_RUNTIME_IMAGE
+  value: {{ include "tali.image" (dict "root" . "image" .Values.images.expertAgentRuntime) | quote }}
+- name: EXPERT_AGENT_RUNTIME_IMAGE_PULL_POLICY
+  value: {{ .Values.images.expertAgentRuntime.pullPolicy | quote }}
+- name: EXPERT_AGENT_RUNTIME_REVISION
+  value: {{ default .Chart.AppVersion .Values.global.rolloutRevision | quote }}
+- name: EXPERT_AGENT_RUNTIME_IMAGE_PULL_SECRETS_JSON
+  value: {{ .Values.global.imagePullSecrets | toJson | quote }}
+- name: EXPERT_AGENT_RUNTIME_RESOURCES_JSON
+  value: {{ .Values.expertAgentRuntime.resources | toJson | quote }}
 {{- end -}}
 
 {{/* Exact resource APIs required to install the pinned official OpenShell chart. */}}
