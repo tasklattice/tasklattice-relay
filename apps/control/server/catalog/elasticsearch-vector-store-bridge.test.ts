@@ -21,6 +21,7 @@ describe("ElasticsearchVectorStoreBridge", () => {
       topK: 8,
     });
     const secrets: SecretStore = {
+      referenceFor: (projectId, resourceId) => `memory://${projectId}/${resourceId}`,
       put: vi.fn(),
       get: vi.fn(async () => "encoded-api-key"),
       delete: vi.fn(),

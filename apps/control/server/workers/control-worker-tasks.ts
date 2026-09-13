@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ProviderRegistrationCleanup } from "../providers/provider-registration-cleanup";
 import { prisma } from "../db/prisma";
 import type { PrismaClient } from "../generated/prisma/client";
 import {
@@ -241,6 +242,7 @@ export class ControlWorkerTasks {
     const deletionJobsAttached = await this.attachHistoricalDeletionJobs();
     const instanceJobsAttached = await this.attachInstanceLifecycleJobs();
     const memoryOutbox = await this.drainMemoryOutbox();
+    const providerRegistrationsCleaned = await new ProviderRegistrationCleanup(this.db).drain();
     const projectIds = await this.runtimeTargets.reconciliationCandidateIds();
     let runtimeJobsEnqueued = 0;
     for (const projectId of projectIds) {
@@ -271,6 +273,7 @@ export class ControlWorkerTasks {
       reason,
       runtimeJobsEnqueued,
       memoryOutbox,
+      providerRegistrationsCleaned,
     });
   }
 

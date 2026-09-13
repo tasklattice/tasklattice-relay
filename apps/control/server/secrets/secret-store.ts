@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 
 export interface SecretStore {
+  referenceFor(projectId: string, resourceId: string): string;
   put(projectId: string, resourceId: string, secret: string): Promise<string>;
   get(reference: string): Promise<string>;
   delete(reference: string): Promise<void>;
@@ -33,6 +34,9 @@ export function kubernetesSecretLabels(
 }
 
 export class DevelopmentSecretStore implements SecretStore {
+  referenceFor(projectId: string, resourceId: string): string {
+    return `memory://${projectId}/${resourceId}`;
+  }
   async put(
     projectId: string,
     resourceId: string,
@@ -43,7 +47,7 @@ export class DevelopmentSecretStore implements SecretStore {
         "Secret storage failed: Kubernetes Secret storage is required in production.",
       );
     }
-    const reference = `memory://${projectId}/${resourceId}`;
+    const reference = this.referenceFor(projectId, resourceId);
     memorySecrets.set(reference, secret);
     return reference;
   }
@@ -67,6 +71,10 @@ export class KubernetesSecretStore implements SecretStore {
   private readonly namespace = process.env.POD_NAMESPACE ?? "tali";
   private readonly api = `https://${process.env.KUBERNETES_SERVICE_HOST}:${process.env.KUBERNETES_SERVICE_PORT_HTTPS ?? "443"}`;
   private token?: string;
+
+  referenceFor(projectId: string, resourceId: string): string {
+    return `k8s://${this.namespace}/${kubernetesSecretName(projectId, resourceId)}#CREDENTIAL`;
+  }
 
   async put(
     projectId: string,
@@ -108,7 +116,7 @@ export class KubernetesSecretStore implements SecretStore {
         }),
       },
     );
-    return `k8s://${this.namespace}/${name}#CREDENTIAL`;
+    return this.referenceFor(projectId, resourceId);
   }
 
   async get(reference: string): Promise<string> {

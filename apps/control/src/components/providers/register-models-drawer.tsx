@@ -10,6 +10,7 @@ import {
   type ModelType,
   type ProviderAccount,
   type ProviderConnectionDraft,
+  type ProviderConnectionCreationResult,
   type ProviderDiscoveryResult,
   type ProviderKind,
   type ProviderModelSelection,
@@ -187,27 +188,30 @@ export function RegisterModelsDrawer({
         };
       }
       if (!activeAccount) throw new Error("Choose saved Provider credentials.");
-      const results = await Promise.all(
-        models.map(async (model) => {
-          const created = await client.registerModelDeployment({
-            providerAccountId: activeAccount.id,
-            ...model,
-          });
-          return { created, source: model };
-        }),
+      const results = await Promise.allSettled(
+        models.map((model) => client.registerModelDeployment({
+          providerAccountId: activeAccount.id,
+          ...model,
+        })),
       );
+      const registered: ModelDeployment[] = [];
+      const failures: ProviderConnectionCreationResult["failures"] = [];
+      results.forEach((result, index) => {
+        if (result.status === "fulfilled" && result.value.status === "VALIDATED") {
+          registered.push(result.value);
+        } else {
+          failures.push({
+            model: models[index]!,
+            message: result.status === "rejected"
+              ? result.reason instanceof Error ? result.reason.message : "Model registration failed."
+              : result.value.validationMessage,
+          });
+        }
+      });
       return {
-        providerName: results[0]?.created.providerName
-          ?? providerLabel(activeAccount.providerKind),
-        models: results
-          .filter(({ created }) => created.status === "VALIDATED")
-          .map(({ created }) => created),
-        failures: results
-          .filter(({ created }) => created.status !== "VALIDATED")
-          .map(({ created, source }) => ({
-            model: source,
-            message: created.validationMessage,
-          })),
+        providerName: registered[0]?.providerName ?? providerLabel(activeAccount.providerKind),
+        models: registered,
+        failures,
       };
     },
     onSuccess: async (result) => {

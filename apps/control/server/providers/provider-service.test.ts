@@ -33,7 +33,8 @@ function mockOpenAIEmbeddingCatalog(...modelIds: string[]): void {
 function liteLLM(): LiteLLMAdminClient {
   return {
     baseUrl: "http://litellm:4000",
-    registerModel: vi.fn(async () => "tali/account/deepseek-chat"),
+    registerModel: vi.fn(async ({ registrationId }) => `tali/account/${registrationId}`),
+    deleteModelById: vi.fn(async () => undefined),
     deleteModel: vi.fn(async () => undefined),
     probeModel: vi.fn(async () => undefined),
     createInstanceKey: vi.fn(async () => ({ secret: "sk-instance", tokenId: "hashed-token" })),
@@ -46,6 +47,7 @@ function liteLLM(): LiteLLMAdminClient {
 function managedSecrets(): { secrets: SecretStore; values: Map<string, string> } {
   const values = new Map<string, string>();
   const secrets: SecretStore = {
+    referenceFor: (projectId, resourceId) => `memory://${projectId}/${resourceId}`,
     put: vi.fn(async (projectId, resourceId, value) => {
       const reference = `memory://${projectId}/${resourceId}`;
       values.set(reference, value);
@@ -217,7 +219,7 @@ describe("ProviderService", () => {
     const credentialReference = (await store.getProviderAccountCredential(account.id))!;
 
     await expect(service.deleteAccount(account.id)).resolves.toBe(true);
-    expect(litellm.deleteModel).toHaveBeenCalledTimes(2);
+    expect(litellm.deleteModelById).toHaveBeenCalledTimes(2);
     expect(await service.listAccounts()).toEqual([]);
     expect(await service.listModels()).toEqual([]);
     await expect(secrets.get(credentialReference)).rejects.toThrow("unavailable");
@@ -233,8 +235,8 @@ describe("ProviderService", () => {
     await expect(
       service.deleteModelDeployment(models[0]!.id),
     ).resolves.toBe(true);
-    expect(litellm.deleteModel).toHaveBeenCalledWith(
-      models[0]!.litellmModelName,
+    expect(litellm.deleteModelById).toHaveBeenCalledWith(
+      models[0]!.litellmModelId,
     );
     expect(await service.listAccounts()).toHaveLength(1);
     expect(await service.listModels(account.id)).toEqual([
@@ -286,7 +288,7 @@ describe("ProviderService", () => {
       code: "embedding_model_dependency_conflict",
       status: 409,
     });
-    expect(litellm.deleteModel).not.toHaveBeenCalled();
+    expect(litellm.deleteModelById).not.toHaveBeenCalled();
 
     await service.registerModel({
       providerAccountId: account.id,
@@ -405,7 +407,7 @@ describe("ProviderService", () => {
     await expect(
       service.deleteModelDeployment(models[0]!.id),
     ).rejects.toThrow("in use by 1 Model Routing");
-    expect(litellm.deleteModel).not.toHaveBeenCalled();
+    expect(litellm.deleteModelById).not.toHaveBeenCalled();
   });
 
   it("does not persist a rejected Endpoint + key", async () => {
@@ -445,6 +447,8 @@ describe("ProviderService", () => {
     expect(result.models).toHaveLength(1);
     expect(result.failures).toEqual([expect.objectContaining({ message: "Embedding deployment is unavailable." })]);
     expect(await service.listAccounts()).toHaveLength(1);
-    expect(litellm.deleteModel).toHaveBeenCalledWith("tali/account/text-embedding-3-large");
+    expect(litellm.deleteModelById).toHaveBeenCalledWith(
+      vi.mocked(litellm.registerModel).mock.calls.find(([input]) => input.model.modelId === "text-embedding-3-large")![0].registrationId,
+    );
   });
 });

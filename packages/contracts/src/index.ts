@@ -2618,6 +2618,7 @@ export interface ModelDeployment extends CreateModelDeploymentInput {
   endpointRegion: string;
   crossBorderTransfer: false;
   litellmModelName: string;
+  litellmModelId?: string;
   status: ProviderResourceStatus;
   checks: ProviderValidationCheck[];
   validationMessage: string;

@@ -229,6 +229,7 @@ export function routingDeploymentIds(routing: ModelRouting): Set<string> {
 
 export class ProjectStore {
   private readonly costs: CostAnalyticsStore;
+  protected transactional = false;
   readonly projectId: string;
   private readonly db: PrismaClient;
 
@@ -239,6 +240,19 @@ export class ProjectStore {
     this.projectId = projectId;
     this.db = db ?? prisma();
     this.costs = new CostAnalyticsStore(this.db, this.projectId);
+  }
+
+  protected transactionStore(transaction: Prisma.TransactionClient): ProjectStore {
+    const store = new ProjectStore(this.projectId, transaction as PrismaClient);
+    store.transactional = true;
+    return store;
+  }
+
+  // The callback must perform database work only. External requests run before
+  // this boundary so registration cannot monopolize the shared auth pool.
+  async providerTransaction<T>(operation: (store: ProjectStore) => Promise<T>): Promise<T> {
+    if (this.transactional) return operation(this);
+    return this.db.$transaction((transaction) => operation(this.transactionStore(transaction)));
   }
 
   costAnalytics(): CostAnalyticsStore {
@@ -856,6 +870,9 @@ export class ProjectStore {
   }
 
   async saveModelDeployment(deployment: ModelDeployment): Promise<ModelDeployment> {
+    if (!this.transactional) {
+      return this.providerTransaction((store) => store.saveModelDeployment(deployment));
+    }
     if (deployment.origin?.scope === "DEPARTMENT") {
       throw new Error("Inherited Department Models are read-only in this Project.");
     }

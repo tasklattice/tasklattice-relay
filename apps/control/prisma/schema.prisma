@@ -1790,3 +1790,28 @@ model CostSyncCheckpointRecord {
   @@map("cost_sync_checkpoint")
   @@schema("tasklattice")
 }
+
+// Receipts contain only the public result, never Provider credentials.
+model ProviderRegistrationReceipt {
+  scope     String
+  key       String
+  result    Json
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@id([scope, key])
+  @@map("provider_registration_receipts")
+  @@schema("tasklattice")
+}
+
+model ProviderRegistrationCleanup {
+  id            String   @id @db.Uuid
+  kind          String
+  resourceId    String   @map("resource_id")
+  nextAttemptAt DateTime @map("next_attempt_at") @db.Timestamptz(6)
+  attempts      Int      @default(0)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([nextAttemptAt], map: "provider_registration_cleanup_due_idx")
+  @@map("provider_registration_cleanup")
+  @@schema("tasklattice")
+}

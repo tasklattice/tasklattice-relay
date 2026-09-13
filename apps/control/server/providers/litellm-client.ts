@@ -206,6 +206,7 @@ export interface LiteLLMAdminClient {
   readonly baseUrl: string;
   connectionBaseUrl?(): Promise<string>;
   registerModel(input: {
+    registrationId: string;
     accountId: string;
     providerKind: ProviderKind;
     model: ProviderModelSelection;
@@ -214,6 +215,7 @@ export interface LiteLLMAdminClient {
     endpointRegion: string;
   }): Promise<string>;
   deleteModel(modelName: string): Promise<void>;
+  deleteModelById(modelId: string): Promise<void>;
   probeModel(modelName: string, modelType: ModelType): Promise<void>;
   createInstanceKey(input: { agentId: string; alias: string; modelName: string }): Promise<LiteLLMVirtualKey>;
   blockKey(tokenId: string): Promise<void>;
@@ -345,6 +347,7 @@ export class LiteLLMClient implements LiteLLMAdminClient {
   }
 
   async registerModel(input: {
+    registrationId: string;
     accountId: string;
     providerKind: ProviderKind;
     model: ProviderModelSelection;
@@ -353,7 +356,7 @@ export class LiteLLMClient implements LiteLLMAdminClient {
     endpointRegion: string;
   }): Promise<string> {
     this.assertConfigured();
-    const modelName = `tali/${input.accountId.slice(0, 8)}/${input.model.modelId}`;
+    const modelName = `tali/${input.accountId}/${input.registrationId}`;
     await this.request("/model/new", {
       method: "POST",
       body: JSON.stringify({
@@ -368,6 +371,7 @@ export class LiteLLMClient implements LiteLLMAdminClient {
             : {}),
         },
         model_info: {
+          id: input.registrationId,
           taliProviderAccountId: input.accountId,
           providerKind: input.providerKind,
           compliance_domain: input.complianceDomain,
@@ -388,14 +392,24 @@ export class LiteLLMClient implements LiteLLMAdminClient {
     const response = await this.request<{
       data?: Array<{ model_name?: string; model_info?: { id?: string } }>;
     }>("/model/info");
-    const modelId = response.data?.find(
-      (model) => model.model_name === modelName,
-    )?.model_info?.id;
+    const matches = response.data?.filter((model) => model.model_name === modelName) ?? [];
+    if (matches.length > 1) throw new Error("Ambiguous LiteLLM model alias; deletion requires a model ID.");
+    const modelId = matches[0]?.model_info?.id;
     if (!modelId) return;
-    await this.request("/model/delete", {
-      method: "POST",
-      body: JSON.stringify({ id: modelId }),
-    });
+    await this.deleteModelById(modelId);
+  }
+
+  async deleteModelById(modelId: string): Promise<void> {
+    try {
+      await this.request("/model/delete", { method: "POST", body: JSON.stringify({ id: modelId }) });
+    } catch (error) {
+      if (error instanceof LiteLLMRequestError && (
+        error.status === 404
+        // The pinned LiteLLM 1.87 API reports an already absent model as 400.
+        || (error.status === 400 && error.detail.includes(`Model with id=${modelId} not found in db`))
+      )) return;
+      throw error;
+    }
   }
 
   async createEmbeddings(

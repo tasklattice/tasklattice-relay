@@ -518,20 +518,6 @@ function Instances() {
       .filter((instance): instance is A2aAgentInstance => instance.kind === "A2A")
       .map((instance) => [instance.id, instance]),
   ), [garden.data?.instances]);
-  const filtered = useMemo(() => visibleInventory.flatMap((item) => {
-    if (item.sourceType !== "WORKSPACE_INSTANCE") return [];
-    const agent = agentById.get(item.sourceId);
-    return agent ? [{ agent, inventory: item }] : [];
-  }), [agentById, visibleInventory]);
-  const managed = useMemo(() => visibleInventory.flatMap((item) => {
-    if (item.sourceType !== "MANAGED_A2A") return [];
-    const instance = managedById.get(item.sourceId);
-    return instance ? [{ instance, inventory: item }] : [];
-  }), [managedById, visibleInventory]);
-  const projectAgents = useMemo(
-    () => visibleInventory.filter((item) => isProjectAgentSource(item.sourceType)),
-    [visibleInventory],
-  );
   const totalInstances = inventory.data?.data.length ?? 0;
   const visibleInstances = visibleInventory.length;
   const gridStyle = useMemo<InstanceGridStyle>(() => ({
@@ -634,12 +620,20 @@ function Instances() {
                 {instanceListColumns.filter((column) => !hiddenColumns.includes(column.id)).map((column) => <span key={column.id}>{column.label}</span>)}
                 <span className="sr-only">Actions</span>
               </div>
-              {projectAgents.map((item) => <ExpertAgentRuntimeRow key={item.id} inventory={item} hiddenColumns={hiddenColumns} gridStyle={gridStyle} onInspect={() => setSelectedRuntime(item)} />)}
-              {managed.map(({ instance, inventory: inventoryItem }) => <ManagedA2aInstanceRow key={instance.id} instance={instance} inventory={inventoryItem} hiddenColumns={hiddenColumns} gridStyle={gridStyle} />)}
-              {filtered.map(({ agent, inventory: inventoryItem }) => {
+              {visibleInventory.map((inventoryItem) => {
+                if (isProjectAgentSource(inventoryItem.sourceType)) {
+                  return <ExpertAgentRuntimeRow key={inventoryItem.id} inventory={inventoryItem} hiddenColumns={hiddenColumns} gridStyle={gridStyle} onInspect={() => setSelectedRuntime(inventoryItem)} />;
+                }
+                if (inventoryItem.sourceType === "MANAGED_A2A") {
+                  const instance = managedById.get(inventoryItem.sourceId);
+                  return instance ? <ManagedA2aInstanceRow key={inventoryItem.id} instance={instance} inventory={inventoryItem} hiddenColumns={hiddenColumns} gridStyle={gridStyle} /> : null;
+                }
+                if (inventoryItem.sourceType !== "WORKSPACE_INSTANCE") return null;
+                const agent = agentById.get(inventoryItem.sourceId);
+                if (!agent) return null;
                 const platform = getAgentPlatformPresentation(agent.agentPlatform);
                 return (
-                  <div key={agent.id} style={gridStyle} className={cn(
+                  <div key={inventoryItem.id} style={gridStyle} className={cn(
                     "group relative grid min-h-[5.25rem] grid-cols-[minmax(0,1fr)_2.75rem_2.75rem] items-center gap-3 border-b px-4 py-3 text-sm transition-colors last:border-b-0 hover:bg-muted/30 xl:grid-cols-[var(--instance-grid-columns)]",
                     search.created === agent.id && "bg-primary/5 shadow-[inset_3px_0_0_var(--primary)]",
                   )}>

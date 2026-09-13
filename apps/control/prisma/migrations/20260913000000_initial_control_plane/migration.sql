@@ -2127,3 +2127,25 @@ ALTER TABLE ONLY tasklattice.vector_ingestion_jobs
 
 ALTER TABLE ONLY tasklattice.vector_ingestion_jobs
     ADD CONSTRAINT vector_ingestion_jobs_revision_fkey FOREIGN KEY (project_id, database_id, document_id, revision) REFERENCES tasklattice.vector_document_revisions(project_id, database_id, document_id, revision) ON UPDATE CASCADE ON DELETE CASCADE;
+
+-- Registration receipts and retryable compensation for external side effects.
+CREATE TABLE tasklattice.provider_registration_receipts (
+    scope text NOT NULL,
+    key text NOT NULL,
+    result jsonb NOT NULL,
+    created_at timestamp(6) with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    PRIMARY KEY (scope, key)
+);
+
+CREATE TABLE tasklattice.provider_registration_cleanup (
+    id uuid NOT NULL PRIMARY KEY,
+    kind text NOT NULL CHECK (kind IN ('MODEL', 'SECRET')),
+    resource_id text NOT NULL,
+    next_attempt_at timestamp(6) with time zone NOT NULL,
+    attempts integer NOT NULL DEFAULT 0,
+    created_at timestamp(6) with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+CREATE INDEX provider_registration_cleanup_due_idx ON tasklattice.provider_registration_cleanup (next_attempt_at);
+
+CREATE UNIQUE INDEX model_deployments_active_model_key ON tasklattice.model_deployments (project_id, provider_account_id, (payload->>'modelId'), (payload->>'modelType')) WHERE deleted_at IS NULL;
+CREATE UNIQUE INDEX department_models_active_model_key ON tasklattice.department_inference_resources (department_id, provider_account_id, (payload->>'modelId'), (payload->>'modelType')) WHERE kind = 'MODEL' AND deleted_at IS NULL;

@@ -729,7 +729,7 @@ describe("Instance Access Policy lifecycle", () => {
   });
 
   it("binds a validated same-boundary embedding model for hybrid Memory", async () => {
-    const setup = await configuredService();
+    const setup = await configuredService({ includeValidatedEmbeddingModel: false });
     const now = new Date().toISOString();
     const embeddingModelDeploymentId = "22222222-2222-4222-8222-222222222222";
     await setup.store.saveModelDeployment({

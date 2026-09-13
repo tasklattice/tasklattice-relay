@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import {
   complianceDomainCatalog,
   providerPresets,
@@ -16,6 +16,7 @@ import {
   type ProviderModelSelection,
   type ProviderValidationCheck,
 } from "@tali/contracts";
+import { ProviderRegistrationCleanup } from "./provider-registration-cleanup";
 import { ProjectStore } from "../projects/project-store";
 import {
   classifyModelMetadata,
@@ -248,12 +249,78 @@ function routingUsesAnyModel(
     || policy.fallbackModelDeploymentIds.some((id) => deploymentIds.has(id));
 }
 
+function canonical(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
+  if (value && typeof value === "object") {
+    return `{${Object.entries(value).filter(([, item]) => item !== undefined)
+      .sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)
+      .map(([key, item]) => `${JSON.stringify(key)}:${canonical(item)}`).join(",")}}`;
+  }
+  return JSON.stringify(value) ?? "undefined";
+}
+
+async function lockRegistration(store: ProjectStore, key: string): Promise<void> {
+  const lockKey = createHash("sha256").update(`${store.projectId}:${key}`).digest().readInt32BE(0);
+  await store.database().$queryRawUnsafe(
+    "SELECT pg_advisory_xact_lock($1::integer, $2::integer)::text AS lock_result",
+    0x50524f56, lockKey,
+  );
+}
+
 export class ProviderService {
   constructor(
     readonly store = new ProjectStore(),
     readonly litellm: LiteLLMAdminClient = new LiteLLMClient(),
     readonly secrets: SecretStore = createSecretStore(),
   ) {}
+
+  private cleanup(): ProviderRegistrationCleanup {
+    return new ProviderRegistrationCleanup(this.store.database(), this.litellm, this.secrets);
+  }
+
+  private async rollback(ids: string[], deferred = false): Promise<void> {
+    try { await this.cleanup().rollback(ids, deferred); }
+    catch {
+      // The reservation was persisted before the side effect. If the database
+      // is unavailable, maintenance can still recover it after its deadline.
+      console.error("Provider registration cleanup could not be accelerated", { ids });
+    }
+  }
+
+  private async receipt(store: ProjectStore, key: string): Promise<ProviderConnectionCreationResult | undefined> {
+    const receipt = await store.database().providerRegistrationReceipt.findUnique({
+      where: { scope_key: { scope: store.projectId, key } },
+    });
+    if (!receipt) return undefined;
+    const result = receipt.result as unknown as ProviderConnectionCreationResult;
+    const account = await store.getProviderAccount(result.account.id);
+    if (!account) return undefined;
+    const models = await store.listModelDeployments(account.id);
+    return { ...result, account, models };
+  }
+
+  private async existingModel(store: ProjectStore, accountId: string, model: ProviderModelSelection): Promise<ModelDeployment | undefined> {
+    return (await store.listModelDeployments(accountId)).find((existing) =>
+      existing.modelId === model.modelId && existing.modelType === model.modelType);
+  }
+
+  private reusableModel(existing: ModelDeployment, requested: ProviderModelSelection): ModelDeployment {
+    if (existing.status !== "VALIDATED") {
+      throw new Error("Model already exists but is not validated. Revalidate the Provider or remove the model before registering it again.");
+    }
+    const fields = ["modelId", "modelType", "displayName", "capabilities", "inputModalities", "outputModalities",
+      "inputFeePerMillionTokens", "outputFeePerMillionTokens", "feePerAudioMinute"] as const;
+    if (fields.some((field) => canonical(existing[field]) !== canonical(requested[field]))) {
+      throw new Error("Model already exists with different registration settings.");
+    }
+    return existing;
+  }
+
+  private deleteRegisteredModel(model: ModelDeployment): Promise<void> {
+    return model.litellmModelId
+      ? this.litellm.deleteModelById(model.litellmModelId)
+      : this.litellm.deleteModel(model.litellmModelName);
+  }
 
   private async credential(
     account: ProviderAccount,
@@ -301,8 +368,25 @@ export class ProviderService {
     await new PlatformSettingsService(this.store.database())
       .assertProviderEnabled(input.connection.provider);
     assertComplianceConfiguration(input);
+    const selections = new Map<string, NormalizedModelSelection>();
+    for (const rawModel of input.models) {
+      const model = normalizeModelSelection(rawModel);
+      const key = `${model.modelType}:${model.modelId}`;
+      const existing = selections.get(key);
+      if (existing && canonical(existing) !== canonical(model)) {
+        throw new Error("Invalid request: a model was selected more than once with different settings.");
+      }
+      selections.set(key, model);
+    }
+    const models = [...selections.values()];
+    const normalized = { ...input, models };
+    const key = createHash("sha256").update(canonical({ ...normalized,
+      models: [...models].sort((a, b) => canonical(a) < canonical(b) ? -1 : canonical(a) > canonical(b) ? 1 : 0),
+    })).digest("hex");
+    const existing = await this.receipt(this.store, key);
+    if (existing) return existing;
     const discovery = await this.discover(input.connection);
-    return this.createConnectionWithDiscovery(input, discovery);
+    return this.createConnectionWithDiscovery(normalized, discovery, key);
   }
 
   async revalidateAccount(id: string): Promise<ProviderAccount | undefined> {
@@ -313,11 +397,12 @@ export class ProviderService {
     const discovery = await this.discover(draft);
     const models = await this.store.listModelDeployments(id);
     let passed = 0;
+    const updates: ModelDeployment[] = [];
     for (const model of models) {
       try {
         await this.litellm.probeModel(model.litellmModelName, model.modelType);
         passed += 1;
-        await this.store.saveModelDeployment({
+        updates.push({
           ...model,
           status: "VALIDATED",
           checks: modelChecks("PASS"),
@@ -326,7 +411,7 @@ export class ProviderService {
           updatedAt: new Date().toISOString(),
         });
       } catch (error) {
-        await this.store.saveModelDeployment({
+        updates.push({
           ...model,
           status: "FAILED",
           checks: modelChecks("FAIL"),
@@ -358,7 +443,10 @@ export class ProviderService {
         : account.validatedAt ? { validatedAt: account.validatedAt } : {}),
       updatedAt: new Date().toISOString(),
     } satisfies ProviderAccount;
-    return this.store.saveProviderAccount(updated);
+    return this.store.providerTransaction(async (store) => {
+      for (const model of updates) await store.saveModelDeployment(model);
+      return store.saveProviderAccount(updated);
+    });
   }
 
   async deleteAccount(id: string): Promise<boolean> {
@@ -384,7 +472,7 @@ export class ProviderService {
         `Reconfigure the ${routings.length} Model Routing${routings.length === 1 ? "" : "s"} using this Provider before deleting the Provider.`,
       );
     for (const model of models)
-      await this.litellm.deleteModel(model.litellmModelName).catch(() => undefined);
+      await this.deleteRegisteredModel(model);
     const deleted = await this.store.deleteProviderAccount(id);
     if (
       deleted
@@ -418,7 +506,7 @@ export class ProviderService {
         }. Reconfigure them before removing the model.`,
       );
     }
-    await this.litellm.deleteModel(model.litellmModelName).catch(() => undefined);
+    await this.deleteRegisteredModel(model);
     return this.store.deleteModelDeployment(id);
   }
 
@@ -464,42 +552,40 @@ export class ProviderService {
   }
 
   async registerModel(input: CreateModelDeploymentInput): Promise<ModelDeployment> {
-    const account = await this.store.getProviderAccount(input.providerAccountId);
-    const rawCredential = account ? await this.credential(account) : undefined;
-    if (!account || !rawCredential) throw new Error("Provider was not found.");
-    const draft = decodeCredential(account, rawCredential);
-    const supportedTypes = catalog(draft.provider).modelTypes as readonly string[];
-    if (!supportedTypes.includes(input.modelType))
-      throw new Error(`${catalog(draft.provider).name} does not support ${input.modelType} registrations.`);
     const model = toModelSelection(input);
+    const account = await this.store.getProviderAccount(input.providerAccountId);
+    if (!account) throw new Error("Provider was not found.");
+    const existing = await this.existingModel(this.store, account.id, model);
+    if (existing) return this.reusableModel(existing, model);
+    const rawCredential = await this.credential(account);
+    if (!rawCredential) throw new Error("Provider was not found.");
+    const draft = decodeCredential(account, rawCredential);
+    if (!(catalog(draft.provider).modelTypes as readonly string[]).includes(input.modelType))
+      throw new Error(`${catalog(draft.provider).name} does not support ${input.modelType} registrations.`);
+    const attempt = await this.registerDraftModel(account, draft, model);
     try {
-      const deployment = await this.registerDraftModel(account, draft, model);
-      return this.store.saveModelDeployment(deployment);
-    } catch (error) {
-      const now = new Date().toISOString();
-      return this.store.saveModelDeployment({
-        id: randomUUID(),
-        providerAccountId: input.providerAccountId,
-        ...model,
-        providerPresetId: account.presetId,
-        providerName: catalog(draft.provider).name,
-        endpoint: providerAdapter(draft.provider).endpoint(draft),
-        complianceDomain: account.complianceDomain,
-        endpointRegion: account.endpointRegion,
-        crossBorderTransfer: false,
-        litellmModelName: `pending/${account.id}/${input.modelId}`,
-        status: "FAILED",
-        checks: modelChecks("FAIL"),
-        validationMessage: error instanceof Error ? error.message : "Model validation failed.",
-        createdAt: now,
-        updatedAt: now,
+      const saved = await this.store.providerTransaction(async (store) => {
+        await lockRegistration(store, `model:${account.id}:${model.modelType}:${model.modelId}`);
+        if (!await store.getProviderAccount(account.id)) throw new Error("Provider was not found.");
+        const current = await this.existingModel(store, account.id, model);
+        if (current) return this.reusableModel(current, model);
+        const deployment = attempt.model;
+        await store.saveModelDeployment(deployment);
+        await this.cleanup().commit(store.database(), [attempt.cleanupId]);
+        return deployment;
       });
+      if (saved.litellmModelId !== attempt.model.litellmModelId) await this.rollback([attempt.cleanupId]);
+      return saved;
+    } catch (error) {
+      await this.rollback([attempt.cleanupId]);
+      throw error;
     }
   }
 
   private async createConnectionWithDiscovery(
     input: CreateProviderConnectionInput,
     discovery: ProviderDiscoveryResult,
+    registrationKey: string,
   ): Promise<ProviderConnectionCreationResult> {
     const now = new Date().toISOString();
     const adapter = providerAdapter(input.connection.provider);
@@ -531,6 +617,7 @@ export class ProviderService {
       updatedAt: now,
     };
     const models: ModelDeployment[] = [];
+    const reservations: string[] = [];
     const failures: ProviderConnectionCreationResult["failures"] = [];
     for (const rawModel of input.models) {
       const model = normalizeModelSelection(rawModel);
@@ -539,7 +626,10 @@ export class ProviderService {
         continue;
       }
       try {
-        models.push(await this.registerDraftModel(account, input.connection, model));
+        await this.cleanup().renew(reservations);
+        const attempt = await this.registerDraftModel(account, input.connection, model);
+        models.push(attempt.model);
+        reservations.push(attempt.cleanupId);
       } catch (error) {
         failures.push({
           model,
@@ -552,41 +642,57 @@ export class ProviderService {
         failures[0]?.message ?? "No selected model could be registered through LiteLLM.",
       );
     const validatedAt = new Date().toISOString();
-    const credentialReference = await this.secrets.put(
-      this.store.projectId,
-      `provider-${account.id}`,
-      encodeCredential(input.connection),
-    );
-    let savedAccount: ProviderAccount;
+    const credentialReference = this.secrets.referenceFor(this.store.projectId, `provider-${account.id}`);
+    let secretStored = false;
     try {
-      savedAccount = await this.store.saveProviderAccount({
-        ...account,
-        status: failures.length ? "DEGRADED" : "VALIDATED",
-        checks: validationChecks(discovery, failures.length > 0),
-        validationMessage: failures.length
-          ? `${models.length} models registered; ${failures.length} need attention.`
-          : `${models.length} models registered and validated through LiteLLM.`,
-        validatedAt,
-        updatedAt: validatedAt,
-      }, credentialReference);
+      await this.cleanup().renew(reservations);
+      reservations.push(await this.cleanup().reserve("SECRET", credentialReference));
+      await this.secrets.put(this.store.projectId, `provider-${account.id}`, encodeCredential(input.connection));
+      secretStored = true;
+      const result = await this.store.providerTransaction(async (store) => {
+        await lockRegistration(store, `connection:${registrationKey}`);
+        const existing = await this.receipt(store, registrationKey);
+        if (existing) return existing;
+        const savedAccount = await store.saveProviderAccount({
+          ...account,
+          status: failures.length ? "DEGRADED" : "VALIDATED",
+          checks: validationChecks(discovery, failures.length > 0),
+          validationMessage: failures.length
+            ? `${models.length} models registered; ${failures.length} need attention.`
+            : `${models.length} models registered and validated through LiteLLM.`,
+          validatedAt, updatedAt: validatedAt,
+        }, credentialReference);
+        for (const model of models) await store.saveModelDeployment(model);
+        const result = { account: savedAccount, models, failures };
+        await store.database().providerRegistrationReceipt.upsert({
+          where: { scope_key: { scope: store.projectId, key: registrationKey } },
+          create: { scope: store.projectId, key: registrationKey, result: JSON.parse(JSON.stringify(result)) },
+          update: { result: JSON.parse(JSON.stringify(result)) },
+        });
+        await this.cleanup().commit(store.database(), reservations);
+        return result;
+      });
+      if (result.account.id !== account.id) await this.rollback(reservations);
+      return result;
     } catch (error) {
-      await this.secrets.delete(credentialReference).catch(() => undefined);
+      await this.rollback(reservations, !secretStored);
       throw error;
     }
-    for (const model of models) await this.store.saveModelDeployment(model);
-    return { account: savedAccount, models, failures };
   }
 
   private async registerDraftModel(
     account: ProviderAccount,
     draft: ProviderConnectionDraft,
     rawModel: ProviderModelSelection,
-  ): Promise<ModelDeployment> {
+  ): Promise<{ model: ModelDeployment; cleanupId: string }> {
     const model = normalizeModelSelection(rawModel);
     const adapter = providerAdapter(draft.provider);
-    let litellmModelName: string | undefined;
+    const registrationId = randomUUID();
+    const cleanupId = await this.cleanup().reserve("MODEL", registrationId);
+    let registered = false;
     try {
-      litellmModelName = await this.litellm.registerModel({
+      const litellmModelName = await this.litellm.registerModel({
+        registrationId,
         accountId: account.id,
         providerKind: draft.provider,
         model,
@@ -597,10 +703,11 @@ export class ProviderService {
         complianceDomain: account.complianceDomain,
         endpointRegion: account.endpointRegion,
       });
+      registered = true;
       await this.litellm.probeModel(litellmModelName, model.modelType);
       const now = new Date().toISOString();
-      return {
-        id: randomUUID(),
+      return { cleanupId, model: {
+        id: registrationId,
         providerAccountId: account.id,
         ...model,
         providerPresetId: account.presetId,
@@ -610,16 +717,16 @@ export class ProviderService {
         endpointRegion: account.endpointRegion,
         crossBorderTransfer: false,
         litellmModelName,
+        litellmModelId: registrationId,
         status: "VALIDATED",
         checks: modelChecks("PASS"),
         validationMessage: `${model.modelId} is registered and responding through LiteLLM.`,
         validatedAt: now,
         createdAt: now,
         updatedAt: now,
-      };
+      } };
     } catch (error) {
-      if (litellmModelName)
-        await this.litellm.deleteModel(litellmModelName).catch(() => undefined);
+      await this.rollback([cleanupId], !registered);
       throw error;
     }
   }

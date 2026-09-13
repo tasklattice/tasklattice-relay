@@ -292,7 +292,7 @@ export class RuntimeInventoryService {
 
     return {
       data: [...workspaceItems, ...managedItems, ...expertItems].sort(
-        (left, right) => right.updatedAt.localeCompare(left.updatedAt),
+        (left, right) => left.name.localeCompare(right.name) || left.id.localeCompare(right.id),
       ),
       generatedAt: new Date().toISOString(),
     };

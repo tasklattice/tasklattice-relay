@@ -14,6 +14,7 @@ function adapter(
   return {
     baseUrl: "http://litellm.test",
     registerModel: vi.fn(),
+    deleteModelById: vi.fn(async () => undefined),
     deleteModel: vi.fn(),
     probeModel: vi.fn(),
     createInstanceKey: vi.fn(),
@@ -421,6 +422,7 @@ describe("ResourceCatalogService", () => {
     markEmbeddingReady(store);
     const litellm = adapter();
     const secrets: SecretStore = {
+      referenceFor: (projectId, resourceId) => `memory://${projectId}/${resourceId}`,
       put: vi.fn(),
       get: vi.fn(async () => "pgvector-secret"),
       delete: vi.fn(),
@@ -581,6 +583,7 @@ describe("ResourceCatalogService", () => {
     markEmbeddingReady(store);
     const litellm = adapter();
     const secrets: SecretStore = {
+      referenceFor: (projectId, resourceId) => `memory://${projectId}/${resourceId}`,
       put: vi.fn(),
       get: vi.fn(async () => "elastic-api-key"),
       delete: vi.fn(),
@@ -699,7 +702,10 @@ describe("ResourceCatalogService", () => {
         },
       }],
     });
-    const secrets: SecretStore = { put: vi.fn(), get: vi.fn(), delete: vi.fn() };
+    const secrets: SecretStore = {
+      referenceFor: (projectId, resourceId) => `memory://${projectId}/${resourceId}`,
+      put: vi.fn(), get: vi.fn(), delete: vi.fn(),
+    };
     const service = new ResourceCatalogService(
       store,
       new ProjectQuotaService(store, litellm),
