@@ -89,12 +89,12 @@ const enUS = {
   login: {
     developmentAccount: {
       after:
-        "Its password is initialized when the control service starts and can be reset from My Account.",
-      before: "The initial local account is",
+        "You can change the password in My Account after signing in.",
+      before: "Development account:",
     },
     errorTitle: "Sign in failed",
     footer:
-      "Access is limited to configured operators. Authentication events may be audited.",
+      "Need an account or project access? Contact your administrator.",
     form: {
       hidePassword: "Hide password",
       keepSignedIn: "Keep me signed in on this device",
@@ -108,22 +108,22 @@ const enUS = {
     },
     hero: {
       description:
-        "Local operators and your OIDC identity provider enter the same inspectable Project context.",
-      kicker: "Authenticated operations",
-      sessionProtected: "Session-protected control plane",
-      titleFirst: "A clear boundary",
-      titleSecond: "before the work.",
+        "Connect models and tools, run agents in isolated environments, and manage access by project.",
+      kicker: "Your AI agent workspace",
+      sessionProtected: "Isolated runtimes · Project-level access",
+      titleFirst: "Build and run",
+      titleSecond: "AI agents.",
     },
     panel: {
-      description: "Sign in to create and operate isolated agents.",
-      kicker: "Project access",
-      title: "Welcome back",
+      description: "Use your local account to access your workspace.",
+      kicker: "TaskLattice Relay",
+      title: "Sign in to continue",
     },
     separator: "or",
     sso: {
-      continue: "Continue with {{providerName}}.",
-      login: "SSO login",
-      unavailable: "SSO is not configured for this deployment.",
+      continue: "Use your organization’s account via {{providerName}}.",
+      login: "Sign in with SSO",
+      unavailable: "Single sign-on is unavailable. Use your local account above.",
     },
   },
   sidebar: {
@@ -386,11 +386,11 @@ const zhCN = {
   },
   login: {
     developmentAccount: {
-      after: "密码会在控制服务启动时初始化，也可以在“我的账户”中重置。",
-      before: "初始本地账户是",
+      after: "登录后可在“我的账户”中修改密码。",
+      before: "开发环境账户：",
     },
     errorTitle: "登录失败",
-    footer: "仅限已配置的操作人员访问。身份验证事件可能会被审计。",
+    footer: "需要账户或项目权限？请联系管理员。",
     form: {
       hidePassword: "隐藏密码",
       keepSignedIn: "在此设备上保持登录状态",
@@ -404,22 +404,22 @@ const zhCN = {
     },
     hero: {
       description:
-        "本地操作人员和 OIDC 身份提供商会进入同一个可检查的项目上下文。",
-      kicker: "经过身份验证的操作",
-      sessionProtected: "受会话保护的控制平面",
-      titleFirst: "先建立清晰边界",
-      titleSecond: "再开始工作。",
+        "接入模型与工具，在隔离环境中运行 Agent，按项目管理访问权限。",
+      kicker: "AI Agent 工作空间",
+      sessionProtected: "隔离运行 · 项目权限管理",
+      titleFirst: "构建并运行",
+      titleSecond: "你的 AI Agent。",
     },
     panel: {
-      description: "登录后创建并运行隔离的 Agent。",
-      kicker: "项目访问",
-      title: "欢迎回来",
+      description: "使用本地账户登录，进入工作空间。",
+      kicker: "TaskLattice Relay",
+      title: "登录，继续工作",
     },
     separator: "或",
     sso: {
-      continue: "使用 {{providerName}} 继续。",
-      login: "SSO 登录",
-      unavailable: "当前部署尚未配置 SSO。",
+      continue: "通过 {{providerName}} 使用组织账户登录。",
+      login: "使用单点登录（SSO）",
+      unavailable: "单点登录暂不可用，请使用上方的本地账户登录。",
     },
   },
   sidebar: {
@@ -680,11 +680,11 @@ const zhTW = {
   },
   login: {
     developmentAccount: {
-      after: "密碼會在控制服務啟動時初始化，也可以在「我的帳戶」中重設。",
-      before: "初始本機帳戶為",
+      after: "登入後可在「我的帳戶」中修改密碼。",
+      before: "開發環境帳戶：",
     },
     errorTitle: "登入失敗",
-    footer: "僅限已設定的操作人員存取。驗證事件可能會被稽核。",
+    footer: "需要帳戶或專案權限？請聯絡管理員。",
     form: {
       hidePassword: "隱藏密碼",
       keepSignedIn: "在此裝置上保持登入狀態",
@@ -698,22 +698,22 @@ const zhTW = {
     },
     hero: {
       description:
-        "本機操作人員與 OIDC 身分提供者會進入同一個可檢查的專案內容。",
-      kicker: "已驗證的操作",
-      sessionProtected: "受工作階段保護的控制平面",
-      titleFirst: "先建立清楚的界線",
-      titleSecond: "再開始工作。",
+        "串接模型與工具，在隔離環境中執行 Agent，依專案管理存取權限。",
+      kicker: "AI Agent 工作空間",
+      sessionProtected: "隔離執行 · 專案權限管理",
+      titleFirst: "建立並執行",
+      titleSecond: "你的 AI Agent。",
     },
     panel: {
-      description: "登入後建立並執行隔離的 Agent。",
-      kicker: "專案存取",
-      title: "歡迎回來",
+      description: "使用本機帳戶登入，進入工作空間。",
+      kicker: "TaskLattice Relay",
+      title: "登入，繼續工作",
     },
     separator: "或",
     sso: {
-      continue: "使用 {{providerName}} 繼續。",
-      login: "SSO 登入",
-      unavailable: "目前部署尚未設定 SSO。",
+      continue: "透過 {{providerName}} 使用組織帳戶登入。",
+      login: "使用單一登入（SSO）",
+      unavailable: "單一登入暫不可用，請使用上方的本機帳戶登入。",
     },
   },
   sidebar: {
