@@ -101,7 +101,7 @@ describe("Instance lifecycle reconciliation", () => {
     sandboxName: "tali-research",
     status: "PROVISIONING",
     provisioningStage: "QUEUED",
-    policyId: "restricted",
+    policyId: "managed-runtime",
     systemPrompt: "Research the request and report the resulting evidence.",
     createdAt: now,
     updatedAt: now,
@@ -186,7 +186,7 @@ describe("Agent selection", () => {
     runtime: "openshell" as const,
     accessPolicyIds: [accessPolicyId],
     modelRoutingId: "routing-a",
-    policyId: "restricted" as const,
+    policyId: "managed-runtime" as const,
     systemPrompt: "Research the request and report the resulting evidence.",
   };
 
@@ -308,7 +308,7 @@ describe("Instance Access Policy lifecycle", () => {
       accessPolicyIds: [setup.policy.id],
       modelRoutingId: "routing-a",
       agentPlatform: "openclaw",
-      policyId: "restricted",
+      policyId: "managed-runtime",
       systemPrompt: "Research the request and report the resulting evidence.",
       knowledgeSourceIds: ["engineering-handbook"],
     }, "local-admin");
@@ -325,7 +325,7 @@ describe("Instance Access Policy lifecycle", () => {
       modelRoutingId: "routing-a",
       agentPlatform: "openclaw",
       durableMemoryId: "memory-a",
-      policyId: "restricted",
+      policyId: "managed-runtime",
       systemPrompt: "Research the request and report the resulting evidence.",
       knowledgeSourceIds: ["engineering-handbook"],
     }, "local-admin")).rejects.toThrow("not enabled for this Project");
@@ -385,7 +385,7 @@ describe("Instance Access Policy lifecycle", () => {
       accessPolicyIds: [setup.policy.id],
       modelRoutingId: "routing-a",
       agentPlatform: "hermes",
-      policyId: "restricted",
+      policyId: "managed-runtime",
       systemPrompt: "Research the request and report the resulting evidence.",
       knowledgeSourceIds: ["engineering-handbook"],
     }, "local-admin")).rejects.toThrow(
@@ -402,7 +402,7 @@ describe("Instance Access Policy lifecycle", () => {
       accessPolicyIds: [setup.policy.id],
       modelRoutingId: "routing-a",
       agentPlatform: "openclaw",
-      policyId: "restricted",
+      policyId: "managed-runtime",
       systemPrompt: "Research the request and report the resulting evidence.",
       knowledgeSourceIds: ["engineering-handbook"],
     };
@@ -437,7 +437,7 @@ describe("Instance Access Policy lifecycle", () => {
         accessPolicyIds: [setup.policy.id],
         modelRoutingId: "routing-a",
         agentPlatform: "openclaw",
-        policyId: "restricted",
+        policyId: "managed-runtime",
         systemPrompt: "Research the request and report the resulting evidence.",
         knowledgeSourceIds: ["engineering-handbook"],
       },
