@@ -7,10 +7,18 @@ Sandbox controller.
 Its Chart, package, and default Helm release name is `tali-relay`; the examples
 use the product-level `tali` Kubernetes namespace.
 The Release Workflow selects OpenShell 0.0.106, NemoClaw v0.0.114, and Agent
-Sandbox v0.5.1 by explicit upstream tags and does not follow `latest`. Builds
+Sandbox v1.0.2 by explicit upstream tags and does not follow `latest`. Builds
 use the content currently published under those tags. Their upstream source is
 not copied into this repository, while the released TaskLattice Relay archive
 remains self-contained.
+
+Agent Sandbox uses the v1.0.2 source tag and controller image; upstream's Helm
+Chart version is still `0.1.0`. Set `agentSandbox.enabled=false` to reuse an
+existing cluster controller (see `values-uat.yaml`). Keep it `true` only when
+this release owns the cluster-wide controller. For a separate local release,
+run `npm run helm:deploy:agent-sandbox`, then deploy Relay with
+`AGENT_SANDBOX_ENABLED=false`. See the
+[upgrade comparison, configuration, and compatibility tests](../../docs/agent-sandbox-v1.0.2.md).
 
 Prepare the dependency archives before rendering the source Chart:
 

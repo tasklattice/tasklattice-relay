@@ -1,0 +1,20 @@
+# Values for the upstream agent-sandbox dependency installed as its own release.
+# Do not pass this file directly to the parent tali-relay chart.
+namespace:
+  create: false
+  name: ""
+image:
+  repository: registry.k8s.io/agent-sandbox/agent-sandbox-controller
+  tag: v1.0.2
+  pullPolicy: IfNotPresent
+imagePullSecrets: []
+controller:
+  leaderElect: true
+  extensions: false
+resources:
+  requests:
+    cpu: 20m
+    memory: 64Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi

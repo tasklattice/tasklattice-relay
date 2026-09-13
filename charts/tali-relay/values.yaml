@@ -590,19 +590,22 @@ resourceDefaults:
     cpu: 500m
     memory: 512Mi
 
-# Selected kubernetes-sigs/agent-sandbox v0.5.1 dependency. Its upstream Chart is
+# Selected kubernetes-sigs/agent-sandbox v1.0.2 dependency. Its upstream Chart is
 # fetched and packaged by scripts/prepare-helm-dependencies.sh; upstream source
 # is not copied into this repository.
 agentSandbox:
+  # Deploy one cluster-wide controller. Set false when the platform team or a
+  # separate Helm release already provides Agent Sandbox v1.0.2 and its CRDs.
+  # This also excludes dependency CRDs, RBAC, and metrics resources.
   enabled: true
   imagePullSecrets: []
   namespace:
-    # Run the controller and webhook beside the rest of this Helm release.
+    # Run the controller beside the rest of this Helm release.
     create: false
     name: ""
   image:
     repository: registry.k8s.io/agent-sandbox/agent-sandbox-controller
-    tag: v0.5.1
+    tag: v1.0.2
     pullPolicy: IfNotPresent
   controller:
     leaderElect: true

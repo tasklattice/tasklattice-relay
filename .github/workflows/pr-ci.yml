@@ -284,6 +284,8 @@ jobs:
         run: helm lint charts/tali-relay
       - name: Validate rendered resources
         run: npm run helm:validate:resources
+      - name: Validate Agent Sandbox compatibility and ownership
+        run: npm run helm:validate:agent-sandbox
       - name: Validate embedded Keycloak development integration
         run: npm run helm:validate:dev-defaults
       - name: Validate OpenShift compatibility

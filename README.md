@@ -161,7 +161,11 @@ resolves to that exact value.
 | Docling Serve            | `ghcr.io/docling-project/docling-serve-cpu:v1.29.0`              | Layout-aware parsing, table extraction, and OCR    |
 | OpenShell gateway        | `ghcr.io/nvidia/openshell/gateway:0.0.106`                      | Policy enforcement, audit, exec, and HTTP routing  |
 | OpenShell supervisor     | `ghcr.io/nvidia/openshell/supervisor:0.0.106`                   | Supervisor injected into Agent sandboxes           |
-| Agent Sandbox controller | `registry.k8s.io/agent-sandbox/agent-sandbox-controller:v0.5.1` | Sandbox CR, Pod, and workspace PVC lifecycle       |
+| Agent Sandbox controller | `registry.k8s.io/agent-sandbox/agent-sandbox-controller:v1.0.2` | Sandbox CR, Pod, and workspace PVC lifecycle       |
+
+Agent Sandbox v1.0.2 supports an optional bundled controller or an existing
+cluster controller selected with `agentSandbox.enabled`. See the
+[upgrade and deployment guide](docs/agent-sandbox-v1.0.2.md).
 
 The OpenShell supervisor and selected Agent image are pulled when an Instance
 creates its Sandbox rather than running as permanent control-plane Pods.

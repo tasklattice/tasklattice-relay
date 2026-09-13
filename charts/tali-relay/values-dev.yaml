@@ -88,3 +88,9 @@ keycloak:
     limits:
       cpu: "1"
       memory: 1Gi
+
+# Enable on a test cluster without an existing Agent Sandbox controller.
+# With the separate local controller release, deploy-local.sh accepts
+# AGENT_SANDBOX_ENABLED=false to reuse it.
+agentSandbox:
+  enabled: true

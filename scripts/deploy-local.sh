@@ -83,26 +83,33 @@ if [[ "$action" == "delete" ]]; then
   exit 0
 fi
 
-agent_sandbox_crds=(
-  sandboxes.agents.x-k8s.io
-  sandboxclaims.extensions.agents.x-k8s.io
-  sandboxtemplates.extensions.agents.x-k8s.io
-  sandboxwarmpools.extensions.agents.x-k8s.io
-)
-existing_agent_sandbox_crds=0
-for crd_name in "${agent_sandbox_crds[@]}"; do
-  if kubectl --context "$kube_context" get crd "$crd_name" >/dev/null 2>&1; then
-    ((existing_agent_sandbox_crds += 1))
-  fi
-done
-
-crd_helm_args=()
-if (( existing_agent_sandbox_crds == ${#agent_sandbox_crds[@]} )); then
-  echo "Reusing the existing Agent Sandbox CRDs."
-  crd_helm_args+=(--skip-crds)
-elif (( existing_agent_sandbox_crds > 0 )); then
-  echo "Agent Sandbox CRDs are only partially installed; refusing to skip or overwrite them." >&2
+# A separately installed controller is selected explicitly; do not infer
+# controller ownership from CRD presence alone.
+agent_sandbox_enabled="${AGENT_SANDBOX_ENABLED:-true}"
+if [[ "$agent_sandbox_enabled" != "true" && "$agent_sandbox_enabled" != "false" ]]; then
+  echo "AGENT_SANDBOX_ENABLED must be true or false." >&2
   exit 1
+fi
+agent_sandbox_helm_args=(--set "agentSandbox.enabled=$agent_sandbox_enabled")
+crd_helm_args=()
+if [[ "$agent_sandbox_enabled" == "false" ]]; then
+  kubectl --context "$kube_context" get crd sandboxes.agents.x-k8s.io -o json |
+    jq -e 'any(.spec.versions[]; .name == "v1beta1" and .served)' >/dev/null || {
+      echo "The external controller requires the Agent Sandbox v1beta1 CRD." >&2
+      exit 1
+    }
+  crd_helm_args+=(--skip-crds)
+else
+  kubectl --context "$kube_context" get deployments -A -o json |
+    jq -e --arg namespace "$namespace" --arg release "$release_name" '
+      [.items[] | select(any(.spec.template.spec.containers[];
+        .name == "agent-sandbox-controller" or (.image | contains("agent-sandbox-controller")))) |
+        select(.metadata.namespace != $namespace or
+          .metadata.annotations["meta.helm.sh/release-name"] != $release)] | length == 0
+    ' >/dev/null || {
+      echo "Another Agent Sandbox controller exists; set AGENT_SANDBOX_ENABLED=false to reuse it." >&2
+      exit 1
+    }
 fi
 
 # Helm 4 uses server-side apply and can encounter a managed-fields conflict
@@ -209,8 +216,26 @@ if [[ "$enable_example_mcp" == "true" ]]; then
 fi
 
 bash "$repository_root/scripts/prepare-helm-dependencies.sh"
+if [[ "$agent_sandbox_enabled" == "true" ]]; then
+  for crd_file in "$repository_root"/.helm-dependencies/agent-sandbox/crds/*.yaml; do
+    crd_name="$(kubectl --context "$kube_context" create --dry-run=client -f "$crd_file" -o jsonpath='{.metadata.name}')"
+    existing_crd="$(kubectl --context "$kube_context" get crd "$crd_name" --ignore-not-found -o json)"
+    if [[ -n "$existing_crd" ]] && ! jq -e '
+      all(.status.storedVersions[]; . == "v1beta1") and
+      all(.spec.versions[]; .name == "v1beta1")
+    ' <<< "$existing_crd" >/dev/null; then
+      echo "$crd_name contains legacy APIs; use a fresh test cluster or the upstream migration guide." >&2
+      exit 1
+    fi
+  done
+  # Helm skips CRD updates, so install the pinned v1beta1 schemas explicitly.
+  kubectl --context "$kube_context" apply --server-side --field-manager=tali-agent-sandbox-crds \
+    -f "$repository_root/.helm-dependencies/agent-sandbox/crds/"
+  crd_helm_args+=(--skip-crds)
+fi
 helm lint "$repository_root/charts/tali-relay" \
   --values "$repository_root/charts/tali-relay/values-dev.yaml" \
+  "${agent_sandbox_helm_args[@]}" \
   ${control_helm_args[@]+"${control_helm_args[@]}"} \
   ${keycloak_helm_args[@]+"${keycloak_helm_args[@]}"} \
   ${example_mcp_helm_args[@]+"${example_mcp_helm_args[@]}"}
@@ -221,6 +246,7 @@ helm upgrade --install "$release_name" "$repository_root/charts/tali-relay" \
   --values "$repository_root/charts/tali-relay/values-dev.yaml" \
   --set-string "global.rolloutRevision=$rollout_revision" \
   --set "control.service.port=$control_service_port" \
+  "${agent_sandbox_helm_args[@]}" \
   ${control_helm_args[@]+"${control_helm_args[@]}"} \
   ${keycloak_helm_args[@]+"${keycloak_helm_args[@]}"} \
   ${example_mcp_helm_args[@]+"${example_mcp_helm_args[@]}"} \

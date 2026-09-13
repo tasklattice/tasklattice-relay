@@ -1,0 +1,6 @@
+# UAT reuses the platform-managed Agent Sandbox v1.0.2 controller and v1beta1
+# CRDs. The controller must watch Relay Project namespaces. This overlay only
+# selects controller ownership; supply environment URLs, secrets, and images
+# through your normal UAT values.
+agentSandbox:
+  enabled: false

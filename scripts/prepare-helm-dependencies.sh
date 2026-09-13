@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-required_commands=(curl find grep helm patch tar)
+required_commands=(awk curl find grep helm patch tar)
 for command_name in "${required_commands[@]}"; do
   if ! command -v "$command_name" >/dev/null 2>&1; then
     echo "Required command is not installed: $command_name" >&2
@@ -16,9 +16,8 @@ openshell_version="${OPENSHELL_VERSION:-0.0.106}"
 openshell_upstream_reference="oci://ghcr.io/nvidia/openshell/helm-chart"
 patch_file="$chart_root/patches/openshell.patch"
 openshell_chart="$dependency_source_root/openshell"
-agent_sandbox_version="${AGENT_SANDBOX_VERSION:-v0.5.1}"
+agent_sandbox_version="${AGENT_SANDBOX_VERSION:-v1.0.2}"
 agent_sandbox_chart_version="${AGENT_SANDBOX_CHART_VERSION:-0.1.0}"
-agent_sandbox_patch_file="$chart_root/patches/agent-sandbox-${agent_sandbox_version}-image-pull-secrets.patch"
 agent_sandbox_source_directory="agent-sandbox-${agent_sandbox_version#v}"
 agent_sandbox_url="https://github.com/kubernetes-sigs/agent-sandbox/archive/refs/tags/${agent_sandbox_version}.tar.gz"
 agent_sandbox_chart="$dependency_source_root/agent-sandbox"
@@ -42,7 +41,11 @@ tar -xzf "$agent_sandbox_archive" -C "$work_dir"
 rm -rf "$agent_sandbox_chart"
 cp -R "$work_dir/$agent_sandbox_source_directory/helm" "$agent_sandbox_chart"
 cp "$work_dir/$agent_sandbox_source_directory/LICENSE" "$agent_sandbox_chart/LICENSE"
-patch --directory "$dependency_source_root" --strip 1 < "$agent_sandbox_patch_file"
+actual_agent_sandbox_chart_version="$(helm show chart "$agent_sandbox_chart" | awk '/^version:/ {print $2}')"
+if [[ "$actual_agent_sandbox_chart_version" != "$agent_sandbox_chart_version" ]]; then
+  echo "Unexpected Agent Sandbox chart version: $actual_agent_sandbox_chart_version" >&2
+  exit 1
+fi
 find "$agent_sandbox_chart" -type f \
   \( -name "*.orig" -o -name "*.rej" \) -delete
 
