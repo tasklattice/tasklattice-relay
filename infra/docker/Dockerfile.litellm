@@ -7,6 +7,7 @@ USER root
 COPY infra/litellm/v1.87.0 /tmp/tasklattice-litellm-overlay
 RUN python /tmp/tasklattice-litellm-overlay/apply-overlay.py --root /app \
     && python /tmp/tasklattice-litellm-overlay/verify-overlay.py --root /app \
+    && LITELLM_LOCAL_MODEL_COST_MAP=True PYTHONPATH=/app python -m unittest discover -s /tmp/tasklattice-litellm-overlay/tests \
     && cd /app/ui/litellm-dashboard \
     && npm ci --ignore-scripts \
     && npm run build \
