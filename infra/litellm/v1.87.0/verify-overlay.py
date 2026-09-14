@@ -62,7 +62,9 @@ def verify_files(app_root: Path) -> None:
 def verify_schema(app_root: Path) -> None:
     sys.path.insert(0, str(app_root))
     from litellm.proxy.guardrails.guardrail_hooks.tasklattice_guard.service import (
+        TaskLatticeGuardConnectionError,
         build_guardrail_record,
+        normalize_endpoint,
     )
     from litellm.types.proxy.guardrails.guardrail_hooks.tasklattice_guard import (
         TaskLatticeGuardConfigModel,
@@ -74,9 +76,10 @@ def verify_schema(app_root: Path) -> None:
     if not fields["api_base"].is_required() or not fields["api_key"].is_required():
         raise RuntimeError("Endpoint and Secret must be required on create")
 
+    endpoint = "https://guard.example/runtime/v1/endpoints/00000000-0000-0000-0000-000000000000"
     config = TaskLatticeGuardConfigModel.model_validate(
         {
-            "api_base": "https://guard.example/runtime/v1/integrations/00000000-0000-0000-0000-000000000000",
+            "api_base": endpoint,
             "api_key": "not-persisted-by-this-check",
         }
     )
@@ -86,9 +89,19 @@ def verify_schema(app_root: Path) -> None:
         raise RuntimeError("TaskLattice must default to fail-closed")
     if config.optional_params.timeout_seconds != 10:
         raise RuntimeError("TaskLattice timeout default changed unexpectedly")
+    if normalize_endpoint(endpoint) != endpoint:
+        raise RuntimeError("TaskLattice endpoint normalization changed unexpectedly")
+    try:
+        normalize_endpoint(
+            "https://guard.example/runtime/v1/integrations/00000000-0000-0000-0000-000000000000"
+        )
+    except TaskLatticeGuardConnectionError:
+        pass
+    else:
+        raise RuntimeError("Legacy integrations endpoint was accepted")
 
     record = build_guardrail_record(
-        "https://guard.example/runtime/v1/integrations/00000000-0000-0000-0000-000000000000",
+        endpoint,
         "tasklattice-guard/verification",
         guardrail_name="TaskLattice Guard",
         skip_system_message_choice="yes",

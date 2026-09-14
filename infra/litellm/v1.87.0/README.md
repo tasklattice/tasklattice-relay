@@ -12,13 +12,13 @@ verification and encrypted credential lifecycle.
 
 ## Provider configuration
 
-The setup flow requires the TaskLattice Integration base URL and its one-time
-secret. The base URL must end in `/runtime/v1/integrations/{uuid}`; LiteLLM adds
+The setup flow requires the TaskLattice Guard endpoint base URL and its one-time
+secret. The base URL must end in `/runtime/v1/endpoints/{uuid}`; LiteLLM adds
 the Generic Guardrail callback path itself. The secret is persisted through
 LiteLLM Credentials and is never copied into the Guardrail record.
 
 The following settings are owned and enforced by the LiteLLM provider. They do
-not change the TaskLattice Integration protocol:
+not change the TaskLattice Guard endpoint protocol:
 
 | Setting | Accepted values | Default | Runtime effect |
 | --- | --- | --- | --- |
@@ -39,7 +39,7 @@ configuration control with no runtime effect.
 ## Protected Output streaming
 
 The Provider sends ordered, authenticated chunks to
-`/runtime/v1/integrations/{uuid}/guardrails/output-stream` with `protocol=litellm`.
+`/runtime/v1/endpoints/{uuid}/guardrails/output-stream` with `protocol=litellm`.
 It preserves the pre-call identity and native routing metadata, validates the
 acknowledged sequence and pinned release/model revision, and emits **only**
 `released_text`. The Runner's immutable artifact determines complete-response

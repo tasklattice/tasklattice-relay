@@ -48,7 +48,7 @@ class Upstream:
 
 class StreamingTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
-        self.provider = TaskLatticeGuard(credential_name="test-only", api_base="http://guard/runtime/v1/integrations/test",
+        self.provider = TaskLatticeGuard(credential_name="test-only", api_base="http://guard/runtime/v1/endpoints/00000000-0000-0000-0000-000000000000",
             guardrail_name="TaskLattice Guard", default_on=True)
         self.provider.should_run_guardrail = Mock(return_value=True)
         self.provider._build_request_headers = Mock(return_value={"x-api-key": "synthetic"})

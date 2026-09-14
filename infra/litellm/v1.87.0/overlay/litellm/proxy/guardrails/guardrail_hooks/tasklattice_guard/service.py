@@ -114,27 +114,27 @@ def normalize_endpoint(endpoint: str) -> str:
     parsed = urlparse(endpoint)
     if parsed.scheme not in {"http", "https"} or not parsed.netloc:
         raise TaskLatticeGuardConnectionError(
-            "Endpoint must be an absolute HTTP(S) TaskLattice Integration URL"
+            "Endpoint must be an absolute HTTP(S) TaskLattice Guard endpoint URL"
         )
     if parsed.username or parsed.password or parsed.query or parsed.fragment:
         raise TaskLatticeGuardConnectionError(
             "Endpoint cannot contain credentials, query parameters, or a fragment"
         )
-    path_prefix = "/runtime/v1/integrations/"
+    path_prefix = "/runtime/v1/endpoints/"
     if not parsed.path.startswith(path_prefix):
         raise TaskLatticeGuardConnectionError(
-            "Endpoint must end with /runtime/v1/integrations/{uuid}"
+            "Endpoint must end with /runtime/v1/endpoints/{uuid}"
         )
-    integration_id = parsed.path.removeprefix(path_prefix)
+    endpoint_id = parsed.path.removeprefix(path_prefix)
     try:
-        parsed_integration_id = UUID(integration_id)
+        parsed_endpoint_id = UUID(endpoint_id)
     except (ValueError, AttributeError) as error:
         raise TaskLatticeGuardConnectionError(
-            "Endpoint must end with /runtime/v1/integrations/{uuid}"
+            "Endpoint must end with /runtime/v1/endpoints/{uuid}"
         ) from error
-    if str(parsed_integration_id) != integration_id.lower():
+    if str(parsed_endpoint_id) != endpoint_id.lower():
         raise TaskLatticeGuardConnectionError(
-            "Endpoint must end with /runtime/v1/integrations/{uuid}"
+            "Endpoint must end with /runtime/v1/endpoints/{uuid}"
         )
     return endpoint
 
@@ -325,7 +325,7 @@ async def verify_connection(endpoint: str, secret: str) -> Dict[str, Any]:
         or payload.get("protocol") != EXPECTED_PROTOCOL
     ):
         raise TaskLatticeGuardConnectionError(
-            "Endpoint did not identify a ready LiteLLM TaskLattice Integration"
+            "Endpoint did not identify a ready LiteLLM TaskLattice Guard endpoint"
         )
     return payload
 
