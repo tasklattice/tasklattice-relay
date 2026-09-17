@@ -6,6 +6,7 @@ import { z } from "zod";
 import { useAuth } from "@/components/auth/auth-provider";
 import { BrandLogo } from "@/components/brand/brand-logo";
 import { LanguageSwitcher } from "@/components/i18n/language-switcher";
+import { Button } from "@/components/ui/button";
 import { authClient } from "@/lib/auth-client";
 
 export const Route = createFileRoute("/login")({
@@ -30,6 +31,7 @@ function LoginPage() {
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (submitting) return;
     setSubmitting(true);
     setError("");
     try {
@@ -55,22 +57,22 @@ function LoginPage() {
         </Link>
         <div className="relative z-10 max-w-xl pb-8">
           <p className="font-mono text-xs uppercase tracking-[0.08em] text-primary">{t("hero.kicker")}</p>
-          <h1 className="mt-7 font-display text-6xl font-light leading-[0.98] tracking-[-0.01em]">{t("hero.titleFirst")}<br />{t("hero.titleSecond")}</h1>
+          <h1 className="mt-6 font-display text-5xl font-semibold leading-[0.98] tracking-[-0.01em]">{t("hero.titleFirst")}<br />{t("hero.titleSecond")}</h1>
           <p className="mt-7 max-w-md text-base leading-7 text-muted-foreground">{t("hero.description")}</p>
         </div>
         <div className="relative z-10 flex items-center gap-3 font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground"><LockKeyhole className="size-4" />{t("hero.sessionProtected")}</div>
       </section>
 
-      <section className="relative flex min-h-svh items-center justify-center px-5 py-12 sm:px-8 lg:px-16">
+      <section className="relative flex min-h-svh items-center justify-center bg-card px-5 pb-8 pt-24 sm:px-8 lg:px-16 lg:py-12">
         <div className="absolute right-5 top-5 sm:right-8 sm:top-8">
           <LanguageSwitcher />
         </div>
         <div className="w-full max-w-md">
-          <Link to="/" className="mb-14 flex min-h-11 items-center gap-3 text-sm font-semibold lg:hidden">
+          <Link to="/" className="mb-8 flex min-h-11 items-center gap-3 text-sm font-semibold lg:hidden">
             <BrandLogo />
           </Link>
           <p className="font-mono text-xs uppercase tracking-[0.08em] text-primary">{t("panel.kicker")}</p>
-          <h2 className="mt-4 font-display text-4xl font-medium tracking-[-0.025em]">{t("panel.title")}</h2>
+          <h2 className="mt-3 font-display text-2xl font-semibold tracking-[-0.025em]">{t("panel.title")}</h2>
           <p className="mt-3 text-sm leading-6 text-muted-foreground">{t("panel.description")}</p>
 
           {error || configError ? (
@@ -86,7 +88,7 @@ function LoginPage() {
             </div>
           ) : null}
 
-          <form onSubmit={submit} className="mt-8 space-y-5">
+          <form onSubmit={submit} aria-busy={submitting} className="mt-6 space-y-4">
             <label className="block text-sm font-medium">
               {t("form.username")}
               <span className="mt-2 flex min-h-12 items-center gap-3 rounded-md border border-input bg-background px-4 transition-colors focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/20">
@@ -108,10 +110,10 @@ function LoginPage() {
               <input type="checkbox" checked={remember} onChange={(event) => setRemember(event.target.checked)} className="size-4 accent-link" />
               {t("form.keepSignedIn")}
             </label>
-            <button disabled={submitting || loading} type="submit" className="flex min-h-12 w-full items-center justify-center gap-2 rounded-md bg-primary px-6 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-60">
+            <Button disabled={submitting || loading} type="submit" className="h-12 w-full">
               {submitting ? <LoaderCircle className="size-4 animate-spin" /> : null}
               {submitting ? t("form.signingIn") : t("form.signIn")}
-            </button>
+            </Button>
           </form>
 
           <div className="mt-8">

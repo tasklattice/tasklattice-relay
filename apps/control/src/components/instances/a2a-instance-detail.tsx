@@ -95,7 +95,7 @@ function A2aHeader({
           <AgentGardenIcon type="a2a" className="size-14" />
           <div className="min-w-0">
             <div className="flex min-w-0 flex-wrap items-center gap-2">
-              <h1 className="min-w-0 max-w-full break-words font-display text-2xl font-light tracking-[0.005em] sm:text-3xl">
+              <h1 className="min-w-0 max-w-full break-words font-display text-2xl font-semibold tracking-[-0.02em] sm:text-3xl">
                 {detail.name}
               </h1>
               <InstanceStatusBadge status={detail.status} />

@@ -14,10 +14,10 @@ export function PageHeader({
   title,
 }: PageHeaderProps) {
   return (
-    <header className="flex flex-col items-stretch gap-5 sm:flex-row sm:items-end sm:justify-between">
+    <header className="flex flex-col items-stretch gap-4 sm:flex-row sm:items-end sm:justify-between">
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-3">
-          <h1 className="font-display text-[1.625rem] font-semibold leading-tight tracking-[-0.025em]">{title}</h1>
+          <h1 className="font-display text-2xl font-semibold leading-8 tracking-[-0.025em]">{title}</h1>
           {badge}
         </div>
         {description ? (

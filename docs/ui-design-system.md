@@ -1,6 +1,8 @@
 # TaskLattice Relay UI and Interaction System
 
-Status: Implemented baseline
+Status: Supporting baseline; canonical contract: [UI Interactive Spec](ui-interaction-spec.md).
+
+The canonical contract takes precedence over historical examples in this document.
 
 Version: 0.2
 
@@ -31,8 +33,9 @@ marketing expression.
   and overlays.
 - Typography: `Inter` with `Noto Sans SC` / `Noto Sans TC` fallbacks for display
   and interface text; `Chivo Mono` for identifiers and operational evidence.
-- Shape: one-pixel rules, 10-pixel functional controls, and 14-pixel grouped
-  panels. Compact state badges may be pill-shaped. Hierarchy comes from type,
+- Shape: one-pixel rules, 2-pixel near-square controls, and 4-pixel grouped
+  panels. Status badges use 2-pixel corners; viewport-aligned drawers use 0.
+  Hierarchy comes from type,
   spacing, density, and section lines rather than heavy shadows or a wall of
   equal cards.
 - Vendor identity: model providers, MCP products, databases, Agent frameworks,

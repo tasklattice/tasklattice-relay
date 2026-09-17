@@ -453,7 +453,7 @@ export function AppShell() {
                 ? "flex-1"
                 : workspaceRoute
                   ? "flex-1"
-                  : "mx-auto max-w-[1600px] px-5 py-6 sm:px-6 lg:px-8 lg:py-8",
+                  : "mx-auto max-w-[1600px] p-4 sm:p-6",
             )}
           >
             {!globalRoute && projectError ? (

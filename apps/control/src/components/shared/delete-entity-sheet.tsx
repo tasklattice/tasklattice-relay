@@ -67,6 +67,7 @@ export function DeleteEntitySheet({
   return (
     <EntitySheet
       open={open}
+      pending={deleting}
       onOpenChange={(next) => {
         if (!deleting) onOpenChange(next);
       }}

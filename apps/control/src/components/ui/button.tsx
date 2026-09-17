@@ -12,14 +12,14 @@ const buttonVariants = cva(
         default:
           "border-primary-active/20 bg-primary text-primary-foreground shadow-xs hover:border-primary-active/25 hover:bg-primary-hover hover:shadow-sm active:bg-primary-active active:shadow-none disabled:border-border disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100",
         outline:
-          "border-input bg-card text-foreground hover:border-primary-border hover:bg-primary-surface hover:text-primary-active active:border-primary-border active:bg-accent aria-expanded:border-primary-border aria-expanded:bg-accent aria-expanded:text-accent-foreground dark:bg-card dark:hover:bg-accent/60",
+          "border-input bg-card text-foreground hover:border-primary-border hover:bg-primary-surface hover:text-accent-foreground active:border-primary-border active:bg-accent aria-expanded:border-primary-border aria-expanded:bg-accent aria-expanded:text-accent-foreground dark:bg-card dark:hover:bg-accent/60",
         secondary:
           "bg-secondary text-secondary-foreground hover:bg-[color-mix(in_oklch,var(--secondary),var(--foreground)_6%)] active:bg-[color-mix(in_oklch,var(--secondary),var(--foreground)_10%)] aria-expanded:bg-secondary aria-expanded:text-secondary-foreground",
         ghost:
-          "text-muted-foreground hover:bg-primary-surface hover:text-primary-active aria-expanded:bg-primary-surface aria-expanded:text-primary-active dark:hover:bg-primary-surface",
+          "text-muted-foreground hover:bg-primary-surface hover:text-accent-foreground aria-expanded:bg-primary-surface aria-expanded:text-accent-foreground dark:hover:bg-primary-surface",
         destructive:
           "bg-destructive/10 text-destructive hover:bg-destructive/20 focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:hover:bg-destructive/30 dark:focus-visible:ring-destructive/40",
-        link: "text-link underline-offset-4 hover:text-primary-active hover:underline",
+        link: "text-link underline-offset-4 hover:text-accent-foreground hover:underline",
       },
       size: {
         default:

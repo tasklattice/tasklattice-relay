@@ -10,6 +10,11 @@ Maturity: `prototype`
 
 Interface language: English
 
+Shared visual and operation rules follow the [UI Interactive Spec](../ui-interaction-spec.md).
+Persisted changes begin in a right-side operation drawer; resource-specific
+secondary actions use the ellipsis menu. This document adds approval semantics,
+not alternate shape tokens or mutation surfaces.
+
 ## L1 Positioning and Intent
 
 ### One-sentence definition

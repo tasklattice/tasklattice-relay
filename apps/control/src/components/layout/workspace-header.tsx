@@ -12,14 +12,14 @@ export function WorkspaceHeader({ showSidebarTrigger = true }: {
 
   return (
     <div className="sticky top-0 z-30 bg-background">
-      <header className="flex h-16 items-center gap-3 border-b border-border px-4 sm:px-6 lg:px-8">
+      <header className="flex h-14 items-center gap-3 border-b border-border px-4 sm:px-6">
         {showSidebarTrigger ? (
           <SidebarTrigger label={t("navigation.toggle")} />
         ) : null}
         <HeaderBreadcrumb pathname={pathname} />
         <button
           disabled
-          className="ml-auto hidden h-9 w-64 cursor-not-allowed items-center gap-2 rounded-full border border-transparent bg-secondary px-3 text-sm text-muted-foreground/70 md:flex"
+          className="ml-auto hidden h-9 w-64 cursor-not-allowed items-center gap-2 rounded-md border border-transparent bg-secondary px-3 text-sm text-muted-foreground/70 md:flex"
         >
           <Search className="size-3.5" />
           {t("search.label")}

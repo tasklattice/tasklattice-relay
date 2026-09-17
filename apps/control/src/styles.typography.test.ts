@@ -4,6 +4,15 @@ import { describe, expect, it } from "vitest";
 const styles = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
 
 describe("Control Plane typography contract", () => {
+  it("keeps the angular ToB shape tokens and mobile drawer contract", () => {
+    expect(styles).toContain("--radius-control: 0.125rem;");
+    expect(styles).toContain("--radius-card: 0.25rem;");
+    expect(styles).toContain("--radius-large: 0.25rem;");
+    expect(styles).toContain("--sidebar-item-radius: var(--radius-control);");
+    expect(styles).toContain('[data-slot="sheet-content"][data-side="right"]');
+    expect(styles).toContain("@media (prefers-reduced-motion: reduce)");
+  });
+
   it("defines display, interface, and technical font roles", () => {
     expect(styles).toContain("--font-display:");
     expect(styles).toContain("--font-sans:");

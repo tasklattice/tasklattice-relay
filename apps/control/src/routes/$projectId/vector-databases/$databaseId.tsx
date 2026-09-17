@@ -275,7 +275,7 @@ function VectorDatabaseDetail() {
     <div className="flex min-h-[calc(100svh-4rem)] min-w-0 flex-col bg-background">
       <header className="flex items-start justify-between gap-4 border-b px-5 py-5 sm:px-6 lg:px-8">
         <div className="min-w-0">
-          <h1 className="truncate font-display text-[1.625rem] font-light leading-tight tracking-[0.005em]">{database.name}</h1>
+          <h1 className="truncate font-display text-2xl font-semibold leading-tight tracking-[-0.02em]">{database.name}</h1>
           <p className="mt-1.5 text-sm text-muted-foreground">
             {database.provider === "postgresql" ? "Managed" : "Connected"} vector database · {database.status === "REGISTERED" ? "Ready" : "Unavailable"}
           </p>

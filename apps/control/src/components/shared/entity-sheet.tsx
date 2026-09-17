@@ -48,6 +48,7 @@ export function EntitySheet({
   footer,
   onOpenChange,
   open,
+  pending = false,
   title,
   width = "lg",
 }: {
@@ -58,15 +59,18 @@ export function EntitySheet({
   footer: ReactNode;
   onOpenChange: (open: boolean) => void;
   open: boolean;
+  pending?: boolean;
   title: ReactNode;
   width?: keyof typeof widthClasses;
 }) {
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
+    <Sheet open={open} onOpenChange={(next) => { if (!pending) onOpenChange(next); }}>
       <SheetContent
         side="right"
+        closeDisabled={pending}
+        aria-busy={pending}
         className={cn(
-          "gap-0 overflow-hidden bg-background [&>button]:size-11",
+          "gap-0 overflow-hidden bg-card [&>button]:size-11",
           widthClasses[width],
         )}
       >

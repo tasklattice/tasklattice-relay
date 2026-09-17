@@ -5,6 +5,7 @@
   "license": "Apache-2.0",
   "type": "module",
   "scripts": {
+    "dev:ui-review": "vite --config vite.ui-review.config.ts --open /ui-review.html",
     "db:generate": "prisma generate --config prisma.config.ts",
     "db:migrate": "prisma migrate deploy --config prisma.config.ts",
     "db:seed-skills": "node prisma/seed-built-in-skills.mjs",

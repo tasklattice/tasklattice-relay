@@ -20,7 +20,7 @@ export function SectionHeader({
       {...props}
     >
       <div className="min-w-0">
-        <h2 id={titleId} className="text-[17px] font-semibold leading-6 tracking-[-0.01em]">
+        <h2 id={titleId} className="text-lg font-semibold leading-7 tracking-[-0.01em]">
           {title}
         </h2>
         {description ? (

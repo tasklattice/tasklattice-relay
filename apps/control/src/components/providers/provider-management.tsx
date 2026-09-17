@@ -17,6 +17,7 @@ import {
 import { ProviderIcon } from "./provider-icon";
 import { useInferenceManagement } from "./inference-management-context";
 import { DeleteEntitySheet } from "@/components/shared/delete-entity-sheet";
+import { EntitySheet } from "@/components/shared/entity-sheet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -233,6 +234,7 @@ function ProviderActions({
   onRegisterModels: () => void;
 }) {
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [validateOpen, setValidateOpen] = useState(false);
   const { client, key } = useInferenceManagement();
   const queryClient = useQueryClient();
   const invalidate = async () =>
@@ -243,7 +245,7 @@ function ProviderActions({
   const revalidate = useMutation({
     mutationFn: () => client.revalidateProviderAccount(account.id),
     onMutate: () => onError(""),
-    onSuccess: invalidate,
+    onSuccess: async () => { setValidateOpen(false); await invalidate(); },
     onError: (error) => onError(error.message),
   });
   const remove = useMutation({
@@ -281,7 +283,7 @@ function ProviderActions({
           {canValidate ? (
             <DropdownMenuItem
               disabled={revalidate.isPending}
-              onSelect={() => revalidate.mutate()}
+              onSelect={() => { revalidate.reset(); setValidateOpen(true); }}
             >
               <RefreshCw />
               Revalidate Provider
@@ -305,6 +307,12 @@ function ProviderActions({
           ) : null}
         </DropdownMenuContent>
       </DropdownMenu>
+      <EntitySheet open={validateOpen} pending={revalidate.isPending} onOpenChange={setValidateOpen}
+        title="Revalidate Provider" description={<>Validate connectivity and credentials for <strong>{account.name}</strong>. This updates its validation status.</>}
+        width="md" footer={<><Button variant="outline" disabled={revalidate.isPending} onClick={() => setValidateOpen(false)}>Cancel</Button><Button disabled={!canValidate || revalidate.isPending} onClick={() => revalidate.mutate()}>{revalidate.isPending ? "Validating…" : "Revalidate Provider"}</Button></>}>
+        <p className="text-sm text-muted-foreground">The current credentials and endpoint are reused. Review the resulting status before routing traffic to this Provider.</p>
+        {revalidate.error ? <p role="alert" className="mt-4 text-sm text-destructive">{revalidate.error.message}</p> : null}
+      </EntitySheet>
       <DeleteEntitySheet
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
