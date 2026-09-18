@@ -1,7 +1,10 @@
 {{- if .Values.docling.enabled }}
+{{- if and .Values.docling.persistence.enabled (gt (int .Values.docling.replicaCount) 1) (not (has "ReadWriteMany" .Values.docling.persistence.accessModes)) }}
+{{- fail "docling replicas > 1 require ReadWriteMany storage or persistence.enabled=false" }}
+{{- end }}
 {{- $component := "docling" -}}
 {{- $name := include "tali.componentName" (dict "root" . "component" $component) -}}
-{{- if .Values.docling.persistence.enabled }}
+{{- if and .Values.docling.persistence.enabled (not .Values.docling.persistence.existingClaim) }}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -11,7 +14,7 @@ metadata:
   annotations:
     {{- include "tali.resourceAnnotations" (dict "root" . "wave" "foundation") | nindent 4 }}
 spec:
-  accessModes: ["ReadWriteOnce"]
+  accessModes: {{ .Values.docling.persistence.accessModes | toJson }}
   {{- with .Values.docling.persistence.storageClass }}
   storageClassName: {{ . | quote }}
   {{- end }}
@@ -30,6 +33,10 @@ metadata:
     {{- include "tali.resourceAnnotations" (dict "root" . "wave" "platform") | nindent 4 }}
 spec:
   replicas: {{ .Values.docling.replicaCount }}
+  {{- if .Values.docling.persistence.enabled }}
+  strategy:
+    type: Recreate
+  {{- end }}
   selector:
     matchLabels:
       {{- include "tali.selectorLabels" (dict "root" . "component" $component) | nindent 6 }}
@@ -37,19 +44,55 @@ spec:
     metadata:
       labels:
         {{- include "tali.selectorLabels" (dict "root" . "component" $component) | nindent 8 }}
+      annotations:
+        checksum/docling-config: {{ include "tali.doclingConfig" . | sha256sum }}
     spec:
+      serviceAccountName: {{ include "tali.runtimeServiceAccountName" . }}
+      automountServiceAccountToken: false
       {{- with .Values.global.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       securityContext:
         runAsNonRoot: true
+        {{- if not .Values.openshift.enabled }}
+        runAsUser: 1001
+        runAsGroup: 1001
+        {{- end }}
+        fsGroup: 1001
+        fsGroupChangePolicy: OnRootMismatch
         seccompProfile:
           type: RuntimeDefault
+      initContainers:
+        - name: seed-models
+          image: {{ include "tali.image" (dict "root" . "image" .Values.images.docling) }}
+          imagePullPolicy: {{ .Values.images.docling.pullPolicy }}
+          command: ["sh", "-ec"]
+          args:
+            - |
+              marker=/var/lib/docling/models/.seed-{{ include "tali.image" (dict "root" . "image" .Values.images.docling) | sha256sum }}
+              if [ ! -f "$marker" ]; then
+                mkdir -p /var/lib/docling/models/artifacts
+                cp -R /opt/app-root/src/.cache/docling/models/. /var/lib/docling/models/artifacts/
+                touch "$marker"
+              fi
+          volumeMounts:
+            - name: models
+              mountPath: /var/lib/docling/models
+          resources:
+            requests: {cpu: 50m, memory: 64Mi}
+            limits: {cpu: 500m, memory: 256Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
       containers:
         - name: docling
           image: {{ include "tali.image" (dict "root" . "image" .Values.images.docling) }}
           imagePullPolicy: {{ .Values.images.docling.pullPolicy }}
+          command: ["sh", "-ec"]
+          args:
+            - unset DOCLING_SERVE_ARTIFACTS_PATH; exec docling-serve run --no-enable-ui
           ports:
             - name: http
               containerPort: 5001
@@ -64,20 +107,18 @@ spec:
               value: {{ .Values.docling.device | quote }}
             - name: DOCLING_NUM_THREADS
               value: {{ .Values.docling.threads | quote }}
-            - name: DOCLING_SERVE_ENG_KIND
-              value: local
-            - name: DOCLING_SERVE_ENG_LOC_NUM_WORKERS
-              value: "1"
-            - name: DOCLING_SERVE_MAX_FILE_SIZE
-              value: {{ printf "%d" (int64 .Values.docling.maxFileSize) | quote }}
-            - name: DOCLING_SERVE_MAX_NUM_PAGES
-              value: {{ .Values.docling.maxNumPages | quote }}
-            - name: DOCLING_SERVE_MAX_SYNC_WAIT
-              value: {{ .Values.docling.maxSyncWaitSeconds | quote }}
+            - name: DOCLING_SERVE_CONFIG_FILE
+              value: /etc/docling/config.yaml
             - name: HOME
               value: /tmp
             - name: XDG_CACHE_HOME
               value: /var/lib/docling/models/cache
+          startupProbe:
+            httpGet:
+              path: /livez
+              port: http
+            periodSeconds: 10
+            failureThreshold: 180
           readinessProbe:
             httpGet:
               path: /readyz
@@ -100,18 +141,24 @@ spec:
             capabilities:
               drop: ["ALL"]
           volumeMounts:
+            - name: docling-config
+              mountPath: /etc/docling
+              readOnly: true
             - name: tmp
               mountPath: /tmp
             - name: models
               mountPath: /var/lib/docling/models
       volumes:
+        - name: docling-config
+          configMap:
+            name: {{ $name }}-config
         - name: tmp
           emptyDir:
             sizeLimit: 1Gi
         - name: models
           {{- if .Values.docling.persistence.enabled }}
           persistentVolumeClaim:
-            claimName: {{ $name }}-models
+            claimName: {{ default (printf "%s-models" $name) .Values.docling.persistence.existingClaim }}
           {{- else }}
           emptyDir:
             sizeLimit: {{ .Values.docling.persistence.size }}

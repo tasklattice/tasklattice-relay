@@ -1,3 +1,4 @@
+import { OPENSHELL_ROUTABLE_NAME_MAX_LENGTH, PROJECT_RUNTIME_NAMESPACE_PREFIX } from "./project-runtime-identity";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   developmentControlConfig,
@@ -12,8 +13,6 @@ import type { ProjectOpenShellGatewayClient } from "../kubernetes/project-opensh
 import type { ProjectRuntimeBridgeClient } from "../kubernetes/project-runtime-bridge-client";
 import { createTestPrisma } from "../test/prisma";
 import {
-  OPENSHELL_ROUTABLE_NAME_MAX_LENGTH,
-  PROJECT_RUNTIME_NAMESPACE_PREFIX,
   projectRuntimeNamespace,
   ProjectRuntimeTargetService,
 } from "./project-runtime-target-service";

@@ -122,7 +122,13 @@ describe("business API contracts", () => {
       .toMatchObject({
         operationId: "onboardGardenAgent",
         summary: "Onboard an A2A Agent into the Project Agent Garden",
+        responses: { 202: expect.anything() },
       });
+    for (const operationId of ["getDemoAgentCard", "sendDemoAgentMessage", "listRuntimeBridgeAgents", "getRuntimeBridgeAgentCard", "sendRuntimeBridgeAgentMessage", "listRuntimeBridgeVectorDatabases", "searchRuntimeBridgeVectorDatabase", "recallRuntimeMemory"]) {
+      const contract = apiContracts.find((item) => item.operationId === operationId)!;
+      expect(contract.responses, operationId).toHaveProperty("200");
+      expect(contract.responses, operationId).not.toHaveProperty("202");
+    }
     const onboardSchema = document.components.schemas.OnboardAgentInput as {
       oneOf: Array<{
         properties: Record<string, unknown>;

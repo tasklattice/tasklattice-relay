@@ -1,4 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+vi.mock("../jobs/control-job-queue", async (importOriginal) => ({
+  ...await importOriginal<object>(),
+  controlJobQueue: () => ({ start: vi.fn(async () => undefined),
+    enqueueProjectRuntimeReconcile: vi.fn(async () => "00000000-0000-4000-8000-000000000028"),
+    enqueueProjectDeletion: vi.fn(async () => "00000000-0000-4000-8000-000000000027") }),
+}));
+
 import type { UpdateDepartmentSettingsInput } from "@tali/contracts";
 import type { AuthUser, PlatformPrincipal } from "../auth/auth";
 import { ProjectService } from "../projects/project-service";

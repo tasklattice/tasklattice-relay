@@ -261,6 +261,7 @@ export class AgentGardenService {
     readonly secrets: SecretStore = createSecretStore(),
     readonly runtime: ManagedAgentRuntimeClient = createManagedAgentRuntimeClient(),
     readonly expertRuntime: ExpertAgentRuntimeClient = createExpertAgentRuntimeClient(),
+    private readonly operationId?: string,
   ) {}
 
   async snapshot(ownerUserId?: string): Promise<AgentGardenSnapshot> {
@@ -430,7 +431,7 @@ export class AgentGardenService {
       snapshot,
       manifest,
     });
-    const instanceId = randomUUID();
+    const instanceId = this.operationId ?? randomUUID();
     const now = new Date().toISOString();
     const createdBy = {
       id: creator.id,
@@ -471,8 +472,13 @@ export class AgentGardenService {
       const { createdBy: _createdBy, ...stored } = value;
       return JSON.parse(JSON.stringify(stored)) as Prisma.InputJsonValue;
     };
-    await database.agentRecord.create({
-      data: {
+    const existing = await database.agentRecord.findUnique({ where: { projectId_id: { projectId: this.store.projectId, id: instanceId } } });
+    if (existing && (existing.payload as Record<string, unknown>).status === "READY") {
+      return projectAgentRuntimeInstanceSchema.parse({ ...existing.payload as object, createdBy });
+    }
+    await database.agentRecord.upsert({
+      where: { projectId_id: { projectId: this.store.projectId, id: instanceId } }, update: {},
+      create: {
         projectId: this.store.projectId,
         id: instanceId,
         kind: "PROJECT_AGENT",
@@ -559,7 +565,7 @@ export class AgentGardenService {
   ): Promise<AgentGardenEntry> {
     const now = new Date().toISOString();
     const agent = agentGardenEntrySchema.parse({
-      id: resourceId(input.name),
+      id: this.operationId ?? resourceId(input.name),
       name: input.name,
       description: input.description,
       source: "PROJECT_REGISTERED",
@@ -619,7 +625,7 @@ export class AgentGardenService {
     }
     if (existing) return existing;
     return this.store.saveManagedInstance(
-      externalInstance(agent, randomUUID()),
+      externalInstance(agent, this.operationId ?? randomUUID()),
       ownerUserId,
     );
   }
@@ -639,9 +645,9 @@ export class AgentGardenService {
     }
 
     const now = new Date().toISOString();
-    const instanceId = randomUUID();
+    const instanceId = this.operationId ?? randomUUID();
     const agent = agentGardenEntrySchema.parse({
-      id: resourceId(input.name),
+      id: this.operationId ?? resourceId(input.name),
       name: input.name,
       description: input.description,
       source: "PROJECT_REGISTERED",
@@ -781,7 +787,7 @@ export class AgentGardenService {
         const previous = await this.store.getManagedInstanceForAgent(ready.id);
         if (previous || ownerUserId) {
           await this.store.saveManagedInstance(
-            externalInstance(ready, previous?.id ?? randomUUID(), previous),
+            externalInstance(ready, previous?.id ?? this.operationId ?? randomUUID(), previous),
             previous ? undefined : ownerUserId,
           );
         }
@@ -822,7 +828,12 @@ export class AgentGardenService {
   }
 
   async remove(id: string): Promise<boolean> {
-    const agent = await this.requireProjectRegisteredAgent(id);
+    const agent = await this.store.getAgent(id);
+    // A durable job may replay after deletion committed but before its result did.
+    if (!agent) return false;
+    if (agent.source !== "PROJECT_REGISTERED") {
+      throw new Error("Built-in Agents are managed by TaskLattice Relay.");
+    }
     if (agent.configuration.onboardingSource === CONTAINER_IMAGE_SOURCE) {
       const target = await this.requireRuntimeTarget();
       const instance = await this.store.getManagedInstanceForAgent(agent.id);
@@ -917,7 +928,7 @@ export class AgentGardenService {
   ): Promise<A2aAgentInstance> {
     const input = containerInputFromAgent(agent);
     const target = await this.requireRuntimeTarget();
-    const instanceId = previous?.id ?? randomUUID();
+    const instanceId = previous?.id ?? this.operationId ?? randomUUID();
     let instance = managedInstance(
       agent,
       input,

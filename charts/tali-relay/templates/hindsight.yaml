@@ -71,14 +71,12 @@ spec:
         - name: api
           image: {{ include "tali.image" (dict "root" . "image" .Values.images.hindsight) }}
           imagePullPolicy: {{ .Values.images.hindsight.pullPolicy }}
+          command: ["python", "/etc/hindsight-launcher/entrypoint.py", "api"]
           env:
-            {{- include "tali.hindsightCommonEnv" . | nindent 12 }}
-            - name: HINDSIGHT_API_PORT
-              value: {{ .Values.hindsight.service.port | quote }}
-            - name: HINDSIGHT_API_WORKER_ENABLED
-              value: {{ not .Values.hindsight.worker.enabled | quote }}
             - name: HINDSIGHT_API_WORKER_ID
-              value: {{ $apiName | quote }}
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
           ports:
             - name: http
               containerPort: {{ .Values.hindsight.service.port }}
@@ -109,8 +107,23 @@ spec:
           volumeMounts:
             - name: tmp
               mountPath: /tmp
+            - name: hindsight-config
+              mountPath: /etc/hindsight
+              readOnly: true
+            - name: hindsight-launcher
+              mountPath: /etc/hindsight-launcher
+              readOnly: true
         {{- include "tali.hindsightRouterContainer" (dict "root" . "hindsightPort" .Values.hindsight.service.port) | nindent 8 }}
       volumes:
+        - name: hindsight-config
+          secret:
+            secretName: {{ include "tali.secretName" (dict "root" . "component" "hindsight") }}
+            items:
+              - key: hindsight-config.json
+                path: config.json
+        - name: hindsight-launcher
+          configMap:
+            name: {{ include "tali.componentName" (dict "root" . "component" "hindsight-launcher") }}
         - name: tmp
           emptyDir:
             sizeLimit: 256Mi
@@ -188,17 +201,12 @@ spec:
         - name: worker
           image: {{ include "tali.image" (dict "root" . "image" .Values.images.hindsight) }}
           imagePullPolicy: {{ .Values.images.hindsight.pullPolicy }}
-          command: ["hindsight-worker"]
+          command: ["python", "/etc/hindsight-launcher/entrypoint.py", "worker"]
           env:
-            {{- include "tali.hindsightCommonEnv" . | nindent 12 }}
             - name: HINDSIGHT_API_WORKER_ID
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
-            - name: HINDSIGHT_API_WORKER_HTTP_PORT
-              value: {{ .Values.hindsight.worker.service.port | quote }}
-            - name: HINDSIGHT_API_DB_MAX_PARALLEL_WORKERS_PER_GATHER
-              value: "0"
           ports:
             - name: metrics
               containerPort: {{ .Values.hindsight.worker.service.port }}
@@ -229,8 +237,23 @@ spec:
           volumeMounts:
             - name: tmp
               mountPath: /tmp
+            - name: hindsight-config
+              mountPath: /etc/hindsight
+              readOnly: true
+            - name: hindsight-launcher
+              mountPath: /etc/hindsight-launcher
+              readOnly: true
         {{- include "tali.hindsightRouterContainer" (dict "root" . "hindsightPort" .Values.hindsight.worker.service.port) | nindent 8 }}
       volumes:
+        - name: hindsight-config
+          secret:
+            secretName: {{ include "tali.secretName" (dict "root" . "component" "hindsight") }}
+            items:
+              - key: hindsight-config.json
+                path: config.json
+        - name: hindsight-launcher
+          configMap:
+            name: {{ include "tali.componentName" (dict "root" . "component" "hindsight-launcher") }}
         - name: tmp
           emptyDir:
             sizeLimit: 256Mi

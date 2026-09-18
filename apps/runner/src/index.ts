@@ -1,3 +1,4 @@
+import { getRunnerConfig } from "./runner-config.js";
 import express from "express";
 import {
   agentPlatformIds,
@@ -58,16 +59,16 @@ type SandboxState = RunnerSandbox;
 const app = express();
 const server = createServer(app);
 const sockets = new WebSocketServer({ noServer: true });
-const port = Number(process.env.PORT ?? 9090);
-const host = process.env.HOST ?? "127.0.0.1";
-const token = process.env.NEMOCLAW_RUNNER_TOKEN ?? "local-dev-token";
-const mode = process.env.NEMOCLAW_RUNNER_MODE ?? "nemoclaw";
+const port = getRunnerConfig().server.port;
+const host = getRunnerConfig().server.host;
+const token = getRunnerConfig().server.token ?? "local-dev-token";
+const mode = getRunnerConfig().server.mode ?? "nemoclaw";
 const isOpenShell = mode === "openshell-kubernetes";
 const states = new Map<string, SandboxState>();
 const activeProvisions = new Set<string>();
 const provisionTasks = new Map<string, Promise<void>>();
 const shutdownTimeoutMs = Number(
-  process.env.NEMOCLAW_RUNNER_SHUTDOWN_TIMEOUT_MS ?? "540000",
+  getRunnerConfig().server.shutdownTimeoutMs ?? "540000",
 );
 let shuttingDown = false;
 const agentPlatformSchema = z.enum(agentPlatformIds);
@@ -321,8 +322,8 @@ app.get("/health", (_request, response) => response.json({
     ? {
         sandbox: {
           provider: "openshell",
-          cpu: process.env.OPENSHELL_SANDBOX_CPU ?? "1",
-          memory: process.env.OPENSHELL_SANDBOX_MEMORY ?? "2Gi",
+          cpu: getRunnerConfig().openshell.sandbox.cpu ?? "1",
+          memory: getRunnerConfig().openshell.sandbox.memory ?? "2Gi",
           ...(projectTargetRoutingEnabled()
             ? {
                 gatewayEndpoint: "project-runtime-target",
@@ -336,24 +337,6 @@ app.get("/health", (_request, response) => response.json({
           kubernetesServiceCidrs: openShellKubernetesServiceCidrs(),
           projectTargetRouting: projectTargetRoutingEnabled(),
           projectServiceProxy: projectServiceProxyEnabled(),
-          ...(process.env.OPENSHELL_GATEWAY_IMAGE
-            ? { gatewayImage: process.env.OPENSHELL_GATEWAY_IMAGE }
-            : {}),
-          ...(process.env.OPENSHELL_SUPERVISOR_IMAGE
-            ? { supervisorImage: process.env.OPENSHELL_SUPERVISOR_IMAGE }
-            : {}),
-          ...(process.env.OPENSHELL_DEFAULT_SANDBOX_IMAGE
-            ? { defaultImage: process.env.OPENSHELL_DEFAULT_SANDBOX_IMAGE }
-            : {}),
-          ...(process.env.OPENSHELL_DEFAULT_SANDBOX_IMAGE_PULL_POLICY
-            ? {
-                defaultImagePullPolicy:
-                  process.env.OPENSHELL_DEFAULT_SANDBOX_IMAGE_PULL_POLICY,
-              }
-            : {}),
-          ...(process.env.OPENSHELL_TLS_DISABLED
-            ? { tlsDisabled: process.env.OPENSHELL_TLS_DISABLED === "true" }
-            : {}),
         },
       }
     : {}),

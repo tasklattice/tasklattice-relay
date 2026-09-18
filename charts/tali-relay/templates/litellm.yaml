@@ -21,8 +21,8 @@ spec:
         {{- include "tali.selectorLabels" (dict "root" . "component" $component) | nindent 8 }}
       annotations:
         checksum/litellm-secret: {{ include "tali.litellmSecretChecksum" . }}
-        {{- if .Values.litellm.caCertificate }}
-        checksum/litellm-ca: {{ .Values.litellm.caCertificate | sha256sum }}
+        {{- if .Values.litellm.caCertificateBase64 }}
+        checksum/litellm-ca: {{ .Values.litellm.caCertificateBase64 | sha256sum }}
         {{- end }}
         {{- with .Values.global.rolloutRevision }}
         tali.ai/rollout-revision: {{ . | quote }}
@@ -38,21 +38,46 @@ spec:
         runAsNonRoot: true
         runAsUser: 65532
         runAsGroup: 65532
+        fsGroup: 65532
         seccompProfile:
           type: RuntimeDefault
       initContainers:
-        - name: wait-for-postgresql
-          image: {{ include "tali.image" (dict "root" . "image" .Values.images.postgres) }}
-          imagePullPolicy: {{ .Values.images.postgres.pullPolicy }}
-          command: ["sh", "-ec"]
+        {{- if .Values.litellm.caCertificateBase64 }}
+        - name: build-ca-bundle
+          image: {{ include "tali.image" (dict "root" . "image" .Values.images.litellm) }}
+          imagePullPolicy: {{ .Values.images.litellm.pullPolicy }}
+          command: ["python", "-c"]
           args:
-            - >-
-              until pg_isready
-              --host {{ include "tali.componentName" (dict "root" . "component" "postgresql") }}
-              --port 5432
-              --username litellm
-              --dbname litellm;
-              do sleep 2; done
+            - |
+{{ .Files.Get "files/build-ca-bundle.py" | indent 14 }}
+          volumeMounts:
+            - name: litellm-ca
+              mountPath: /etc/tali-ca
+              readOnly: true
+            - name: litellm-ca-bundle
+              mountPath: /var/run/tali-ca
+          resources:
+            requests: {cpu: 10m, memory: 32Mi}
+            limits: {cpu: 100m, memory: 128Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+        {{- end }}
+        - name: wait-for-postgresql
+          image: {{ include "tali.image" (dict "root" . "image" .Values.images.litellm) }}
+          imagePullPolicy: {{ .Values.images.litellm.pullPolicy }}
+          command: ["python", "-c"]
+          args:
+            - |
+{{ .Files.Get "files/wait-postgresql.py" | indent 14 }}
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tali.secretName" (dict "root" . "component" "litellm") }}
+                  key: database-url
           resources:
             requests:
               cpu: 5m
@@ -73,6 +98,14 @@ spec:
             - name: http
               containerPort: 4000
           env:
+            {{- if .Values.litellm.caCertificateBase64 }}
+            - name: SSL_CERT_FILE
+              value: /var/run/tali-ca/ca-bundle.pem
+            - name: REQUESTS_CA_BUNDLE
+              value: /var/run/tali-ca/ca-bundle.pem
+            - name: CURL_CA_BUNDLE
+              value: /var/run/tali-ca/ca-bundle.pem
+            {{- end }}
             - name: LITELLM_MIGRATION_DIR
               value: /tmp/litellm-migrations
             - name: STORE_MODEL_IN_DB
@@ -84,27 +117,27 @@ spec:
             - name: LITELLM_MASTER_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "tali.secretName" . }}
+                  name: {{ include "tali.secretName" (dict "root" . "component" "litellm") }}
                   key: litellm-master-key
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "tali.secretName" . }}
+                  name: {{ include "tali.secretName" (dict "root" . "component" "litellm") }}
                   key: database-url
             - name: UI_USERNAME
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "tali.secretName" . }}
+                  name: {{ include "tali.secretName" (dict "root" . "component" "litellm") }}
                   key: litellm-ui-username
             - name: UI_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "tali.secretName" . }}
+                  name: {{ include "tali.secretName" (dict "root" . "component" "litellm") }}
                   key: litellm-ui-password
             - name: LITELLM_SALT_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "tali.secretName" . }}
+                  name: {{ include "tali.secretName" (dict "root" . "component" "litellm") }}
                   key: litellm-salt-key
             - name: DOCS_URL
               value: /docs
@@ -118,9 +151,9 @@ spec:
               mountPath: /etc/litellm/config.yaml
               subPath: config.yaml
               readOnly: true
-            {{- if .Values.litellm.caCertificate }}
-            - name: litellm-ca
-              mountPath: /etc/ssl/certs
+            {{- if .Values.litellm.caCertificateBase64 }}
+            - name: litellm-ca-bundle
+              mountPath: /var/run/tali-ca
               readOnly: true
             {{- end }}
           startupProbe:
@@ -150,11 +183,14 @@ spec:
       volumes:
         - name: litellm-config
           secret:
-            secretName: {{ include "tali.secretName" . }}
+            secretName: {{ include "tali.secretName" (dict "root" . "component" "litellm") }}
             items:
               - key: litellm-config.yaml
                 path: config.yaml
-        {{- if .Values.litellm.caCertificate }}
+        {{- if .Values.litellm.caCertificateBase64 }}
+        - name: litellm-ca-bundle
+          emptyDir:
+            sizeLimit: 8Mi
         - name: litellm-ca
           secret:
             secretName: {{ include "tali.componentName" (dict "root" . "component" "litellm-ca") }}

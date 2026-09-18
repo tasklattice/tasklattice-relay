@@ -1,0 +1,25 @@
+# Worker reads this in addition to TALI_CONFIG; never mount it in Control.
+# Production must set TALI_WORKER_CONFIG. Helm fills the enabled provisioners.
+[worker]
+healthPort = 9090
+role = "tali-control-worker"
+
+[worker.docling]
+enabled = true
+baseUrl = "http://127.0.0.1:5001"
+apiKey = ""
+
+[worker.project_openshell]
+enabled = false
+
+[worker.project_runtime_bridge]
+enabled = false
+
+[worker.expert_agent_runtime]
+enabled = false
+
+[worker.resource_ownership]
+enabled = false
+
+[worker.provisioning]
+timeoutMs = 600000

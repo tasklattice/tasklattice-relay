@@ -1,3 +1,4 @@
+import { getControlConfig } from "../config/control-config";
 import { randomUUID } from "node:crypto";
 import type { AgentGardenEntry } from "@tali/contracts";
 import { runLangGraphSupportDemo } from "@tali/expert-agent-runtime/library";
@@ -6,8 +7,7 @@ import { exampleStoreAgentDefinitions } from "./example-store-agent-definitions"
 
 export function demoServiceOrigin(): string {
   return (
-    process.env.TALI_BOOTSTRAP_INTERNAL_URL?.trim()
-    || process.env.TALI_CONTROL_INTERNAL_URL?.trim()
+    getControlConfig().server.internal_url
     || `http://127.0.0.1:${process.env.PORT?.trim() || "38080"}`
   ).replace(/\/$/, "");
 }
@@ -212,7 +212,7 @@ export const hermesMvpA2aAgentIds = [
 ] as const;
 
 export function demoTestImageReference(): string {
-  return process.env.TALI_DEMO_TEST_IMAGE?.trim()
+  return getControlConfig().demo.image
     || "ghcr.io/tasklattice/demo-test:dev";
 }
 

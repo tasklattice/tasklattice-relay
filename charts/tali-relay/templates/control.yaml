@@ -117,63 +117,8 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.namespace
-            - name: TALI_BOOTSTRAP_INTERNAL_URL
-              value: {{ printf "http://%s.%s.svc.cluster.local:%v" $name .Release.Namespace .Values.control.service.port | quote }}
-            - name: TALI_DEMO_TEST_IMAGE
-              value: {{ include "tali.image" (dict "root" . "image" .Values.images.exampleMcp) | quote }}
-            - name: TALI_BOOTSTRAP_RUNNER_URL
-              value: {{ printf "http://%s:9090" (include "tali.componentName" (dict "root" . "component" "runner")) | quote }}
-            - name: TALI_BOOTSTRAP_RUNNER_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "tali.secretName" . }}
-                  key: runner-token
-            - name: TALI_BOOTSTRAP_LITELLM_URL
-              value: {{ printf "http://%s.%s.svc.cluster.local:4000" (include "tali.componentName" (dict "root" . "component" "litellm")) .Release.Namespace | quote }}
-            - name: TALI_BOOTSTRAP_LITELLM_MASTER_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "tali.secretName" . }}
-                  key: litellm-master-key
-            - name: TALI_METRICS_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "tali.secretName" . }}
-                  key: metrics-token
-            - name: TALI_DURABLE_MEMORY_ENABLED
-              value: {{ .Values.features.durableMemory.enabled | quote }}
-            {{- if .Values.features.durableMemory.projectAllowlist }}
-            - name: TALI_DURABLE_MEMORY_PROJECTS
-              value: {{ join "," .Values.features.durableMemory.projectAllowlist | quote }}
-            {{- end }}
-            {{- if .Values.hindsight.enabled }}
-            - name: TALI_HINDSIGHT_URL
-              value: {{ include "tali.hindsightUrl" . | quote }}
-            - name: MEMORY_RUNTIME_RECALL_TIMEOUT_MS
-              value: {{ .Values.hindsight.runtimeRecallTimeoutMs | quote }}
-            - name: TALI_HINDSIGHT_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "tali.secretName" . }}
-                  key: hindsight-api-key
-            - name: TALI_HINDSIGHT_ROUTER_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "tali.secretName" . }}
-                  key: hindsight-router-token
-            - name: TALI_HINDSIGHT_EMBEDDING_DIMENSIONS
-              value: {{ .Values.hindsight.models.embeddingDimensions | quote }}
-            {{- end }}
-            - name: TALI_BOOTSTRAP_RUNTIME_NAMESPACES_ENABLED
-              value: {{ .Values.projectRuntimeNamespaces.enabled | quote }}
-            - name: TALI_BOOTSTRAP_RUNTIME_CLUSTER_ID
-              value: {{ .Values.projectRuntimeNamespaces.clusterId | quote }}
             - name: NODE_EXTRA_CA_CERTS
               value: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
-            {{- include "tali.projectOpenShellReconcilerEnv" . | nindent 12 }}
-            {{- with .Values.control.extraEnv }}
-            {{- toYaml . | nindent 12 }}
-            {{- end }}
           readinessProbe:
             httpGet:
               path: /api/health
@@ -205,7 +150,7 @@ spec:
             sizeLimit: 32Mi
         - name: control-config
           secret:
-            secretName: {{ include "tali.secretName" . }}
+            secretName: {{ include "tali.secretName" (dict "root" . "component" "control") }}
             items:
               - key: control.toml
                 path: control.toml

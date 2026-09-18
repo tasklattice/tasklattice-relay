@@ -1,3 +1,4 @@
+import { getControlConfig, setControlConfigForTests } from "../config/control-config";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { MemoryFact } from "@tali/contracts";
 import type { PrismaClient } from "../generated/prisma/client";
@@ -81,7 +82,7 @@ const fact: MemoryFact = {
 };
 
 afterEach(async () => {
-  delete process.env.MEMORY_RUNTIME_RECALL_TIMEOUT_MS;
+  setControlConfigForTests(undefined);
   vi.restoreAllMocks();
   await Promise.all(databases.splice(0).map((database) => database.$disconnect()));
 });
@@ -198,7 +199,7 @@ describe("ProjectMemoryRuntimeService", () => {
   });
 
   it("fails open within the recall budget and marks the Memory degraded", async () => {
-    process.env.MEMORY_RUNTIME_RECALL_TIMEOUT_MS = "100";
+    getControlConfig().memory.recallTimeoutMs = 100;
     const { identity, provider, repository, runtime } = await fixture();
     vi.spyOn(provider, "recall").mockImplementation(async () => (
       await new Promise(() => undefined)

@@ -1,3 +1,4 @@
+import { ResourceOperationService } from "../../../../../../../../projects/resource-operation-service";
 import { defineHandler } from "nitro";
 import {
   requireAuth,
@@ -14,21 +15,18 @@ import {
 } from "../../../../../../../../services";
 
 export default defineHandler(async (event) => {
+  let actorId: string;
   try {
-    await requireAuth(event.req);
+    actorId = (await requireAuth(event.req)).user.id;
   } catch (error) {
     return unauthorizedResponse(error);
   }
   try {
     await requireProjectRole(event.req, ["admin"]);
     const id = decodeURIComponent(event.context.params?.id ?? "");
-    const removed = await (
-      await getAgentGardenService(event.req)
-    ).remove(id);
-    if (!removed) {
-      return problemResponse(404, "Registered Agent was not found.");
-    }
-    return jsonResponse({ message: "Registered Agent removed." });
+    const service = await getAgentGardenService(event.req);
+    const accepted = await new ResourceOperationService().enqueue(service.store.projectId, actorId, "remove", { id });
+    return jsonResponse(accepted, { status: 202, headers: { location: accepted.statusUrl } });
   } catch (error) {
     return errorResponse(error);
   }

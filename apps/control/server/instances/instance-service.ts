@@ -1,3 +1,4 @@
+import { getWorkerConfig } from "../config/worker-config";
 import { createHash, randomUUID } from "node:crypto";
 import { reconcileSandboxOwnership } from "../kubernetes/project-resource-ownership";
 import {
@@ -167,9 +168,6 @@ export class InstanceService {
   }
 
   async runnerRuntimeTarget(): Promise<RunnerRuntimeTarget | undefined> {
-    if (process.env.PROJECT_OPENSHELL_TARGET_ROUTING_ENABLED !== "true") {
-      return undefined;
-    }
     const runtime = await loadPlatformRuntimeConfiguration(
       this.store.database(),
     );
@@ -1017,7 +1015,7 @@ export class InstanceService {
         input.agentPlatform === "hermes"
         || (input.agentPlatform === "openclaw" && Boolean(durableMemoryId))
       )
-      && process.env.PROJECT_RUNTIME_BRIDGES_ENABLED === "true"
+      && getWorkerConfig().project_runtime_bridge.enabled
         ? signProjectRuntimeCoordinatorToken(
             {
               coordinatorInstanceId: input.instanceId,
@@ -1061,9 +1059,7 @@ export class InstanceService {
   }
 
   private async waitForRunnerProvisioning(agent: Agent): Promise<RunnerSandbox> {
-    const timeoutMs = Number(
-      process.env.INSTANCE_PROVISION_TIMEOUT_MS ?? "600000",
-    );
+    const timeoutMs = getWorkerConfig().provisioning.timeoutMs;
     const deadline = Date.now() + timeoutMs;
     let observed: RunnerSandbox = {
       name: agent.sandboxName,

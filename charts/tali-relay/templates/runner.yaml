@@ -53,58 +53,8 @@ spec:
               containerPort: {{ .Values.runner.projectTargetRouting.serviceProxy.port }}
             {{- end }}
           env:
-            - name: NEMOCLAW_RUNNER_MODE
-              value: openshell-kubernetes
-            - name: NEMOCLAW_RUNNER_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "tali.secretName" . }}
-                  key: runner-token
-            - name: OPENSHELL_GATEWAY_IMAGE
-              value: {{ printf "%s:%s" .Values.openshell.image.repository .Values.openshell.image.tag | quote }}
-            - name: OPENSHELL_SUPERVISOR_IMAGE
-              value: {{ printf "%s:%s" .Values.openshell.supervisor.image.repository .Values.openshell.supervisor.image.tag | quote }}
-            - name: OPENSHELL_DEFAULT_SANDBOX_IMAGE
-              value: {{ .Values.openshell.server.sandboxImage | quote }}
-            - name: OPENSHELL_DEFAULT_SANDBOX_IMAGE_PULL_POLICY
-              value: {{ .Values.openshell.server.sandboxImagePullPolicy | quote }}
-            - name: OPENSHELL_TLS_DISABLED
-              value: {{ .Values.openshell.server.disableTls | quote }}
-            - name: OPENSHELL_PROJECT_TARGET_ROUTING
-              value: {{ .Values.runner.projectTargetRouting.enabled | quote }}
-            - name: OPENSHELL_GATEWAY_ENDPOINT_TEMPLATE
-              value: {{ .Values.runner.projectTargetRouting.gatewayEndpointTemplate | quote }}
-            - name: OPENSHELL_PROJECT_GATEWAY_SERVICE_NAME_PREFIX
-              value: {{ .Values.projectOpenShell.serviceNamePrefix | quote }}
-            - name: OPENSHELL_PROJECT_SERVICE_PROXY_ENABLED
-              value: {{ and .Values.runner.projectTargetRouting.enabled .Values.runner.projectTargetRouting.serviceProxy.enabled | quote }}
-            - name: OPENSHELL_SERVICE_PROXY_PORT
-              value: {{ .Values.runner.projectTargetRouting.serviceProxy.port | quote }}
-            - name: NEMOCLAW_VERSION
-              value: {{ .Values.projectOpenShell.nemoclawVersion | quote }}
-            - name: OPENSHELL_SERVICE_BASE_URL
-              value: {{ .Values.runner.serviceBaseUrl | quote }}
-            - name: OPENSHELL_SANDBOX_IMAGE
-              value: {{ include "tali.image" (dict "root" . "image" .Values.images.openclawSandbox) | quote }}
-            - name: OPENSHELL_HERMES_SANDBOX_IMAGE
-              value: {{ include "tali.image" (dict "root" . "image" .Values.images.hermesSandbox) | quote }}
-            - name: OPENSHELL_DEEPAGENTS_SANDBOX_IMAGE
-              value: {{ include "tali.image" (dict "root" . "image" .Values.images.deepagentsSandbox) | quote }}
-            - name: OPENSHELL_KUBERNETES_SERVICE_CIDRS
-              value: {{ .Values.runner.kubernetesServiceCidrs | quote }}
-            - name: OPENSHELL_SANDBOX_CPU
-              value: {{ .Values.runner.sandbox.cpu | quote }}
-            {{- with .Values.runner.sandbox.cpuRequest }}
-            - name: OPENSHELL_SANDBOX_CPU_REQUEST
-              value: {{ . | quote }}
-            {{- end }}
-            - name: OPENSHELL_SANDBOX_MEMORY
-              value: {{ .Values.runner.sandbox.memory | quote }}
-            - name: NEMOCLAW_RUNNER_SHUTDOWN_TIMEOUT_MS
-              value: "540000"
-            {{- with .Values.runner.extraEnv }}
-            {{- toYaml . | nindent 12 }}
-            {{- end }}
+            - name: TALI_RUNNER_CONFIG
+              value: /etc/tali-runner/runner.json
           readinessProbe:
             httpGet:
               path: /health
@@ -125,11 +75,20 @@ spec:
             capabilities:
               drop: ["ALL"]
           volumeMounts:
+            - name: runner-config
+              mountPath: /etc/tali-runner
+              readOnly: true
             - name: tmp
               mountPath: /tmp
             - name: home
               mountPath: /home/node
       volumes:
+        - name: runner-config
+          secret:
+            secretName: {{ include "tali.secretName" (dict "root" . "component" "runner") }}
+            items:
+              - key: runner.json
+                path: runner.json
         - name: tmp
           emptyDir:
             sizeLimit: 64Mi

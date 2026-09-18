@@ -1,3 +1,4 @@
+import { runResourceOperation } from "./resource-operation-task";
 import { z } from "zod";
 import { ProviderRegistrationCleanup } from "../providers/provider-registration-cleanup";
 import { prisma } from "../db/prisma";
@@ -182,6 +183,10 @@ export class ControlWorkerTasks {
         reason,
       });
     } catch (error) {
+      await this.db.projectRuntimeTarget.updateMany({
+        where: { projectId, status: { in: ["pending", "retry"] }, leaseOwner: null },
+        data: { status: job.retryCount >= job.retryLimit ? "failed" : "retry", lastError: safeError(error) },
+      });
       this.logJob("error", "job.retry", job, {
         durationMs: Date.now() - startedAt,
         projectId,
@@ -468,6 +473,9 @@ export class ControlWorkerTasks {
   register(): Promise<string[]> {
     const { boss } = this.dependencies.jobs;
     return Promise.all([
+      boss.work<{ projectId: string; operationId: string }>(CONTROL_JOB_QUEUES.resourceOperation,
+        { groupConcurrency: 1, includeMetadata: true, localConcurrency: 2, pollingIntervalSeconds: 2 },
+        async ([job]) => runResourceOperation(this.db, job! as ControlJobMetadata<{ projectId: string; operationId: string }>)),
       boss.work<InstanceLifecycleJobPayload>(
         CONTROL_JOB_QUEUES.instanceLifecycle,
         {

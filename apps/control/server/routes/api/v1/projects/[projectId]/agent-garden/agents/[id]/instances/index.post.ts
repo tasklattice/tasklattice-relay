@@ -1,3 +1,4 @@
+import { ResourceOperationService } from "../../../../../../../../../projects/resource-operation-service";
 import { defineHandler } from "nitro";
 import { z } from "zod";
 import {
@@ -25,18 +26,9 @@ export default defineHandler(async (event) => {
     const id = decodeURIComponent(event.context.params?.id ?? "");
     const input = z.object({ versionId: z.string().uuid().optional() }).strict()
       .parse(await event.req.json());
-    const instance = await (
-      await getAgentGardenService(event.req)
-    ).instantiate(id, actorId, input.versionId);
-    return jsonResponse(instance, {
-      status: 201,
-      headers: {
-        location:
-          `/api/v1/projects/${encodeURIComponent(
-            event.context.params?.projectId ?? "",
-          )}/instances/${encodeURIComponent(instance.id)}`,
-      },
-    });
+    const service = await getAgentGardenService(event.req);
+    const accepted = await new ResourceOperationService().enqueue(service.store.projectId, actorId, "instantiate", { id, versionId: input.versionId });
+    return jsonResponse(accepted, { status: 202, headers: { location: accepted.statusUrl } });
   } catch (error) {
     return errorResponse(error);
   }

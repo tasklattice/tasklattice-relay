@@ -141,12 +141,12 @@ export function projectScopedPath(path: string, projectId: string | null): strin
   return `/api/v1/projects/${encodeURIComponent(projectId)}/${suffix}${url.search}${url.hash}`;
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+async function request<T>(path: string, init?: RequestInit, preserveProject = false): Promise<T> {
   const projectId =
     typeof window === "undefined"
       ? null
       : projectIdFromPathname(window.location.pathname);
-  const response = await fetch(projectScopedPath(path, projectId), {
+  const response = await fetch(preserveProject ? path : projectScopedPath(path, projectId), {
     ...init,
     headers: {
       ...(typeof FormData !== "undefined" && init?.body instanceof FormData
@@ -168,6 +168,19 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
         : `Request failed (${response.status})`,
       response.status,
     );
+  if (response.status === 202 && payload && typeof payload === "object"
+    && "kind" in payload && payload.kind === "resource-operation") {
+    const accepted = payload as { statusUrl?: string };
+    if (!accepted.statusUrl?.startsWith("/api/v1/projects/")) throw new Error("Missing resource operation status URL.");
+    const deadline = Date.now() + 30 * 60 * 1000;
+    while (Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      const operation = await request<{ status: string; result: T; lastError: string | null }>(accepted.statusUrl, undefined, true);
+      if (operation.status === "completed") return operation.result;
+      if (["failed", "cancelled"].includes(operation.status)) throw new Error(operation.lastError ?? "Resource operation was cancelled.");
+    }
+    throw new Error("Resource setup is still running in the background. Refresh the Project to check its state.");
+  }
   return payload as T;
 }
 

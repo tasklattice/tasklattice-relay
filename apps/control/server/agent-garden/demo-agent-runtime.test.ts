@@ -1,3 +1,5 @@
+import { getControlConfig, setControlConfigForTests } from "../config/control-config";
+import { afterEach } from "vitest";
 import { describe, expect, it, vi } from "vitest";
 import {
   demoAgentCard,
@@ -10,10 +12,7 @@ import { databaseAgentCatalog } from "./database-agent-catalog";
 
 describe("demo Agent runtime", () => {
   it("uses the deployed Control Service origin for callable examples", () => {
-    vi.stubEnv(
-      "TALI_BOOTSTRAP_INTERNAL_URL",
-      "http://tali-relay-control.tali.svc.cluster.local:38080/",
-    );
+    getControlConfig().server.internal_url = "http://tali-relay-control.tali.svc.cluster.local:38080/";
     expect(demoAgentEndpoint("a2a-github-daily-triage")).toBe(
       "http://tali-relay-control.tali.svc.cluster.local:38080/api/v1/demo-agents/a2a-github-daily-triage",
     );
@@ -146,3 +145,5 @@ describe("demo Agent runtime", () => {
     );
   });
 });
+
+afterEach(() => setControlConfigForTests(undefined));

@@ -1,3 +1,4 @@
+import { getRunnerConfig } from "./runner-config.js";
 import {
   projectRuntimeNamespaceSchema,
   runnerRuntimeTargetSchema,
@@ -9,7 +10,7 @@ export { runnerRuntimeTargetSchema };
 export type { RunnerRuntimeTarget };
 
 export function projectTargetRoutingEnabled(): boolean {
-  return process.env.OPENSHELL_PROJECT_TARGET_ROUTING === "true";
+  return getRunnerConfig().openshell.projectTargetRouting;
 }
 
 export function resolveOpenShellTarget(
@@ -23,7 +24,7 @@ export function resolveOpenShellTarget(
   }
   const namespace = projectRuntimeNamespaceSchema.parse(input.namespace);
   const endpointTemplate =
-    process.env.OPENSHELL_GATEWAY_ENDPOINT_TEMPLATE?.trim()
+    getRunnerConfig().openshell.gatewayEndpointTemplate?.trim()
     ?? "http://openshell-{namespace}.{namespace}.svc.cluster.local:8080";
   const gatewayEndpoint = endpointTemplate.replaceAll("{namespace}", namespace);
   const gatewayUrl = new URL(gatewayEndpoint);
@@ -38,7 +39,7 @@ export function resolveOpenShellTarget(
     || gatewayUrl.hash
   ) {
     throw new Error(
-      "OPENSHELL_GATEWAY_ENDPOINT_TEMPLATE must resolve to a trusted Kubernetes Service URL.",
+      "openshell.gatewayEndpointTemplate must resolve to a trusted Kubernetes Service URL.",
     );
   }
   return {
@@ -48,7 +49,7 @@ export function resolveOpenShellTarget(
     // deterministic, database-free route to the correct Project Gateway.
     workspace: namespace,
     serviceBaseUrl:
-      process.env.OPENSHELL_SERVICE_BASE_URL ?? "http://openshell.localhost:8080",
+      getRunnerConfig().openshell.serviceBaseUrl ?? "http://openshell.localhost:8080",
   };
 }
 

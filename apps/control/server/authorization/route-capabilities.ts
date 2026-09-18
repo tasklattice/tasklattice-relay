@@ -135,6 +135,13 @@ export function projectRouteAdmissionPolicy(
         ? policy("PROJECT", [requirement("CAP_PROJECT_QUOTA_UPDATE", "ProjectQuota")])
         : undefined;
   }
+  if (tail[0] === "resource-operations" && tail.length === 2 && method === "GET") {
+    return policy("PROJECT", [requirement("CAP_PROJECT_VIEW", "Project")]); // Handler also checks operation ownership.
+  }
+  if (tail[0] === "initialization") {
+    if (tail.length === 1 && method === "GET") return policy("PROJECT", [requirement("CAP_PROJECT_VIEW", "Project")]);
+    if (tail.length === 2 && tail[1] === "retry" && method === "POST") return policy("PROJECT", [requirement("CAP_RUNTIME_OPERATION_RECONCILE", "Project")]);
+  }
   if (tail[0] === "runtime" && tail.length === 1 && method === "GET") {
     return policy("PROJECT", [requirement("CAP_RUNTIME_OPERATION_VIEW", "Runtime")]);
   }

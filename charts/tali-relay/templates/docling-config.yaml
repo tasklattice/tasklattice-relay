@@ -1,0 +1,13 @@
+{{- if .Values.docling.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "tali.componentName" (dict "root" . "component" "docling") }}-config
+  labels:
+    {{- include "tali.componentLabels" (dict "root" . "component" "docling") | nindent 4 }}
+  annotations:
+    {{- include "tali.resourceAnnotations" (dict "root" . "wave" "foundation") | nindent 4 }}
+data:
+  config.yaml: |
+{{ include "tali.doclingConfig" . | indent 4 }}
+{{- end }}

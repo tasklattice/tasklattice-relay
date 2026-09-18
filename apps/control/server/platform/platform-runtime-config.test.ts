@@ -1,8 +1,5 @@
+import { developmentControlConfig, getControlConfig, setControlConfigForTests } from "../config/control-config";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  developmentControlConfig,
-  setControlConfigForTests,
-} from "../config/control-config";
 import { createTestPrisma } from "../test/prisma";
 import {
   ensurePlatformRuntimeSettings,
@@ -12,13 +9,13 @@ import {
 describe("Platform runtime configuration", () => {
   beforeEach(() => {
     setControlConfigForTests(developmentControlConfig());
-    vi.stubEnv("TALI_BOOTSTRAP_INTERNAL_URL", "http://control.bootstrap");
-    vi.stubEnv("TALI_BOOTSTRAP_RUNNER_URL", "http://runner.bootstrap");
-    vi.stubEnv("TALI_BOOTSTRAP_RUNNER_TOKEN", "runner-bootstrap-token");
-    vi.stubEnv("TALI_BOOTSTRAP_LITELLM_URL", "http://litellm.bootstrap");
-    vi.stubEnv("TALI_BOOTSTRAP_LITELLM_MASTER_KEY", "litellm-bootstrap-key");
-    vi.stubEnv("TALI_BOOTSTRAP_RUNTIME_NAMESPACES_ENABLED", "true");
-    vi.stubEnv("TALI_BOOTSTRAP_RUNTIME_CLUSTER_ID", "cluster-bootstrap");
+    getControlConfig().server.internal_url = "http://control.bootstrap";
+    getControlConfig().runner!.url = "http://runner.bootstrap";
+    getControlConfig().runner!.token = "runner-bootstrap-token";
+    getControlConfig().litellm!.url = "http://litellm.bootstrap";
+    getControlConfig().litellm!.master_key = "litellm-bootstrap-key";
+    getControlConfig().runtime_namespaces.enabled = true;
+    getControlConfig().runtime_namespaces.cluster_id = "cluster-bootstrap";
   });
 
   afterEach(() => {
@@ -76,9 +73,9 @@ describe("Platform runtime configuration", () => {
         updatedBy: "platform-admin",
       },
     });
-    vi.stubEnv("TALI_BOOTSTRAP_INTERNAL_URL", "http://control.changed");
-    vi.stubEnv("TALI_BOOTSTRAP_RUNNER_URL", "http://runner.changed");
-    vi.stubEnv("TALI_BOOTSTRAP_RUNTIME_NAMESPACES_ENABLED", "true");
+    getControlConfig().server.internal_url = "http://control.changed";
+    getControlConfig().runner!.url = "http://runner.changed";
+    getControlConfig().runtime_namespaces.enabled = true;
 
     await ensurePlatformRuntimeSettings(db);
 

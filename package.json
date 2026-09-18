@@ -74,7 +74,10 @@
     "build:shared": "npm run build --workspace @tali/contracts && npm run build --workspace @tali/expert-agent-runtime",
     "pretest:module": "npm run build:shared",
     "pretest:matrix:summary": "npm run build:shared",
-    "pretest:integration:a2a": "npm run build:shared"
+    "pretest:integration:a2a": "npm run build:shared",
+    "test:project-initialization:postgres": "node scripts/testing/integration-project-initialization.mjs",
+    "test:component-init:containers": "node scripts/testing/component-init-containers.mjs",
+    "test:component-config:containers": "node scripts/testing/component-config-containers.mjs"
   },
   "devDependencies": {
     "yaml": "^2.8.1"

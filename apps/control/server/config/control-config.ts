@@ -14,55 +14,21 @@ const runtimeNamespacesConfigSchema = z.object({
 });
 
 const localAuthConfigSchema = z.object({
-  // Legacy deployment-owned switch. New configuration files omit it and
-  // Platform Settings owns the live authentication policy.
-  enabled: z.boolean().optional().default(true),
-  initial_platform_administrator_username: z.string().trim().min(1).optional(),
-  initial_platform_administrator_email: z.string().email().optional(),
-  initial_platform_administrator_password: z.string().min(1).max(128).optional(),
-  // Accepted during the terminology migration so existing sealed TOML files
-  // continue to boot. New generated configuration only emits the canonical
-  // Platform Administrator keys.
-  initial_super_admin_username: z.string().trim().min(1).optional(),
-  initial_super_admin_email: z.string().email().optional(),
-  initial_super_admin_password: z.string().min(1).max(128).optional(),
-}).superRefine((value, context) => {
-  const canonical = [
-    value.initial_platform_administrator_username,
-    value.initial_platform_administrator_email,
-    value.initial_platform_administrator_password,
-  ].filter(Boolean).length;
-  const legacy = [
-    value.initial_super_admin_username,
-    value.initial_super_admin_email,
-    value.initial_super_admin_password,
-  ].filter(Boolean).length;
-  if (canonical !== 0 && canonical !== 3) {
-    context.addIssue({
-      code: "custom",
-      message:
-        "initial_platform_administrator_username, initial_platform_administrator_email, and initial_platform_administrator_password must be configured together.",
-    });
-  }
-  if (legacy !== 0 && legacy !== 3) {
-    context.addIssue({
-      code: "custom",
-      message:
-        "Legacy initial administrator username, email, and password values must be configured together.",
-    });
-  }
-}).transform((value) => ({
-  enabled: value.enabled,
-  initial_platform_administrator_username:
-    value.initial_platform_administrator_username
-    ?? value.initial_super_admin_username,
-  initial_platform_administrator_email:
-    value.initial_platform_administrator_email
-    ?? value.initial_super_admin_email,
-  initial_platform_administrator_password:
-    value.initial_platform_administrator_password
-    ?? value.initial_super_admin_password,
-}));
+  enabled: z.boolean().default(true),
+  initial_platform_administrator_username: z.string().trim().min(1),
+  initial_platform_administrator_email: z.string().email(),
+  initial_platform_administrator_password: z.string().min(1).max(128),
+}).strict();
+
+const memoryConfig = z.object({
+  enabled: z.boolean().default(true),
+  projectAllowlist: z.array(z.string().min(1)).default([]),
+  baseUrl: z.string().url().default("http://localhost:8888"),
+  apiKey: z.string().default(""),
+  routerToken: z.string().default(""),
+  embeddingDimensions: z.number().int().positive().default(1536),
+  recallTimeoutMs: z.number().int().min(100).max(8000).default(1500),
+}).strict();
 
 const controlConfigSchema = z.object({
   schema_version: z.literal(1),
@@ -91,9 +57,7 @@ const controlConfigSchema = z.object({
       });
     }
   }),
-  // Accepted while upgrading existing sealed configuration files. Runtime
-  // connectivity is imported into Platform Settings and is no longer
-  // required for a new deployment.
+  // Bootstrap only: persisted Platform Settings remain authoritative.
   runner: z.object({
     url: z.string().url(),
     token: z.string().min(1),
@@ -102,10 +66,13 @@ const controlConfigSchema = z.object({
     url: z.string().url(),
     master_key: z.string(),
   }).optional(),
+  memory: memoryConfig.prefault({}),
+  metrics: z.object({ token: z.string().default("") }).strict().prefault({}),
+  demo: z.object({ image: z.string().default("") }).strict().prefault({}),
   runtime_namespaces: runtimeNamespacesConfigSchema.default(
     defaultRuntimeNamespacesConfig,
   ),
-}).superRefine((value, context) => {
+}).strict().superRefine((value, context) => {
   if (!value.server.public_url) {
     context.addIssue({
       code: "custom",
@@ -121,7 +88,7 @@ declare global {
   var taliControlConfig: ControlConfig | undefined;
 }
 
-const developmentConfig: ControlConfig = {
+const developmentConfig: ControlConfig = controlConfigSchema.parse({
   schema_version: 1,
   server: {
     public_url: "http://localhost:5173",
@@ -147,7 +114,7 @@ const developmentConfig: ControlConfig = {
     master_key: "",
   },
   runtime_namespaces: defaultRuntimeNamespacesConfig,
-};
+});
 
 export function getControlConfig(): ControlConfig {
   if (globalThis.taliControlConfig) {
@@ -160,8 +127,8 @@ export function getControlConfig(): ControlConfig {
         "TALI_CONFIG must point to the Control Plane TOML file in production.",
       );
     }
-    globalThis.taliControlConfig = developmentConfig;
-    return developmentConfig;
+    globalThis.taliControlConfig = structuredClone(developmentConfig);
+    return globalThis.taliControlConfig;
   }
   const path = resolve(configuredPath);
   let raw: string;

@@ -4,6 +4,7 @@ import type { Prisma } from "../generated/prisma/client";
 
 export const CONTROL_JOB_SCHEMA = "tali_control_jobs";
 export const CONTROL_JOB_QUEUES = {
+  resourceOperation: "control-resource-operation",
   deadLetter: "control-dead-letter",
   instanceLifecycle: "control-instance-lifecycle",
   maintenance: "control-maintenance",
@@ -70,10 +71,9 @@ export class PgBossControlJobQueue implements ControlJobPublisher {
   private startPromise: Promise<void> | undefined;
   private started = false;
 
-  constructor(boss?: PgBoss) {
+  constructor(boss?: PgBoss, role = "tali-control-job-producer") {
     this.boss = boss ?? new PgBoss({
-      application_name:
-        process.env.CONTROL_WORKER_ROLE ?? "tali-control-job-producer",
+      application_name: role,
       connectionString: getControlConfig().database.url,
       max: 5,
       persistQueueStats: true,
@@ -100,6 +100,15 @@ export class PgBossControlJobQueue implements ControlJobPublisher {
     });
     this.startPromise = undefined;
     this.started = false;
+  }
+
+  async enqueueResourceOperation(projectId: string, operationId: string, transaction: Prisma.TransactionClient): Promise<string> {
+    await this.start();
+    const id = await this.boss.send(CONTROL_JOB_QUEUES.resourceOperation, { projectId, operationId }, {
+      group: { id: projectId }, singletonKey: operationId, db: fromPrisma(transaction),
+    });
+    if (!id) throw new Error("Unable to enqueue resource operation.");
+    return id;
   }
 
   async enqueueProjectDeletion(
@@ -230,6 +239,7 @@ export class PgBossControlJobQueue implements ControlJobPublisher {
       retryLimit: 25,
     } as const;
     for (const name of [
+      CONTROL_JOB_QUEUES.resourceOperation,
       CONTROL_JOB_QUEUES.instanceLifecycle,
       CONTROL_JOB_QUEUES.projectDeletion,
       CONTROL_JOB_QUEUES.projectRuntimeReconcile,

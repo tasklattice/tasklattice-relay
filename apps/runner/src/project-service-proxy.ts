@@ -1,3 +1,4 @@
+import { getRunnerConfig } from "./runner-config.js";
 import { createServer, request as httpRequest, type IncomingMessage } from "node:http";
 import { request as httpsRequest } from "node:https";
 import type { Duplex } from "node:stream";
@@ -22,7 +23,7 @@ function hostname(value: string): string {
 
 export function projectServiceRoute(
   hostHeader: string | undefined,
-  baseUrl = process.env.OPENSHELL_SERVICE_BASE_URL
+  baseUrl = getRunnerConfig().openshell.serviceBaseUrl
     ?? "http://openshell.localhost:8080",
 ): ProjectServiceRoute | undefined {
   if (!hostHeader) return undefined;
@@ -77,8 +78,8 @@ function projectGatewayRequest(route: ProjectServiceRoute) {
 
 export function startProjectServiceProxy(): ReturnType<typeof createServer> | undefined {
   if (!projectServiceProxyEnabled()) return undefined;
-  const port = Number(process.env.OPENSHELL_SERVICE_PROXY_PORT ?? "8080");
-  const host = process.env.OPENSHELL_SERVICE_PROXY_HOST ?? "0.0.0.0";
+  const port = Number(getRunnerConfig().openshell.serviceProxy.port ?? "8080");
+  const host = getRunnerConfig().openshell.serviceProxy.host ?? "0.0.0.0";
   const server = createServer((incoming, response) => {
     if (incoming.url === "/healthz") {
       response.writeHead(200, { "content-type": "text/plain" });
@@ -140,5 +141,5 @@ export function startProjectServiceProxy(): ReturnType<typeof createServer> | un
 }
 
 export function projectServiceProxyEnabled(): boolean {
-  return process.env.OPENSHELL_PROJECT_SERVICE_PROXY_ENABLED === "true";
+  return getRunnerConfig().openshell.serviceProxy.enabled;
 }

@@ -1,15 +1,21 @@
-{{- if .Values.litellm.caCertificate }}
-{{- $component := "litellm-ca" -}}
+{{- if hasKey .Values.litellm "caCertificate" }}
+{{- fail "litellm.caCertificate was removed; use litellm.caCertificateBase64 with Base64-encoded PEM" }}
+{{- end }}
+{{- if .Values.litellm.caCertificateBase64 }}
+{{- $encoded := regexReplaceAll "[\\r\\n\\t ]" .Values.litellm.caCertificateBase64 "" -}}
+{{- $pem := b64dec $encoded -}}
+{{- if or (ne (b64enc $pem) $encoded) (not (contains "-----BEGIN CERTIFICATE-----" $pem)) (not (contains "-----END CERTIFICATE-----" $pem)) }}
+{{- fail "litellm.caCertificateBase64 must be valid Base64 containing PEM certificates" }}
+{{- end }}
 apiVersion: v1
 kind: Secret
 metadata:
-  name: {{ include "tali.componentName" (dict "root" . "component" $component) }}
+  name: {{ include "tali.componentName" (dict "root" . "component" "litellm-ca") }}
   labels:
-    {{- include "tali.componentLabels" (dict "root" . "component" $component) | nindent 4 }}
+    {{- include "tali.componentLabels" (dict "root" . "component" "litellm-ca") | nindent 4 }}
   annotations:
     {{- include "tali.resourceAnnotations" (dict "root" . "wave" "foundation") | nindent 4 }}
 type: Opaque
-stringData:
-  ca.crt: |-
-{{ .Values.litellm.caCertificate | indent 4 }}
+data:
+  ca.crt: {{ $encoded | quote }}
 {{- end }}

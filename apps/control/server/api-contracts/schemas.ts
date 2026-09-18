@@ -421,3 +421,7 @@ export const domainObjectSchema = z.looseObject({ id });
 export const domainCollectionSchema = z.array(domainObjectSchema);
 export const domainDataSchema = z.looseObject({ data: z.array(domainObjectSchema) });
 export const openObjectSchema = z.looseObject({});
+
+export const resourceOperationAcceptedSchema = z.object({
+  kind: z.literal("resource-operation"), operationId: z.string().uuid(), status: z.literal("pending"), statusUrl: z.string(),
+});

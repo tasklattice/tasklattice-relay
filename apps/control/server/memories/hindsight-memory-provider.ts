@@ -1,3 +1,4 @@
+import { getControlConfig } from "../config/control-config";
 import { createHash } from "node:crypto";
 import {
   HindsightClient,
@@ -82,7 +83,7 @@ function requireConfigured(value: string | undefined, name: string): string {
 function normalizeBaseUrl(value: string): string {
   const url = new URL(value);
   if (!new Set(["http:", "https:"]).has(url.protocol)) {
-    throw new Error("TALI_HINDSIGHT_URL must use HTTP or HTTPS.");
+    throw new Error("memory.baseUrl must use HTTP or HTTPS.");
   }
   url.pathname = url.pathname.replace(/\/+$/, "");
   url.search = "";
@@ -269,12 +270,12 @@ export class HindsightMemoryProvider implements MemoryProvider {
 
   constructor(options: HindsightMemoryProviderOptions = {}) {
     this.baseUrl = normalizeBaseUrl(requireConfigured(
-      options.baseUrl ?? process.env.TALI_HINDSIGHT_URL,
-      "TALI_HINDSIGHT_URL",
+      options.baseUrl ?? getControlConfig().memory.baseUrl,
+      "memory.baseUrl",
     ));
     this.apiKey = requireConfigured(
-      options.apiKey ?? process.env.TALI_HINDSIGHT_API_KEY,
-      "TALI_HINDSIGHT_API_KEY",
+      options.apiKey ?? getControlConfig().memory.apiKey,
+      "memory.apiKey",
     );
     this.requestTimeoutMs = options.requestTimeoutMs ?? 7_000;
     const headers = {

@@ -194,7 +194,10 @@ Use the fixture runner when changing API or UI contracts without an Agent Pod.
 Terminal 1:
 
 ```sh
-NEMOCLAW_RUNNER_MODE=fixture npm run dev:runner
+cat > /tmp/tali-runner-fixture.json <<'JSON'
+{"schemaVersion":1,"server":{"mode":"fixture","host":"127.0.0.1"}}
+JSON
+TALI_RUNNER_CONFIG=/tmp/tali-runner-fixture.json npm run dev:runner
 ```
 
 Terminal 2:

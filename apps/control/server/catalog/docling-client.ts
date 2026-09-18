@@ -1,3 +1,4 @@
+import { getWorkerConfig } from "../config/worker-config";
 import { z } from "zod";
 
 const doclingChunkSchema = z.object({
@@ -52,9 +53,10 @@ export interface VectorDocumentParser {
 
 export class DoclingClient implements VectorDocumentParser {
   constructor(
-    private readonly baseUrl = process.env.DOCLING_BASE_URL ?? "http://localhost:5001",
-    private readonly apiKey = process.env.DOCLING_API_KEY,
+    private readonly baseUrl?: string,
+    private readonly apiKey?: string,
     private readonly fetcher: typeof fetch = fetch,
+    private readonly enabled?: boolean,
   ) {}
 
   async parse(input: {
@@ -62,6 +64,7 @@ export class DoclingClient implements VectorDocumentParser {
     filename: string;
     mediaType: string;
   }): Promise<DoclingParseResult> {
+    if (!(this.enabled ?? getWorkerConfig().docling.enabled)) throw new Error("Document parsing is disabled in worker.docling configuration.");
     const body = new FormData();
     const buffer = Buffer.from(input.bytes);
     body.set(
@@ -83,10 +86,10 @@ export class DoclingClient implements VectorDocumentParser {
     body.set("include_converted_doc", "true");
 
     const response = await this.fetcher(
-      `${this.baseUrl.replace(/\/$/, "")}/v1/chunk/hybrid/file`,
+      `${(this.baseUrl ?? getWorkerConfig().docling.baseUrl).replace(/\/$/, "")}/v1/chunk/hybrid/file`,
       {
         method: "POST",
-        ...(this.apiKey ? { headers: { "x-api-key": this.apiKey } } : {}),
+        ...((this.apiKey ?? getWorkerConfig().docling.apiKey) ? { headers: { "x-api-key": this.apiKey ?? getWorkerConfig().docling.apiKey! } } : {}),
         body,
         signal: AbortSignal.timeout(10 * 60 * 1_000),
       },

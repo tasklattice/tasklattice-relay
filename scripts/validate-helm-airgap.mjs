@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { parse as parseToml } from "smol-toml";
 
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
@@ -201,17 +202,17 @@ for (const registry of forbiddenRegistries) {
   }
 }
 
-const controlEnv = objects.find((object) => object.kind === "Deployment"
-  && object.metadata?.labels?.["app.kubernetes.io/component"] === "control")
-  ?.spec.template.spec.containers.find((container) => container.name === "control")?.env ?? [];
+const provisioner = parseToml(objects.find((o) => o.kind === "Secret" && o.stringData?.["worker.toml"]).stringData["worker.toml"]).worker.project_openshell;
 for (const [name, value] of [
-  ["PROJECT_OPENSHELL_GATEWAY_IMAGE", `registry.airgap.example.com/third-party/openshell-gateway:${expectedOpenShellVersion}`],
-  ["PROJECT_OPENSHELL_SUPERVISOR_IMAGE", `registry.airgap.example.com/third-party/openshell-supervisor:${expectedOpenShellVersion}`],
-  ["PROJECT_OPENSHELL_DEFAULT_SANDBOX_IMAGE", `registry.airgap.example.com/third-party/nemoclaw-sandbox-base:${expectedNemoClawVersion}`],
-  ["PROJECT_OPENSHELL_IMAGE_PULL_SECRETS_JSON", '[{"name":"airgap-registry"}]'],
-  ["PROJECT_OPENSHELL_SANDBOX_IMAGE_PULL_SECRETS_JSON", '[{"name":"airgap-registry"}]'],
+  ["gatewayImageRepository", "registry.airgap.example.com/third-party/openshell-gateway"],
+  ["gatewayImageTag", expectedOpenShellVersion],
+  ["supervisorImageRepository", "registry.airgap.example.com/third-party/openshell-supervisor"],
+  ["supervisorImageTag", expectedOpenShellVersion],
+  ["sandboxImage", `registry.airgap.example.com/third-party/nemoclaw-sandbox-base:${expectedNemoClawVersion}`],
+  ["imagePullSecrets", [{ name: "airgap-registry" }]],
+  ["sandboxImagePullSecrets", [{ name: "airgap-registry" }]],
 ]) {
-  if (controlEnv.find((entry) => entry.name === name)?.value !== value) {
+  if (JSON.stringify(provisioner[name]) !== JSON.stringify(value)) {
     violations.push(`Project Gateway provisioner must receive mirrored configuration: ${name}`);
   }
 }

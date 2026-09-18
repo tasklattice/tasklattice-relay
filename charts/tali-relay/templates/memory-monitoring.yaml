@@ -20,7 +20,7 @@ spec:
       authorization:
         type: Bearer
         credentials:
-          name: {{ include "tali.secretName" . }}
+          name: {{ include "tali.secretName" (dict "root" . "component" "metrics") }}
           key: metrics-token
 {{- if .Values.control.worker.enabled }}
 ---
@@ -45,7 +45,7 @@ spec:
       authorization:
         type: Bearer
         credentials:
-          name: {{ include "tali.secretName" . }}
+          name: {{ include "tali.secretName" (dict "root" . "component" "metrics") }}
           key: metrics-token
 {{- end }}
 {{- if .Values.hindsight.enabled }}

@@ -1,3 +1,4 @@
+import { getRunnerConfig, setRunnerConfigForTests } from "./runner-config.js";
 import { afterEach, describe, expect, it } from "vitest";
 import { projectServiceRoute } from "./project-service-proxy.js";
 import {
@@ -13,9 +14,9 @@ afterEach(() => {
 
 describe("Project OpenShell target routing", () => {
   it("derives a trusted in-cluster Gateway without accepting a request URL", () => {
-    process.env.OPENSHELL_GATEWAY_ENDPOINT_TEMPLATE =
+    getRunnerConfig().openshell.gatewayEndpointTemplate =
       "http://openshell-{namespace}.{namespace}.svc.cluster.local:8080";
-    process.env.OPENSHELL_SERVICE_BASE_URL = "https://openshell.example.test";
+    getRunnerConfig().openshell.serviceBaseUrl = "https://openshell.example.test";
 
     expect(resolveOpenShellTarget({
       namespace: "tp-abcdefghijklmnop",
@@ -33,7 +34,7 @@ describe("Project OpenShell target routing", () => {
   });
 
   it("keeps the target contract when a newer OpenShell uses one shared Gateway", () => {
-    process.env.OPENSHELL_GATEWAY_ENDPOINT_TEMPLATE =
+    getRunnerConfig().openshell.gatewayEndpointTemplate =
       "http://shared-openshell.tali.svc.cluster.local:8080";
 
     expect(resolveOpenShellTarget({
@@ -103,3 +104,5 @@ describe("Project OpenShell target routing", () => {
     }));
   });
 });
+
+afterEach(() => setRunnerConfigForTests());

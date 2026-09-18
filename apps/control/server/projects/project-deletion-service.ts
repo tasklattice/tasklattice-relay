@@ -16,17 +16,8 @@ import { MemoryRepository } from "../memories/memory-repository";
 import { MemoryService } from "../memories/memory-service";
 import { ProjectRuntimeTargetService } from "./project-runtime-target-service";
 
-export const PROJECT_DELETION_GRACE_PERIOD_MINUTES = 10;
-export const PROJECT_DELETION_GRACE_PERIOD_MS =
-  PROJECT_DELETION_GRACE_PERIOD_MINUTES * 60 * 1_000;
+export { PROJECT_DELETION_GRACE_PERIOD_MINUTES, PROJECT_DELETION_GRACE_PERIOD_MS, type ProjectDeletionSchedule } from "./project-deletion-contract";
 
-export interface ProjectDeletionSchedule {
-  delayMinutes: number;
-  projectId: string;
-  requestedAt: string;
-  scheduledFor: string;
-  status: "scheduled";
-}
 
 interface CleanupOptions {
   externalCleanupEnabled?: boolean;
@@ -124,6 +115,7 @@ export class ProjectDeletionService {
       where: { id: projectId },
       select: {
         deletedAt: true,
+        runtimeTarget: { select: { leaseOwner: true, leaseExpiresAt: true, namespace: true } },
         agents: {
           where: { kind: "SUPERVISOR" },
           select: { payload: true },
@@ -145,11 +137,16 @@ export class ProjectDeletionService {
       throw new Error("Project cleanup requires a scheduled deletion request.");
     }
 
+    if (project.runtimeTarget?.leaseOwner && project.runtimeTarget.leaseExpiresAt
+      && project.runtimeTarget.leaseExpiresAt > new Date()) {
+      throw new Error("Waiting for in-flight Project initialization before deleting resources.");
+    }
+
     const agents = project.agents.map(({ payload }) => deletionAgent(payload));
     await Promise.all(
       agents.map((agent) =>
         deleteRemote(() =>
-          this.runner.destroySandbox(agent.sandboxName, agent.agentPlatform)
+          this.runner.destroySandbox(agent.sandboxName, agent.agentPlatform, project.runtimeTarget ? { namespace: project.runtimeTarget.namespace } : undefined)
             .then(() => undefined),
         ),
       ),

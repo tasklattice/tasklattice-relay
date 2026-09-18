@@ -22,9 +22,9 @@ Disabling the flag removes Memory navigation and rejects new Project Memory API
 traffic with a generic 404. Existing bound runtime credentials and Agent paths
 continue to work so a rollout change does not break running Agents.
 
-For `secrets.existingSecret`, add `metrics-token` together with the Hindsight
-keys documented in the chart README. The Control and Control Worker processes
-read it only from a Secret reference.
+For `secrets.existingSecrets.metrics`, supply `metrics-token` for ServiceMonitor
+authentication. Keep it consistent with `[metrics].token` in the Control Secret
+shared by Control and Worker. Hindsight has its own independent config Secret.
 
 ## Metrics and alerts
 

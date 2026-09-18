@@ -1,3 +1,4 @@
+import { getWorkerConfig } from "../config/worker-config";
 import {
   AppsV1Api,
   KubeConfig,
@@ -33,42 +34,12 @@ interface ProjectRuntimeBridgeConfiguration {
   revision: string;
   imagePullSecrets: Array<{ name: string }>;
   resources: Record<string, unknown>;
-  storageClass?: string;
+  storageClass?: string | undefined;
   storageSize: string;
 }
 
 type RuntimeBridgeObjectApi = Pick<KubernetesObjectApi, "patch">;
 type RuntimeBridgeAppsApi = Pick<AppsV1Api, "readNamespacedDeployment">;
-
-function imagePullSecrets(): Array<{ name: string }> {
-  const value: unknown = JSON.parse(
-    process.env.PROJECT_RUNTIME_BRIDGE_IMAGE_PULL_SECRETS_JSON ?? "[]",
-  );
-  if (!Array.isArray(value)) {
-    throw new Error("PROJECT_RUNTIME_BRIDGE_IMAGE_PULL_SECRETS_JSON must be an array.");
-  }
-  return value as Array<{ name: string }>;
-}
-
-function configurationFromEnvironment(): ProjectRuntimeBridgeConfiguration {
-  const enabled = process.env.PROJECT_RUNTIME_BRIDGES_ENABLED === "true";
-  const image = process.env.PROJECT_RUNTIME_BRIDGE_IMAGE?.trim() ?? "";
-  if (enabled && !image) {
-    throw new Error("PROJECT_RUNTIME_BRIDGE_IMAGE is required when Project Runtime Bridges are enabled.");
-  }
-  return {
-    enabled,
-    image,
-    imagePullPolicy: process.env.PROJECT_RUNTIME_BRIDGE_IMAGE_PULL_POLICY ?? "IfNotPresent",
-    revision: process.env.PROJECT_RUNTIME_BRIDGE_REVISION ?? image,
-    imagePullSecrets: imagePullSecrets(),
-    resources: JSON.parse(process.env.PROJECT_RUNTIME_BRIDGE_RESOURCES_JSON ?? "{}") as Record<string, unknown>,
-    storageSize: process.env.PROJECT_RUNTIME_BRIDGE_STORAGE_SIZE ?? "1Gi",
-    ...(process.env.PROJECT_RUNTIME_BRIDGE_STORAGE_CLASS
-      ? { storageClass: process.env.PROJECT_RUNTIME_BRIDGE_STORAGE_CLASS }
-      : {}),
-  };
-}
 
 function labels(): Record<string, string> {
   return {
@@ -277,7 +248,7 @@ export class KubernetesProjectRuntimeBridgeClient
   private readonly apps: RuntimeBridgeAppsApi;
 
   constructor(
-    private readonly configuration = configurationFromEnvironment(),
+    private readonly configuration: ProjectRuntimeBridgeConfiguration = getWorkerConfig().project_runtime_bridge,
     objects?: RuntimeBridgeObjectApi,
     apps?: RuntimeBridgeAppsApi,
   ) {
@@ -313,9 +284,7 @@ export class KubernetesProjectRuntimeBridgeClient
         PatchStrategy.ServerSideApply,
       );
     }
-    const timeoutMs = Number(
-      process.env.PROJECT_RUNTIME_BRIDGE_READY_TIMEOUT_MS ?? "120000",
-    );
+    const timeoutMs = getWorkerConfig().project_runtime_bridge.readyTimeoutMs;
     const deadline = Date.now() + timeoutMs;
     while (true) {
       const deployment = await this.apps.readNamespacedDeployment({
@@ -344,7 +313,7 @@ class DisabledProjectRuntimeBridgeClient
 }
 
 export function createProjectRuntimeBridgeClient(): ProjectRuntimeBridgeClient {
-  return process.env.PROJECT_RUNTIME_BRIDGES_ENABLED === "true"
+  return getWorkerConfig().project_runtime_bridge.enabled
     ? new KubernetesProjectRuntimeBridgeClient()
     : new DisabledProjectRuntimeBridgeClient();
 }

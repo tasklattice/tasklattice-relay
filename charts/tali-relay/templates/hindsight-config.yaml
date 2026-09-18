@@ -1,0 +1,17 @@
+{{- if .Values.hindsight.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  bootstrap.py: |
+{{ .Files.Get "files/hindsight-bootstrap.py" | indent 4 }}
+  name: {{ include "tali.componentName" (dict "root" . "component" "hindsight-launcher") }}
+  labels:
+    {{- include "tali.componentLabels" (dict "root" . "component" "hindsight") | nindent 4 }}
+  annotations:
+    {{- include "tali.resourceAnnotations" (dict "root" . "wave" "foundation") | nindent 4 }}
+data:
+  bootstrap.py: |
+{{ .Files.Get "files/hindsight-bootstrap.py" | indent 4 }}
+  entrypoint.py: |
+{{ .Files.Get "files/hindsight-entrypoint.py" | indent 4 }}
+{{- end }}

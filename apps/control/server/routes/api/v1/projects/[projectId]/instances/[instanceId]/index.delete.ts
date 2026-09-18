@@ -1,3 +1,4 @@
+import { ResourceOperationService } from "../../../../../../../projects/resource-operation-service";
 import { defineHandler } from "nitro";
 import { instanceParamsSchema } from "../../../../../../../api-contracts/schemas";
 import { requireAuth, unauthorizedResponse } from "../../../../../../../auth/auth";
@@ -5,8 +6,9 @@ import { errorResponse, jsonResponse, problemResponse } from "../../../../../../
 import { getAgentGardenService, getInstanceService } from "../../../../../../../services";
 
 export default defineHandler(async (event) => {
+  let actorId: string;
   try {
-    await requireAuth(event.req);
+    actorId = (await requireAuth(event.req)).user.id;
   } catch (error) {
     return unauthorizedResponse(error);
   }
@@ -21,8 +23,12 @@ export default defineHandler(async (event) => {
           status: memory.status,
         })).catch(() => null)
       : null;
-    const destroyed = await service.destroy(id)
-      || await (await getAgentGardenService(event.req)).removeInstance(id);
+    const destroyed = await service.destroy(id);
+    if (!destroyed) {
+      const garden = await getAgentGardenService(event.req);
+      const accepted = await new ResourceOperationService().enqueue(garden.store.projectId, actorId, "removeInstance", { id });
+      return jsonResponse(accepted, { status: 202, headers: { location: accepted.statusUrl } });
+    }
     return destroyed
       ? jsonResponse(
           { id, status: "DESTROYING", accepted: true, retainedMemory },

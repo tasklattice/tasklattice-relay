@@ -20,7 +20,6 @@ import {
   type ValidatePlatformInfrastructureSettingsInput,
   type ValidatePlatformSsoSettingsInput,
 } from "@tali/contracts";
-import { AuthorizationV1Api, KubeConfig } from "@kubernetes/client-node";
 import { getControlConfig } from "../config/control-config";
 import { prisma } from "../db/prisma";
 import {
@@ -40,6 +39,7 @@ import {
   issuePlatformSettingsValidation,
 } from "./platform-settings-validation";
 import { deploymentBootstrapRuntimeConfiguration } from "./platform-runtime-config";
+import { requireWorkerRuntime, readWorkerRuntime } from "./worker-runtime-report";
 import { controlNetworkTarget } from "../kubernetes/project-runtime-bridge-client";
 
 const fallbackRuntimeImages = mapAgentPlatforms(
@@ -50,17 +50,6 @@ const fallbackSandboxDefaults = {
   cpu: "1",
   memory: "2Gi",
 } as const;
-
-function assertProjectRuntimeTopology(runtimeNamespacesEnabled: boolean): void {
-  if (
-    process.env.PROJECT_OPENSHELL_TARGET_ROUTING_ENABLED === "true"
-    && !runtimeNamespacesEnabled
-  ) {
-    throw new Error(
-      "Runtime Namespaces cannot be disabled while Project OpenShell target routing is enabled by the deployment.",
-    );
-  }
-}
 
 function providerKindList(value: Prisma.JsonValue | null | undefined): ProviderKind[] {
   if (value === null || value === undefined) return [...providerKinds];
@@ -119,52 +108,6 @@ interface OidcDiscoveryDocument {
   tokenEndpoint: string;
 }
 
-const runtimeNamespacePermissions = [
-  { group: "", resource: "namespaces", verb: "get" },
-  { group: "", resource: "namespaces", verb: "create" },
-  { group: "", resource: "namespaces", verb: "patch" },
-  { group: "", resource: "services", verb: "get" },
-  { group: "", resource: "services", verb: "create" },
-  { group: "", resource: "services", verb: "patch" },
-  { group: "", resource: "services", verb: "delete" },
-  { group: "", resource: "pods", verb: "get" },
-  { group: "", resource: "pods", verb: "list" },
-  { group: "apps", resource: "deployments", verb: "get" },
-  { group: "apps", resource: "deployments", verb: "create" },
-  { group: "apps", resource: "deployments", verb: "patch" },
-  { group: "apps", resource: "deployments", verb: "delete" },
-] as const;
-
-async function verifyRuntimeNamespaceAccess(): Promise<void> {
-  if (!process.env.KUBERNETES_SERVICE_HOST) {
-    throw new Error(
-      "Runtime Namespaces cannot be enabled because the Kubernetes in-cluster API is unavailable.",
-    );
-  }
-  const kubeConfig = new KubeConfig();
-  kubeConfig.loadFromCluster();
-  const authorization = kubeConfig.makeApiClient(AuthorizationV1Api);
-  const reviews = await Promise.all(runtimeNamespacePermissions.map(
-    (attributes) => authorization.createSelfSubjectAccessReview({
-      body: {
-        apiVersion: "authorization.k8s.io/v1",
-        kind: "SelfSubjectAccessReview",
-        spec: { resourceAttributes: attributes },
-      },
-    }),
-  ));
-  const denied = reviews.flatMap((review, index) =>
-    review.status?.allowed ? [] : [runtimeNamespacePermissions[index]!]
-  );
-  if (denied.length) {
-    throw new Error(
-      `Control ServiceAccount is missing Kubernetes access: ${denied
-        .map(({ group, resource, verb }) => `${verb} ${group ? `${group}/` : ""}${resource}`)
-        .join(", ")}.`,
-    );
-  }
-}
-
 export class PlatformSettingsService {
   constructor(
     private readonly db: PrismaClient = prisma(),
@@ -173,7 +116,7 @@ export class PlatformSettingsService {
       settings: SmtpConnectionSettings,
     ) => Promise<void> = verifySmtpConnection,
     private readonly runtimeNamespaceAccessVerify: () => Promise<void> =
-      verifyRuntimeNamespaceAccess,
+      async () => { requireWorkerRuntime((await this.stored())?.workerRuntime); },
   ) {}
 
   private stored() {
@@ -252,21 +195,7 @@ export class PlatformSettingsService {
         ...(health?.sandbox?.kubernetesServiceCidrs
           ? { kubernetesServiceCidrs: health.sandbox.kubernetesServiceCidrs }
           : {}),
-        ...(health?.sandbox?.gatewayImage
-          ? { gatewayImage: health.sandbox.gatewayImage }
-          : {}),
-        ...(health?.sandbox?.supervisorImage
-          ? { supervisorImage: health.sandbox.supervisorImage }
-          : {}),
-        ...(health?.sandbox?.defaultImage
-          ? { defaultImage: health.sandbox.defaultImage }
-          : {}),
-        ...(health?.sandbox?.defaultImagePullPolicy
-          ? { defaultImagePullPolicy: health.sandbox.defaultImagePullPolicy }
-          : {}),
-        ...(health?.sandbox?.tlsDisabled !== undefined
-          ? { tlsDisabled: health.sandbox.tlsDisabled }
-          : {}),
+        ...(readWorkerRuntime(settings?.workerRuntime)?.sandbox ?? {}),
       },
       runtimeStatus: {
         available: health?.ok === true,
@@ -324,7 +253,9 @@ export class PlatformSettingsService {
   async validateInfrastructure(
     input: ValidatePlatformInfrastructureSettingsInput,
   ): Promise<PlatformInfrastructureValidationView> {
-    assertProjectRuntimeTopology(input.runtimeNamespaces.enabled);
+    if (!input.runtimeNamespaces.enabled && readWorkerRuntime((await this.stored())?.workerRuntime)?.projectTargetRouting) {
+      throw new Error("Runtime Namespaces cannot be disabled while Project target routing is enabled by the Worker.");
+    }
     const current = await this.stored();
     const runnerToken = input.runner.token.action === "replace"
       ? input.runner.token.value
@@ -338,7 +269,7 @@ export class PlatformSettingsService {
     const controlUrl = input.controlInternalUrl.replace(/\/+$/, "");
     if (
       input.runtimeNamespaces.enabled
-      && process.env.PROJECT_RUNTIME_BRIDGES_ENABLED === "true"
+
     ) {
       controlNetworkTarget(controlUrl);
     }
@@ -403,7 +334,9 @@ export class PlatformSettingsService {
     input: UpdatePlatformInfrastructureSettingsInput,
     actor: string,
   ): Promise<PlatformInfrastructureSettingsView> {
-    assertProjectRuntimeTopology(input.runtimeNamespaces.enabled);
+    if (!input.runtimeNamespaces.enabled && readWorkerRuntime((await this.stored())?.workerRuntime)?.projectTargetRouting) {
+      throw new Error("Runtime Namespaces cannot be disabled while Project target routing is enabled by the Worker.");
+    }
     const current = await this.stored();
     const runnerToken = input.runner.token.action === "replace"
       ? input.runner.token.value

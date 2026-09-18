@@ -41,42 +41,49 @@ export async function ensureDefaultAccessPolicy(
   db: PrismaClient,
   projectId: string,
 ): Promise<AccessPolicy> {
+  return db.$transaction((transaction) =>
+    initializeDefaultAccessPolicy(transaction, projectId),
+  );
+}
+
+export async function initializeDefaultAccessPolicy(
+  transaction: Prisma.TransactionClient,
+  projectId: string,
+): Promise<AccessPolicy> {
   const candidate = defaultPolicy(new Date().toISOString());
-  return db.$transaction(async (transaction) => {
-    await transaction.accessPolicyRecord.createMany({
-      data: [
-        {
-          projectId,
-          id: candidate.id,
-          payload: json(candidate),
-          createdAt: candidate.createdAt,
-          updatedAt: candidate.updatedAt,
-        },
-      ],
-      skipDuplicates: true,
-    });
-    const stored = await transaction.accessPolicyRecord.findUniqueOrThrow({
-      where: {
-        projectId_id: {
-          projectId,
-          id: DEFAULT_ACCESS_POLICY_ID,
-        },
+  await transaction.accessPolicyRecord.createMany({
+    data: [
+      {
+        projectId,
+        id: candidate.id,
+        payload: json(candidate),
+        createdAt: candidate.createdAt,
+        updatedAt: candidate.updatedAt,
       },
-      select: { payload: true },
-    });
-    const policy = stored.payload as unknown as AccessPolicy;
-    await transaction.accessPolicyVersionRecord.createMany({
-      data: [
-        {
-          projectId,
-          policyId: policy.id,
-          revision: 1,
-          payload: json(initialVersion(policy)),
-          createdAt: policy.createdAt,
-        },
-      ],
-      skipDuplicates: true,
-    });
-    return policy;
+    ],
+    skipDuplicates: true,
   });
+  const stored = await transaction.accessPolicyRecord.findUniqueOrThrow({
+    where: {
+      projectId_id: {
+        projectId,
+        id: DEFAULT_ACCESS_POLICY_ID,
+      },
+    },
+    select: { payload: true },
+  });
+  const policy = stored.payload as unknown as AccessPolicy;
+  await transaction.accessPolicyVersionRecord.createMany({
+    data: [
+      {
+        projectId,
+        policyId: policy.id,
+        revision: 1,
+        payload: json(initialVersion(policy)),
+        createdAt: policy.createdAt,
+      },
+    ],
+    skipDuplicates: true,
+  });
+  return policy;
 }

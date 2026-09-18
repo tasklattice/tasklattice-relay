@@ -1,3 +1,4 @@
+import { resourceOperationAcceptedSchema } from "./schemas";
 import {
   agentGardenEntrySchema,
   agentGardenSnapshotSchema,
@@ -228,31 +229,31 @@ export const catalogContracts = defineContracts([
     description: "Deploy an A2A-compatible container image or register an existing Agent through its A2A 1.0 Agent Card. The implementation framework is not part of the onboarding contract.",
     tags: ["Agent Garden"],
     request: { body: onboardAgentSchema },
-    responses: { 201: response("Onboarded Agent", agentGardenEntrySchema) },
+    responses: { 202: response("Resource operation queued", resourceOperationAcceptedSchema) },
   }),
   projectRoute({
     method: "delete", path: "/agent-garden/agents/{id}", operationId: "removeGardenAgent",
     summary: "Remove an Agent Garden entry", tags: ["Agent Garden"],
     request: { params: gardenAgentParamsSchema },
-    responses: { 200: response("Removed Agent", messageSchema) },
+    responses: { 202: response("Resource operation queued", resourceOperationAcceptedSchema) },
   }),
   projectRoute({
     method: "post", path: "/agent-garden/agents/{id}/discover", operationId: "discoverGardenAgent",
     summary: "Refresh an Agent Garden entry", tags: ["Agent Garden"],
     request: { params: gardenAgentParamsSchema },
-    responses: { 200: response("Discovered Agent", agentGardenEntrySchema) },
+    responses: { 202: response("Resource operation queued", resourceOperationAcceptedSchema) },
   }),
   projectRoute({
     method: "post", path: "/agent-garden/agents/{id}/instances", operationId: "instantiateGardenAgent",
     summary: "Create a callable A2A Instance from a validated Agent Card", tags: ["Agent Garden"],
     request: { params: gardenAgentParamsSchema },
-    responses: { 201: response("Created A2A Instance", a2aAgentInstanceSchema) },
+    responses: { 202: response("Resource operation queued", resourceOperationAcceptedSchema) },
   }),
   projectRoute({
     method: "delete", path: "/agent-garden/instances/{id}", operationId: "removeGardenInstance",
     summary: "Remove an external A2A Instance from the Project registry", tags: ["Agent Garden"],
     request: { params: gardenAgentParamsSchema },
-    responses: { 200: response("Removed A2A Instance", messageSchema) },
+    responses: { 202: response("Resource operation queued", resourceOperationAcceptedSchema) },
   }),
   route({
     auth: "public", method: "get", path: "/demo-agents/{id}/agent-card",

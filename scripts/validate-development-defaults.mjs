@@ -44,11 +44,7 @@ const objects = parseAllDocuments(rendered, { uniqueKeys: false })
     return document.toJS();
   })
   .filter((object) => object && typeof object === "object");
-const secret = objects.find(
-  (object) => object.kind === "Secret"
-    && object.metadata?.name === "tali-relay-secrets",
-);
-if (!secret) throw new Error("The development Secret was not rendered.");
+const secret = { stringData: Object.assign({}, ...objects.filter((object) => object.kind === "Secret").map((object) => object.stringData ?? {})) };
 for (const key of [
   "keycloak-admin-password",
   "keycloak-test-user-password",

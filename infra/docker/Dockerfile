@@ -102,10 +102,7 @@ ENTRYPOINT ["node", "apps/example-mcp-server/dist/index.js"]
 CMD ["mcp"]
 
 FROM node:22-bookworm-slim AS runner
-ENV NODE_ENV=production \
-    HOST=0.0.0.0 \
-    PORT=9090 \
-    NEMOCLAW_RUNNER_MODE=openshell-kubernetes
+ENV NODE_ENV=production
 WORKDIR /app
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates openssh-client tar \

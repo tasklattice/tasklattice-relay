@@ -1,6 +1,6 @@
 {{- if .Values.keycloak.enabled }}
-{{- if .Values.secrets.existingSecret }}
-{{- fail "keycloak.enabled cannot be combined with secrets.existingSecret because the chart must generate the connected control.toml and Keycloak test credentials" }}
+{{- if .Values.secrets.existingSecrets.keycloak }}
+{{- fail "keycloak.enabled cannot be combined with secrets.existingSecrets.keycloak because the chart must generate the connected control.toml and Keycloak test credentials" }}
 {{- end }}
 {{- if not .Values.keycloak.testUsers }}
 {{- fail "keycloak.testUsers must contain at least one complete test user when the embedded Keycloak is enabled" }}
@@ -281,17 +281,17 @@ spec:
             - name: KC_BOOTSTRAP_ADMIN_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "tali.secretName" . }}
+                  name: {{ include "tali.secretName" (dict "root" . "component" "keycloak") }}
                   key: keycloak-admin-password
             - name: TALI_KEYCLOAK_CLIENT_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "tali.secretName" . }}
+                  name: {{ include "tali.secretName" (dict "root" . "component" "keycloak") }}
                   key: keycloak-client-secret
             - name: TALI_KEYCLOAK_TEST_USER_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "tali.secretName" . }}
+                  name: {{ include "tali.secretName" (dict "root" . "component" "keycloak") }}
                   key: keycloak-test-user-password
           ports:
             - name: http

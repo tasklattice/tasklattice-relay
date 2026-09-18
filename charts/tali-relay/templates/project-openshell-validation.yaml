@@ -1,3 +1,6 @@
+{{- if not .Values.control.worker.enabled -}}
+{{- fail "Control Worker is required for asynchronous resource management: control.worker.enabled must be true" -}}
+{{- end -}}
 {{- if not .Values.projectOpenShell.enabled -}}
 {{- fail "Project Gateways are required: projectOpenShell.enabled must be true" -}}
 {{- end -}}
@@ -9,4 +12,19 @@
 {{- end -}}
 {{- if .Values.openshell.enabled -}}
 {{- fail "OpenShell is installed only in Project Namespaces; openshell.enabled must be false in the Control chart" -}}
+{{- end -}}
+{{- if or (not .Values.openshell.server.disableTls) (not .Values.openshell.server.auth.allowUnauthenticatedUsers) -}}
+{{- fail "Project OpenShell currently requires openshell.server.disableTls=true and openshell.server.auth.allowUnauthenticatedUsers=true; tenant TLS/auth are not configurable by this provisioner" -}}
+{{- end -}}
+{{- if or (hasKey .Values.control "extraEnv") (hasKey .Values.control.worker "extraEnv") -}}
+{{- fail "control.extraEnv and control.worker.extraEnv were removed; configure control.toml / worker.toml instead" -}}
+{{- end -}}
+{{- if hasKey .Values.secrets "initialSuperAdminPassword" -}}
+{{- fail "secrets.initialSuperAdminPassword was removed; use secrets.initialPlatformAdministratorPassword" -}}
+{{- end -}}
+{{- if hasKey .Values.secrets "existingSecret" -}}
+{{- fail "secrets.existingSecret was removed; use secrets.existingSecrets per component" -}}
+{{- end -}}
+{{- if hasKey .Values.runner "extraEnv" -}}
+{{- fail "runner.extraEnv was removed; configure runner.json instead" -}}
 {{- end -}}

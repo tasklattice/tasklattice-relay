@@ -16,7 +16,7 @@ export interface MemoryProviderFactoryOptions {
 export function createMemoryProvider(
   options: MemoryProviderFactoryOptions = {},
 ): MemoryProvider {
-  const provider = options.provider ?? process.env.TALI_MEMORY_PROVIDER ?? "hindsight";
+  const provider = options.provider ?? "hindsight";
   if (provider !== "hindsight") {
     throw new Error(`Unsupported Memory provider configuration: ${provider}.`);
   }

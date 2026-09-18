@@ -61,8 +61,8 @@ describe("Project resource ownership", () => {
   });
   it("copies a non-self tracking reference with deletion protection", () => {
     expect(projectArgoAnnotations(namespace, {
-      PROJECT_ARGOCD_SOURCE_TRACKING_ID: "tali:/Namespace:/tali",
-      PROJECT_ARGOCD_INSTALLATION_ID: "uat",
+      sourceTrackingId: "tali:/Namespace:/tali",
+      installationId: "uat",
     })).toEqual({
       "argocd.argoproj.io/tracking-id": "tali:/Namespace:/tali",
       "argocd.argoproj.io/installation-id": "uat",
@@ -70,6 +70,6 @@ describe("Project resource ownership", () => {
     });
   });
   it.each(["app", `tali:/Namespace:/${namespace}`])("rejects a malformed or self-referencing tracking ID", (source) => {
-    expect(() => projectArgoAnnotations(namespace, { PROJECT_ARGOCD_SOURCE_TRACKING_ID: source })).toThrow();
+    expect(() => projectArgoAnnotations(namespace, { sourceTrackingId: source })).toThrow();
   });
 });

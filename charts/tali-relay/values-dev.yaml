@@ -71,9 +71,7 @@ runner:
   sandbox:
     cpu: "1"
     cpuRequest: 500m
-  extraEnv:
-    - name: NEMOCLAW_START_TIMEOUT_MS
-      value: "600000"
+  startTimeoutMs: 600000
   projectTargetRouting:
     enabled: true
 

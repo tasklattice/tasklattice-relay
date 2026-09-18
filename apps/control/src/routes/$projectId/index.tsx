@@ -1,3 +1,4 @@
+import { ProjectRuntimeStatus } from "@/components/project/project-runtime-status";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
@@ -45,6 +46,10 @@ function detectedTimezone(): string {
 }
 
 function ProjectHome() {
+  return <><ProjectRuntimeStatus /><ProjectHomeContent /></>;
+}
+
+function ProjectHomeContent() {
   const projectId = useCurrentProjectId();
   const { currentProject } = useProject();
   const { active: activeAccess } = useAccessContext();

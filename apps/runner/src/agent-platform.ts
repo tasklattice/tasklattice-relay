@@ -1,3 +1,4 @@
+import { getRunnerConfig } from "./runner-config.js";
 import {
   getAgentPlatformDefinition,
   type AgentMemoryConfiguration,
@@ -371,7 +372,7 @@ const agentPlatformRuntimeRegistry = {
     inferenceBinaries: ["/usr/local/bin/node"],
     endpointKind: "openclaw-webui",
     sandboxImage: () =>
-      process.env.OPENSHELL_SANDBOX_IMAGE ??
+      getRunnerConfig().openshell.sandbox.images.openclaw ??
       getAgentPlatformDefinition("openclaw").sandboxImage,
     bootstrapScript: openClawBootstrapScript,
     healthProbe: (dashboardPort) =>
@@ -396,7 +397,7 @@ const agentPlatformRuntimeRegistry = {
     ],
     endpointKind: "hermes-dashboard",
     sandboxImage: () =>
-      process.env.OPENSHELL_HERMES_SANDBOX_IMAGE ??
+      getRunnerConfig().openshell.sandbox.images.hermes ??
       getAgentPlatformDefinition("hermes").sandboxImage,
     bootstrapScript: hermesBootstrapScript,
     healthProbe: (dashboardPort) => {
@@ -421,7 +422,7 @@ const agentPlatformRuntimeRegistry = {
       "/opt/venv/lib/python3.13/**",
     ],
     sandboxImage: () =>
-      process.env.OPENSHELL_DEEPAGENTS_SANDBOX_IMAGE ??
+      getRunnerConfig().openshell.sandbox.images.deepagents ??
       getAgentPlatformDefinition("deepagents").sandboxImage,
     bootstrapScript: deepAgentsBootstrapScript,
     healthProbe: () =>

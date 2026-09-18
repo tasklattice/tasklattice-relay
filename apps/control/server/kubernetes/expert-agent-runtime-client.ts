@@ -1,3 +1,4 @@
+import { getWorkerConfig } from "../config/worker-config";
 import {
   AppsV1Api,
   KubeConfig,
@@ -56,33 +57,6 @@ export interface ExpertAgentRuntimeConfiguration {
 
 type ExpertRuntimeObjectApi = Pick<KubernetesObjectApi, "delete" | "patch">;
 type ExpertRuntimeAppsApi = Pick<AppsV1Api, "readNamespacedDeployment">;
-
-function configurationFromEnvironment(): ExpertAgentRuntimeConfiguration {
-  const enabled = process.env.EXPERT_AGENT_RUNTIMES_ENABLED === "true";
-  const image = process.env.EXPERT_AGENT_RUNTIME_IMAGE?.trim() ?? "";
-  if (enabled && !image) {
-    throw new Error(
-      "EXPERT_AGENT_RUNTIME_IMAGE is required when Expert Agent Runtimes are enabled.",
-    );
-  }
-  const imagePullSecrets = JSON.parse(
-    process.env.EXPERT_AGENT_RUNTIME_IMAGE_PULL_SECRETS_JSON ?? "[]",
-  ) as unknown;
-  if (!Array.isArray(imagePullSecrets)) {
-    throw new Error("EXPERT_AGENT_RUNTIME_IMAGE_PULL_SECRETS_JSON must be an array.");
-  }
-  return {
-    enabled,
-    image,
-    imagePullPolicy: process.env.EXPERT_AGENT_RUNTIME_IMAGE_PULL_POLICY
-      ?? "IfNotPresent",
-    imagePullSecrets: imagePullSecrets as Array<{ name: string }>,
-    resources: JSON.parse(
-      process.env.EXPERT_AGENT_RUNTIME_RESOURCES_JSON ?? "{}",
-    ) as Record<string, unknown>,
-    revision: process.env.EXPERT_AGENT_RUNTIME_REVISION ?? image,
-  };
-}
 
 export function expertAgentRuntimeResourceName(instanceId: string): string {
   return `tali-expert-${createHash("sha256")
@@ -276,7 +250,7 @@ implements ExpertAgentRuntimeClient {
   private readonly apps: ExpertRuntimeAppsApi;
 
   constructor(
-    private readonly configuration = configurationFromEnvironment(),
+    private readonly configuration: ExpertAgentRuntimeConfiguration = getWorkerConfig().expert_agent_runtime,
     objects?: ExpertRuntimeObjectApi,
     apps?: ExpertRuntimeAppsApi,
   ) {
@@ -312,7 +286,7 @@ implements ExpertAgentRuntimeClient {
         PatchStrategy.ServerSideApply,
       );
     }
-    const timeoutMs = Number(process.env.EXPERT_AGENT_RUNTIME_READY_TIMEOUT_MS ?? "120000");
+    const timeoutMs = getWorkerConfig().expert_agent_runtime.readyTimeoutMs;
     const deadline = Date.now() + timeoutMs;
     while (true) {
       const deployment = await this.apps.readNamespacedDeployment({
@@ -369,5 +343,7 @@ implements ExpertAgentRuntimeClient {
 }
 
 export function createExpertAgentRuntimeClient(): ExpertAgentRuntimeClient {
-  return new KubernetesExpertAgentRuntimeClient();
+  let client: ExpertAgentRuntimeClient | undefined;
+  const get = () => client ??= new KubernetesExpertAgentRuntimeClient();
+  return { activate: (input) => get().activate(input), deactivate: (input) => get().deactivate(input) };
 }

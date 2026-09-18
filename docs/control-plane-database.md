@@ -84,7 +84,7 @@ application boundary is its HTTP API (`/v1/chunk/hybrid/file`); all ownership,
 authorization, job state, embedding calls, and PostgreSQL writes stay in the
 TypeScript control plane. The default Chart deploys
 `ghcr.io/docling-project/docling-serve-cpu` and gives the Control Worker its
-cluster-local `DOCLING_BASE_URL`. Its runtime model cache is persisted without
+cluster-local `[worker.docling].baseUrl` in `control.toml`. Its runtime model cache is persisted without
 forcing an empty offline artifacts directory. Docling OCR does not require an
 NVIDIA API key.
 

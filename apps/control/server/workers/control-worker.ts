@@ -1,3 +1,5 @@
+import { reportWorkerRuntime } from "./worker-runtime-report";
+import { getWorkerConfig } from "../config/worker-config";
 import { randomUUID } from "node:crypto";
 import { hostname } from "node:os";
 import { prisma } from "../db/prisma";
@@ -14,7 +16,6 @@ import {
 import { ControlWorkerTasks } from "./control-worker-tasks";
 
 const workerId = `${hostname()}:${process.pid}:${randomUUID()}`;
-process.env.CONTROL_WORKER_ROLE ??= "tali-control-worker";
 const logger = createStructuredLogger("control-worker", { workerId });
 const healthState: ControlWorkerHealthState = {
   queueReady: false,
@@ -24,7 +25,7 @@ const healthState: ControlWorkerHealthState = {
 };
 
 const database = prisma();
-const jobs = new PgBossControlJobQueue();
+const jobs = new PgBossControlJobQueue(undefined, getWorkerConfig().role);
 const healthServer = await startControlWorkerHealthServer(healthState);
 let shutdownRequested!: () => void;
 const shutdown = new Promise<void>((resolve) => {
@@ -47,15 +48,22 @@ jobs.boss.on("warning", (warning) => {
   logger.log("warn", "queue.warning", { warning });
 });
 
+let reportTimer: ReturnType<typeof setInterval> | undefined;
 try {
   await jobs.start();
   const tasks = new ControlWorkerTasks({ db: database, jobs, logger });
   const registrations = await tasks.register();
   await jobs.scheduleMaintenance();
+  healthState.queueReady = true;
+  await reportWorkerRuntime(healthState);
+  reportTimer = setInterval(() => {
+    void reportWorkerRuntime(healthState).catch((error) => logger.log("error", "worker.report-failed", serializeError(error)));
+  }, 30000);
+  reportTimer.unref();
   await jobs.enqueueMaintenance("startup");
   healthState.queueReady = true;
   logger.log("info", "worker.started", {
-    healthPort: Number(process.env.CONTROL_WORKER_HEALTH_PORT ?? 9090),
+    healthPort: getWorkerConfig().healthPort,
     registrations,
   });
   await shutdown;
@@ -63,6 +71,7 @@ try {
   process.exitCode = 1;
   logger.log("error", "worker.failed", serializeError(error));
 } finally {
+  if (reportTimer) clearInterval(reportTimer);
   healthState.stopping = true;
   healthState.queueReady = false;
   await jobs.stop(9 * 60 * 1_000).catch((error) => {

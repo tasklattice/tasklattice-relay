@@ -1,3 +1,5 @@
+import { getWorkerConfig, setWorkerConfigForTests, developmentWorkerConfig } from "../config/worker-config";
+import { getControlConfig, setControlConfigForTests } from "../config/control-config";
 import { PatchStrategy, type V1Namespace } from "@kubernetes/client-node";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { KubernetesProjectNamespaceClient } from "./project-namespace-client";
@@ -52,8 +54,8 @@ describe("KubernetesProjectNamespaceClient", () => {
   afterEach(() => vi.unstubAllEnvs());
 
   it("adds deployment-configured Argo visibility to an existing Project without recreating it", async () => {
-    vi.stubEnv("PROJECT_ARGOCD_SOURCE_TRACKING_ID", "relay:apps/Deployment:tali/relay-control");
-    vi.stubEnv("PROJECT_ARGOCD_INSTALLATION_ID", "internal");
+    getWorkerConfig().resource_ownership.sourceTrackingId = "relay:apps/Deployment:tali/relay-control";
+    getWorkerConfig().resource_ownership.installationId = "internal";
     const fake = client();
     await fake.client.reconcile(input);
     expect(fake.core.createNamespace).not.toHaveBeenCalled();
@@ -168,3 +170,7 @@ describe("KubernetesProjectNamespaceClient", () => {
     });
   });
 });
+
+afterEach(() => setControlConfigForTests(undefined));
+
+afterEach(() => setWorkerConfigForTests(undefined));

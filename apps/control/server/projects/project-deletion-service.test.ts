@@ -99,6 +99,7 @@ describe("ProjectDeletionService", () => {
     expect(dependencies.destroySandbox).toHaveBeenCalledWith(
       "tali-cleanup-agent",
       "openclaw",
+      undefined,
     );
     expect(dependencies.revokeKey).toHaveBeenCalledWith("instance-key-1");
     expect(dependencies.deleteProjectTeam).toHaveBeenCalledWith("project-team-1");

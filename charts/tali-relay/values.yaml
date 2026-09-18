@@ -99,6 +99,11 @@ control:
   replicaCount: 1
   worker:
     enabled: true
+    healthPort: 9090
+    docling:
+      # Optional external parser; overrides the bundled Service URL.
+      url: ""
+      apiKey: ""
     # PostgreSQL-backed queue claims make multiple replicas safe. One is
     # sufficient for the normal control-plane background workload.
     replicaCount: 1
@@ -109,7 +114,6 @@ control:
       limits:
         cpu: 250m
         memory: 512Mi
-    extraEnv: []
   # Canonical browser origin used by Better Auth for cookies and callbacks.
   publicUrl: http://localhost:38080
   hostAliases: []
@@ -131,7 +135,6 @@ control:
     limits:
       cpu: 500m
       memory: 512Mi
-  extraEnv: []
 
 # Built-in document parsing for PostgreSQL Vector Databases. Docling remains a
 # separate Python workload; the TypeScript Control Worker calls its stable API.
@@ -149,6 +152,8 @@ docling:
     enabled: true
     size: 10Gi
     storageClass: ""
+    existingClaim: ""
+    accessModes: [ReadWriteOnce]
   resources:
     requests:
       cpu: 500m
@@ -161,7 +166,7 @@ docling:
 # existing PostgreSQL/pgvector and LiteLLM Services through dedicated scopes.
 features:
   durableMemory:
-    # Environment default. Set projectAllowlist for a gradual Project rollout.
+    # Master switch. Set projectAllowlist for a gradual Project rollout.
     enabled: true
     projectAllowlist: []
 
@@ -280,6 +285,7 @@ projectRuntimeNamespaces:
 
 runner:
   replicaCount: 1
+  startTimeoutMs: 180000
   serviceBaseUrl: http://openshell.localhost:8080
   kubernetesServiceCidrs: 10.0.0.0/8,172.16.0.0/12,192.168.0.0/16
   sandbox:
@@ -302,7 +308,6 @@ runner:
     limits:
       cpu: 500m
       memory: 384Mi
-  extraEnv: []
 
 # The Control Plane installs the pinned OpenShell chart in each Project
 # Namespace. The central Runner routes by ProjectRuntimeTarget.
@@ -358,10 +363,9 @@ litellm:
   # Keep request-log errors concise. Full tracebacks remain available in the
   # LiteLLM container logs for operator diagnostics.
   maximumTracebackLinesToLog: 0
-  # Optional PEM-encoded CA bundle for HTTPS endpoints signed by a private CA.
-  # When set, the Chart creates a Secret and mounts it at /etc/ssl/certs only
-  # in the LiteLLM Pod.
-  caCertificate: ""
+  # Base64 of a PEM CA bundle (not a DER certificate). System roots are retained.
+  # Invalid input fails Helm rendering; invalid X.509 fails the CA init container.
+  caCertificateBase64: ""
   service:
     type: ClusterIP
     port: 4000
@@ -411,17 +415,23 @@ postgresql:
       memory: 512Mi
 
 # Development-friendly defaults make the chart installable as-is. Override all
-# values below (or set existingSecret) before exposing a shared deployment.
+# values below (or set per-component existingSecrets) before exposing a shared deployment.
 secrets:
-  existingSecret: ""
+  existingSecrets:
+    control: ""
+    worker: ""
+    runner: ""
+    postgresql: ""
+    litellm: ""
+    hindsight: ""
+    metrics: ""
+    keycloak: ""
   runnerToken: local-dev-token
   litellmMasterKey: sk-tali-local
   postgresPassword: tali-local
   databaseUrl: ""
   authSecret: tali-local-development-auth-secret-32-chars
   initialPlatformAdministratorPassword: password
-  # Deprecated compatibility alias. Prefer initialPlatformAdministratorPassword.
-  initialSuperAdminPassword: ""
   keycloakAdminPassword: password
   keycloakClientSecret: tali-keycloak-test-client-secret
   keycloakTestUserPassword: password

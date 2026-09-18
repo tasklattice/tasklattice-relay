@@ -1,3 +1,4 @@
+import { getControlConfig } from "../config/control-config";
 import { z } from "zod";
 import type {
   MemoryConversation,
@@ -179,10 +180,7 @@ export class ProjectMemoryRuntimeService {
 }
 
 function recallTimeoutMs(): number {
-  const configured = Number(process.env.MEMORY_RUNTIME_RECALL_TIMEOUT_MS ?? "1500");
-  return Number.isFinite(configured)
-    ? Math.max(100, Math.min(8_000, configured))
-    : 1_500;
+  return getControlConfig().memory.recallTimeoutMs;
 }
 
 function itemContext(item: MemoryItem): string {

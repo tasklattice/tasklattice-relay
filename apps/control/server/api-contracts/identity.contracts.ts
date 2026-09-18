@@ -125,7 +125,7 @@ export const identityContracts = defineContracts([
   }),
   route({
     method: "post", path: "/projects", operationId: "createProject",
-    summary: "Create a Project", tags: ["Projects"], request: { body: createProjectInputSchema },
+    summary: "Create a Project and queue background initialization", tags: ["Projects"], request: { body: createProjectInputSchema },
     responses: { 201: response("Created Project", projectSummarySchema) },
   }),
   projectRoute({
@@ -136,6 +136,22 @@ export const identityContracts = defineContracts([
   projectRoute({
     method: "delete", path: "", operationId: "deleteProject", summary: "Schedule Project deletion",
     tags: ["Projects"], responses: { 202: response("Deletion scheduled", projectDeletionScheduleSchema) },
+  }),
+  projectRoute({
+    method: "get", path: "/resource-operations/{id}", operationId: "getResourceOperation",
+    summary: "Read background resource operation", tags: ["Projects"],
+    request: { params: projectParamsSchema.extend({ id: z.string().uuid() }) },
+    responses: { 200: response("Resource operation", z.object({ id: z.string().uuid(), action: z.string(), status: z.string(), result: z.unknown(), lastError: z.string().nullable(), createdAt: z.string(), updatedAt: z.string() })) },
+  }),
+  projectRoute({
+    method: "get", path: "/initialization", operationId: "getProjectInitialization",
+    summary: "Read asynchronous Project initialization", tags: ["Projects"],
+    responses: { 200: response("Initialization status", z.object({ status: z.string(), generation: z.number(), observedGeneration: z.number(), attempts: z.number(), lastError: z.string().nullable(), updatedAt: z.string().nullable() })) },
+  }),
+  projectRoute({
+    method: "post", path: "/initialization/retry", operationId: "retryProjectInitialization",
+    summary: "Retry failed Project initialization", tags: ["Projects"],
+    responses: { 202: response("Initialization scheduled", z.object({ status: z.string(), generation: z.number(), observedGeneration: z.number(), attempts: z.number(), lastError: z.string().nullable(), updatedAt: z.string().nullable() })) },
   }),
   projectRoute({
     method: "get", path: "/deletion-impact", operationId: "getProjectDeletionImpact",

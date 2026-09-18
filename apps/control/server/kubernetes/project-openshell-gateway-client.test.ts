@@ -23,6 +23,7 @@ const configuration: ProjectOpenShellGatewayConfiguration = {
   sandboxImagePullPolicy: "IfNotPresent",
   serviceNamePrefix: "openshell-",
   supervisorImageRepository: "registry.example/openshell/supervisor",
+  supervisorImagePullPolicy: "Never",
   supervisorImageTag: "0.0.106",
   workspaceDefaultStorageSize: "2Gi",
 };
@@ -95,6 +96,7 @@ describe("HelmProjectOpenShellGatewayClient", () => {
         sandboxJwt: { gatewayId: target.namespace },
         sandboxNamespace: target.namespace,
       },
+      supervisor: { image: { pullPolicy: "Never" } },
       resources: configuration.gatewayResources,
       service: { type: "ClusterIP" },
     });

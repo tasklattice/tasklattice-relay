@@ -2,7 +2,15 @@
 
 import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { parseAllDocuments } from "yaml";
+import { parseAllDocuments, parse as parseYaml } from "yaml";
+import { parse as parseToml } from "smol-toml";
+import { readFileSync } from "node:fs";
+import assert from "node:assert/strict";
+
+function releaseSecret(collection) { return Object.assign({}, ...collection.filter((o) => o.kind === "Secret").map((o) => o.stringData ?? {})); }
+function workerConfig(collection) { return parseToml(releaseSecret(collection)["worker.toml"]).worker; }
+function controlConfig(collection) { return parseToml(releaseSecret(collection)["control.toml"]); }
+function hindsightConfig(collection) { return JSON.parse(releaseSecret(collection)["hindsight-config.json"]); }
 
 const releaseName = "tali-relay";
 const releaseNamespace = "tali-resource-validation";
@@ -52,31 +60,21 @@ const smokeProxy = smokeServices.find((service) => service.metadata?.name.endsWi
 if (smokeProxy?.spec?.type !== "ClusterIP" || !smokeProxy.spec.ports?.length) {
   throw new Error("Kind smoke must keep the Runner OpenShell proxy enabled as a ClusterIP Service.");
 }
-const defaultRunnerEnv = defaults.find((o) => o.kind === "Deployment"
-  && o.metadata?.labels?.["app.kubernetes.io/component"] === "runner")?.spec.template.spec.containers[0].env;
-if (defaultRunnerEnv?.find((e) => e.name === "OPENSHELL_PROJECT_TARGET_ROUTING")?.value !== "true"
-  || defaultRunnerEnv?.some((e) => e.name === "OPENSHELL_GATEWAY_ENDPOINT")) {
-  throw new Error("Default Runner must route only to Project Gateways.");
-}
-const defaultControlEnv = defaults.find((o) => o.kind === "Deployment"
-  && o.metadata?.labels?.["app.kubernetes.io/component"] === "control")?.spec.template.spec.containers[0].env;
-for (const name of ["PROJECT_OPENSHELL_GATEWAYS_ENABLED", "PROJECT_RESOURCE_OWNERSHIP_ENABLED"]) {
-  if (defaultControlEnv?.find((e) => e.name === name)?.value !== "true") throw new Error(`${name} must default to true.`);
-}
+function runnerConfig(collection) { return JSON.parse(releaseSecret(collection)["runner.json"]); }
+assert.equal(runnerConfig(defaults).openshell.projectTargetRouting, true);
+assert.equal(runnerConfig(defaults).openshell.gatewayEndpoint, undefined);
+const runnerEnv = defaults.find((o) => o.kind === "Deployment" && o.metadata.labels["app.kubernetes.io/component"] === "runner").spec.template.spec.containers[0].env;
+assert.deepEqual(runnerEnv, [{ name: "TALI_RUNNER_CONFIG", value: "/etc/tali-runner/runner.json" }]);
+const defaultConfig = controlConfig(defaults);
+assert.equal(workerConfig(defaults).project_openshell.enabled, true);
+assert.equal(workerConfig(defaults).resource_ownership.enabled, true);
 const argoTrackingId = "relay:apps/Deployment:tali/relay-control";
 const argoConfigured = parseObjects(renderChart([
   "--set-string", `projectRuntimeNamespaces.argocd.sourceTrackingId=${argoTrackingId}`,
   "--set-string", "projectRuntimeNamespaces.argocd.installationId=internal",
 ]));
-for (const component of ["control", "control-worker"]) {
-  const env = argoConfigured.find((o) => o.kind === "Deployment"
-    && o.metadata?.labels?.["app.kubernetes.io/component"] === component)
-    ?.spec.template.spec.containers.find((c) => c.name === component)?.env ?? [];
-  if (env.find((e) => e.name === "PROJECT_ARGOCD_SOURCE_TRACKING_ID")?.value !== argoTrackingId
-    || env.find((e) => e.name === "PROJECT_ARGOCD_INSTALLATION_ID")?.value !== "internal") {
-    throw new Error(`Argo CD deployment values must reach ${component} reconciliation.`);
-  }
-}
+assert.equal(workerConfig(argoConfigured).resource_ownership.sourceTrackingId, argoTrackingId);
+assert.equal(workerConfig(argoConfigured).resource_ownership.installationId, "internal");
 
 function templateArguments(extraArguments = []) {
   return [
@@ -97,6 +95,30 @@ function renderChart(extraArguments = []) {
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
   });
+}
+
+const externalComponents = ["control", "worker", "runner", "postgresql", "litellm", "hindsight", "metrics"];
+const externalObjects = parseObjects(renderChart(externalComponents.flatMap((component) => [
+  "--set-string", `secrets.existingSecrets.${component}=external-${component}`,
+]).concat(["--set", "monitoring.serviceMonitor.enabled=true"])));
+for (const component of externalComponents) {
+  assert(!externalObjects.some((o) => o.kind === "Secret"
+    && o.metadata?.name === `${releaseName}-${component}-config`), `${component} must honor its external Secret`);
+  assert(JSON.stringify(externalObjects).includes(`external-${component}`), `${component} external Secret must be referenced`);
+}
+for (const object of defaults) {
+  const spec = object.spec?.template?.spec;
+  if (!spec) continue;
+  const refs = [
+    ...(spec.volumes ?? []).filter((v) => v.secret).map((v) => ({ name: v.secret.secretName, keys: (v.secret.items ?? []).map((i) => i.key) })),
+    ...[...(spec.containers ?? []), ...(spec.initContainers ?? [])].flatMap((c) => (c.env ?? [])
+      .filter((e) => e.valueFrom?.secretKeyRef).map((e) => ({ name: e.valueFrom.secretKeyRef.name, keys: [e.valueFrom.secretKeyRef.key] }))),
+  ];
+  for (const ref of refs) {
+    const secret = defaults.find((o) => o.kind === "Secret" && o.metadata?.name === ref.name);
+    assert(secret, `${object.metadata.name} references missing Secret ${ref.name}`);
+    for (const key of ref.keys) assert(key in (secret.stringData ?? {}) || key in (secret.data ?? {}), `${ref.name} is missing ${key}`);
+  }
 }
 
 function renderNamedChart(name, namespace, extraArguments = []) {
@@ -183,14 +205,14 @@ if (
       && object.metadata?.name === `${releaseName}-litellm-ca`,
   )
 ) {
-  throw new Error("LiteLLM must not mount a custom CA when caCertificate is empty.");
+  throw new Error("LiteLLM must not mount a custom CA when caCertificateBase64 is empty.");
 }
 
-const customCaCertificate = "TEST PRIVATE CA CERTIFICATE";
+const customCaCertificate = readFileSync("scripts/testing/fixtures/helm-test-ca.pem", "utf8");
 const customCaObjects = parseObjects(
   renderChart([
     "--set-string",
-    `litellm.caCertificate=${customCaCertificate}`,
+    `litellm.caCertificateBase64=${Buffer.from(customCaCertificate).toString("base64")}`,
   ]),
 );
 const customCaSecret = customCaObjects.find(
@@ -204,22 +226,46 @@ const customCaVolume = customCaDeployment?.spec?.template?.spec?.volumes?.find(
   (volume) => volume.name === "litellm-ca",
 );
 const customCaMount = customCaContainer?.volumeMounts?.find(
-  (mount) => mount.name === "litellm-ca",
+  (mount) => mount.name === "litellm-ca-bundle",
 );
 if (
-  customCaSecret?.stringData?.["ca.crt"] !== customCaCertificate
+  Buffer.from(customCaSecret?.data?.["ca.crt"] ?? "", "base64").toString() !== customCaCertificate
   || customCaSecret?.metadata?.annotations?.["argocd.argoproj.io/sync-wave"] !== "10"
   || customCaVolume?.secret?.secretName !== `${releaseName}-litellm-ca`
   || customCaVolume?.secret?.items?.[0]?.key !== "ca.crt"
   || customCaVolume?.secret?.items?.[0]?.path !== "ca.crt"
-  || customCaMount?.mountPath !== "/etc/ssl/certs"
+  || customCaMount?.mountPath !== "/var/run/tali-ca"
   || customCaMount?.readOnly !== true
-  || envValue(customCaContainer, "SSL_CERT_FILE")
-  || envValue(customCaContainer, "REQUESTS_CA_BUNDLE")
+  || envValue(customCaContainer, "SSL_CERT_FILE") !== "/var/run/tali-ca/ca-bundle.pem"
+  || envValue(customCaContainer, "REQUESTS_CA_BUNDLE") !== "/var/run/tali-ca/ca-bundle.pem"
   || !customCaDeployment?.spec?.template?.metadata?.annotations?.["checksum/litellm-ca"]
 ) {
   throw new Error("LiteLLM custom CA Secret, mount, or rollout checksum is invalid.");
 }
+
+for (const [flag, message] of [
+  ["litellm.caCertificateBase64=not-base64", "valid Base64 containing PEM"],
+  ["litellm.caCertificateBase64=aGVsbG8=", "valid Base64 containing PEM"],
+  ["litellm.caCertificate=old-contract", "was removed"],
+  ["secrets.existingSecret=old-contract", "was removed"],
+  ["runner.extraEnv[0].name=OPENSHELL_GATEWAY_IMAGE", "was removed"],
+  ["docling.replicaCount=2", "require ReadWriteMany"],
+  ["control.worker.enabled=false", "Control Worker is required"],
+  ["openshell.server.disableTls=false", "tenant TLS/auth are not configurable"],
+]) {
+  const invalid = spawnSync("helm", templateArguments(["--set", flag]), { encoding: "utf8" });
+  assert.notEqual(invalid.status, 0, `${flag} must be rejected`);
+  assert(invalid.stderr.includes(message), `${flag}: expected ${message}`);
+}
+const wrappedCa = parseObjects(renderChart(["--set-string",
+  `litellm.caCertificateBase64=${Buffer.from(customCaCertificate).toString("base64").match(/.{1,64}/g).join("\n")}`]));
+assert.equal(Buffer.from(wrappedCa.find((o) => o.metadata?.name === `${releaseName}-litellm-ca`).data["ca.crt"], "base64").toString(), customCaCertificate);
+assert(!customCaContainer.volumeMounts.some((mount) => mount.mountPath === "/etc/ssl/certs"));
+assert.equal(customCaDeployment.spec.template.spec.initContainers[0].name, "build-ca-bundle");
+const externalModels = parseObjects(renderChart(["--set", "docling.persistence.existingClaim=shared-models"]));
+assert(!externalModels.some((o) => o.kind === "PersistentVolumeClaim" && o.metadata.name === `${releaseName}-docling-models`));
+assert.equal(externalModels.find((o) => o.kind === "Deployment" && o.metadata.name === `${releaseName}-docling`)
+  .spec.template.spec.volumes.find((volume) => volume.name === "models").persistentVolumeClaim.claimName, "shared-models");
 
 const connectedLiteLLMContainer = litellmContainerFrom(
   parseObjects(
@@ -249,11 +295,8 @@ const arbitraryRunner = arbitraryReleaseObjects.find(
   (object) => object.kind === "Deployment"
     && object.metadata?.labels?.["app.kubernetes.io/component"] === "runner",
 )?.spec.template.spec.containers.find((container) => container.name === "runner");
-if (envValue(arbitraryRunner, "OPENSHELL_GATEWAY_ENDPOINT_TEMPLATE")
-    !== "http://openshell-{namespace}.{namespace}.svc.cluster.local:8080"
-  || arbitraryRunner?.env?.some((entry) => ["OPENSHELL_GATEWAY_ENDPOINT", "OPENSHELL_WORKSPACE"].includes(entry.name))) {
-  throw new Error("Runner must derive Gateway and workspace from the Project, independent of the Control release name.");
-}
+assert.equal(runnerConfig(arbitraryReleaseObjects).openshell.gatewayEndpointTemplate,
+  "http://openshell-{namespace}.{namespace}.svc.cluster.local:8080");
 
 for (const kind of ["Deployment", "ServiceAccount"]) {
   if (
@@ -304,7 +347,13 @@ for (const [kind, name, wave] of [
   ["ClusterRoleBinding", controlWorkerClusterRoleName, "10"],
   ["Role", `${releaseName}-control-managed-secrets`, "10"],
   ["RoleBinding", `${releaseName}-control-managed-secrets`, "10"],
-  ["Secret", `${releaseName}-secrets`, "10"],
+    ["Secret", `${releaseName}-control-config`, "10"],
+  ["Secret", `${releaseName}-runner-config`, "10"],
+  ["Secret", `${releaseName}-postgresql-config`, "10"],
+  ["Secret", `${releaseName}-litellm-config`, "10"],
+  ["Secret", `${releaseName}-hindsight-config`, "10"],
+  ["Secret", `${releaseName}-metrics-config`, "10"],
+  ["Secret", `${releaseName}-keycloak-config`, "10"],
   ["Secret", `${releaseName}-example-mcp-auth`, "10"],
   ["ConfigMap", `${releaseName}-keycloak-realm`, "10"],
   ["Service", `${releaseName}-postgresql`, "10"],
@@ -350,10 +399,8 @@ const hindsightApiContainer = hindsightApiPodSpec?.containers?.find(
 const hindsightRouterContainer = hindsightApiPodSpec?.containers?.find(
   (container) => container.name === "project-router",
 );
-const hindsightEnv = hindsightApiContainer?.env ?? [];
-const hindsightEnvValue = (name) => hindsightEnv.find((entry) => entry.name === name)?.value;
-const hindsightEnvSecretKey = (name) => hindsightEnv.find((entry) => entry.name === name)
-  ?.valueFrom?.secretKeyRef?.key;
+const hindsightFile = hindsightConfig(objects);
+const hindsightEnvValue = (name) => ({ ...hindsightFile.common, ...hindsightFile.api })[name];
 if (hindsightApiContainer?.image !== hindsightImage) {
   throw new Error("The Hindsight API image must remain pinned to the reviewed 0.9.2 multi-arch digest.");
 }
@@ -395,18 +442,12 @@ for (const [name, value] of [
     throw new Error(`Hindsight API must set ${name}=${value}.`);
   }
 }
-for (const [name, key] of [
-  ["HINDSIGHT_API_DATABASE_URL", "hindsight-database-url"],
-  ["HINDSIGHT_API_MIGRATION_DATABASE_URL", "hindsight-database-url"],
-  ["HINDSIGHT_API_TENANT_API_KEY", "hindsight-api-key"],
-  ["HINDSIGHT_API_LLM_API_KEY", "hindsight-router-token"],
-  ["HINDSIGHT_API_EMBEDDINGS_OPENAI_API_KEY", "hindsight-router-token"],
-]) {
-  if (hindsightEnvSecretKey(name) !== key) {
-    throw new Error(`Hindsight API ${name} must come from Secret key ${key}.`);
-  }
+assert.equal(hindsightEnvValue("HINDSIGHT_API_DATABASE_URL"), hindsightEnvValue("HINDSIGHT_API_MIGRATION_DATABASE_URL"));
+assert.equal(hindsightEnvValue("HINDSIGHT_API_TENANT_API_KEY"), controlConfig(objects).memory.apiKey);
+for (const key of ["HINDSIGHT_API_LLM_API_KEY", "HINDSIGHT_API_EMBEDDINGS_OPENAI_API_KEY"]) {
+  assert.equal(hindsightEnvValue(key), controlConfig(objects).memory.routerToken);
 }
-if (hindsightEnv.some((entry) => entry.valueFrom?.secretKeyRef?.key === "litellm-master-key")) {
+if (Object.values(hindsightFile.common).includes(releaseSecret(objects)["litellm-master-key"])) {
   throw new Error("Hindsight must never receive the LiteLLM master key.");
 }
 const controlImage = requireObject("Deployment", `${releaseName}-control`)
@@ -421,10 +462,9 @@ if (
   || hindsightRouterContainer?.securityContext?.readOnlyRootFilesystem !== true
   || routerEnv.find((entry) => entry.name === "TALI_HINDSIGHT_LOCAL_HEALTH_URL")?.value
     !== "http://127.0.0.1:8888/health"
-  || routerEnv.find((entry) => entry.name === "TALI_HINDSIGHT_ROUTER_TOKEN")
-    ?.valueFrom?.secretKeyRef?.key !== "hindsight-router-token"
-  || routerEnv.find((entry) => entry.name === "TALI_HINDSIGHT_CONTROL_TOKEN")
-    ?.valueFrom?.secretKeyRef?.key !== "hindsight-router-token"
+  || routerEnv.find((entry) => entry.name === "TALI_HINDSIGHT_CONFIG")?.value !== "/etc/hindsight/config.json"
+  || hindsightFile.router.routerToken !== controlConfig(objects).memory.routerToken
+  || hindsightFile.router.controlToken !== controlConfig(objects).memory.routerToken
 ) {
   throw new Error("Hindsight must use the hardened localhost Project Router sidecar.");
 }
@@ -462,17 +502,17 @@ const bootstrapContainer = migrationPodSpec?.initContainers?.find(
 );
 if (
   migrationContainer?.image !== hindsightImage
-  || !migrationContainer?.command?.join(" ").includes("hindsight-admin run-db-migration")
-  || !migrationContainer?.command?.join(" ").includes("--embedding-dimension")
+  || JSON.stringify(migrationContainer?.command) !== JSON.stringify(["python", "/etc/hindsight-launcher/entrypoint.py", "migration"])
+  || hindsightFile.migration.embeddingDimensions !== 1536
 ) {
   throw new Error("The Hindsight migration Job must run the pinned provider's dimension-aware migration command.");
 }
-if (
-  !bootstrapContainer?.command?.join(" ").includes("CREATE ROLE %I")
-  || !bootstrapContainer?.command?.join(" ").includes("CREATE DATABASE %I")
-  || !bootstrapContainer?.command?.join(" ").includes("CREATE SCHEMA IF NOT EXISTS hindsight")
-) {
-  throw new Error("The migration bootstrap must create the dedicated Hindsight role, database, and schema.");
+assert.equal(bootstrapContainer.image, migrationContainer.image);
+assert.deepEqual(bootstrapContainer.command, ["python", "/etc/hindsight-launcher/bootstrap.py"]);
+for (const component of ["control", "control-worker", "docling", "litellm"]) {
+  const pod = requireObject("Deployment", `${releaseName}-${component}`).spec.template.spec;
+  const business = pod.containers.find((c) => c.name === component);
+  for (const init of pod.initContainers ?? []) assert.equal(init.image, business.image, `${component}/${init.name} must reuse its business image`);
 }
 requireComponentObject(objects, "NetworkPolicy", "hindsight-migration");
 
@@ -517,7 +557,7 @@ const workerId = hindsightWorkerContainer?.env?.find(
   (entry) => entry.name === "HINDSIGHT_API_WORKER_ID",
 );
 if (
-  JSON.stringify(hindsightWorkerContainer?.command) !== JSON.stringify(["hindsight-worker"])
+  JSON.stringify(hindsightWorkerContainer?.command) !== JSON.stringify(["python", "/etc/hindsight-launcher/entrypoint.py", "worker"])
   || workerId?.valueFrom?.fieldRef?.fieldPath !== "metadata.name"
   || hindsightWorkerContainer?.readinessProbe?.httpGet?.path !== "/health"
   || hindsightWorkerContainer?.livenessProbe?.httpGet?.path !== "/health/live"
@@ -533,8 +573,7 @@ const externalWorkerApi = requireComponentObject(
   "hindsight-api",
 );
 if (
-  externalWorkerApi.spec?.template?.spec?.containers?.find((container) => container.name === "api")
-    ?.env?.find((entry) => entry.name === "HINDSIGHT_API_WORKER_ENABLED")?.value !== "false"
+  hindsightConfig(hindsightWorkerObjects).api.HINDSIGHT_API_WORKER_ENABLED !== "false"
 ) {
   throw new Error("Enabling the external Hindsight worker must disable the API's embedded worker.");
 }
@@ -644,7 +683,7 @@ const localObjects = parseObjects(
 const localSecret = localObjects.find(
   (object) =>
     object.kind === "Secret" &&
-    object.metadata?.name === `${releaseName}-secrets`,
+    object.metadata?.name === `${releaseName}-control-config`,
 );
 const localControlToml = localSecret?.stringData?.["control.toml"] ?? "";
 if (!/^public_url\s*=\s*"http:\/\/localhost:38080"$/m.test(localControlToml)) {
@@ -652,11 +691,12 @@ if (!/^public_url\s*=\s*"http:\/\/localhost:38080"$/m.test(localControlToml)) {
     "Control bootstrap must render Better Auth's canonical server.public_url.",
   );
 }
-if (/\[(?:runner|litellm|runtime_namespaces)\]|internal_url\s*=|^enabled\s*=/m.test(localControlToml)) {
-  throw new Error(
-    "Runtime connectivity and policy must not be rendered into control.toml.",
-  );
-}
+const localConfig = controlConfig(localObjects);
+assert.equal(localConfig.server.internal_url, `http://${releaseName}-control.${releaseNamespace}.svc.cluster.local:38080`);
+assert.equal(localConfig.runner.url, `http://${releaseName}-runner:9090`);
+assert.equal(localConfig.litellm.url, `http://${releaseName}-litellm.${releaseNamespace}.svc.cluster.local:4000`);
+assert.equal(localConfig.runtime_namespaces.enabled, true);
+assert.equal(localConfig.runtime_namespaces.cluster_id, "in-cluster");
 const localControl = localObjects.find(
   (object) =>
     object.kind === "Deployment"
@@ -664,73 +704,26 @@ const localControl = localObjects.find(
 );
 const localControlEnv = localControl?.spec?.template?.spec?.containers
   ?.find((container) => container.name === "control")?.env ?? [];
-if (
-  localControlEnv.find((entry) => entry.name === "TALI_HINDSIGHT_URL")?.value
-    !== `http://${releaseName}-hindsight-api.${releaseNamespace}.svc.cluster.local:8888`
-  || localControlEnv.find((entry) => entry.name === "TALI_HINDSIGHT_API_KEY")
-    ?.valueFrom?.secretKeyRef?.key !== "hindsight-api-key"
-  || localControlEnv.find((entry) => entry.name === "TALI_HINDSIGHT_ROUTER_TOKEN")
-    ?.valueFrom?.secretKeyRef?.key !== "hindsight-router-token"
-  || localControlEnv.find((entry) => entry.name === "TALI_HINDSIGHT_EMBEDDING_DIMENSIONS")?.value
-    !== "1536"
-) {
-  throw new Error("Control must use the internal Hindsight Service, root credential, and Project Router contract.");
-}
-for (const key of [
-  "metrics-token",
-  "hindsight-database-password",
-  "hindsight-database-url",
-  "hindsight-api-key",
-  "hindsight-router-token",
-]) {
-  if (localSecret?.stringData?.[key] == null) {
-    throw new Error(`The generated release Secret is missing ${key}.`);
-  }
-}
-for (const [name, value] of [
-  ["TALI_BOOTSTRAP_INTERNAL_URL", `http://${releaseName}-control.${releaseNamespace}.svc.cluster.local:38080`],
-  ["TALI_BOOTSTRAP_RUNNER_URL", `http://${releaseName}-runner:9090`],
-  ["TALI_BOOTSTRAP_LITELLM_URL", `http://${releaseName}-litellm.${releaseNamespace}.svc.cluster.local:4000`],
-  ["TALI_BOOTSTRAP_RUNTIME_NAMESPACES_ENABLED", "true"],
-  ["TALI_BOOTSTRAP_RUNTIME_CLUSTER_ID", "in-cluster"],
-  ["TALI_DURABLE_MEMORY_ENABLED", "true"],
-]) {
-  if (localControlEnv.find((entry) => entry.name === name)?.value !== value) {
-    throw new Error(`${name} must seed the initial Platform infrastructure setting.`);
-  }
-}
-for (const [name, key] of [
-  ["TALI_BOOTSTRAP_RUNNER_TOKEN", "runner-token"],
-  ["TALI_BOOTSTRAP_LITELLM_MASTER_KEY", "litellm-master-key"],
-  ["TALI_METRICS_TOKEN", "metrics-token"],
-]) {
-  if (
-    localControlEnv.find((entry) => entry.name === name)?.valueFrom
-      ?.secretKeyRef?.key !== key
-  ) {
-    throw new Error(`${name} must seed Platform settings from the component Secret.`);
-  }
-}
+assert.equal(localConfig.memory.baseUrl, `http://${releaseName}-hindsight-api.${releaseNamespace}.svc.cluster.local:8888`);
+assert.equal(localConfig.memory.apiKey, hindsightConfig(localObjects).common.HINDSIGHT_API_TENANT_API_KEY);
+assert.equal(localConfig.memory.routerToken, hindsightConfig(localObjects).router.routerToken);
+assert.equal(localConfig.memory.embeddingDimensions, 1536);
+assert.equal(localConfig.memory.enabled, true);
+assert.equal(localConfig.runner.token, runnerConfig(localObjects).server.token);
+assert.equal(localConfig.litellm.master_key, releaseSecret(localObjects)["litellm-master-key"]);
+assert.equal(localConfig.metrics.token, releaseSecret(localObjects)["metrics-token"]);
+assert.deepEqual(Object.keys(localSecret.stringData), ["control.toml"]);
+assert(!localObjects.some((o) => o.kind === "Secret" && o.metadata.name === `${releaseName}-secrets`));
+assert(!localControlEnv.some((entry) => /^(TALI_BOOTSTRAP|PROJECT_|EXPERT_|TALI_HINDSIGHT|TALI_DURABLE)/.test(entry.name)));
 
 const gradualMemoryObjects = parseObjects(renderChart([
   "--set", "features.durableMemory.enabled=false",
   "--set-string", "features.durableMemory.projectAllowlist[0]=project-canary",
 ]));
-const gradualMemoryControl = requireComponentObject(
-  gradualMemoryObjects,
-  "Deployment",
-  "control",
-);
-const gradualMemoryEnv = gradualMemoryControl.spec?.template?.spec?.containers
-  ?.find((container) => container.name === "control")?.env ?? [];
-if (
-  gradualMemoryEnv.find((entry) => entry.name === "TALI_DURABLE_MEMORY_ENABLED")?.value
-    !== "false"
-  || gradualMemoryEnv.find((entry) => entry.name === "TALI_DURABLE_MEMORY_PROJECTS")?.value
-    !== "project-canary"
-) {
-  throw new Error("Durable Memory must support environment disablement and Project canary rollout.");
-}
+assert.equal(controlConfig(gradualMemoryObjects).memory.enabled, false);
+assert.deepEqual(controlConfig(gradualMemoryObjects).memory.projectAllowlist, ["project-canary"]);
+const withoutHindsight = parseObjects(renderChart(["--set", "hindsight.enabled=false"]));
+assert.equal(controlConfig(withoutHindsight).memory.enabled, false);
 
 const monitoredObjects = parseObjects(renderChart([
   "--set", "monitoring.serviceMonitor.enabled=true",
@@ -821,40 +814,20 @@ if (
 
 const controlWorkerEnv = controlWorker.spec?.template?.spec?.containers
   ?.find((container) => container.name === "control-worker")?.env ?? [];
-if (
-  controlWorkerEnv.find((entry) => entry.name === "TALI_METRICS_TOKEN")
-    ?.valueFrom?.secretKeyRef?.key !== "metrics-token"
-) {
-  throw new Error("The Control Worker metrics endpoint must use the metrics token Secret.");
+assert.equal(controlWorkerEnv.find((entry) => entry.name === "TALI_CONFIG")?.value, "/etc/tali/control.toml");
+assert.equal(workerConfig(localObjects).docling.baseUrl, `http://${releaseName}-docling:5001`);
+for (const component of ["control", "control-worker"]) {
+  const deployment = requireObject("Deployment", `${releaseName}-${component}`);
+  assert.equal(deployment.spec.template.spec.volumes.find((volume) => volume.name === "control-config").secret.items[0].key, "control.toml");
+  assert.equal(deployment.spec.template.metadata.annotations["checksum/control-config"], requireObject("Deployment", `${releaseName}-control`).spec.template.metadata.annotations["checksum/control-config"]);
 }
-if (
-  controlWorkerEnv.find((entry) => entry.name === "TALI_HINDSIGHT_URL")?.value
-    !== `http://${releaseName}-hindsight-api.${releaseNamespace}.svc.cluster.local:8888`
-  || controlWorkerEnv.find((entry) => entry.name === "TALI_HINDSIGHT_API_KEY")
-    ?.valueFrom?.secretKeyRef?.key !== "hindsight-api-key"
-) {
-  throw new Error("The Control Worker must use the internal Hindsight Service and Secret-backed credential.");
-}
-if (
-  controlWorkerEnv.find((entry) => entry.name === "DOCLING_BASE_URL")?.value
-  !== `http://${releaseName}-docling:5001`
-) {
-  throw new Error(
-    "The Control Worker must use the bundled Docling Service when Docling is enabled.",
-  );
-}
-
 const docling = requireObject("Deployment", `${releaseName}-docling`);
-const doclingEnv = docling.spec?.template?.spec?.containers
-  ?.find((container) => container.name === "docling")?.env ?? [];
-if (
-  doclingEnv.find((entry) => entry.name === "DOCLING_SERVE_MAX_FILE_SIZE")
-    ?.value !== "26214400"
-) {
-  throw new Error(
-    "The Docling file-size limit must render as a decimal integer string.",
-  );
-}
+const doclingSettings = parseYaml(requireObject("ConfigMap", `${releaseName}-docling-config`).data["config.yaml"]);
+assert.equal(doclingSettings.max_file_size, 26214400);
+assert.equal(doclingSettings.artifacts_path, "/var/lib/docling/models/artifacts");
+assert.equal(docling.spec.strategy.type, "Recreate");
+assert.equal(docling.spec.template.spec.securityContext.fsGroup, 1001);
+assert.equal(docling.spec.template.spec.automountServiceAccountToken, false);
 
 const gatewayInstallerRules = [
   { apiGroups: [""], resources: ["configmaps", "persistentvolumeclaims", "secrets", "serviceaccounts", "services"], verbs: ["get", "list", "watch", "create", "update", "patch", "delete"] },
@@ -872,40 +845,11 @@ const runtimeControlRole = requireObject(
   "ClusterRole",
   runtimeControlClusterRoleName,
 );
-if (
-  JSON.stringify(runtimeControlRole.rules) !== JSON.stringify([
-    {
-      apiGroups: [""],
-      resources: ["namespaces"],
-      verbs: ["get", "create", "patch"],
-    },
-    {
-      apiGroups: [""],
-      resources: ["services"],
-      verbs: ["get", "create", "patch", "delete"],
-    },
-    {
-      apiGroups: [""],
-      resources: ["pods"],
-      verbs: ["get", "list"],
-    },
-    {
-      apiGroups: [""],
-      resources: ["pods/log"],
-      verbs: ["get"],
-    },
-    {
-      apiGroups: ["apps"],
-      resources: ["deployments"],
-      verbs: ["get", "create", "patch", "delete"],
-    },
-    ...gatewayInstallerRules,
-  ])
-) {
-  throw new Error(
-    "Control must use the reviewed Project Namespace, workload and Gateway installer permissions.",
-  );
-}
+assert(runtimeControlRole.rules.every((rule) => rule.verbs.every((verb) => ["get", "list", "watch"].includes(verb))), "Control must have read-only Kubernetes access");
+assert(!runtimeControlRole.rules.some((rule) => rule.resources.includes("secrets")), "Control must not read Worker Secrets");
+assert(!controlConfig(defaults).worker, "Control must not contain Worker configuration");
+const apiPod = requireComponentObject(defaults, "Deployment", "control").spec.template.spec;
+assert(!apiPod.volumes.some((v) => v.name === "worker-config"), "Worker config must not be mounted in Control");
 
 const runtimeControlBinding = requireObject(
   "ClusterRoleBinding",

@@ -201,6 +201,7 @@ model User {
 }
 
 model PlatformSettingsRecord {
+  workerRuntime Json? @map("worker_runtime")
   id                                     String   @id @default("platform")
   controlInternalUrl                     String?  @map("control_internal_url")
   runnerUrl                              String?  @map("runner_url")
@@ -486,6 +487,7 @@ model AuthVerification {
 }
 
 model Project {
+  resourceOperations ResourceOperationRecord[]
   id                                  String    @id
   name                                String
   avatar                              String?
@@ -1813,5 +1815,22 @@ model ProviderRegistrationCleanup {
 
   @@index([nextAttemptAt], map: "provider_registration_cleanup_due_idx")
   @@map("provider_registration_cleanup")
+  @@schema("tasklattice")
+}
+
+model ResourceOperationRecord {
+  id String @id @db.Uuid
+  projectId String @map("project_id")
+  actorId String @map("actor_id")
+  action String
+  inputEncrypted String @map("input_encrypted")
+  status String @default("pending")
+  result Json?
+  lastError String? @map("last_error")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  @@index([projectId, status], map: "resource_operations_project_status_idx")
+  @@map("resource_operations")
   @@schema("tasklattice")
 }

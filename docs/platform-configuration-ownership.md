@@ -2,8 +2,8 @@
 
 TaskLattice Relay separates process bootstrap from Platform Administrator
 policy. Platform settings are database-owned and audited; deployment settings
-provide only the values required to start Control and establish the first
-administrator recovery credential.
+provide startup credentials, initial infrastructure values, and deployment-owned
+component topology.
 
 Department-owned model, routing, and quota defaults are documented in
 [Department Setting](./department-settings.md). They are not Platform fallbacks
@@ -11,16 +11,13 @@ and require an explicit Department Administrator role.
 
 ## Current boundary
 
-`control.toml` contains six bootstrap fields plus `schema_version`:
+`control.toml` contains bootstrap credentials plus deployment-owned Worker,
+Docling connection, Hindsight connection, metrics, and Project provisioner
+sections. Control and Worker share this file. Infrastructure sections seed
+missing Platform database fields; they never overwrite stored values.
+See [Control configuration](control-configuration.md) for the section map.
 
-- the public browser URL;
-- the database URL and Better Auth secret;
-- the three initial Platform Administrator identity and credential values.
-
-These values remain deployment-managed because Control cannot reach the
-Platform database or establish its first recovery credential without them.
-
-The Platform database is the only source for:
+The Platform database is authoritative for:
 
 - Hermes, OpenClaw, and Deep Agents Sandbox image overrides;
 - new OpenShell Sandbox CPU and memory overrides;
@@ -40,8 +37,8 @@ The Platform database is the only source for:
   Role-to-Capability grants.
 
 OIDC, SMTP, Sandbox resource overrides, and Runtime deletion policy have no
-`control.toml` fallback. Infrastructure settings accept former TOML fields only
-as an upgrade bridge: missing database fields are imported once, while any
+`control.toml` fallback. Infrastructure settings use TOML as deployment bootstrap: missing database
+fields are imported once, while any
 stored Platform value wins on every replica and is never overwritten at
 restart.
 
@@ -59,7 +56,9 @@ Workspace, service route base, Kubernetes service CIDRs, Gateway image,
 Supervisor image, base image, pull policy, and TLS mode remain deployment-owned.
 Platform Setting displays those values read-only so Platform Administrators can
 diagnose the active topology without being allowed to mutate cluster bootstrap
-configuration.
+configuration. Gateway/Supervisor deployment fields come from
+the Worker report derived from `worker.toml`'s `[worker.project_openshell]`; Runner execution fields come from
+`runner.json` and are reported by its health endpoint.
 
 ## Secrets and live updates
 

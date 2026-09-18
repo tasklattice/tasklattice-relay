@@ -1,3 +1,4 @@
+import { getControlConfig } from "../config/control-config";
 import { timingSafeEqual } from "node:crypto";
 import type { PrismaClient } from "../generated/prisma/client";
 
@@ -165,7 +166,7 @@ export const memoryMetrics = new MemoryMetrics();
 
 export function metricsBearerAuthorized(
   authorization: string | undefined,
-  expectedToken = process.env.TALI_METRICS_TOKEN,
+  expectedToken = getControlConfig().metrics.token,
 ): boolean {
   if (!expectedToken) return false;
   const supplied = authorization?.match(/^Bearer\s+(.+)$/i)?.[1];
@@ -177,7 +178,7 @@ export function metricsBearerAuthorized(
 
 export function metricsRequestAuthorized(
   request: Request,
-  expectedToken = process.env.TALI_METRICS_TOKEN,
+  expectedToken = getControlConfig().metrics.token,
 ): boolean {
   return metricsBearerAuthorized(
     request.headers.get("authorization") ?? undefined,

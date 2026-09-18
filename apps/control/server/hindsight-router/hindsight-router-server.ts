@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { z } from "zod";
 import { createServer, type IncomingMessage } from "node:http";
 import { HindsightBootstrapRouter } from "./hindsight-bootstrap-router";
 
@@ -21,18 +23,19 @@ async function requestBody(request: IncomingMessage): Promise<Buffer> {
   return Buffer.concat(chunks);
 }
 
-const host = process.env.HOST?.trim() || "127.0.0.1";
-const port = Number.parseInt(process.env.PORT ?? "4010", 10);
+const config = z.object({
+  router: z.object({
+    host: z.string().min(1),
+    port: z.number().int().min(1).max(65535),
+    controlBaseUrl: z.string().url(),
+    controlToken: z.string().min(1),
+    routerToken: z.string().min(1),
+    embeddingDimensions: z.number().int().positive(),
+  }),
+}).parse(JSON.parse(readFileSync(requiredEnvironment("TALI_HINDSIGHT_CONFIG"), "utf8"))).router;
+const { host, port } = config;
 const hindsightHealthUrl = requiredEnvironment("TALI_HINDSIGHT_LOCAL_HEALTH_URL");
-const router = new HindsightBootstrapRouter({
-  controlBaseUrl: requiredEnvironment("TALI_HINDSIGHT_CONTROL_URL"),
-  controlToken: requiredEnvironment("TALI_HINDSIGHT_CONTROL_TOKEN"),
-  embeddingDimensions: Number.parseInt(
-    requiredEnvironment("TALI_HINDSIGHT_EMBEDDING_DIMENSIONS"),
-    10,
-  ),
-  routerToken: requiredEnvironment("TALI_HINDSIGHT_ROUTER_TOKEN"),
-});
+const router = new HindsightBootstrapRouter(config);
 
 let stopped = false;
 async function observeHindsight(): Promise<void> {

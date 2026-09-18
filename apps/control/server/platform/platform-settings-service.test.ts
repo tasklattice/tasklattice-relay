@@ -1,13 +1,17 @@
+function workerReport() {
+  return { reportedAt: new Date().toISOString(), workerId: "test-worker", ready: true,
+    projectTargetRouting: true, kubernetesAccess: true, sandbox: {
+      gatewayImage: "registry.example/worker-gateway:configured", supervisorImage: "registry.example/supervisor:test",
+      defaultImage: "registry.example/base:test", defaultImagePullPolicy: "IfNotPresent", tlsDisabled: true } };
+}
+import { getWorkerConfig, setWorkerConfigForTests, developmentWorkerConfig } from "../config/worker-config";
+import { developmentControlConfig, getControlConfig, setControlConfigForTests } from "../config/control-config";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   providerKinds,
   updatePlatformSettingsSchema,
   type ValidatePlatformSsoSettingsInput,
 } from "@tali/contracts";
-import {
-  developmentControlConfig,
-  setControlConfigForTests,
-} from "../config/control-config";
 import { createTestPrisma } from "../test/prisma";
 import { PlatformSettingsService } from "./platform-settings-service";
 
@@ -32,17 +36,20 @@ describe("PlatformSettingsService", () => {
 
   afterEach(() => {
     setControlConfigForTests(undefined);
+    setWorkerConfigForTests(undefined);
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
     vi.unstubAllEnvs();
   });
 
   it("rejects disabling Runtime Namespaces in the Project Gateway topology", async () => {
-    vi.stubEnv("PROJECT_OPENSHELL_TARGET_ROUTING_ENABLED", "true");
-    const service = new PlatformSettingsService(createTestPrisma());
+    const db = createTestPrisma();
+    await db.platformSettingsRecord.upsert({ where: { id: "platform" },
+      create: { id: "platform", revision: 0, workerRuntime: workerReport() }, update: { workerRuntime: workerReport() } });
+    const service = new PlatformSettingsService(db);
 
     await expect(service.validateInfrastructure({
-      controlInternalUrl: "http://control.internal",
+      controlInternalUrl: "http://control.ns.svc.cluster.local",
       runner: {
         url: "http://runner.internal",
         token: { action: "replace", value: "runner-secret" },
@@ -53,12 +60,12 @@ describe("PlatformSettingsService", () => {
       },
       runtimeNamespaces: { enabled: false, clusterId: "in-cluster" },
     })).rejects.toThrow(
-      "Runtime Namespaces cannot be disabled while Project OpenShell target routing is enabled",
+      "Runtime Namespaces cannot be disabled while Project target routing is enabled",
     );
   });
 
   it("rejects an external Control URL when Project Runtime Bridges are enabled", async () => {
-    vi.stubEnv("PROJECT_RUNTIME_BRIDGES_ENABLED", "true");
+    getWorkerConfig().project_runtime_bridge.enabled = true;
     const service = new PlatformSettingsService(createTestPrisma());
 
     await expect(service.validateInfrastructure({
@@ -79,7 +86,7 @@ describe("PlatformSettingsService", () => {
     const db = createTestPrisma();
     const runtimeFetch = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
       const url = String(input);
-      if (url === "http://control.internal/api/health") {
+      if (url === "http://control.ns.svc.cluster.local/api/health") {
         return new Response(JSON.stringify({ ok: true }), { status: 200 });
       }
       if (url === "http://runner.internal/health") {
@@ -109,7 +116,7 @@ describe("PlatformSettingsService", () => {
       verifyRuntimeNamespaceAccess,
     );
     const draft = {
-      controlInternalUrl: "http://control.internal",
+      controlInternalUrl: "http://control.ns.svc.cluster.local",
       runner: {
         url: "http://runner.internal",
         token: { action: "replace" as const, value: "runner-secret" },
@@ -143,7 +150,7 @@ describe("PlatformSettingsService", () => {
       validationToken: validation.validationToken,
     }, "platform-admin");
     expect(updated).toEqual({
-      controlInternalUrl: "http://control.internal",
+      controlInternalUrl: "http://control.ns.svc.cluster.local",
       runner: { url: "http://runner.internal", tokenConfigured: true },
       litellm: { url: "http://litellm.internal", masterKeyConfigured: true },
       runtimeNamespaces: {
@@ -174,6 +181,8 @@ describe("PlatformSettingsService", () => {
 
   it("uses Runner deployment images until a Platform Administrator saves overrides", async () => {
     const db = createTestPrisma();
+    await db.platformSettingsRecord.upsert({ where: { id: "platform" },
+      create: { id: "platform", revision: 0, workerRuntime: workerReport() }, update: { workerRuntime: workerReport() } });
     const service = new PlatformSettingsService(db);
     const initial = await service.get({
       ok: true,
@@ -211,7 +220,7 @@ describe("PlatformSettingsService", () => {
       sandboxRuntime: {
         available: true,
         provider: "openshell",
-        gatewayImage: "ghcr.io/nvidia/openshell/gateway:0.0.111",
+        gatewayImage: "registry.example/worker-gateway:configured",
       },
       runtimePolicy: { namespaceDeletionTimeoutSeconds: 120 },
       security: {

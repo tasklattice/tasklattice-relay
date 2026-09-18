@@ -4,12 +4,15 @@ See [Platform configuration ownership](platform-configuration-ownership.md)
 for the reviewed boundary between deployment bootstrap, online Platform policy,
 and external secrets.
 
-TaskLattice Relay Control reads one small bootstrap TOML file. Production starts
+TaskLattice Relay Control reads one deployment TOML file. Production starts
 only when `TALI_CONFIG` points to a valid file. The Helm chart renders this file
 as the `control.toml` entry in the TaskLattice Relay Secret and mounts it
-read-only at `/etc/tali/control.toml`. Live infrastructure connections and
-runtime policy are stored in PostgreSQL and do not need to be duplicated in
-this file.
+read-only at `/etc/tali/control.toml`. It contains bootstrap credentials, infrastructure seed values, and typed
+sections for memory and metrics. Worker also mounts a separate `worker.toml`
+selected by `TALI_WORKER_CONFIG`, containing provisioners and Docling settings.
+Control rejects Worker sections and never mounts that Secret; neither reads the former business
+environment variables. Kubernetes discovery and process bootstrap variables
+(`TALI_CONFIG`, `PORT`, `NODE_EXTRA_CA_CERTS`, `POD_NAMESPACE`) remain environment-owned.
 
 ```toml
 schema_version = 1
@@ -74,7 +77,7 @@ Control internal URL, Runner URL and token, LiteLLM URL and master key, and
 Runtime Namespace enablement and cluster identity are configured
 from **Platform Setting -> Infrastructure**. Editing creates a browser-local
 draft. **Validate configuration** probes Control, Runner, and LiteLLM, checks
-Kubernetes permissions when Runtime Namespaces are enabled, and rejects a
+the Worker's recent report of its Kubernetes permissions when Runtime Namespaces are enabled, and rejects a
 cluster identity that conflicts with existing Runtime Targets. A deployment
 using Project OpenShell target routing also rejects disabling Runtime
 Namespaces because Agent operations would no longer have a routable target. A short-lived
@@ -86,15 +89,32 @@ full in-cluster HTTP Service name
 restricted to Control Pods in that Namespace rather than to an arbitrary host
 sharing the same port.
 
-On a new Helm installation, the chart supplies the in-cluster service URLs and
-component credentials as one-time bootstrap environment values. Control
-imports them only when the Platform runtime fields are missing. Existing TOML
-files containing the former `[runner]`, `[litellm]`,
-`[runtime_namespaces]`, `server.internal_url`, or `auth.local.enabled` values
-remain accepted during upgrade and are imported the same way. Once stored, the
-database is canonical and later deployment restarts do not overwrite an
-administrator's saved values. OpenShell gateway topology remains
+On a new Helm installation, `[runner]`, `[litellm]`, `[runtime_namespaces]`
+and `server.internal_url` seed missing Platform runtime fields. Once saved,
+the database is canonical: changing these file values and restarting does not
+overwrite an administrator's settings. OpenShell gateway topology remains
 deployment-owned and read-only in Platform Setting.
+
+The other deployment sections are read directly at process startup and apply
+to both Control and Worker:
+
+| Section | Responsibility |
+| --- | --- |
+| `worker.toml`: `[worker]`, `[worker.docling]` | Health port, queue identity, parser URL/API key and enablement |
+| `[memory]` | Provider URL/credentials, master switch, project allowlist, recall timeout, dimensions |
+| `[metrics]` | Metrics bearer token |
+| `[worker.project_openshell]` | Tenant chart, images, separate Gateway/Supervisor pull policies, storage |
+| `[worker.project_runtime_bridge]`, `[worker.expert_agent_runtime]` | Images, resources, pull secrets, readiness timeout |
+| `[worker.resource_ownership]` | Namespace ownership and Argo CD tracking annotations |
+| `[demo]`, `[worker.provisioning]` | Example image and instance provisioning timeout |
+
+Nested resources and pull secrets are TOML objects/arrays, not JSON strings in
+environment variables. Unknown section keys and invalid typed values fail
+startup. The old `TALI_BOOTSTRAP_*`, `PROJECT_*`, `TALI_HINDSIGHT_*`,
+`DOCLING_BASE_URL`, and Worker business environment overrides are removed.
+The mounted file contains secrets and must not be published in diagnostics.
+See [component configuration and persistence](helm-component-configuration.md)
+for the complete Helm mapping and CA validation commands.
 
 ## Identity ownership
 
@@ -153,3 +173,5 @@ stable Role ID. The Control plane matches complete Group paths exactly during
 SSO sign-in; it never grants authority merely because a Group name resembles a
 Role. Removing a Group revokes only its external grant and preserves manually
 assigned memberships.
+
+Project provisioning is asynchronous; see [Project resource lifecycle](project-resource-lifecycle.md).

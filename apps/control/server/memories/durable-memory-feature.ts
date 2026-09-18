@@ -1,39 +1,20 @@
+import { getControlConfig } from "../config/control-config";
 import {
   hasValidatedEmbeddingModel,
   type ModelReadinessCandidate,
 } from "@tali/contracts";
 
-interface DurableMemoryFeatureEnvironment {
-  TALI_DURABLE_MEMORY_ENABLED?: string;
-  TALI_DURABLE_MEMORY_PROJECTS?: string;
-}
-
 export interface ProjectModelInventory {
   listModelDeployments(): Promise<ModelReadinessCandidate[]>;
 }
 
-function enabledByDefault(value: string | undefined): boolean {
-  if (value === undefined || value.trim() === "") return true;
-  return !new Set(["0", "false", "no", "off"]).has(value.trim().toLowerCase());
-}
-
-function projectAllowlist(value: string | undefined): Set<string> | null {
-  if (value === undefined || value.trim() === "") return null;
-  return new Set(value.split(",").map((item) => item.trim()).filter(Boolean));
-}
-
-/**
- * A configured allowlist takes precedence over the environment default so a
- * release can be rolled out Project by Project without changing Project data.
- */
+/** The master switch always wins, including over a staged rollout allowlist. */
 export function durableMemoryEnabledForProject(
   projectId: string,
-  environment: DurableMemoryFeatureEnvironment = process.env,
+  configuration: { enabled: boolean; projectAllowlist: string[] } = getControlConfig().memory,
 ): boolean {
-  const allowlist = projectAllowlist(environment.TALI_DURABLE_MEMORY_PROJECTS);
-  return allowlist
-    ? allowlist.has(projectId)
-    : enabledByDefault(environment.TALI_DURABLE_MEMORY_ENABLED);
+  return configuration.enabled && (!configuration.projectAllowlist.length
+    || configuration.projectAllowlist.includes(projectId));
 }
 
 export class DurableMemoryFeatureDisabledError extends Error {
@@ -61,18 +42,18 @@ export class DurableMemoryEmbeddingRequiredError extends Error {
 export async function durableMemoryAvailableForProject(
   projectId: string,
   store: ProjectModelInventory,
-  environment: DurableMemoryFeatureEnvironment = process.env,
+  configuration: { enabled: boolean; projectAllowlist: string[] } = getControlConfig().memory,
 ): Promise<boolean> {
-  if (!durableMemoryEnabledForProject(projectId, environment)) return false;
+  if (!durableMemoryEnabledForProject(projectId, configuration)) return false;
   return hasValidatedEmbeddingModel(await store.listModelDeployments());
 }
 
 export async function assertDurableMemoryAvailableForProject(
   projectId: string,
   store: ProjectModelInventory,
-  environment: DurableMemoryFeatureEnvironment = process.env,
+  configuration: { enabled: boolean; projectAllowlist: string[] } = getControlConfig().memory,
 ): Promise<void> {
-  if (!durableMemoryEnabledForProject(projectId, environment)) {
+  if (!durableMemoryEnabledForProject(projectId, configuration)) {
     throw new DurableMemoryFeatureDisabledError();
   }
   if (!hasValidatedEmbeddingModel(await store.listModelDeployments())) {

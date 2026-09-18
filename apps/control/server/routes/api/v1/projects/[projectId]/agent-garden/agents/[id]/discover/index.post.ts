@@ -1,3 +1,4 @@
+import { ResourceOperationService } from "../../../../../../../../../projects/resource-operation-service";
 import { defineHandler } from "nitro";
 import {
   requireAuth,
@@ -22,9 +23,9 @@ export default defineHandler(async (event) => {
   try {
     await requireProjectRole(event.req, ["admin"]);
     const id = decodeURIComponent(event.context.params?.id ?? "");
-    return jsonResponse(
-      await (await getAgentGardenService(event.req)).discover(id, actorId),
-    );
+    const service = await getAgentGardenService(event.req);
+    const accepted = await new ResourceOperationService().enqueue(service.store.projectId, actorId, "discover", { id });
+    return jsonResponse(accepted, { status: 202, headers: { location: accepted.statusUrl } });
   } catch (error) {
     return errorResponse(error);
   }

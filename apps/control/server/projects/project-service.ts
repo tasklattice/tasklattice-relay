@@ -4,7 +4,7 @@ import {
   projectNameSchema,
   type ProjectMembershipRole,
 } from "@tali/contracts";
-import { ensureDefaultAccessPolicy } from "../access-policies/default-access-policy";
+import { initializeDefaultAccessPolicy } from "../access-policies/default-access-policy";
 import { RoleCatalogService } from "../authorization/role-catalog";
 import type { PlatformPrincipal } from "../auth/auth";
 import { requireAuth } from "../auth/auth";
@@ -43,17 +43,14 @@ import {
   PROJECT_DELETION_GRACE_PERIOD_MINUTES,
   PROJECT_DELETION_GRACE_PERIOD_MS,
   type ProjectDeletionSchedule,
-} from "./project-deletion-service";
-import {
-  projectRuntimeNamespace,
-  ProjectRuntimeTargetService,
-  type ProjectRuntimeNamespaceProvisioner,
-} from "./project-runtime-target-service";
+} from "./project-deletion-contract";
+import { projectRuntimeNamespace } from "./project-runtime-identity";
 import { durableMemoryEnabledForProject } from "../memories/durable-memory-feature";
 
 export type ProjectRole = ProjectMembershipRole;
 
 export interface ProjectView extends ProjectAccessView {
+  initialization?: { status: "pending" };
   department: {
     id: string;
     name: string;
@@ -184,7 +181,6 @@ export class ProjectService {
     private readonly db: PrismaClient = prisma(),
     private readonly litellm: LiteLLMAdminClient = new LiteLLMClient(),
     private readonly invitationMailer: InvitationMailer = new SmtpInvitationMailer(),
-    private runtimeNamespaces?: ProjectRuntimeNamespaceProvisioner,
     private controlJobs?: ControlJobPublisher,
   ) {}
 
@@ -251,7 +247,9 @@ export class ProjectService {
     ]).size;
   }
 
-  private async acceptPendingInvitations(auth: PlatformPrincipal): Promise<string> {
+  private async acceptPendingInvitations(
+    auth: PlatformPrincipal,
+  ): Promise<string> {
     const id = await this.requireUser(auth);
     const user = await this.db.user.findUniqueOrThrow({
       where: { id },
@@ -331,10 +329,7 @@ export class ProjectService {
     const memberships = await this.db.projectMember.findMany({
       where: {
         userId: currentUserId,
-        OR: [
-          { manualAccess: true },
-          { externalAccessActive: true },
-        ],
+        OR: [{ manualAccess: true }, { externalAccessActive: true }],
         project: { deletedAt: null },
       },
       include: {
@@ -430,10 +425,11 @@ export class ProjectService {
     ) {
       throw new Error("Project not found or access denied.");
     }
-    const selectedRole = auth.accessContext?.level === "project"
-      && auth.accessContext.resourceId === projectId
-      ? projectRoleFromBuiltinRole(auth.accessContext.roleId)
-      : undefined;
+    const selectedRole =
+      auth.accessContext?.level === "project" &&
+      auth.accessContext.resourceId === projectId
+        ? projectRoleFromBuiltinRole(auth.accessContext.roleId)
+        : undefined;
     if (auth.sessionId && !selectedRole) {
       throw new Error(
         "Access denied: select access for this Project and Role for the session.",
@@ -459,11 +455,11 @@ export class ProjectService {
     const currentUserId = await this.acceptPendingInvitations(auth);
     if (authority === "platform") {
       if (
-        auth.user.systemRole !== "platform_administrator"
-        || !await new RoleCatalogService(this.db).hasCapability(
+        auth.user.systemRole !== "platform_administrator" ||
+        !(await new RoleCatalogService(this.db).hasCapability(
           "ROLE_PLATFORM_ADMIN",
           "CAP_PLATFORM_PROJECT_CREATE",
-        )
+        ))
       ) {
         throw new Error(
           "You do not have permission to create Projects at the platform level.",
@@ -553,148 +549,164 @@ export class ProjectService {
       existingUsers.map((user) => [user.email, user]),
     );
     const inheritedQuota = {
-      hardBudgetUsd: department.defaultProjectHardBudgetUsd === null
-        ? (department.hardBudgetUsd === null ? null : 0)
-        : Number(department.defaultProjectHardBudgetUsd),
-      budgetDuration: department.defaultProjectHardBudgetUsd === null
-        ? (department.hardBudgetUsd === null ? null : "30d")
-        : (department.defaultProjectBudgetDuration ?? "30d") as BudgetDuration | null,
-      tpmLimit: department.defaultProjectTpmLimit === null
-        ? null
-        : Number(department.defaultProjectTpmLimit),
-      maxInstances: department.defaultProjectMaxInstances
-        ?? (department.hardMaxInstances === null ? null : 0),
-      maxMcpIntegrations: department.defaultProjectMaxMcpIntegrations
-        ?? (department.hardMaxMcpIntegrations === null ? null : 0),
+      hardBudgetUsd:
+        department.defaultProjectHardBudgetUsd === null
+          ? department.hardBudgetUsd === null
+            ? null
+            : 0
+          : Number(department.defaultProjectHardBudgetUsd),
+      budgetDuration:
+        department.defaultProjectHardBudgetUsd === null
+          ? department.hardBudgetUsd === null
+            ? null
+            : "30d"
+          : ((department.defaultProjectBudgetDuration ??
+              "30d") as BudgetDuration | null),
+      tpmLimit:
+        department.defaultProjectTpmLimit === null
+          ? null
+          : Number(department.defaultProjectTpmLimit),
+      maxInstances:
+        department.defaultProjectMaxInstances ??
+        (department.hardMaxInstances === null ? null : 0),
+      maxMcpIntegrations:
+        department.defaultProjectMaxMcpIntegrations ??
+        (department.hardMaxMcpIntegrations === null ? null : 0),
       maxKnowledgeBaseIntegrations:
-        department.defaultProjectMaxKnowledgeBaseIntegrations
-        ?? (department.hardMaxKnowledgeBaseIntegrations === null ? null : 0),
+        department.defaultProjectMaxKnowledgeBaseIntegrations ??
+        (department.hardMaxKnowledgeBaseIntegrations === null ? null : 0),
     } as const;
-    await assertDepartmentAllocationAvailable(this.db, department, inheritedQuota);
+    await assertDepartmentAllocationAvailable(
+      this.db,
+      department,
+      inheritedQuota,
+    );
     const runtimeNamespaceConfig = (
       await loadPlatformRuntimeConfiguration(this.db)
     ).runtimeNamespaces;
-    const project = await this.db.project.create({
-      data: {
-        id: projectId,
-        name: projectName,
-        departmentId,
-        createdBy: currentUserId,
-        inheritedDepartmentSettingsRevision: department.settingsRevision,
-        inheritedDepartmentDefaults: {
-          departmentId: department.id,
-          departmentSettingsRevision: department.settingsRevision,
-          models: {
-            defaultChatModel: department.defaultChatModel,
-            defaultEmbeddingModel: department.defaultEmbeddingModel,
-          },
-          routing: {
-            mode: department.defaultRoutingMode,
-            fallbackModel: department.defaultFallbackModel,
-          },
-        },
-        humanMembers: {
-          create: [
-            {
-              userId: currentUserId,
-              role: "admin",
-              roleAssignments: {
-                create: { role: "admin" },
-              },
+    this.controlJobs ??= controlJobQueue();
+    await this.controlJobs.start();
+    const project = await this.db.$transaction(async (transaction) => {
+      const project = await transaction.project.create({
+        data: {
+          id: projectId,
+          name: projectName,
+          departmentId,
+          createdBy: currentUserId,
+          inheritedDepartmentSettingsRevision: department.settingsRevision,
+          inheritedDepartmentDefaults: {
+            departmentId: department.id,
+            departmentSettingsRevision: department.settingsRevision,
+            models: {
+              defaultChatModel: department.defaultChatModel,
+              defaultEmbeddingModel: department.defaultEmbeddingModel,
             },
-            ...normalizedInvitations.flatMap((invitation) => {
-              const user = existingUserByEmail.get(invitation.email);
-              return user
-                ? [
-                    {
-                      userId: user.id,
-                      role: invitation.role,
-                      roleAssignments: {
-                        create: { role: invitation.role },
+            routing: {
+              mode: department.defaultRoutingMode,
+              fallbackModel: department.defaultFallbackModel,
+            },
+          },
+          humanMembers: {
+            create: [
+              {
+                userId: currentUserId,
+                role: "admin",
+                roleAssignments: {
+                  create: { role: "admin" },
+                },
+              },
+              ...normalizedInvitations.flatMap((invitation) => {
+                const user = existingUserByEmail.get(invitation.email);
+                return user
+                  ? [
+                      {
+                        userId: user.id,
+                        role: invitation.role,
+                        roleAssignments: {
+                          create: { role: invitation.role },
+                        },
                       },
+                    ]
+                  : [];
+              }),
+            ],
+          },
+          invitations: {
+            create: normalizedInvitations.flatMap((invitation) =>
+              existingUserByEmail.has(invitation.email)
+                ? []
+                : [
+                    {
+                      id: `invite-${randomUUID()}`,
+                      email: invitation.email,
+                      role: invitation.role,
+                      invitedBy: currentUserId,
                     },
-                  ]
-                : [];
-            }),
-          ],
-        },
-        invitations: {
-          create: normalizedInvitations.flatMap((invitation) =>
-            existingUserByEmail.has(invitation.email)
-              ? []
-              : [
-                  {
-                    id: `invite-${randomUUID()}`,
-                    email: invitation.email,
-                    role: invitation.role,
-                    invitedBy: currentUserId,
-                  },
-                ],
-          ),
-        },
-        runtimeTarget: {
-          create: {
-            clusterId: runtimeNamespaceConfig.clusterId,
-            namespace: projectRuntimeNamespace(projectId),
+                  ],
+            ),
+          },
+          runtimeTarget: {
+            create: {
+              clusterId: runtimeNamespaceConfig.clusterId,
+              namespace: projectRuntimeNamespace(projectId),
+            },
           },
         },
-      },
-    });
-    try {
-      this.runtimeNamespaces ??= new ProjectRuntimeTargetService(this.db);
-      await this.runtimeNamespaces.ensureProjectNamespace(project.id);
-    } catch (error) {
-      // Project creation is successful only when its runtime Namespace is
-      // ready. The Namespace operation is idempotent, so an operator can use
-      // the one-shot reconciliation command after a crash between systems.
-      await this.db.project.delete({ where: { id: project.id } }).catch(
-        (cleanupError) =>
-          console.error(
-            "Failed to compensate Project creation after Namespace provisioning failed.",
-            { cleanupError, projectId: project.id },
-          ),
+      });
+      const hardBudgetUsd = inheritedQuota.hardBudgetUsd;
+      const budgetDuration = inheritedQuota.budgetDuration;
+      const initialBudgetWindow = budgetDuration
+        ? nextBudgetWindow(new Date(), budgetDuration, null, null)
+        : null;
+      await transaction.projectQuotaRecord.create({
+        data: {
+          projectId: project.id,
+          tpmLimit:
+            inheritedQuota.tpmLimit === null
+              ? null
+              : BigInt(inheritedQuota.tpmLimit),
+          maxInstances: inheritedQuota.maxInstances,
+          maxMcpIntegrations: inheritedQuota.maxMcpIntegrations,
+          maxKnowledgeBaseIntegrations:
+            inheritedQuota.maxKnowledgeBaseIntegrations,
+          ...(hardBudgetUsd !== null && initialBudgetWindow
+            ? {
+                hardBudgetUsd,
+                budgetDuration,
+                budgetPeriodStartedAt: initialBudgetWindow.startedAt,
+                budgetResetsAt: initialBudgetWindow.resetsAt,
+              }
+            : {}),
+        },
+      });
+      await initializeDefaultAccessPolicy(transaction, project.id);
+      await this.seedProject(project.id, transaction);
+      const jobId = await this.controlJobs!.enqueueProjectRuntimeReconcile(
+        project.id,
+        "created",
+        transaction,
       );
-      throw error;
-    }
-    const hardBudgetUsd = inheritedQuota.hardBudgetUsd;
-    const budgetDuration = inheritedQuota.budgetDuration;
-    const initialBudgetWindow = budgetDuration
-      ? nextBudgetWindow(new Date(), budgetDuration, null, null)
-      : null;
-    await this.db.projectQuotaRecord.create({
-      data: {
-        projectId: project.id,
-        tpmLimit: inheritedQuota.tpmLimit === null
-          ? null
-          : BigInt(inheritedQuota.tpmLimit),
-        maxInstances: inheritedQuota.maxInstances,
-        maxMcpIntegrations: inheritedQuota.maxMcpIntegrations,
-        maxKnowledgeBaseIntegrations:
-          inheritedQuota.maxKnowledgeBaseIntegrations,
-        ...(hardBudgetUsd !== null && initialBudgetWindow
-          ? {
-              hardBudgetUsd,
-              budgetDuration,
-              budgetPeriodStartedAt: initialBudgetWindow.startedAt,
-              budgetResetsAt: initialBudgetWindow.resetsAt,
-            }
-          : {}),
-      },
+      if (!jobId) throw new Error("Unable to queue Project initialization.");
+      return project;
     });
-    await ensureDefaultAccessPolicy(this.db, project.id);
-    await this.seedProject(project.id);
-    await this.syncProjectTeam(project.id);
-    const access = await accessForMembership({
-      role: "admin",
-      roleAssignments: [{ role: "admin" }],
-    }, this.db);
+    const access = await accessForMembership(
+      {
+        role: "admin",
+        roleAssignments: [{ role: "admin" }],
+      },
+      this.db,
+    );
     const departmentMembership = await this.db.departmentMember.findUnique({
       where: {
-        departmentId_userId: { departmentId: department.id, userId: currentUserId },
+        departmentId_userId: {
+          departmentId: department.id,
+          userId: currentUserId,
+        },
       },
       select: { role: true, status: true },
     });
     return {
+      initialization: { status: "pending" },
       department: {
         id: department.id,
         name: department.name,
@@ -713,15 +725,18 @@ export class ProjectService {
     };
   }
 
-  private async seedProject(projectId: string): Promise<void> {
+  private async seedProject(
+    projectId: string,
+    database: Prisma.TransactionClient,
+  ): Promise<void> {
     const resources = [
-      [this.db.skillRecord, developmentResourceCatalog.skills],
+      [database.skillRecord, developmentResourceCatalog.skills],
       [
-        this.db.knowledgeSourceRecord,
+        database.knowledgeSourceRecord,
         developmentResourceCatalog.vectorDatabases,
       ],
       [
-        this.db.agentSpecializationRecord,
+        database.agentSpecializationRecord,
         developmentResourceCatalog.specializations,
       ],
     ] as const;
@@ -740,7 +755,7 @@ export class ProjectService {
     }
     const policies = new BuiltInRuntimePolicyCatalogSource().load().policies;
     if (policies.length) {
-      await this.db.sandboxPolicyRecord.createMany({
+      await database.sandboxPolicyRecord.createMany({
         data: policies.map((policy) => ({
           projectId,
           id: policy.id,
@@ -861,7 +876,9 @@ export class ProjectService {
         where: { projectId, deletedAt: null },
         select: { id: true, displayName: true, status: true },
       }),
-      this.db.accessPolicyRecord.count({ where: { projectId, deletedAt: null } }),
+      this.db.accessPolicyRecord.count({
+        where: { projectId, deletedAt: null },
+      }),
       this.db.skillRecord.count({ where: { projectId, deletedAt: null } }),
     ]);
     const activeResources: ProjectDeletionActiveResource[] = [
@@ -1008,6 +1025,10 @@ export class ProjectService {
           deletedAt: requestedAt,
           deletedBy: currentUserId,
         },
+      });
+      await transaction.projectRuntimeTarget.updateMany({
+        where: { projectId },
+        data: { status: "deleting", generation: { increment: 1 } },
       });
       await transaction.projectDeletionTask.create({
         data: {
@@ -1261,15 +1282,9 @@ export class ProjectService {
   }
 
   private async syncProjectTeam(projectId: string): Promise<void> {
-    if (!(await loadPlatformRuntimeConfiguration(this.db)).litellm.masterKey) return;
-    await new ProjectQuotaService(
-      new ProjectStore(projectId, this.db),
-      this.litellm,
-    )
-      .sync()
-      .catch(() => undefined);
+    this.controlJobs ??= controlJobQueue();
+    await this.controlJobs.enqueueProjectRuntimeReconcile(projectId, "retry");
   }
-
 }
 
 async function assertDepartmentAllocationAvailable(
@@ -1298,10 +1313,32 @@ async function assertDepartmentAllocationAvailable(
     },
   });
   const checks = [
-    ["budget", Number(allocated._sum.hardBudgetUsd ?? 0), defaults.hardBudgetUsd, department.hardBudgetUsd === null ? null : Number(department.hardBudgetUsd)],
-    ["Instance", Number(allocated._sum.maxInstances ?? 0), defaults.maxInstances, department.hardMaxInstances],
-    ["MCP integration", Number(allocated._sum.maxMcpIntegrations ?? 0), defaults.maxMcpIntegrations, department.hardMaxMcpIntegrations],
-    ["Vector Database integration", Number(allocated._sum.maxKnowledgeBaseIntegrations ?? 0), defaults.maxKnowledgeBaseIntegrations, department.hardMaxKnowledgeBaseIntegrations],
+    [
+      "budget",
+      Number(allocated._sum.hardBudgetUsd ?? 0),
+      defaults.hardBudgetUsd,
+      department.hardBudgetUsd === null
+        ? null
+        : Number(department.hardBudgetUsd),
+    ],
+    [
+      "Instance",
+      Number(allocated._sum.maxInstances ?? 0),
+      defaults.maxInstances,
+      department.hardMaxInstances,
+    ],
+    [
+      "MCP integration",
+      Number(allocated._sum.maxMcpIntegrations ?? 0),
+      defaults.maxMcpIntegrations,
+      department.hardMaxMcpIntegrations,
+    ],
+    [
+      "Vector Database integration",
+      Number(allocated._sum.maxKnowledgeBaseIntegrations ?? 0),
+      defaults.maxKnowledgeBaseIntegrations,
+      department.hardMaxKnowledgeBaseIntegrations,
+    ],
   ] as const;
   for (const [label, current, projectDefault, hard] of checks) {
     if (hard !== null && current + Number(projectDefault ?? 0) > hard) {

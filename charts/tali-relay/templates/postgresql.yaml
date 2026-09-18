@@ -68,7 +68,7 @@ spec:
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "tali.secretName" . }}
+                  name: {{ include "tali.secretName" (dict "root" . "component" "postgresql") }}
                   key: postgres-password
           readinessProbe:
             exec:

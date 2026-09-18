@@ -1,3 +1,4 @@
+import { getWorkerConfig } from "../config/worker-config";
 import { spawn } from "node:child_process";
 import { projectRuntimeNamespaceSchema } from "@tali/contracts";
 import { stringify } from "yaml";
@@ -86,97 +87,9 @@ export interface ProjectOpenShellGatewayConfiguration {
   serviceNamePrefix: string;
   supervisorImageRepository: string;
   supervisorImageTag: string;
+  supervisorImagePullPolicy: string;
   workspaceDefaultStorageSize: string;
-  workspaceStorageClass?: string;
-}
-
-function jsonObject(name: string): Record<string, unknown> {
-  const raw = process.env[name]?.trim() ?? "{}";
-  const parsed: unknown = JSON.parse(raw);
-  if (!parsed || Array.isArray(parsed) || typeof parsed !== "object") {
-    throw new Error(`${name} must be a JSON object.`);
-  }
-  return parsed as Record<string, unknown>;
-}
-
-function imagePullSecrets(name: string): Array<{ name: string }> {
-  const raw = process.env[name]?.trim() ?? "[]";
-  const parsed: unknown = JSON.parse(raw);
-  if (
-    !Array.isArray(parsed)
-    || parsed.some((item) =>
-      !item
-      || typeof item !== "object"
-      || typeof (item as { name?: unknown }).name !== "string"
-      || !(item as { name: string }).name.trim()
-    )
-  ) {
-    throw new Error(`${name} must be a JSON array of non-empty Secret names.`);
-  }
-  return parsed as Array<{ name: string }>;
-}
-
-function imageParts(reference: string, label: string): {
-  repository: string;
-  tag: string;
-} {
-  const separator = reference.lastIndexOf(":");
-  const slash = reference.lastIndexOf("/");
-  if (reference.includes("@") || separator <= slash || separator === reference.length - 1) {
-    throw new Error(`${label} must be a tag-qualified container image.`);
-  }
-  return {
-    repository: reference.slice(0, separator),
-    tag: reference.slice(separator + 1),
-  };
-}
-
-function configurationFromEnvironment(): ProjectOpenShellGatewayConfiguration {
-  const required = (name: string): string => {
-    const value = process.env[name]?.trim();
-    if (!value) throw new Error(`${name} is required for Project OpenShell Gateways.`);
-    return value;
-  };
-  const gateway = imageParts(
-    required("PROJECT_OPENSHELL_GATEWAY_IMAGE"),
-    "PROJECT_OPENSHELL_GATEWAY_IMAGE",
-  );
-  const supervisor = imageParts(
-    required("PROJECT_OPENSHELL_SUPERVISOR_IMAGE"),
-    "PROJECT_OPENSHELL_SUPERVISOR_IMAGE",
-  );
-  return {
-    chart: process.env.PROJECT_OPENSHELL_HELM_CHART
-      ?? "/opt/tali/helm/openshell.tgz",
-    enabled: process.env.PROJECT_OPENSHELL_GATEWAYS_ENABLED === "true",
-    gatewayResources: jsonObject("PROJECT_OPENSHELL_GATEWAY_RESOURCES_JSON"),
-    gatewayImageRepository: gateway.repository,
-    gatewayImageTag: gateway.tag,
-    imagePullSecrets: imagePullSecrets(
-      "PROJECT_OPENSHELL_IMAGE_PULL_SECRETS_JSON",
-    ),
-    imagePullPolicy: process.env.PROJECT_OPENSHELL_IMAGE_PULL_POLICY
-      ?? "IfNotPresent",
-    releaseName: process.env.PROJECT_OPENSHELL_RELEASE_NAME ?? "openshell",
-    sandboxImage: required("PROJECT_OPENSHELL_DEFAULT_SANDBOX_IMAGE"),
-    sandboxImagePullSecrets: imagePullSecrets(
-      "PROJECT_OPENSHELL_SANDBOX_IMAGE_PULL_SECRETS_JSON",
-    ),
-    sandboxImagePullPolicy:
-      process.env.PROJECT_OPENSHELL_SANDBOX_IMAGE_PULL_POLICY ?? "IfNotPresent",
-    serviceNamePrefix:
-      process.env.PROJECT_OPENSHELL_SERVICE_NAME_PREFIX ?? "openshell-",
-    supervisorImageRepository: supervisor.repository,
-    supervisorImageTag: supervisor.tag,
-    workspaceDefaultStorageSize:
-      process.env.PROJECT_OPENSHELL_WORKSPACE_STORAGE_SIZE ?? "1Gi",
-    ...(process.env.PROJECT_OPENSHELL_WORKSPACE_STORAGE_CLASS
-      ? {
-          workspaceStorageClass:
-            process.env.PROJECT_OPENSHELL_WORKSPACE_STORAGE_CLASS,
-        }
-      : {}),
-  };
+  workspaceStorageClass?: string | undefined;
 }
 
 function dnsLabel(value: string, label: string): string {
@@ -193,7 +106,7 @@ export class HelmProjectOpenShellGatewayClient
   implements ProjectOpenShellGatewayClient
 {
   constructor(
-    private readonly configuration = configurationFromEnvironment(),
+    private readonly configuration: ProjectOpenShellGatewayConfiguration = getWorkerConfig().project_openshell,
     private readonly run: CommandRunner = defaultCommandRunner,
     private readonly readOwner = readProjectNamespaceOwner,
     private readonly reconcileOwnership = reconcileGatewayOwnership,
@@ -243,7 +156,7 @@ export class HelmProjectOpenShellGatewayClient
       service: { type: "ClusterIP" },
       supervisor: {
         image: {
-          pullPolicy: this.configuration.imagePullPolicy,
+          pullPolicy: this.configuration.supervisorImagePullPolicy,
           repository: this.configuration.supervisorImageRepository,
           tag: this.configuration.supervisorImageTag,
         },
@@ -267,11 +180,10 @@ export class HelmProjectOpenShellGatewayClient
         "3",
         "--values",
         "-",
-        ...(owner ? ["--post-renderer", process.env.PROJECT_OPENSHELL_OWNER_RENDERER
-          ?? "/app/scripts/project-openshell-owner.mjs", "--post-renderer-args", JSON.stringify(owner),
+        ...(owner ? ["--post-renderer", getWorkerConfig().project_openshell.ownerRenderer, "--post-renderer-args", JSON.stringify(owner),
           "--post-renderer-args", serviceName] : []),
       ],
-      command: process.env.HELM_BIN ?? "helm",
+      command: getWorkerConfig().project_openshell.helmBin,
       stdin: values,
       timeoutMs: 330_000,
     });
@@ -293,7 +205,7 @@ export class HelmProjectOpenShellGatewayClient
         "--output",
         "json",
       ],
-      command: process.env.HELM_BIN ?? "helm",
+      command: getWorkerConfig().project_openshell.helmBin,
       timeoutMs: 30_000,
     });
     if (status.exitCode !== 0) {
@@ -324,7 +236,7 @@ export class HelmProjectOpenShellGatewayClient
         "--output",
         "json",
       ],
-      command: process.env.HELM_BIN ?? "helm",
+      command: getWorkerConfig().project_openshell.helmBin,
       timeoutMs: 30_000,
     });
     if (history.exitCode !== 0) {
@@ -359,7 +271,7 @@ export class HelmProjectOpenShellGatewayClient
             "--timeout",
             "5m",
           ],
-          command: process.env.HELM_BIN ?? "helm",
+          command: getWorkerConfig().project_openshell.helmBin,
           timeoutMs: 330_000,
         })
       : await this.run({
@@ -373,7 +285,7 @@ export class HelmProjectOpenShellGatewayClient
             "--timeout",
             "2m",
           ],
-          command: process.env.HELM_BIN ?? "helm",
+          command: getWorkerConfig().project_openshell.helmBin,
           timeoutMs: 150_000,
         });
     if (recovery.exitCode !== 0) {
@@ -396,7 +308,7 @@ export class HelmProjectOpenShellGatewayClient
         "--timeout",
         "2m",
       ],
-      command: process.env.HELM_BIN ?? "helm",
+      command: getWorkerConfig().project_openshell.helmBin,
       timeoutMs: 150_000,
     });
     if (result.exitCode !== 0) {
@@ -415,7 +327,7 @@ class DisabledProjectOpenShellGatewayClient
 }
 
 export function createProjectOpenShellGatewayClient(): ProjectOpenShellGatewayClient {
-  return process.env.PROJECT_OPENSHELL_GATEWAYS_ENABLED === "true"
+  return getWorkerConfig().project_openshell.enabled
     ? new HelmProjectOpenShellGatewayClient()
     : new DisabledProjectOpenShellGatewayClient();
 }

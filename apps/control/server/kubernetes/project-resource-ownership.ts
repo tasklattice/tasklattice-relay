@@ -1,3 +1,4 @@
+import { getWorkerConfig } from "../config/worker-config";
 import {
   CoreV1Api, KubeConfig, KubernetesObjectApi, PatchStrategy,
   type KubernetesObject, type V1Namespace, type V1OwnerReference, type V1StatefulSet,
@@ -16,7 +17,7 @@ export function namespaceOwner(namespace: V1Namespace, projectId: string): V1Own
 }
 
 export async function readProjectNamespaceOwner(namespace: string, projectId: string) {
-  if (process.env.PROJECT_RESOURCE_OWNERSHIP_ENABLED !== "true") return undefined;
+  if (!getWorkerConfig().resource_ownership.enabled) return undefined;
   projectRuntimeNamespaceSchema.parse(namespace);
   const config = new KubeConfig();
   config.loadFromCluster();
@@ -126,8 +127,8 @@ export async function reconcileGatewayOwnership(owner: V1OwnerReference, name: s
   await reconcileGatewayResources(KubernetesObjectApi.makeApiClient(config), owner, name);
 }
 
-export function projectArgoAnnotations(namespace: string, environment = process.env): Record<string, string> {
-  const source = environment.PROJECT_ARGOCD_SOURCE_TRACKING_ID?.trim();
+export function projectArgoAnnotations(namespace: string, configuration: { sourceTrackingId?: string; installationId?: string } = getWorkerConfig().resource_ownership): Record<string, string> {
+  const source = configuration.sourceTrackingId?.trim();
   if (!source) return {};
   // Copy a real, existing tracked root's ID verbatim. A non-self-referencing ID
   // is visible in annotation tracking mode but is neither compared nor pruned.
@@ -138,7 +139,7 @@ export function projectArgoAnnotations(namespace: string, environment = process.
   return {
     "argocd.argoproj.io/tracking-id": source,
     "argocd.argoproj.io/sync-options": "Prune=false,Delete=false",
-    ...(environment.PROJECT_ARGOCD_INSTALLATION_ID?.trim()
-      ? { "argocd.argoproj.io/installation-id": environment.PROJECT_ARGOCD_INSTALLATION_ID.trim() } : {}),
+    ...(configuration.installationId?.trim()
+      ? { "argocd.argoproj.io/installation-id": configuration.installationId.trim() } : {}),
   };
 }

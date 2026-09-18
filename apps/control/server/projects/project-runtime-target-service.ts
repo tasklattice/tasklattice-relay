@@ -1,10 +1,10 @@
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
+import { ProjectQuotaService } from "../quotas/project-quota-service";
+import { ProjectStore } from "./project-store";
 import { prisma } from "../db/prisma";
 import type { PrismaClient } from "../generated/prisma/client";
 import { PlatformSettingsService } from "../platform/platform-settings-service";
-import {
-  loadPlatformRuntimeConfiguration,
-} from "../platform/platform-runtime-config";
+import { loadPlatformRuntimeConfiguration } from "../platform/platform-runtime-config";
 import {
   createProjectNamespaceClient,
   type ProjectNamespaceClient,
@@ -36,40 +36,8 @@ export interface ProjectRuntimeReconciliationSummary {
   total: number;
 }
 
-const BASE32_ALPHABET = "abcdefghijklmnopqrstuvwxyz234567";
-const PROJECT_RUNTIME_IDENTIFIER_BYTES = 10;
-
-export const OPENSHELL_ROUTABLE_NAME_MAX_LENGTH = 19;
-export const PROJECT_RUNTIME_NAMESPACE_PREFIX = "tp-";
-
-function encodeBase32(input: Uint8Array): string {
-  let accumulator = 0;
-  let bits = 0;
-  let result = "";
-  for (const byte of input) {
-    accumulator = (accumulator << 8) | byte;
-    bits += 8;
-    while (bits >= 5) {
-      bits -= 5;
-      result += BASE32_ALPHABET[(accumulator >> bits) & 31];
-      accumulator &= (1 << bits) - 1;
-    }
-  }
-  return result;
-}
-
-export function projectRuntimeNamespace(projectId: string): string {
-  // Ten SHA-256 bytes encode to exactly 16 lowercase Base32 characters. With
-  // the fixed prefix the result is a 19-character DNS-1123 label that can be
-  // used unchanged as an OpenShell workspace, namespace, or route segment.
-  const identifier = encodeBase32(
-    createHash("sha256")
-      .update(projectId)
-      .digest()
-      .subarray(0, PROJECT_RUNTIME_IDENTIFIER_BYTES),
-  );
-  return `${PROJECT_RUNTIME_NAMESPACE_PREFIX}${identifier}`;
-}
+export { projectRuntimeNamespace } from "./project-runtime-identity";
+import { projectRuntimeNamespace } from "./project-runtime-identity";
 
 function safeError(error: unknown): string {
   const message =
@@ -81,17 +49,8 @@ function safeError(error: unknown): string {
 
 const PROJECT_RUNTIME_RECONCILE_LEASE_MS = 10 * 60 * 1_000;
 
-/**
- * Performs idempotent Namespace provisioning for both synchronous creation
- * and durable Control Worker reconciliation.
- *
- * Project creation calls ensureProjectNamespace synchronously. The Worker
- * fans out stale Project targets into individual jobs, while reconcileAll
- * remains available as a one-shot operator repair command.
- */
-export class ProjectRuntimeTargetService
-  implements ProjectRuntimeNamespaceProvisioner
-{
+/** Worker-only idempotent provisioning with durable state and a fenced lease. */
+export class ProjectRuntimeTargetService implements ProjectRuntimeNamespaceProvisioner {
   constructor(
     private readonly db: PrismaClient = prisma(),
     private readonly namespaces?: ProjectNamespaceClient,
@@ -102,10 +61,9 @@ export class ProjectRuntimeTargetService
   async ensureProjectNamespace(projectId: string): Promise<boolean> {
     const platformRuntime = await loadPlatformRuntimeConfiguration(this.db);
     const runtime = platformRuntime.runtimeNamespaces;
-    if (!runtime.enabled) return false;
-    const namespaces = this.namespaces ?? createProjectNamespaceClient({
-      enabled: runtime.enabled,
-    });
+    const namespaces =
+      this.namespaces ??
+      createProjectNamespaceClient({ enabled: runtime.enabled });
     const gateways = this.gateways ?? createProjectOpenShellGatewayClient();
     const bridges = this.bridges ?? createProjectRuntimeBridgeClient();
     const project = await this.db.project.findUnique({
@@ -124,7 +82,9 @@ export class ProjectRuntimeTargetService
       },
     });
     if (!project || project.deletedAt) {
-      throw new Error(`Project ${projectId} was not found or is being deleted.`);
+      throw new Error(
+        `Project ${projectId} was not found or is being deleted.`,
+      );
     }
 
     const target =
@@ -145,14 +105,35 @@ export class ProjectRuntimeTargetService
 
     const reconciliationId = randomUUID();
     const referenceTime = new Date();
+    let leaseActive = false;
+    let leaseLost = false;
+    const heartbeat = setInterval(() => {
+      if (!leaseActive) return;
+      void this.db.projectRuntimeTarget
+        .updateMany({
+          where: { projectId, leaseOwner: reconciliationId },
+          data: {
+            leaseExpiresAt: new Date(
+              Date.now() + PROJECT_RUNTIME_RECONCILE_LEASE_MS,
+            ),
+          },
+        })
+        .then((result) => {
+          if (!result.count) leaseLost = true;
+        })
+        .catch(() => {
+          leaseLost = true;
+        });
+    }, 30000);
+    heartbeat.unref();
     try {
       const claimed = await this.db.projectRuntimeTarget.updateMany({
         where: {
           generation: target.generation,
           projectId: project.id,
-          status: { not: "deleting" },
+          status: { notIn: ["deleting", "failed"] },
           OR: [
-            { status: { not: "reconciling" } },
+            { leaseOwner: null },
             { leaseExpiresAt: null },
             { leaseExpiresAt: { lte: referenceTime } },
           ],
@@ -172,26 +153,60 @@ export class ProjectRuntimeTargetService
           `Project Runtime Target ${project.id} changed or started deleting before generation ${target.generation} could be reconciled.`,
         );
       }
-      await namespaces.reconcile({
-        namespace: target.namespace,
-        projectId: project.id,
-        projectName: project.name,
-      });
-      await gateways.reconcile({
-        namespace: target.namespace,
-        projectId: project.id,
-        projectName: project.name,
-      });
-      await bridges.reconcile({
-        namespace: target.namespace,
-        projectId: project.id,
-        projectName: project.name,
-        controlUrl: platformRuntime.controlInternalUrl,
-        token: signProjectRuntimeBridgeToken(
-          { namespace: target.namespace, projectId: project.id },
-          platformRuntime.runner.token,
-        ),
-      });
+      leaseActive = true;
+      const stillCurrent = async () => {
+        if (leaseLost)
+          throw new Error("Project initialization lease was lost.");
+        const current = await this.db.projectRuntimeTarget.findFirst({
+          where: {
+            projectId,
+            generation: target.generation,
+            leaseOwner: reconciliationId,
+            status: "reconciling",
+          },
+          select: { projectId: true },
+        });
+        const owner = await this.db.project.findUnique({
+          where: { id: projectId },
+          select: { deletedAt: true },
+        });
+        if (!current || !owner || owner.deletedAt)
+          throw new Error(
+            "Project initialization was superseded or cancelled by deletion.",
+          );
+      };
+      await stillCurrent();
+      if (platformRuntime.litellm.masterKey) {
+        await new ProjectQuotaService(
+          new ProjectStore(projectId, this.db),
+        ).sync();
+      }
+      await stillCurrent();
+      if (runtime.enabled) {
+        await namespaces.reconcile({
+          namespace: target.namespace,
+          projectId: project.id,
+          projectName: project.name,
+        });
+        await stillCurrent();
+        await gateways.reconcile({
+          namespace: target.namespace,
+          projectId: project.id,
+          projectName: project.name,
+        });
+        await stillCurrent();
+        await bridges.reconcile({
+          namespace: target.namespace,
+          projectId: project.id,
+          projectName: project.name,
+          controlUrl: platformRuntime.controlInternalUrl,
+          token: signProjectRuntimeBridgeToken(
+            { namespace: target.namespace, projectId: project.id },
+            platformRuntime.runner.token,
+          ),
+        });
+      }
+      await stillCurrent();
       const observed = await this.db.projectRuntimeTarget.updateMany({
         where: {
           generation: target.generation,
@@ -231,6 +246,13 @@ export class ProjectRuntimeTargetService
         },
       });
       throw error;
+    } finally {
+      clearInterval(heartbeat);
+      // A deletion tombstone must keep its status while releasing our lease.
+      await this.db.projectRuntimeTarget.updateMany({
+        where: { projectId, leaseOwner: reconciliationId },
+        data: { leaseOwner: null, leaseExpiresAt: null },
+      });
     }
   }
 
@@ -238,8 +260,9 @@ export class ProjectRuntimeTargetService
     referenceTime = new Date(),
     resyncIntervalMs = 5 * 60 * 1_000,
   ): Promise<string[]> {
-    const runtime = (await loadPlatformRuntimeConfiguration(this.db)).runtimeNamespaces;
-    if (!runtime.enabled) return [];
+    const runtime = (await loadPlatformRuntimeConfiguration(this.db))
+      .runtimeNamespaces;
+
     const projects = await this.db.project.findMany({
       where: { deletedAt: null },
       orderBy: { createdAt: "asc" },
@@ -256,17 +279,17 @@ export class ProjectRuntimeTargetService
     });
     const staleBefore = referenceTime.getTime() - resyncIntervalMs;
     return projects
-      .filter(({ runtimeTarget }) =>
-        !runtimeTarget
-        || (
-          runtimeTarget.status !== "reconciling"
-          || !runtimeTarget.leaseExpiresAt
-          || runtimeTarget.leaseExpiresAt <= referenceTime
-        ) && (
-          runtimeTarget.status !== "ready"
-          || !runtimeTarget.lastReconciledAt
-          || runtimeTarget.lastReconciledAt.getTime() <= staleBefore
-        )
+      .filter(
+        ({ runtimeTarget }) =>
+          !runtimeTarget ||
+          (!["failed", "deleting"].includes(runtimeTarget.status) &&
+            (runtimeTarget.status !== "reconciling" ||
+              !runtimeTarget.leaseExpiresAt ||
+              runtimeTarget.leaseExpiresAt <= referenceTime) &&
+            (runtimeTarget.status !== "ready" ||
+              (runtime.enabled &&
+                (!runtimeTarget.lastReconciledAt ||
+                  runtimeTarget.lastReconciledAt.getTime() <= staleBefore)))),
       )
       .map(({ id }) => id);
   }
@@ -300,17 +323,34 @@ export class ProjectRuntimeTargetService
   }
 
   async deleteProjectNamespace(projectId: string): Promise<boolean> {
-    const runtime = (await loadPlatformRuntimeConfiguration(this.db)).runtimeNamespaces;
+    const runtime = (await loadPlatformRuntimeConfiguration(this.db))
+      .runtimeNamespaces;
     if (!runtime.enabled) return false;
-    const namespaces = this.namespaces ?? createProjectNamespaceClient({
-      enabled: runtime.enabled,
-    });
+    const namespaces =
+      this.namespaces ??
+      createProjectNamespaceClient({
+        enabled: runtime.enabled,
+      });
     const gateways = this.gateways ?? createProjectOpenShellGatewayClient();
     const target = await this.db.projectRuntimeTarget.findUnique({
       where: { projectId },
-      select: { clusterId: true, namespace: true },
+      select: {
+        clusterId: true,
+        namespace: true,
+        leaseOwner: true,
+        leaseExpiresAt: true,
+      },
     });
     if (!target) return false;
+    if (
+      target.leaseOwner &&
+      target.leaseExpiresAt &&
+      target.leaseExpiresAt > new Date()
+    ) {
+      throw new Error(
+        "Waiting for the in-flight Project initialization to stop before cleanup.",
+      );
+    }
     this.assertConfiguredCluster(target.clusterId, runtime.clusterId);
     await this.db.projectRuntimeTarget.update({
       where: { projectId },
@@ -336,7 +376,10 @@ export class ProjectRuntimeTargetService
     }
   }
 
-  private assertConfiguredCluster(clusterId: string, configuredClusterId: string): void {
+  private assertConfiguredCluster(
+    clusterId: string,
+    configuredClusterId: string,
+  ): void {
     if (clusterId !== configuredClusterId) {
       throw new Error(
         `Project Runtime Target belongs to cluster ${clusterId}, but this Control Plane manages ${configuredClusterId}.`,

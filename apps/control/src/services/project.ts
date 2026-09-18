@@ -121,3 +121,18 @@ export async function updateProjectQuota(
     { method: "PUT", body: JSON.stringify(input) },
   );
 }
+
+export interface ProjectRuntimeStatus {
+  status: string;
+  generation: number;
+  observedGeneration: number;
+  attempts: number;
+  lastError: string | null;
+  updatedAt: string | null;
+}
+export function getProjectRuntime(projectId: string): Promise<ProjectRuntimeStatus> {
+  return projectRequest(`/api/v1/projects/${encodeURIComponent(projectId)}/initialization`);
+}
+export function retryProjectRuntime(projectId: string): Promise<ProjectRuntimeStatus> {
+  return projectRequest(`/api/v1/projects/${encodeURIComponent(projectId)}/initialization/retry`, { method: "POST" });
+}

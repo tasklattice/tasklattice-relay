@@ -38,6 +38,7 @@ spec:
       labels:
         {{- include "tali.selectorLabels" (dict "root" . "component" $component) | nindent 8 }}
       annotations:
+        checksum/worker-config: {{ printf "%s:%s" (include "tali.workerConfig" .) .Values.secrets.existingSecrets.worker | sha256sum }}
         checksum/control-config: {{ include "tali.controlConfigChecksum" . }}
         {{- if .Values.hindsight.enabled }}
         checksum/hindsight-secret: {{ include "tali.hindsightSecretChecksum" . }}
@@ -75,6 +76,8 @@ spec:
               value: /tmp
             - name: XDG_CACHE_HOME
               value: /tmp/.cache
+            - name: TALI_WORKER_CONFIG
+              value: /etc/tali-worker/worker.toml
             - name: TALI_CONFIG
               value: /etc/tali/control.toml
           securityContext:
@@ -87,6 +90,9 @@ spec:
           volumeMounts:
             - name: tmp
               mountPath: /tmp
+            - name: worker-config
+              mountPath: /etc/tali-worker
+              readOnly: true
             - name: control-config
               mountPath: /etc/tali
               readOnly: true
@@ -98,35 +104,15 @@ spec:
             - node
             - apps/control/.output/workers/control-worker.mjs
           env:
+            - name: TALI_WORKER_CONFIG
+              value: /etc/tali-worker/worker.toml
             - name: TALI_CONFIG
               value: /etc/tali/control.toml
-            - name: CONTROL_WORKER_HEALTH_PORT
-              value: "9090"
-            - name: TALI_METRICS_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "tali.secretName" . }}
-                  key: metrics-token
-            {{- if .Values.hindsight.enabled }}
-            - name: TALI_HINDSIGHT_URL
-              value: {{ include "tali.hindsightUrl" . | quote }}
-            - name: TALI_HINDSIGHT_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "tali.secretName" . }}
-                  key: hindsight-api-key
-            {{- end }}
-            {{- if .Values.docling.enabled }}
-            - name: DOCLING_BASE_URL
-              value: {{ printf "http://%s:%v" (include "tali.componentName" (dict "root" . "component" "docling")) .Values.docling.service.port | quote }}
-            {{- end }}
-            {{- include "tali.projectOpenShellReconcilerEnv" . | nindent 12 }}
-            {{- with .Values.control.worker.extraEnv }}
-            {{- toYaml . | nindent 12 }}
-            {{- end }}
+            - name: NODE_EXTRA_CA_CERTS
+              value: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
           ports:
             - name: health
-              containerPort: 9090
+              containerPort: {{ .Values.control.worker.healthPort }}
               protocol: TCP
           readinessProbe:
             httpGet:
@@ -150,16 +136,25 @@ spec:
           volumeMounts:
             - name: tmp
               mountPath: /tmp
+            - name: worker-config
+              mountPath: /etc/tali-worker
+              readOnly: true
             - name: control-config
               mountPath: /etc/tali
               readOnly: true
       volumes:
+        - name: worker-config
+          secret:
+            secretName: {{ include "tali.secretName" (dict "root" . "component" "worker") }}
+            items:
+              - key: worker.toml
+                path: worker.toml
         - name: tmp
           emptyDir:
             sizeLimit: 32Mi
         - name: control-config
           secret:
-            secretName: {{ include "tali.secretName" . }}
+            secretName: {{ include "tali.secretName" (dict "root" . "component" "control") }}
             items:
               - key: control.toml
                 path: control.toml

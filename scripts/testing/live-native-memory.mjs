@@ -64,18 +64,17 @@ try {
       command: ["node", "-e", fixtures] }] } });
   apply({ apiVersion: "v1", kind: "Service", metadata: { name: "native-model" },
     spec: { selector: { app: "native-model" }, ports: [{ port: 8080, targetPort: 8080 }] } });
-  const env = {
-    NEMOCLAW_RUNNER_MODE: "openshell-kubernetes", NEMOCLAW_RUNNER_TOKEN: token,
-    NEMOCLAW_VERSION: "0.0.123", OPENSHELL_GATEWAY_ENDPOINT: `http://${namespace}-openshell:8080`,
-    OPENSHELL_SERVICE_BASE_URL: "http://openshell.localhost:8080", OPENSHELL_WORKSPACE: "default",
-    OPENSHELL_SANDBOX_CPU: "2", OPENSHELL_SANDBOX_MEMORY: "4Gi",
-    NEMOCLAW_START_TIMEOUT_MS: "300000",
-    HOST: "0.0.0.0", PORT: "9090",
-  };
+  apply({ apiVersion: "v1", kind: "Secret", metadata: { name: "native-runner-config" },
+    stringData: { "runner.json": JSON.stringify({ schemaVersion: 1,
+      server: { token, mode: "openshell-kubernetes" },
+      openshell: { gatewayEndpoint: `http://${namespace}-openshell:8080`,
+        sandbox: { cpu: "2", memory: "4Gi" }, startTimeoutMs: 300000 } }) } });
   apply({ apiVersion: "v1", kind: "Pod", metadata: { name: "native-runner" },
-    spec: { containers: [{ name: "runner", image: runnerImage, imagePullPolicy: "IfNotPresent",
-      env: Object.entries(env).map(([name, value]) => ({ name, value })),
-      readinessProbe: { httpGet: { path: "/health", port: 9090 }, initialDelaySeconds: 2 } }] } });
+    spec: { volumes: [{ name: "config", secret: { secretName: "native-runner-config" } }],
+      containers: [{ name: "runner", image: runnerImage, imagePullPolicy: "IfNotPresent",
+        env: [{ name: "TALI_RUNNER_CONFIG", value: "/etc/tali-runner/runner.json" }],
+        volumeMounts: [{ name: "config", mountPath: "/etc/tali-runner", readOnly: true }],
+        readinessProbe: { httpGet: { path: "/health", port: 9090 }, initialDelaySeconds: 2 } }] } });
   k("wait", "pod/native-model", "pod/native-runner", "--for=condition=Ready", "--timeout=120s");
   const policy = parse(readFileSync("apps/control/server/runtime-policies/runtime-policy-catalog.yaml", "utf8")).basePolicy;
   const endpoint = `http://native-model.${namespace}.svc.cluster.local:8080`;

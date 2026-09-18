@@ -1,3 +1,4 @@
+import { ResourceOperationService } from "../../../../../../../projects/resource-operation-service";
 import { onboardAgentSchema } from "@tali/contracts";
 import { defineHandler } from "nitro";
 import {
@@ -23,18 +24,9 @@ export default defineHandler(async (event) => {
   try {
     await requireProjectRole(event.req, ["admin"]);
     const input = onboardAgentSchema.parse(await event.req.json());
-    const created = await (
-      await getAgentGardenService(event.req)
-    ).onboard(input, actorId);
-    return jsonResponse(created, {
-      status: 201,
-      headers: {
-        location:
-          `/api/v1/projects/${encodeURIComponent(
-            event.context.params?.projectId ?? "",
-          )}/agent-garden/agents/${encodeURIComponent(created.id)}`,
-      },
-    });
+    const service = await getAgentGardenService(event.req);
+    const accepted = await new ResourceOperationService().enqueue(service.store.projectId, actorId, "onboard", input);
+    return jsonResponse(accepted, { status: 202, headers: { location: accepted.statusUrl } });
   } catch (error) {
     return errorResponse(error);
   }

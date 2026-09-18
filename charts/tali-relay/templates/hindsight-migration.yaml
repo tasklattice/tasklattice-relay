@@ -3,7 +3,7 @@
 {{- $databaseName := include "tali.hindsightDatabaseName" . -}}
 {{- $databaseUser := include "tali.hindsightDatabaseUser" . -}}
 {{- $databaseSchema := include "tali.hindsightDatabaseSchema" . -}}
-{{- $migrationRevision := printf "%s:%s:%s:%s:%s:%v" .Values.images.hindsight.repository .Values.images.hindsight.tag $databaseName $databaseUser $databaseSchema .Values.hindsight.models.embeddingDimensions | sha256sum | trunc 10 -}}
+{{- $migrationRevision := printf "%s:%s:%s:%s:%s:%v" .Values.images.hindsight.repository .Values.images.hindsight.tag $databaseName $databaseUser $databaseSchema (include "tali.hindsightSecretChecksum" .) | sha256sum | trunc 10 -}}
 {{- $name := printf "%s-%s" (include "tali.componentName" (dict "root" . "component" $component)) $migrationRevision | trunc 63 | trimSuffix "-" -}}
 apiVersion: batch/v1
 kind: Job
@@ -40,47 +40,14 @@ spec:
           type: RuntimeDefault
       initContainers:
         - name: bootstrap-hindsight-database
-          image: {{ include "tali.image" (dict "root" . "image" .Values.images.postgres) }}
-          imagePullPolicy: {{ .Values.images.postgres.pullPolicy }}
-          command:
-            - /bin/sh
-            - -ec
-            - |
-              until pg_isready --host="$PGHOST" --username="$PGUSER" --dbname=postgres; do
-                sleep 2
-              done
-              psql --dbname=postgres --set=ON_ERROR_STOP=1 --set=memory_password="$HINDSIGHT_DATABASE_PASSWORD" <<'SQL'
-              SELECT format('CREATE ROLE %I LOGIN PASSWORD %L', '{{ $databaseUser }}', :'memory_password')
-                WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{{ $databaseUser }}') \gexec
-              SELECT format('ALTER ROLE %I PASSWORD %L', '{{ $databaseUser }}', :'memory_password') \gexec
-              SELECT format('CREATE DATABASE %I OWNER %I', '{{ $databaseName }}', '{{ $databaseUser }}')
-                WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = '{{ $databaseName }}') \gexec
-              SQL
-              psql --dbname={{ $databaseName }} --set=ON_ERROR_STOP=1 <<'SQL'
-              ALTER DATABASE {{ $databaseName }} OWNER TO {{ $databaseUser }};
-              CREATE EXTENSION IF NOT EXISTS vector WITH SCHEMA public;
-              CREATE EXTENSION IF NOT EXISTS pg_trgm WITH SCHEMA public;
-              CREATE SCHEMA IF NOT EXISTS {{ $databaseSchema }} AUTHORIZATION {{ $databaseUser }};
-              ALTER SCHEMA {{ $databaseSchema }} OWNER TO {{ $databaseUser }};
-              GRANT USAGE ON SCHEMA public TO {{ $databaseUser }};
-              SQL
+          image: {{ include "tali.image" (dict "root" . "image" .Values.images.hindsight) }}
+          imagePullPolicy: {{ .Values.images.hindsight.pullPolicy }}
+          command: ["python", "/etc/hindsight-launcher/bootstrap.py"]
           env:
             - name: HOME
               value: /tmp
-            - name: PGHOST
-              value: {{ include "tali.componentName" (dict "root" . "component" "postgresql") | quote }}
-            - name: PGUSER
-              value: litellm
-            - name: PGPASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "tali.secretName" . }}
-                  key: postgres-password
-            - name: HINDSIGHT_DATABASE_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "tali.secretName" . }}
-                  key: hindsight-database-password
+            - name: PYTHONDONTWRITEBYTECODE
+              value: "1"
           resources:
             {{- toYaml .Values.hindsight.migration.resources | nindent 12 }}
           securityContext:
@@ -91,21 +58,20 @@ spec:
           volumeMounts:
             - name: tmp
               mountPath: /tmp
+            - name: hindsight-config
+              mountPath: /etc/hindsight
+              readOnly: true
+            - name: hindsight-launcher
+              mountPath: /etc/hindsight-launcher
+              readOnly: true
+            - name: postgres-bootstrap
+              mountPath: /etc/postgresql
+              readOnly: true
       containers:
         - name: migrate
           image: {{ include "tali.image" (dict "root" . "image" .Values.images.hindsight) }}
           imagePullPolicy: {{ .Values.images.hindsight.pullPolicy }}
-          command:
-            - /bin/sh
-            - -ec
-            - >-
-              hindsight-admin run-db-migration
-              --schema "$HINDSIGHT_API_DATABASE_SCHEMA"
-              --embedding-dimension "$HINDSIGHT_EMBEDDING_DIMENSIONS"
-          env:
-            {{- include "tali.hindsightCommonEnv" . | nindent 12 }}
-            - name: HINDSIGHT_EMBEDDING_DIMENSIONS
-              value: {{ .Values.hindsight.models.embeddingDimensions | quote }}
+          command: ["python", "/etc/hindsight-launcher/entrypoint.py", "migration"]
           resources:
             {{- toYaml .Values.hindsight.migration.resources | nindent 12 }}
           securityContext:
@@ -116,7 +82,28 @@ spec:
           volumeMounts:
             - name: tmp
               mountPath: /tmp
+            - name: hindsight-config
+              mountPath: /etc/hindsight
+              readOnly: true
+            - name: hindsight-launcher
+              mountPath: /etc/hindsight-launcher
+              readOnly: true
       volumes:
+        - name: postgres-bootstrap
+          secret:
+            secretName: {{ include "tali.secretName" (dict "root" . "component" "postgresql") }}
+            items:
+              - key: admin-url
+                path: admin-url
+        - name: hindsight-config
+          secret:
+            secretName: {{ include "tali.secretName" (dict "root" . "component" "hindsight") }}
+            items:
+              - key: hindsight-config.json
+                path: config.json
+        - name: hindsight-launcher
+          configMap:
+            name: {{ include "tali.componentName" (dict "root" . "component" "hindsight-launcher") }}
         - name: tmp
           emptyDir:
             sizeLimit: 256Mi

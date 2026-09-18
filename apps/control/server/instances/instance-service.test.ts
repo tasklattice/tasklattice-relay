@@ -1,3 +1,4 @@
+import { getControlConfig, setControlConfigForTests } from "../config/control-config";
 import {
   createInstanceSchema,
   type Instance as Agent,
@@ -298,8 +299,8 @@ async function instantiateAsExternalRegistryFixture(
 
 describe("Instance Access Policy lifecycle", () => {
   it("keeps the existing Agent create path when Durable Memory is disabled", async () => {
-    vi.stubEnv("TALI_DURABLE_MEMORY_ENABLED", "false");
-    vi.stubEnv("TALI_DURABLE_MEMORY_PROJECTS", "");
+    getControlConfig().memory.enabled = false;
+    getControlConfig().memory.projectAllowlist = [];
     const setup = await configuredService();
     const queued = await setup.service.create({
       name: "Feature-disabled Agent",
@@ -1051,3 +1052,5 @@ describe("Instance Access Policy lifecycle", () => {
     expect(setup.runner.createSandbox).toHaveBeenCalledOnce();
   });
 });
+
+afterEach(() => setControlConfigForTests(undefined));

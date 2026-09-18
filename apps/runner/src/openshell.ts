@@ -1,3 +1,4 @@
+import { getRunnerConfig } from "./runner-config.js";
 import { createHmac, randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
@@ -18,27 +19,15 @@ import {
   type ProvisionInput,
 } from "./nemoclaw.js";
 
-const nemoClawGatewayPort = process.env.NEMOCLAW_DASHBOARD_PORT ?? "18789";
+const nemoClawGatewayPort = getRunnerConfig().openshell.dashboardPort ?? "18789";
 const hermesDashboardUpstreamPort =
   nemoClawGatewayPort === "18790" ? "18791" : "18790";
 const nemoClawWebUiService = "webui";
 const hermesWebUiSecretFile = "/tmp/tali-hermes-webui-secret";
 const hermesWebUiTokenTtlSeconds = 5 * 60;
 const kubernetesServiceDnsSuffix = "svc.cluster.local";
-const defaultKubernetesServiceCidrs = [
-  "10.0.0.0/8",
-  "172.16.0.0/12",
-  "192.168.0.0/16",
-] as const;
-
 export function openShellKubernetesServiceCidrs(): string[] {
-  return (
-    process.env.OPENSHELL_KUBERNETES_SERVICE_CIDRS
-      ?.split(",")
-      .map((cidr) => cidr.trim())
-      .filter(Boolean)
-    ?? [...defaultKubernetesServiceCidrs]
-  );
+  return getRunnerConfig().openshell.kubernetesServiceCidrs;
 }
 
 export interface OpenShellSandbox {
@@ -204,11 +193,11 @@ export function taliRuntimeBridgeProviderProfile(
 }
 
 export function openShellBinary(): string {
-  return process.env.OPENSHELL_BIN ?? "openshell";
+  return getRunnerConfig().openshell.binary ?? "openshell";
 }
 
 export function openShellGatewayEndpoint(target?: OpenShellTarget): string {
-  return target?.gatewayEndpoint ?? process.env.OPENSHELL_GATEWAY_ENDPOINT
+  return target?.gatewayEndpoint ?? getRunnerConfig().openshell.gatewayEndpoint
     ?? "http://openshell.openshell.svc.cluster.local:8080";
 }
 
@@ -693,11 +682,11 @@ function openShellDeletionTiming(): { pollMs: number; timeoutMs: number } {
   return {
     pollMs: Math.max(
       100,
-      Number(process.env.OPENSHELL_DELETE_POLL_INTERVAL_MS) || 500,
+      Number(getRunnerConfig().openshell.deletePollIntervalMs) || 500,
     ),
     timeoutMs: Math.max(
       1_000,
-      Number(process.env.OPENSHELL_DELETE_TIMEOUT_MS) || 60_000,
+      Number(getRunnerConfig().openshell.deleteTimeoutMs) || 60_000,
     ),
   };
 }
@@ -711,7 +700,7 @@ async function waitForOpenShellGateway(
   observer?: ProvisioningObserver,
 ): Promise<void> {
   const timeoutMs = Number(
-    process.env.OPENSHELL_GATEWAY_READY_TIMEOUT_MS ?? "180000",
+    getRunnerConfig().openshell.gatewayReadyTimeoutMs ?? "180000",
   );
   const deadline = Date.now() + timeoutMs;
   let lastError = "Gateway is not ready.";
@@ -870,12 +859,12 @@ export function openShellSandboxCreateArguments(
   const runtime = getAgentPlatformRuntime(input.agentPlatform);
   const capabilities = getAgentPlatformDefinition(input.agentPlatform)
     .capabilities;
-  const nemoClawVersion = (process.env.NEMOCLAW_VERSION ?? "0.0.123")
+  const nemoClawVersion = (getRunnerConfig().openshell.nemoclawVersion ?? "0.0.123")
     .replace(/^v/, "");
   const cpuLimit = input.sandboxResources?.cpu
-    ?? process.env.OPENSHELL_SANDBOX_CPU
+    ?? getRunnerConfig().openshell.sandbox.cpu
     ?? "1";
-  const cpuRequest = process.env.OPENSHELL_SANDBOX_CPU_REQUEST?.trim();
+  const cpuRequest = getRunnerConfig().openshell.sandbox.cpuRequest?.trim();
   const cpuArguments = cpuRequest && cpuRequest !== cpuLimit
     ? [
         "--driver-config-json",
@@ -902,7 +891,7 @@ export function openShellSandboxCreateArguments(
     input.sandboxImage ?? runtime.sandboxImage(),
     ...cpuArguments,
     "--memory",
-    input.sandboxResources?.memory ?? process.env.OPENSHELL_SANDBOX_MEMORY ?? "2Gi",
+    input.sandboxResources?.memory ?? getRunnerConfig().openshell.sandbox.memory ?? "2Gi",
     "--provider",
     openShellProviderName(input.name),
     ...(input.projectRuntimeBridgeToken && target
@@ -1003,7 +992,7 @@ export function openShellWebUiServiceArguments(
 
 export function openShellWorkspace(target?: OpenShellTarget): string {
   const workspace = target?.workspace
-    ?? process.env.OPENSHELL_WORKSPACE?.trim()
+    ?? getRunnerConfig().openshell.workspace?.trim()
     ?? "default";
   if (
     workspace.length > 19 ||
@@ -1017,7 +1006,7 @@ export function openShellWorkspace(target?: OpenShellTarget): string {
 }
 
 export function openShellServiceBaseUrl(target?: OpenShellTarget): string {
-  return target?.serviceBaseUrl ?? process.env.OPENSHELL_SERVICE_BASE_URL
+  return target?.serviceBaseUrl ?? getRunnerConfig().openshell.serviceBaseUrl
     ?? "http://openshell.localhost:8080";
 }
 
@@ -1303,7 +1292,7 @@ async function createOpenShellNemoClawSandbox(
   target: OpenShellTarget | undefined,
   observer?: ProvisioningObserver,
 ): Promise<string[]> {
-  const timeoutMs = Number(process.env.NEMOCLAW_START_TIMEOUT_MS ?? "180000");
+  const timeoutMs = Number(getRunnerConfig().openshell.startTimeoutMs ?? "180000");
   return new Promise((resolve, reject) => {
     const child = spawn(
       openShellBinary(),

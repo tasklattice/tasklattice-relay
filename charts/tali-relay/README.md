@@ -1,5 +1,9 @@
 # TaskLattice Relay Helm Chart
 
+See [component configuration and persistence](../../docs/helm-component-configuration.md)
+for the Control/Worker file contract, Hindsight configuration, Docling storage,
+and the Base64 CA migration.
+
 This chart installs the complete TaskLattice Relay stack: control/UI, Control
 Worker, Docling Serve, OpenShell runner, LiteLLM, PostgreSQL with pgvector,
 the internal Hindsight Durable Memory provider, and the optional Agent Sandbox
@@ -231,25 +235,22 @@ the model deployment itself.
 exceptions remain available in the LiteLLM container logs. Increase this value
 only when request-level tracebacks are required for gateway diagnostics.
 
-To trust HTTPS endpoints signed by a private CA, provide a PEM-encoded CA bundle
-through `litellm.caCertificate`. The Chart creates a release-scoped Secret,
-mounts it at `/etc/ssl/certs` only in the LiteLLM Pod, and triggers a LiteLLM
-rollout when the certificate changes. For example:
-
-```yaml
-litellm:
-  caCertificate: |
-    -----BEGIN CERTIFICATE-----
-    ...
-    -----END CERTIFICATE-----
-```
-
-The certificate can also be supplied without copying it into a values file:
+To trust endpoints signed by a private CA, set `litellm.caCertificateBase64`
+to Base64 of a PEM certificate bundle. The previous `caCertificate` field is
+rejected. For example:
 
 ```sh
+base64 < /path/to/ca.crt | tr -d '\n' > /tmp/relay-ca.b64
 helm upgrade --install tali-relay charts/tali-relay \
-  --set-file litellm.caCertificate=/path/to/ca.crt
+  --set-file litellm.caCertificateBase64=/tmp/relay-ca.b64
 ```
+
+Helm rejects invalid Base64/non-PEM input. The non-root `build-ca-bundle` init
+container validates X.509 and merges private CAs with the image's public CA
+roots in `/var/run/tali-ca/ca-bundle.pem`. LiteLLM receives `SSL_CERT_FILE`,
+`REQUESTS_CA_BUNDLE`, and `CURL_CA_BUNDLE`; `/etc/ssl/certs` is never hidden or
+modified. Certificate changes trigger a rollout. If initialization fails,
+inspect `kubectl logs <pod> -c build-ca-bundle` for the certificate error.
 
 The dependency preparation step applies the small OpenShell overlay in
 `patches/openshell.patch`, which applies the configured
@@ -257,21 +258,33 @@ The dependency preparation step applies the small OpenShell overlay in
 upstream that patch when refreshing the dependency so the hook can run before
 the namespace `LimitRange` exists on a first installation.
 
-When `secrets.existingSecret` is used it must contain `control.toml`,
-`runner-token`, `litellm-master-key`, `postgres-password`, `database-url`,
-`litellm-ui-username`, `litellm-ui-password`, `litellm-salt-key`,
-`metrics-token`,
-`hindsight-database-password`, `hindsight-database-url`,
-`hindsight-api-key`, and `hindsight-router-token` (the final four are required
-when `hindsight.enabled=true`).
-`control.toml` contains only the public URL, database and signing bootstrap,
-and the initial Platform Administrator credential. The chart supplies Runner,
-LiteLLM, internal Control, and Runtime Namespace values as one-time bootstrap
-environment values; Control imports them into the Platform database. Later
-changes are made under **Platform Setting -> Infrastructure**, where the
-complete draft must validate before save. Local authentication policy, OIDC,
-and SMTP are also configured after sign-in from Platform Setting. The Runner
-derives the Gateway and workspace from the Project Namespace.
+Each component owns a Secret. Set an external name independently under
+`secrets.existingSecrets`:
+
+| Component key | Default Secret suffix | Required keys |
+| --- | --- | --- |
+| `control` | `control-config` | `control.toml` (shared with Worker) |
+| `worker` | `worker-config` | `worker.toml` (Worker only) |
+| `runner` | `runner-config` | `runner.json` |
+| `postgresql` | `postgresql-config` | `postgres-password`, `admin-url` |
+| `litellm` | `litellm-config` | `litellm-config.yaml`, `database-url`, `litellm-master-key`, `litellm-ui-username`, `litellm-ui-password`, `litellm-salt-key` |
+| `hindsight` | `hindsight-config` | `hindsight-config.json` |
+| `metrics` | `metrics-config` | `metrics-token` |
+| `keycloak` | `keycloak-config` | Chart-managed development credentials |
+
+Names are prefixed with the release fullname. There is no combined release
+Secret. External credentials referenced by multiple services must agree; for
+example Control's Runner token must match `runner.json`, and the metrics token
+in `control.toml` must match the monitoring Secret. Bump
+`global.rolloutRevision` when changing externally managed Secret contents.
+The legacy `secrets.existingSecret` and `runner.extraEnv` keys are rejected.
+
+`control.toml` includes typed deployment settings and one-time bootstrap values
+for Platform Infrastructure. Saved Infrastructure, SSO and SMTP settings remain
+database-owned. Tenant provisioners are under `[worker.*]` in Worker-only `worker.toml`; Runner's separate
+`runner.json` contains its Sandbox execution and Project Gateway routing settings.
+See [component configuration](../../docs/helm-component-configuration.md) for the
+complete ownership and initialization image contracts.
 
 To deliver Project invitations, sign in as a Platform Administrator and
 configure **Platform Setting -> Email delivery**. Port 587 uses STARTTLS; use
@@ -457,11 +470,9 @@ real calls, Hindsight attaches its Bank ID and the Router resolves that Bank to
 the owning Project, selects the Project's validated/default Model or Routing,
 and calls LiteLLM with a short-lived service key on the Project Team. Missing,
 ambiguous, or dimension-incompatible Project configuration fails closed. The
-Hindsight API also reads `hindsight-database-url`, `hindsight-api-key`, and the
-dedicated `hindsight-router-token` from the release Secret. A placeholder-only
-manifest showing the Hindsight keys is available at
-[`examples/hindsight-existing-secret.yaml`](examples/hindsight-existing-secret.yaml);
-merge those keys with every other key listed for `secrets.existingSecret`.
+Hindsight API, Worker and migration read `hindsight-config.json` from their
+own Secret. Generate an external file from the rendered chart using the commands
+in [`examples/hindsight-existing-secret.yaml`](examples/hindsight-existing-secret.yaml).
 Never commit rendered or real values.
 
 The API runs its built-in worker by default. Set
@@ -476,7 +487,7 @@ Enable Prometheus Operator integration with
 `monitoring.prometheusRule.enabled=true`. This scrapes authenticated Relay and
 Control Worker metrics plus Hindsight's private `/metrics` endpoint. Set an
 independent random `secrets.metricsToken` (or `metrics-token` in
-`secrets.existingSecret`). Hindsight Bank ID labels remain disabled and async
+`secrets.existingSecrets.metrics`). Hindsight Bank ID labels remain disabled and async
 backlog metrics are enabled. The complete backup, restore, alert-response,
 upgrade, troubleshooting, and uninstall procedure is in
 [`docs/durable-memory-operations.md`](../../docs/durable-memory-operations.md).
@@ -508,7 +519,7 @@ rollback after stopping all Hindsight API/worker Pods.
 The Chart deploys Docling Serve as an independent Deployment and ClusterIP
 Service for built-in Vector Database document parsing. It is not a Control Pod
 sidecar or an in-process TypeScript dependency. The Control Worker calls its
-cluster-local HTTP API through `DOCLING_BASE_URL`:
+cluster-local HTTP API through `[worker.docling]` in Worker-only `worker.toml`:
 
 ```text
 document upload -> PostgreSQL job -> Control Worker -> Docling Serve
@@ -519,12 +530,17 @@ document upload -> PostgreSQL job -> Control Worker -> Docling Serve
 Docling performs layout extraction, table understanding, and OCR independently
 of the selected embedding Provider; `NVIDIA_API_KEY` and `NVAPI_API_KEY` are not
 required. Its model cache uses the `<release>-docling-models` PVC by default.
-The large initial image pull and CPU model initialization can make the first
-Pod readiness transition take several minutes.
+An init container seeds the image-bundled models into the PVC; Docling reads
+that exact path through its native YAML config. `fsGroup` makes it writable by
+the non-root process. A startup probe covers slow CPU model initialization.
+Persistent deployments use `Recreate`; multiple replicas require RWX storage.
+`docling.persistence.existingClaim` supports an operator-managed claim.
+The PVC holds models/cache only. Original documents, parsed content, ingestion
+jobs and embeddings are persisted in PostgreSQL/pgvector on the PostgreSQL PVC.
 
 Disable the bundled parser with `docling.enabled=false` only when document
-upload is intentionally unavailable or `control.worker.extraEnv` supplies
-`DOCLING_BASE_URL` for a separately managed Docling Serve endpoint. Verify a
+upload is intentionally unavailable or `control.worker.docling.url` supplies
+a separately managed Docling Serve endpoint (`apiKey` is optional). Verify a
 bundled deployment with:
 
 ```bash
@@ -601,7 +617,7 @@ needed. Test user profile fields can be replaced through
 
 This mode runs Keycloak with `start-dev` and ephemeral storage. Realm changes
 are lost when its pod is replaced. It intentionally cannot be combined with
-`secrets.existingSecret`, because the Chart must generate matching Keycloak
+`secrets.existingSecrets.keycloak`, because the Chart must generate matching Keycloak
 credentials. For a manual Helm installation, configure its issuer and Client
 credentials in **Platform Setting -> Security & SSO**, keep the Group claim as
 `groups`, and add the exact test bindings represented by these Group paths:
@@ -676,6 +692,11 @@ an init container that runs `prisma migrate deploy`, including the SQL migration
 that creates the default Project and preconfigured Skill, MCP Server, Knowledge
 Source, Agent Role, and policy metadata.
 
-An external database supplied through `secrets.existingSecret` must allow the
+An external database supplied through Control and LiteLLM component Secrets must allow the
 configured role to create and modify the `tasklattice` schema. There is no
 SQLite mode or control-plane data PVC.
+
+Project and Agent Garden resource creation/removal run as durable Worker jobs.
+Control has read-only cluster diagnostics permissions. See
+[asynchronous resource lifecycle](../../docs/project-resource-lifecycle.md) for
+status, retries and deployment requirements.

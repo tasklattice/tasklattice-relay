@@ -14,49 +14,23 @@ export interface PlatformRuntimeConfiguration {
   localAuthenticationEnabled: boolean;
 }
 
-function booleanEnvironment(name: string): boolean | undefined {
-  const value = process.env[name]?.trim().toLowerCase();
-  if (!value) return undefined;
-  if (value === "true" || value === "1") return true;
-  if (value === "false" || value === "0") return false;
-  throw new Error(`${name} must be true or false.`);
-}
-
 export function deploymentBootstrapRuntimeConfiguration(): PlatformRuntimeConfiguration {
   const config = getControlConfig();
   return {
-    controlInternalUrl:
-      process.env.TALI_BOOTSTRAP_INTERNAL_URL?.trim()
-      || config.server.internal_url
+    controlInternalUrl: config.server.internal_url
       || config.server.public_url
       || "",
     runner: {
-      url:
-        process.env.TALI_BOOTSTRAP_RUNNER_URL?.trim()
-        || config.runner?.url
-        || "",
-      token:
-        process.env.TALI_BOOTSTRAP_RUNNER_TOKEN?.trim()
-        || config.runner?.token
-        || "",
+      url: config.runner?.url || "",
+      token: config.runner?.token || "",
     },
     litellm: {
-      url:
-        process.env.TALI_BOOTSTRAP_LITELLM_URL?.trim()
-        || config.litellm?.url
-        || "",
-      masterKey:
-        process.env.TALI_BOOTSTRAP_LITELLM_MASTER_KEY?.trim()
-        || config.litellm?.master_key
-        || "",
+      url: config.litellm?.url || "",
+      masterKey: config.litellm?.master_key || "",
     },
     runtimeNamespaces: {
-      enabled:
-        booleanEnvironment("TALI_BOOTSTRAP_RUNTIME_NAMESPACES_ENABLED")
-        ?? config.runtime_namespaces.enabled,
-      clusterId:
-        process.env.TALI_BOOTSTRAP_RUNTIME_CLUSTER_ID?.trim()
-        || config.runtime_namespaces.cluster_id,
+      enabled: config.runtime_namespaces.enabled,
+      clusterId: config.runtime_namespaces.cluster_id,
     },
     localAuthenticationEnabled: config.auth.local.enabled,
   };

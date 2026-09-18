@@ -1,5 +1,6 @@
+import { getRunnerConfig, setRunnerConfigForTests } from "./runner-config.js";
 import { readFile } from "node:fs/promises";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   encodeTerminalResize,
   parseTerminalClientMessage,
@@ -258,7 +259,7 @@ describe("OpenShell Kubernetes command contract", () => {
   });
 
   it("normalizes a release-tag NemoClaw version in the Sandbox label", () => {
-    vi.stubEnv("NEMOCLAW_VERSION", "v0.0.123");
+    getRunnerConfig().openshell.nemoclawVersion = "v0.0.123";
     try {
       const args = openShellSandboxCreateArguments(
         input,
@@ -303,8 +304,8 @@ describe("OpenShell Kubernetes command contract", () => {
   });
 
   it("uses the official Kubernetes driver config for separate CPU request and limit", () => {
-    vi.stubEnv("OPENSHELL_SANDBOX_CPU", "1");
-    vi.stubEnv("OPENSHELL_SANDBOX_CPU_REQUEST", "500m");
+    getRunnerConfig().openshell.sandbox.cpu = "1";
+    getRunnerConfig().openshell.sandbox.cpuRequest = "500m";
     const args = openShellSandboxCreateArguments(
       input,
       "/tmp/AGENTS.md",
@@ -807,13 +808,13 @@ describe("OpenShell Kubernetes command contract", () => {
   });
 
   it("uses and validates the OpenShell workspace in routed origins", () => {
-    vi.stubEnv("OPENSHELL_WORKSPACE", "team-a");
+    getRunnerConfig().openshell.workspace = "team-a";
     expect(openShellWorkspace()).toBe("team-a");
     expect(openShellWebUiOrigin("sandbox-a")).toBe(
       "http://team-a--sandbox-a--webui.openshell.localhost:8080",
     );
 
-    vi.stubEnv("OPENSHELL_WORKSPACE", "team--a");
+    getRunnerConfig().openshell.workspace = "team--a";
     expect(() => openShellWorkspace()).toThrow("OPENSHELL_WORKSPACE");
     vi.unstubAllEnvs();
   });
@@ -900,3 +901,5 @@ describe("OpenShell Kubernetes command contract", () => {
     ).toEqual({ type: "invalid-control" });
   });
 });
+
+afterEach(() => setRunnerConfigForTests());

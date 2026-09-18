@@ -1,4 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
+vi.mock("../jobs/control-job-queue", async (importOriginal) => ({
+  ...await importOriginal<object>(),
+  controlJobQueue: () => ({ start: vi.fn(async () => undefined),
+    enqueueProjectRuntimeReconcile: vi.fn(async () => "00000000-0000-4000-8000-000000000028"),
+    enqueueProjectDeletion: vi.fn(async () => "00000000-0000-4000-8000-000000000027") }),
+}));
+
 import { DEFAULT_ACCESS_POLICY_ID } from "../access-policies/default-access-policy";
 import { AuditLogService } from "../audit-logs/audit-log-service";
 import type { PlatformPrincipal, AuthUser } from "../auth/auth";
@@ -248,57 +255,28 @@ describe("ProjectService", () => {
     expect(quota.budgetDuration).toBe("30d");
   });
 
-  it("provisions the runtime Namespace before Project creation succeeds", async () => {
+  it("commits initial business data and a durable task without calling external services", async () => {
     const db = createTestPrisma();
-    const runtimeNamespaces: ProjectRuntimeNamespaceProvisioner = {
-      ensureProjectNamespace: vi.fn(async () => true),
-    };
-    const service = new ProjectService(
-      db,
-      undefined,
-      undefined,
-      runtimeNamespaces,
-    );
-    const local = auth({
-      displayName: "Local Administrator",
-      email: "admin@tali.local",
-      hasPassword: true,
-      username: "admin",
-    });
-
+    const enqueue = vi.fn(async () => "00000000-0000-4000-8000-000000000028");
+    const jobs: ControlJobPublisher = { start: vi.fn(async () => undefined),
+      enqueueProjectRuntimeReconcile: enqueue, enqueueProjectDeletion: vi.fn() };
+    const service = new ProjectService(db, undefined, undefined, jobs);
+    const local = auth({ displayName: "Local Administrator", email: "admin@tali.local", hasPassword: true, username: "admin" });
     const project = await service.create(local, "dep1", "Runtime Project", []);
-
-    expect(runtimeNamespaces.ensureProjectNamespace).toHaveBeenCalledWith(
-      project.id,
-    );
+    expect(enqueue).toHaveBeenCalledWith(project.id, "created", expect.objectContaining({ project: expect.anything() }));
+    expect(await db.projectRuntimeTarget.findUnique({ where: { projectId: project.id } })).toMatchObject({ status: "pending", observedGeneration: 0 });
+    expect(await db.projectQuotaRecord.findUnique({ where: { projectId: project.id } })).not.toBeNull();
+    expect(await db.accessPolicyRecord.count({ where: { projectId: project.id } })).toBe(1);
   });
 
-  it("removes the database Project when Namespace provisioning fails", async () => {
+  it("does not acknowledge creation when durable enqueue fails", async () => {
     const db = createTestPrisma();
-    const runtimeNamespaces: ProjectRuntimeNamespaceProvisioner = {
-      ensureProjectNamespace: vi.fn(async () => {
-        throw new Error("Kubernetes API unavailable");
-      }),
-    };
-    const service = new ProjectService(
-      db,
-      undefined,
-      undefined,
-      runtimeNamespaces,
-    );
-    const local = auth({
-      displayName: "Local Administrator",
-      email: "admin@tali.local",
-      hasPassword: true,
-      username: "admin",
-    });
-
-    await expect(
-      service.create(local, "dep1", "Failed Runtime Project", []),
-    ).rejects.toThrow("Kubernetes API unavailable");
-    await expect(db.project.findFirst({
-      where: { name: "Failed Runtime Project" },
-    })).resolves.toBeNull();
+    const jobs: ControlJobPublisher = { start: vi.fn(async () => undefined),
+      enqueueProjectRuntimeReconcile: vi.fn(async () => { throw new Error("Queue unavailable"); }), enqueueProjectDeletion: vi.fn() };
+    const service = new ProjectService(db, undefined, undefined, jobs);
+    const local = auth({ displayName: "Local Administrator", email: "admin@tali.local", hasPassword: true, username: "admin" });
+    await expect(service.create(local, "dep1", "Failed Runtime Project", [])).rejects.toThrow("Queue unavailable");
+    // pg-mem cannot implement rollback; the database integration checks atomicity.
   });
 
   it("switches directly between roles assigned to the Account", async () => {
@@ -531,7 +509,6 @@ describe("ProjectService", () => {
       db,
       undefined,
       undefined,
-      undefined,
       controlJobs,
     );
     const administrator = auth({
@@ -663,7 +640,6 @@ describe("ProjectService", () => {
     };
     const service = new ProjectService(
       db,
-      undefined,
       undefined,
       undefined,
       controlJobs,

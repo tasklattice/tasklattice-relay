@@ -1,3 +1,4 @@
+import { getWorkerConfig } from "../config/worker-config";
 import { createServer, type Server } from "node:http";
 import { databaseHealth, prisma } from "../db/prisma";
 import { createMemoryProvider } from "../memories/memory-provider-factory";
@@ -25,7 +26,7 @@ function sendJson(
 
 export async function startControlWorkerHealthServer(
   state: ControlWorkerHealthState,
-  port = Number(process.env.CONTROL_WORKER_HEALTH_PORT ?? 9090),
+  port = getWorkerConfig().healthPort,
 ): Promise<Server> {
   const server = createServer(async (request, response) => {
     if (request.url === "/metrics") {

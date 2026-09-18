@@ -422,6 +422,7 @@ describe("AgentGardenService", () => {
       }),
     ]);
     expect(await service.remove(agent.id)).toBe(true);
+    await expect(service.remove(agent.id)).resolves.toBe(false);
     await expect(service.store.listManagedInstances()).resolves.toEqual([]);
   });
 
@@ -525,6 +526,8 @@ describe("AgentGardenService", () => {
     }));
 
     await expect(service.remove(agent.id)).resolves.toBe(true);
+    await expect(service.remove(agent.id)).resolves.toBe(false);
+    expect(runtime.remove).toHaveBeenCalledTimes(1);
     expect(runtime.remove).toHaveBeenCalledWith(expect.objectContaining({
       agentId: agent.id,
       instanceId: agent.configuration.managedInstanceId,

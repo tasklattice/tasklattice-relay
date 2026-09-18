@@ -14,3 +14,31 @@ secret = "CHANGE_TO_AT_LEAST_32_RANDOM_CHARACTERS"
 initial_platform_administrator_username = "admin"
 initial_platform_administrator_email = "admin@tasklattice.local"
 initial_platform_administrator_password = "CHANGE_TO_A_STRONG_PASSWORD"
+
+# Initial infrastructure values seed missing Platform Settings only.
+[runner]
+url = "http://127.0.0.1:9090"
+token = "local-dev-token"
+
+[litellm]
+url = "http://127.0.0.1:4000"
+master_key = "CHANGE_ME"
+
+[runtime_namespaces]
+enabled = false
+cluster_id = "in-cluster"
+
+[memory]
+enabled = false
+projectAllowlist = []
+baseUrl = "http://127.0.0.1:8888"
+apiKey = "CHANGE_ME"
+routerToken = "CHANGE_ME"
+embeddingDimensions = 1536
+recallTimeoutMs = 1500
+
+[metrics]
+token = "CHANGE_ME"
+
+# Worker deployment configuration lives in worker.example.toml / TALI_WORKER_CONFIG.
+# See docs/helm-component-configuration.md for deployment ownership.
