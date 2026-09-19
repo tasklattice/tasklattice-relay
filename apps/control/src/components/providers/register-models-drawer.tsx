@@ -22,12 +22,12 @@ import {
   CheckCircle2,
   Copy,
   KeyRound,
-  Minus,
   Plus,
   ServerCog,
   TriangleAlert,
   X,
 } from "lucide-react";
+import { canSelectModel, filterModels, registeredModelIds } from "./model-selection";
 import { ProviderPicker } from "./provider-picker";
 import {
   createProviderDraft,
@@ -84,12 +84,6 @@ const capabilityLabels: Record<ModelCapability, string> = {
 const providerLabel = (kind: ProviderKind) =>
   providerPresets.find((provider) => provider.id === kind)?.name ?? kind;
 
-const validationStatusLabels = {
-  PASS: "Passed",
-  FAIL: "Failed",
-  SKIP: "Not required",
-} as const;
-
 function hasHttpsEndpoint(draft: ProviderConnectionDraft): boolean {
   const endpoint = (draft.config as Record<string, unknown>).endpoint;
   return typeof endpoint === "string" && /^https:\/\//i.test(endpoint.trim());
@@ -114,6 +108,8 @@ const emptyAccounts: ProviderAccount[] = [];
 
 export function RegisterModelsDrawer({
   accounts = emptyAccounts,
+  registeredModels,
+  canConfigureProvider = true,
   initialAccount,
   initialMode,
   intent = "register-models",
@@ -121,6 +117,8 @@ export function RegisterModelsDrawer({
   open,
 }: {
   accounts?: ProviderAccount[];
+  registeredModels: ModelDeployment[];
+  canConfigureProvider?: boolean;
   initialAccount?: ProviderAccount | undefined;
   initialMode?: CredentialMode | undefined;
   intent?: "add-provider" | "register-models";
@@ -156,6 +154,8 @@ export function RegisterModelsDrawer({
   const [manualModelType, setManualModelType] = useState<ModelType>("llm");
   const [summary, setSummary] = useState<RegistrationSummary>();
 
+  const wasOpen = useRef(false);
+  const existingIds = registeredModelIds(registeredModels, credentialMode === "existing" ? accountId : undefined);
   const activeAccount = availableAccounts.find(
     (account) => account.id === accountId,
   );
@@ -166,13 +166,16 @@ export function RegisterModelsDrawer({
         : client.discoverProviderModels(draft),
     onSuccess: (result) => {
       setDiscovery(result);
-      setModels(result.models[0] ? [cloneSelection(result.models[0])] : []);
+      setModels([]);
       setStep("models");
     },
   });
   const register = useMutation({
     mutationFn: async (): Promise<RegistrationSummary> => {
+      if (!models.length || models.length > 100) throw new Error("Select between 1 and 100 models.");
+      if (models.some((model) => existingIds.has(model.modelId))) throw new Error("A selected model is already registered. Remove it from the selection before continuing.");
       if (credentialMode === "new") {
+        if (!canConfigureProvider) throw new Error("You do not have permission to configure a Provider.");
         const result = await client.registerProviderAccount({
           connection: draft,
           models,
@@ -230,7 +233,9 @@ export function RegisterModelsDrawer({
   });
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) { wasOpen.current = false; return; }
+    if (wasOpen.current) return;
+    wasOpen.current = true;
     setStep("source");
     setCredentialMode(defaultCredentialMode);
     setAccountId(initialAccount?.id ?? availableAccounts[0]?.id ?? "");
@@ -240,6 +245,7 @@ export function RegisterModelsDrawer({
     setDiscovery(undefined);
     setModels([]);
     setManualModelId("");
+    setManualModelType("llm");
     setSummary(undefined);
     discover.reset();
     register.reset();
@@ -259,7 +265,12 @@ export function RegisterModelsDrawer({
   }, [credentialMode, open, providerSelected]);
 
   const pending = discover.isPending || register.isPending;
+  const sourceChanged = () => {
+    setDiscovery(undefined); setModels([]); setManualModelId("");
+    setErrors({}); discover.reset(); register.reset();
+  };
   const selectProvider = (kind: ProviderKind) => {
+    sourceChanged();
     setDraft(createProviderDraft(kind));
     setProviderSelected(true);
     setErrors({});
@@ -269,7 +280,7 @@ export function RegisterModelsDrawer({
       if (activeAccount) discover.mutate();
       return;
     }
-    if (!providerSelected) return;
+    if (!providerSelected || !canConfigureProvider) return;
     const parsed = providerConnectionDraftSchema.safeParse(draft);
     if (!parsed.success) {
       setErrors(
@@ -294,6 +305,7 @@ export function RegisterModelsDrawer({
   ) as readonly ModelType[];
   const currentWizardStep = step === "source" ? 0 : step === "models" ? 1 : 2;
   const changeWizardStep = (next: number) => {
+    if (pending || step === "complete") return;
     if (next === 0) setStep("source");
     if (next === 1 && discovery) setStep("models");
   };
@@ -306,7 +318,7 @@ export function RegisterModelsDrawer({
       }}
       direction="right"
     >
-      <DrawerContent className="!w-full sm:!w-[min(100vw,44rem)]">
+      <DrawerContent className="!w-full sm:!w-[min(96vw,64rem)]">
         <DrawerHeader className="relative border-b pr-16">
           <DrawerTitle className="text-xl sm:text-2xl">
             {addingProvider ? "Add Provider" : "Register models"}
@@ -329,18 +341,18 @@ export function RegisterModelsDrawer({
           </DrawerClose>
         </DrawerHeader>
 
-        <div className="min-h-0 flex-1 overflow-y-auto">
+        <fieldset disabled={pending} className="min-h-0 min-w-0 flex-1 overflow-y-auto" aria-busy={pending}>
           <CreationFlow
             steps={registrationSteps}
             currentStep={currentWizardStep}
             onStepChange={changeWizardStep}
             progressLabel="Register models progress"
             orientation="sidebar"
-            canNavigateBack={step !== "complete"}
+            canNavigateBack={!pending && step !== "complete"}
           >
             {step === "source" ? (
             <div className="space-y-6">
-              {!addingProvider && !initialAccount && availableAccounts.length ? (
+              {!addingProvider && !initialAccount && canConfigureProvider && availableAccounts.length ? (
                 <div
                   role="radiogroup"
                   aria-label="Provider credential source"
@@ -350,13 +362,13 @@ export function RegisterModelsDrawer({
                     active={credentialMode === "existing"}
                     title="Use saved credentials"
                     description={`Discover models with Provider credentials already saved for this ${scopeLabel}.`}
-                    onClick={() => setCredentialMode("existing")}
+                    onClick={() => { sourceChanged(); setCredentialMode("existing"); }}
                   />
                   <SourceChoice
                     active={credentialMode === "new"}
                     title="Use new credentials"
                     description="Enter Provider credentials, then discover and register models."
-                    onClick={() => setCredentialMode("new")}
+                    onClick={() => { sourceChanged(); setCredentialMode("new"); }}
                   />
                 </div>
               ) : null}
@@ -364,7 +376,7 @@ export function RegisterModelsDrawer({
               {credentialMode === "existing" ? (
                 <div className="space-y-2">
                   <Label htmlFor="provider-credentials" required>Saved credentials</Label>
-                  <Select value={accountId} onValueChange={setAccountId} required>
+                  <Select value={accountId} onValueChange={(id) => { sourceChanged(); setAccountId(id); }} disabled={pending} required>
                     <SelectTrigger id="provider-credentials">
                       <SelectValue placeholder="Choose credentials" />
                     </SelectTrigger>
@@ -431,11 +443,10 @@ export function RegisterModelsDrawer({
                       </div>
                       <Configurator
                         value={draft}
-                        onChange={(next) =>
-                          setDraft(hasHttpsEndpoint(next)
-                            ? next
-                            : { ...next, skipTlsVerify: false })
-                        }
+                        onChange={(next) => {
+                          sourceChanged();
+                          setDraft(hasHttpsEndpoint(next) ? next : { ...next, skipTlsVerify: false });
+                        }}
                         errors={errors}
                         disabled={pending}
                       />
@@ -459,9 +470,7 @@ export function RegisterModelsDrawer({
                               aria-label="Skip TLS certificate verification"
                               checked={draft.skipTlsVerify === true}
                               disabled={pending}
-                              onCheckedChange={(skipTlsVerify) =>
-                                setDraft({ ...draft, skipTlsVerify })
-                              }
+                              onCheckedChange={(skipTlsVerify) => { sourceChanged(); setDraft({ ...draft, skipTlsVerify }); }}
                             />
                           </div>
                           {draft.skipTlsVerify ? (
@@ -497,6 +506,8 @@ export function RegisterModelsDrawer({
           ) : step === "models" && discovery ? (
             <ModelDiscoveryStep
               discovery={discovery}
+              existingIds={existingIds}
+              pending={pending}
               manualModelId={manualModelId}
               manualModelType={manualModelType}
               models={models}
@@ -521,7 +532,7 @@ export function RegisterModelsDrawer({
               </div>
             ) : null}
           </CreationFlow>
-        </div>
+        </fieldset>
 
         <DrawerFooter>
           {step === "source" ? (
@@ -556,7 +567,8 @@ export function RegisterModelsDrawer({
                 Back
               </Button>
               <Button
-                disabled={!models.length || pending}
+                variant="create"
+                disabled={!models.length || models.length > 100 || pending || models.some((model) => existingIds.has(model.modelId))}
                 onClick={() => register.mutate()}
               >
                 {register.isPending ? <Spinner /> : null}
@@ -665,8 +677,10 @@ function SourceChoice({
   );
 }
 
-function ModelDiscoveryStep({
+export function ModelDiscoveryStep({
   discovery,
+  existingIds,
+  pending,
   manualModelId,
   manualModelType,
   models,
@@ -676,6 +690,8 @@ function ModelDiscoveryStep({
   supportedTypes,
 }: {
   discovery: ProviderDiscoveryResult;
+  existingIds: ReadonlySet<string>;
+  pending: boolean;
   manualModelId: string;
   manualModelType: ModelType;
   models: ProviderModelSelection[];
@@ -684,7 +700,11 @@ function ModelDiscoveryStep({
   setModels: (models: ProviderModelSelection[]) => void;
   supportedTypes: readonly ModelType[];
 }) {
+  const [search, setSearch] = useState("");
+  const [selectedSearch, setSelectedSearch] = useState("");
   const selected = new Set(models.map((model) => model.modelId));
+  const filteredCatalog = filterModels(discovery.models, search);
+  const filteredSelected = filterModels(models, selectedSearch);
   const update = (next: ProviderModelSelection) =>
     setModels(
       models.map((model) => model.modelId === next.modelId ? next : model),
@@ -697,128 +717,46 @@ function ModelDiscoveryStep({
     );
   return (
     <div className="space-y-6">
-      <div
-        className={cn(
-          "border-l-2 px-4 py-3 text-sm",
-          discovery.checks.some((check) => check.status === "FAIL")
-            ? "border-amber-500 bg-amber-500/5"
-            : "border-emerald-500 bg-emerald-500/5",
-        )}
-      >
-        <strong>
-          {discovery.mode === "remote"
-            ? "Live model catalog"
-            : discovery.mode === "suggested"
-              ? "Recommended models"
-              : "Manual model registration"}
-        </strong>
-        <p className="mt-1 text-xs leading-5 text-muted-foreground">
-          {discovery.message}
-        </p>
-      </div>
-      <ul
-        aria-label="Provider validation checks"
-        className="grid gap-2 sm:grid-cols-3"
-      >
-        {discovery.checks.map((check) => (
-          <li
-            key={check.id}
-            className="flex min-h-11 items-center gap-2.5 border px-3 text-xs"
-            title={`${check.label}: ${validationStatusLabels[check.status]}`}
-          >
-            <span
-              aria-hidden="true"
-              className={cn(
-                "grid size-5 shrink-0 place-items-center rounded-full",
-                check.status === "PASS"
-                  && "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
-                check.status === "FAIL"
-                  && "bg-destructive/10 text-destructive",
-                check.status === "SKIP"
-                  && "bg-muted text-muted-foreground",
-              )}
-            >
-              {check.status === "PASS" ? (
-                <Check className="size-3.5 stroke-[2.5]" />
-              ) : check.status === "FAIL" ? (
-                <X className="size-3.5 stroke-[2.5]" />
-              ) : (
-                <Minus className="size-3.5 stroke-[2.5]" />
-              )}
-            </span>
-            <span className="font-medium">{check.label}</span>
-            <span className="sr-only">
-              {validationStatusLabels[check.status]}
-            </span>
-          </li>
-        ))}
-      </ul>
-
-      {discovery.models.length ? (
-        <section>
-          <div className="mb-2 flex items-center justify-between">
-            <div>
-              <h3 className="text-sm font-semibold">Discovered models</h3>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Type and capabilities are inferred from Provider metadata.
-                Review selected models before registration.
-              </p>
+      <section aria-label="Selected models" className="space-y-3 rounded-lg border border-primary/25 bg-card p-4">
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="text-sm font-semibold">Selected models</h3>
+          <span role="status" aria-live="polite" className="text-sm text-link">{models.length} selected</span>
+        </div>
+        <Input aria-label="Search selected models" placeholder="Search selected models by name or ID" value={selectedSearch} onChange={(event) => setSelectedSearch(event.target.value)} />
+        <div className="max-h-72 divide-y overflow-y-auto">
+          {filteredSelected.map((model) => <div key={model.modelId} className="py-3">
+            <div className="flex items-start gap-3">
+              <CheckCircle2 className="mt-1 size-4 shrink-0 text-link" />
+              <span className="min-w-0 flex-1"><strong className="block break-words text-sm">{model.displayName}</strong><code className="block break-all text-xs text-muted-foreground">{model.modelId}</code></span>
+              {!discovery.models.some((item) => item.modelId === model.modelId) ? <Badge variant="outline">Manual</Badge> : null}
+              <Button type="button" variant="ghost" size="icon" disabled={pending} aria-label={`Remove ${model.modelId} from selection`} onClick={() => toggle(model)}><X /></Button>
             </div>
-            <Badge variant="outline">{models.length} selected</Badge>
-          </div>
-          <div className="max-h-[28rem] divide-y overflow-y-auto border">
-            {discovery.models.map((discovered) => {
-              const selectedModel = models.find(
-                (model) => model.modelId === discovered.modelId,
-              );
-              return (
-                <div
-                  key={discovered.modelId}
-                  className={cn(
-                    "p-3",
-                    selectedModel && "bg-primary/[0.035]",
-                  )}
-                >
-                  <button
-                    type="button"
-                    aria-pressed={Boolean(selectedModel)}
-                    onClick={() => toggle(cloneSelection(discovered))}
-                    className="flex w-full items-center gap-3 text-left"
-                  >
-                    <span
-                      className={cn(
-                        "grid size-5 shrink-0 place-items-center border",
-                        selectedModel
-                          && "border-primary bg-primary text-primary-foreground",
-                      )}
-                    >
-                      {selectedModel ? <Check className="size-3.5" /> : null}
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <strong className="block truncate text-sm">
-                        {discovered.displayName}
-                      </strong>
-                      <span className="block truncate font-mono text-xs text-muted-foreground">
-                        {discovered.modelId}
-                      </span>
-                    </span>
-                    <Badge variant="outline">
-                      {modelTypeLabels[discovered.modelType]}
-                    </Badge>
-                  </button>
-                  {selectedModel ? (
-                    <ModelClassificationEditor
-                      model={selectedModel}
-                      supportedTypes={supportedTypes}
-                      onChange={update}
-                    />
-                  ) : null}
-                </div>
-              );
-            })}
-          </div>
-        </section>
-      ) : null}
+            {existingIds.has(model.modelId) ? <p role="alert" className="mt-2 text-xs text-destructive">Already registered. Remove this model from the selection.</p> : null}
+            <ModelClassificationEditor model={model} supportedTypes={supportedTypes} onChange={update} />
+          </div>)}
+          {!filteredSelected.length ? <p className="py-3 text-sm text-muted-foreground">{models.length ? "No selected models match your search." : "Select at least one model from the catalog or add a model ID manually."}</p> : null}
+        </div>
+      </section>
+      <section className="space-y-3" aria-label="Discovered models">
+        {models.length > 100 ? <p role="alert" className="text-sm text-destructive">Register up to 100 models at a time. Remove models from the selection to continue.</p> : null}
+        <h3 className="text-sm font-semibold">Discovered models · {discovery.models.length}</h3>
+        <p className="text-xs text-muted-foreground">Already registered models are marked below. Search and select additional models to register.</p>
+        <Input aria-label="Search discovered models" placeholder="Search by model name or ID" value={search} onChange={(event) => setSearch(event.target.value)} />
+        <div className="max-h-72 divide-y overflow-y-auto rounded-lg border">
+          {filteredCatalog.map((model) => {
+            const registered = existingIds.has(model.modelId);
+            const checked = selected.has(model.modelId);
+            return <button key={model.modelId} type="button" aria-pressed={checked} disabled={registered || pending}
+              aria-label={`${model.displayName} ${model.modelId}${registered ? " · Already registered" : ""}`}
+              onClick={() => toggle(model)} className={cn("flex w-full items-center gap-3 p-3 text-left hover:bg-muted/30 disabled:opacity-60", checked && "bg-primary/5")}>
+              <span className={cn("grid size-5 shrink-0 place-items-center rounded-sm border", (checked || registered) && "border-primary bg-primary text-primary-foreground")}>{checked || registered ? <Check className="size-3.5" /> : null}</span>
+              <span className="min-w-0 flex-1"><strong className="block break-words text-sm">{model.displayName}</strong><code className="block break-all text-xs text-muted-foreground">{model.modelId}</code></span>
+              <Badge variant="outline">{registered ? "Registered" : checked ? "Selected" : modelTypeLabels[model.modelType]}</Badge>
+            </button>;
+          })}
+          {!filteredCatalog.length ? <p className="p-4 text-sm text-muted-foreground">{discovery.models.length ? "No models match your search." : "No models discovered. Add a model ID manually below."}</p> : null}
+        </div>
+      </section>
 
       <section className="space-y-3 border bg-muted/10 p-4">
         <h3 className="text-sm font-semibold">Register a model ID manually</h3>
@@ -826,6 +764,7 @@ function ModelDiscoveryStep({
           <Input
             aria-label="Manual model ID"
             placeholder="Model or deployment ID"
+            maxLength={160}
             value={manualModelId}
             onChange={(event) => setManualModelId(event.target.value)}
           />
@@ -851,9 +790,11 @@ function ModelDiscoveryStep({
           <Button
             type="button"
             variant="outline"
-            disabled={!manualModelId.trim() || selected.has(manualModelId.trim())}
+            disabled={pending || !canSelectModel(manualModelId, models, existingIds)}
             onClick={() => {
               const id = manualModelId.trim();
+              if (!canSelectModel(id, models, existingIds)) return;
+              setSelectedSearch("");
               setModels([
                 ...models,
                 {
@@ -923,7 +864,7 @@ function ModelClassificationEditor({
               className={cn(
                 "rounded-sm border px-2 py-1 text-[11px]",
                 active
-                  ? "border-primary/30 bg-primary/10 text-primary"
+                  ? "border-primary/30 bg-primary/10 text-link"
                   : "text-muted-foreground hover:bg-muted",
               )}
               onClick={() =>
@@ -946,7 +887,7 @@ function ModelClassificationEditor({
   );
 }
 
-function SummaryStep({
+export function SummaryStep({
   intent,
   summary,
 }: {
@@ -955,11 +896,13 @@ function SummaryStep({
 }) {
   return (
     <div className="space-y-6">
-      <div className="flex items-start gap-3 border bg-emerald-500/5 p-4">
-        <CheckCircle2 className="mt-0.5 size-5 text-emerald-600" />
+      <div className={cn("flex items-start gap-3 border p-4", summary.failures.length ? "bg-warning-surface" : "bg-success-surface")}>
+        {summary.failures.length ? <TriangleAlert className="mt-0.5 size-5 text-warning-foreground" /> : <CheckCircle2 className="mt-0.5 size-5 text-success-foreground" />}
         <div>
           <strong>
-            {intent === "add-provider"
+            {summary.failures.length
+              ? summary.models.length ? "Registration partially completed" : "No models registered"
+              : intent === "add-provider"
               ? `${summary.providerName} added`
               : `Models registered from ${summary.providerName}`}
           </strong>

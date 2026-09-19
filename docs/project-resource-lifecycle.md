@@ -9,6 +9,9 @@ Project creation returns HTTP 201 with the new Project ID and
 catalog seed records, runtime target and pg-boss job commit in one PostgreSQL
 transaction. A queue insertion failure rolls back the entire creation.
 Worker synchronizes the LiteLLM Team and then reconciles runtime resources.
+After creating the Namespace, Worker provisions a dedicated Gateway database
+and login on the existing PostgreSQL server, publishes the Project database
+Secret, and installs OpenShell as a Deployment without a Gateway data PVC.
 
 Read progress using `GET /api/v1/projects/{projectId}/initialization`.
 States are `pending`, `reconciling`, `retry`, `ready`, `failed`, and `deleting`.
@@ -31,6 +34,8 @@ Workers renew leases while running; after a crash, leases expire and durable
 jobs can recover. Provisioning checks the generation/tombstone between stages
 and cannot publish readiness after deletion. Cleanup is idempotent and handles
 partially created resources. The existing deletion grace period remains.
+Gateway cleanup uninstalls its Helm release before dropping the Project's
+Gateway database and login. A failed uninstall retains database state for retry.
 
 ## Deployment
 

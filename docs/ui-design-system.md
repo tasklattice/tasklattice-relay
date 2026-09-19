@@ -1,13 +1,16 @@
 # TaskLattice Relay UI and Interaction System
 
-Status: Supporting baseline; canonical contract: [UI Interactive Spec](ui-interaction-spec.md).
+Status: Supporting family-design target; canonical contract: [UI Interactive Spec](ui-interaction-spec.md).
 
 The canonical contract takes precedence over historical examples in this document.
 
-Version: 0.2
+Version: 0.4 (2026-09-19; Tali / Guard alignment; desktop only)
 
 This contract applies the Vibe Designing evidence model to TaskLattice Relay. It
-covers authentication and the protected Project console.
+covers authentication and the protected Project console. The entire Relay
+project targets desktop Web only. Mobile/tablet design and acceptance are out
+of scope unless explicitly requested by the user. Existing responsive fallbacks
+are not a support commitment.
 
 ## Product intent
 
@@ -19,42 +22,57 @@ request succeeded before the runtime reports success.
 The control console prioritizes the operating task and current state over
 marketing expression.
 
-## Visual intent
+## Shared Tali visual intent
 
-- Temperament: operational, precise, direct, and calm.
-- Brand signal: cobalt is the single interactive brand color. It owns primary
-  actions, navigation selection, focus, and links; primary actions must never
-  silently fall back to graphite. Information blue, success green, warning
-  amber, and danger red remain distinct semantic roles.
-- Neutral system: light mode uses a cool `#f7f8fb` canvas, white working
-  surfaces, and a `#f4f6fa` sidebar. Dark mode uses a deep navy canvas and
-  slightly lighter raised surfaces. One-pixel cool-gray rules make ownership
-  and boundaries explicit; subtle elevation is reserved for raised controls
-  and overlays.
-- Typography: `Inter` with `Noto Sans SC` / `Noto Sans TC` fallbacks for display
-  and interface text; `Chivo Mono` for identifiers and operational evidence.
-- Shape: one-pixel rules, 2-pixel near-square controls, and 4-pixel grouped
-  panels. Status badges use 2-pixel corners; viewport-aligned drawers use 0.
-  Hierarchy comes from type,
-  spacing, density, and section lines rather than heavy shadows or a wall of
-  equal cards.
-- Vendor identity: model providers, MCP products, databases, Agent frameworks,
-  and delivery channels use their official full-color asset where available.
-  Monochrome product marks remain monochrome only when that is the vendor's
-  canonical identity. Generic Lucide icons are reserved for product-neutral
-  capabilities and unknown/custom integrations.
-- Motion: short state transitions only. Honor `prefers-reduced-motion`.
+Guard and Relay share a visual family: brand blue, cool neutral surfaces,
+Hanken Grotesk interface text, readable CJK fallbacks, restrained rounded
+controls, clear action semantics, and consistent keyboard/pending/error states.
+Product marks, content, and permission scopes remain distinct.
+
+The canonical [Spec §4](ui-interaction-spec.md#4-visual-system) owns the complete
+light/dark token tables. This companion must not define an alternate palette.
+
+| Dimension | Family contract |
+| --- | --- |
+| Light | Guard-derived `#F7F8FA` canvas, white cards/sidebar, `#182230` text, quiet cool-gray separators |
+| Dark | Proposed `#101828` canvas/sidebar, `#182230` panels, `#1D2939` overlays, readable light text; same hierarchy and geometry |
+| Primary | `#2563EB` filled blue with white text in both themes; separate readable link/focus tokens |
+| Action semantics | Blue create/default, amber edit/apply, red delete/revoke, neutral inspect/cancel |
+| Interface typography | Hanken Grotesk + language-matched Noto Sans SC / TC; operational headings stay sans-serif |
+| Brand typography | Serif statement and title on public login only; no serif tables, forms, or console headings |
+| Technical typography | Chivo Mono for IDs, endpoints, logs, YAML, code; tabular numerals for aligned metrics |
+| Shape | 4 px badges, 6 px controls, 8 px cards, 10 px floating surfaces; structural edges and docked drawers 0 px |
+| Density | 40 px desktop controls, 44 px login/form submission; compact rows with readable labels |
+| Elevation | One-pixel borders and tonal separation; subtle raised controls and overlays; no glow or ambient gradients |
+| Motion | Short feedback transitions, reduced-motion support, no decorative bounce |
+
+The reviewed Guard CSS has no complete dark token set. Dark values are a family
+extension defined by the Spec, **not an already-verified Guard implementation**.
+Relay's shared workspace and login now use the family theme, with Hanken,
+correct variable CJK fallbacks, and the shared geometry. See [migration gaps](ui-interaction-spec.md#91-current-alignment-and-migration-gaps--2026-09-19).
+
+### Theme and contrast
+
+Workspace themes are Light, Dark, and System. Switching themes preserves work,
+selection, and route; resolve initial theme before paint. Menus, tooltips,
+drawers, and toasts inherit the owning surface's theme, including portals.
+Normal text requires 4.5:1 contrast, large text and essential non-text indicators
+3:1. Check actual alpha-composited surfaces and hover/focus states.
+
+Official vendor identities keep approved colors; choose a dark-safe asset or
+neutral backing when needed. Do not recolor every vendor mark blue or use a
+generic Lucide icon when an official asset is available. State labels and
+icons supplement colors in charts, navigation, and feedback.
 
 ### Logo contract
 
-- The mark is a seven-node triangular lattice: isolated runtime nodes become a
-  connected orchestration boundary and converge on one execution point.
-- The primary lockup uses `TALI` as the compact wordmark and `TaskLattice Relay` as
-  the durable product name. The mark remains recognizable without the wordmark
-  in collapsed navigation and favicon contexts.
-- Light surfaces use a darker cyan signal for contrast; dark assets use the
-  storyboard cyan `#42e3ff`.
-- The protected console keeps the lattice mark static.
+- Relay keeps the seven-node triangular lattice; Guard keeps its shield.
+- Public login uses `TaskLattice` plus a product suffix in the same lockup
+  structure; protected navigation may retain the compact `TALI` wordmark.
+- Marks use foreground color on neutral surfaces and white on the blue login
+  panel. Do not restore the historical cyan signal as a competing brand accent.
+- The protected console keeps the lattice static. Compact marks retain an
+  accessible product/home label through their enclosing control.
 
 ## Navigation contract
 
@@ -62,10 +80,6 @@ Desktop navigation is permanent and can collapse from 280 pixels to 72 pixels.
 The preference persists locally. Collapsed navigation retains tooltips and
 accessible names. The active item uses both surface and weight, not color
 alone.
-
-Mobile navigation is an overlay drawer. It opens from the menu button and
-closes through its close button, backdrop click, navigation, or Escape. The
-page returns to an unobstructed state after dismissal.
 
 Unavailable future sections are visibly disabled, marked `Later`, and explain
 their relationship to the current Agent path through a tooltip. They are not
@@ -96,12 +110,24 @@ The login page supports configured local credentials and optional OIDC SSO.
 Local login and SSO resolve to the same TaskLattice Relay session and protected API
 boundary.
 
+The public login is a fixed light brand surface with a blue grid panel and
+serif brand/title typography, independent of the user's workspace theme. The
+form is at most 448 px wide alongside the desktop brand panel. The language
+menu shares the light scope. Visiting login must not change the workspace preference.
+
+Use “Sign in to TaskLattice Relay” and copy about agents, knowledge, and project
+access. The local identifier remains Username. Maintain English, Simplified
+Chinese, and Traditional Chinese. Password visibility, session preference,
+pending submission, and credential recovery must remain operable.
+
 States:
 
 - Loading: keep the form stable and prevent duplicate submission.
 - Invalid credentials: show a persistent, text-labelled recovery message.
-- Development defaults: explicitly warn that `admin / admin` is active.
-- SSO unavailable: keep local login available and surface the provider error.
+- Development defaults: show `admin / password` only when the Relay backend
+  reports that development defaults are active. Never copy Guard credentials.
+- SSO unconfigured: omit the SSO action rather than showing a dead control.
+  Configured provider failure: keep local login available and surface recovery.
 - SSO callback: show a single-purpose completion state, then validate the
   returned TaskLattice Relay session before entering the Project console.
 - Expired session: clear stored credentials and return to login.
@@ -110,8 +136,7 @@ States:
   itself remains dedicated to context switching. Project creation remains in
   Department settings.
 - Settings navigation: Platform, Department, and Project settings share
-  `ContextSidebarLayout`, `ContextSettingsSidebar`, and the same grouped mobile
-  selector. The scope-specific content changes, but the two-sidebar navigation
+  `ContextSidebarLayout` and `ContextSettingsSidebar`. The scope-specific content changes, but the two-sidebar navigation
   model does not.
 - My Account: open from the account menu and contain user-owned details,
   accessible Projects, account type, theme, local time zone, and local-account
@@ -163,7 +188,7 @@ custom-Role lifecycle, validation model, and safe migration contract exist.
 
 - Preserve semantic buttons, links, labels, headings, navigation, and main
   landmarks.
-- Keep interactive targets at least 44 by 44 CSS pixels where touch applies.
+- Keep desktop controls easy to target and fully operable with a keyboard.
 - Never remove focus indicators; use visible `focus-visible` treatment.
 - Keep DOM and visual order aligned.
 - Do not use color as the only status signal.
@@ -171,22 +196,26 @@ custom-Role lifecycle, validation model, and safe migration contract exist.
 - Keep animation under 300 milliseconds unless a documented spatial transition
   needs more time; animate transform and opacity by default.
 - Avoid gradients, indiscriminate blur, emoji iconography, decorative bounce,
-  and repeated equal-weight cards. Purple is reserved for explicit interactive
-  emphasis and never used as an ambient gradient.
+  and repeated equal-weight cards. Purple is not an alternate primary color;
+  any additional data color needs an explicit, stable meaning.
 
 ## Evidence gate
 
 Use `release_gate` for changes intended for deployment. A pass requires:
 
-1. Unit tests, type checking, and production build succeed.
+1. Relevant tests, type checking, and production build succeed for runtime
+   changes. Spec-only revisions check consistency and links instead.
 2. Unauthenticated Agent API access returns 401.
 3. Local login, session resolution, protected Agent access, and sign out work.
 4. SSO start produces PKCE, nonce, state protection, and the configured redirect.
-5. Desktop login, expanded/collapsed console, and mobile layouts render
-   without overflow or unreadable text.
-6. Mobile navigation opens and closes with Escape.
+5. Desktop login and expanded/collapsed console render without accidental
+   page overflow or unreadable text at representative desktop window sizes.
+6. Menus and drawers support Escape and restore focus to their trigger.
 7. The main CTA and primary control path produce visible feedback.
 8. Browser console has no application errors or missing first-party assets.
+9. The [theme acceptance matrix](ui-interaction-spec.md#111-product-family-theme-acceptance-matrix)
+   records Light/Dark/System, portal, contrast, and desktop layout evidence;
+   unimplemented or untested states are explicitly marked.
 
 Score Project pages with the Product Console profile. Treat broken auth, a
 broken primary operation, generic template output, or an inconsistent component

@@ -76,7 +76,7 @@ export function InstanceCapabilitiesTab({
           <DetailCardHeader
             title="Skills"
             description="Reusable capability packages configured for this Agent."
-            action={<Sparkles className="size-5 text-primary" />}
+            action={<Sparkles className="size-5 text-link" />}
           />
           <CardContent className="divide-y">
             {skills.length ? (
@@ -103,7 +103,7 @@ export function InstanceCapabilitiesTab({
           <DetailCardHeader
             title="MCP Servers"
             description="Connected tools and external systems."
-            action={<Network className="size-5 text-primary" />}
+            action={<Network className="size-5 text-link" />}
           />
           <CardContent className="divide-y">
             {mcpServers.length ? (
@@ -159,7 +159,7 @@ export function InstanceCapabilitiesTab({
           <DetailCardHeader
             title="Vector Databases"
             description="Approved vector retrieval sources used for grounded answers."
-            action={<BookOpen className="size-5 text-primary" />}
+            action={<BookOpen className="size-5 text-link" />}
           />
           <CardContent className="divide-y">
             {knowledgeBases.length ? (
@@ -188,7 +188,7 @@ export function InstanceCapabilitiesTab({
           <DetailCardHeader
             title="Memory"
             description="Project-level context that survives Agent replacement."
-            action={<BrainCircuit className="size-5 text-primary" />}
+            action={<BrainCircuit className="size-5 text-link" />}
           />
           <CardContent>
             {agent.durableMemoryId ? (
@@ -206,7 +206,7 @@ export function InstanceCapabilitiesTab({
                 <Link
                   to="/$projectId/memory/$memoryId"
                   params={{ projectId, memoryId: agent.durableMemoryId }}
-                  className="inline-flex min-h-11 items-center text-xs font-medium text-primary underline underline-offset-4"
+                  className="inline-flex min-h-11 items-center text-xs font-medium text-link underline underline-offset-4"
                 >
                   Open retained Memory
                 </Link>
@@ -248,7 +248,7 @@ export function InstanceCapabilitiesTab({
                 <Link
                   to="/$projectId/memory"
                   params={{ projectId }}
-                  className="inline-flex min-h-11 items-center text-xs font-medium text-primary underline underline-offset-4"
+                  className="inline-flex min-h-11 items-center text-xs font-medium text-link underline underline-offset-4"
                 >
                   Manage Memory
                 </Link>

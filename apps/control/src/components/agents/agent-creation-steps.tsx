@@ -301,7 +301,7 @@ export function ToolboxStep({
             <p className="text-xs leading-5 text-muted-foreground">
               {specialization.description}
             </p>
-            <p className="text-xs font-medium text-primary">
+            <p className="text-xs font-medium text-link">
               {selectedSkillIds.length} Skills · {selectedMcpServerIds.length} MCP Servers · {selectedKnowledgeSourceIds.length} Vector Databases
             </p>
           </div>
@@ -650,7 +650,7 @@ function CapabilityRow({
       className="rounded-md border"
     >
       <div className="flex min-h-20 items-start gap-3 px-4 py-3">
-        <span className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-md bg-primary/10 text-primary">
+        <span className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-md bg-primary/10 text-link">
           {icon}
         </span>
         <div className="min-w-0 flex-1">
@@ -667,7 +667,7 @@ function CapabilityRow({
                 <button
                   key={option.value}
                   type="button"
-                  className="inline-flex min-h-7 items-center gap-1.5 rounded-full bg-primary/10 px-2.5 text-xs font-medium text-primary hover:bg-primary/15"
+                  className="inline-flex min-h-7 items-center gap-1.5 rounded-full bg-primary/10 px-2.5 text-xs font-medium text-link hover:bg-primary/15"
                   onClick={() =>
                     onChange(
                       resolvedSelectedIds.filter((id) => id !== option.value),

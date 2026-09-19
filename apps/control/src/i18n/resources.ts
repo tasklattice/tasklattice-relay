@@ -87,7 +87,9 @@ const enUS = {
     title: "Choose how to enter",
   },
   login: {
+    access: { title: "Account and project access" },
     developmentAccount: {
+      title: "Built-in local administrator",
       after:
         "You can change the password in My Account after signing in.",
       before: "Development account:",
@@ -108,16 +110,16 @@ const enUS = {
     },
     hero: {
       description:
-        "Connect models and tools, run agents in isolated environments, and manage access by project.",
-      kicker: "Your AI agent workspace",
+        "Built for AI agents, shared knowledge, and project workspaces.",
+      kicker: "Enterprise agent workspace",
       sessionProtected: "Isolated runtimes · Project-level access",
-      titleFirst: "Build and run",
-      titleSecond: "AI agents.",
+      titleFirst: "Agents your teams can build.",
+      titleSecond: "Workspaces you can control.",
     },
     panel: {
-      description: "Use your local account to access your workspace.",
-      kicker: "TaskLattice Relay",
-      title: "Sign in to continue",
+      description: "Use your internal TaskLattice account to manage agents, knowledge, and project access.",
+      kicker: "Enterprise control plane",
+      title: "Sign in to TaskLattice Relay",
     },
     separator: "or",
     sso: {
@@ -385,7 +387,9 @@ const zhCN = {
     title: "选择进入方式",
   },
   login: {
+    access: { title: "账户与项目权限" },
     developmentAccount: {
+      title: "内置本地管理员",
       after: "登录后可在“我的账户”中修改密码。",
       before: "开发环境账户：",
     },
@@ -404,16 +408,16 @@ const zhCN = {
     },
     hero: {
       description:
-        "接入模型与工具，在隔离环境中运行 Agent，按项目管理访问权限。",
-      kicker: "AI Agent 工作空间",
+        "为 AI 智能体、共享知识与项目协作而构建。",
+      kicker: "企业智能体工作空间",
       sessionProtected: "隔离运行 · 项目权限管理",
-      titleFirst: "构建并运行",
-      titleSecond: "你的 AI Agent。",
+      titleFirst: "让团队构建智能体，",
+      titleSecond: "让项目运行有边界。",
     },
     panel: {
-      description: "使用本地账户登录，进入工作空间。",
-      kicker: "TaskLattice Relay",
-      title: "登录，继续工作",
+      description: "使用内部 TaskLattice 账户，管理智能体、知识库与项目权限。",
+      kicker: "企业控制台",
+      title: "登录 TaskLattice Relay",
     },
     separator: "或",
     sso: {
@@ -679,7 +683,9 @@ const zhTW = {
     title: "選擇進入方式",
   },
   login: {
+    access: { title: "帳戶與專案權限" },
     developmentAccount: {
+      title: "內建本機管理員",
       after: "登入後可在「我的帳戶」中修改密碼。",
       before: "開發環境帳戶：",
     },
@@ -698,16 +704,16 @@ const zhTW = {
     },
     hero: {
       description:
-        "串接模型與工具，在隔離環境中執行 Agent，依專案管理存取權限。",
-      kicker: "AI Agent 工作空間",
+        "為 AI 智能體、共享知識與專案協作而打造。",
+      kicker: "企業智能體工作空間",
       sessionProtected: "隔離執行 · 專案權限管理",
-      titleFirst: "建立並執行",
-      titleSecond: "你的 AI Agent。",
+      titleFirst: "讓團隊建立智能體，",
+      titleSecond: "讓專案執行有邊界。",
     },
     panel: {
-      description: "使用本機帳戶登入，進入工作空間。",
-      kicker: "TaskLattice Relay",
-      title: "登入，繼續工作",
+      description: "使用內部 TaskLattice 帳戶，管理智能體、知識庫與專案權限。",
+      kicker: "企業控制台",
+      title: "登入 TaskLattice Relay",
     },
     separator: "或",
     sso: {

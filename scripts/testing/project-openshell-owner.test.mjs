@@ -14,14 +14,16 @@ function render(input) {
 test("a configured Gateway name also scopes dedicated cluster RBAC", () => {
   const gateway = `gateway-${owner.name}`;
   const raw = execFileSync("helm", ["template", "openshell", ".helm-dependencies/openshell",
-    "--namespace", owner.name, "--set", `fullnameOverride=${gateway}`], { encoding: "utf8" });
+    "--namespace", owner.name, "--set", "workload.kind=deployment",
+    "--set", "server.externalDbSecret=openshell-postgresql", "--set", `fullnameOverride=${gateway}`], { encoding: "utf8" });
   const output = execFileSync(process.execPath, [script, JSON.stringify(owner), gateway], { input: raw, encoding: "utf8" });
   const role = parseAllDocuments(output).map(d => d.toJSON()).find(r => r?.kind === "ClusterRole");
   assert.deepEqual(role.metadata.ownerReferences, [owner]);
 });
 test("the real OpenShell chart gets project parents while Pod templates retain controller ownership", () => {
   const raw = execFileSync("helm", ["template", "openshell", ".helm-dependencies/openshell",
-    "--namespace", owner.name, "--set", `fullnameOverride=openshell-${owner.name}`], { encoding: "utf8" });
+    "--namespace", owner.name, "--set", "workload.kind=deployment",
+    "--set", "server.externalDbSecret=openshell-postgresql", "--set", `fullnameOverride=openshell-${owner.name}`], { encoding: "utf8" });
   const resources = render(raw);
   assert(resources.length > 10);
   for (const resource of resources) {
@@ -36,8 +38,14 @@ test("the real OpenShell chart gets project parents while Pod templates retain c
     assert.equal(hook.metadata.annotations["helm.sh/hook-weight"], weight);
     assert.equal(hook.metadata.annotations["argocd.argoproj.io/hook"], undefined);
   }
-  const claims = resources.find(r => r.kind === "StatefulSet").spec.volumeClaimTemplates;
-  assert.equal(claims[0].metadata.ownerReferences, undefined, "existing immutable claim templates must remain unchanged");
+  assert(!resources.some(r => ["StatefulSet", "PersistentVolumeClaim"].includes(r.kind)));
+  const pod = resources.find(r => r.kind === "Deployment").spec.template.spec;
+  const gateway = pod.containers.find(c => c.name === "openshell-gateway");
+  assert.deepEqual(gateway.env.find(e => e.name === "OPENSHELL_DB_URL").valueFrom,
+    { secretKeyRef: { name: "openshell-postgresql", key: "uri" } });
+  assert(!gateway.args.includes("--db-url"));
+  assert(!gateway.volumeMounts.some(v => v.name === "openshell-data"));
+  assert(!pod.volumes.some(v => v.persistentVolumeClaim));
 });
 test("existing owners are preserved verbatim", () => {
   const existing = { ...owner, kind: "Deployment", uid: "controller-uid", controller: true };

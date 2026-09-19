@@ -93,7 +93,7 @@ export function EffectiveMcpAccess({ agent }: { agent: Agent }) {
     <Card>
       <CardHeader>
         <CardTitle className="flex flex-wrap items-center gap-2">
-          <ShieldCheck className="size-5 text-primary" />
+          <ShieldCheck className="size-5 text-link" />
           Effective MCP access
           <Badge variant="outline">
             {bound.filter((policy) => policy.status === "ACTIVE").length} active
@@ -205,7 +205,7 @@ function Fact({
 }) {
   return (
     <div className="flex min-w-0 items-start gap-3 border p-4">
-      <Icon className="mt-0.5 size-4 shrink-0 text-primary" />
+      <Icon className="mt-0.5 size-4 shrink-0 text-link" />
       <span className="min-w-0">
         <span className="block text-xs text-muted-foreground">{label}</span>
         <strong className="mt-1 block truncate text-sm">{value}</strong>

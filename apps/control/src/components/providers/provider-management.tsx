@@ -17,7 +17,7 @@ import {
 import { ProviderIcon } from "./provider-icon";
 import { useInferenceManagement } from "./inference-management-context";
 import { DeleteEntitySheet } from "@/components/shared/delete-entity-sheet";
-import { EntitySheet } from "@/components/shared/entity-sheet";
+import { ProviderDetailsSheet } from "./provider-details-sheet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -56,6 +56,8 @@ export function ProviderManagement({
   onRetry: () => void;
 }) {
   const [actionError, setActionError] = useState("");
+  const [selectedId, setSelectedId] = useState<string>();
+  const selectedAccount = accounts.find((account) => account.id === selectedId);
   const { scopeLabel } = useInferenceManagement();
 
   return (
@@ -128,7 +130,7 @@ export function ProviderManagement({
                   return (
                     <tr key={account.id} className="hover:bg-muted/[0.12]">
                       <td className="px-5 py-3">
-                        <ProviderIdentity account={account} />
+                        <button type="button" className="text-left rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => setSelectedId(account.id)}><ProviderIdentity account={account} /></button>
                       </td>
                       <td className="px-4 py-3">
                         <ProviderEndpoint account={account} />
@@ -155,6 +157,7 @@ export function ProviderManagement({
                           canValidate={canValidate}
                           modelCount={accountModels.length}
                           onError={setActionError}
+                          onInspect={() => setSelectedId(account.id)}
                           onRegisterModels={() => onRegisterModels(account)}
                         />
                       </td>
@@ -173,7 +176,7 @@ export function ProviderManagement({
               return (
                 <article key={account.id} className="space-y-3 p-4">
                   <div className="flex items-start justify-between gap-3">
-                    <ProviderIdentity account={account} />
+                    <button type="button" className="text-left rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => setSelectedId(account.id)}><ProviderIdentity account={account} /></button>
                     <ProviderActions
                       account={account}
                       canDelete={canDelete}
@@ -181,6 +184,7 @@ export function ProviderManagement({
                       canValidate={canValidate}
                       modelCount={accountModels.length}
                       onError={setActionError}
+                          onInspect={() => setSelectedId(account.id)}
                       onRegisterModels={() => onRegisterModels(account)}
                     />
                   </div>
@@ -212,6 +216,11 @@ export function ProviderManagement({
           </div>
         </div>
       )}
+      {selectedAccount ? <ProviderDetailsSheet key={selectedAccount.id} account={selectedAccount}
+        models={models.filter((model) => model.providerAccountId === selectedAccount.id)}
+        canValidate={canValidate} canRegisterModels={canRegisterModels}
+        onClose={() => setSelectedId(undefined)}
+        onRegisterModels={() => { setSelectedId(undefined); onRegisterModels(selectedAccount); }} /> : null}
     </section>
   );
 }
@@ -223,6 +232,7 @@ function ProviderActions({
   canValidate,
   modelCount,
   onError,
+  onInspect,
   onRegisterModels,
 }: {
   account: ProviderAccount;
@@ -231,10 +241,10 @@ function ProviderActions({
   canValidate: boolean;
   modelCount: number;
   onError: (message: string) => void;
+  onInspect: () => void;
   onRegisterModels: () => void;
 }) {
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [validateOpen, setValidateOpen] = useState(false);
   const { client, key } = useInferenceManagement();
   const queryClient = useQueryClient();
   const invalidate = async () =>
@@ -242,12 +252,6 @@ function ProviderActions({
       queryClient.invalidateQueries({ queryKey: key("provider-accounts") }),
       queryClient.invalidateQueries({ queryKey: key("model-deployments") }),
     ]);
-  const revalidate = useMutation({
-    mutationFn: () => client.revalidateProviderAccount(account.id),
-    onMutate: () => onError(""),
-    onSuccess: async () => { setValidateOpen(false); await invalidate(); },
-    onError: (error) => onError(error.message),
-  });
   const remove = useMutation({
     mutationFn: () => client.deleteProviderAccount(account.id),
     onMutate: () => onError(""),
@@ -257,7 +261,7 @@ function ProviderActions({
     },
     onError: (error) => onError(error.message),
   });
-  const pending = revalidate.isPending || remove.isPending;
+  const pending = remove.isPending;
 
   if (!canDelete && !canRegisterModels && !canValidate) return null;
   return (
@@ -282,18 +286,17 @@ function ProviderActions({
           ) : null}
           {canValidate ? (
             <DropdownMenuItem
-              disabled={revalidate.isPending}
-              onSelect={() => { revalidate.reset(); setValidateOpen(true); }}
+              onSelect={onInspect}
             >
               <RefreshCw />
-              Revalidate Provider
+              Validate Provider
             </DropdownMenuItem>
           ) : null}
           {canDelete ? (
             <>
               {canRegisterModels || canValidate ? <DropdownMenuSeparator /> : null}
               <DropdownMenuItem
-                className="text-destructive focus:text-destructive"
+                variant="destructive"
                 disabled={remove.isPending}
                 onSelect={() => {
                   remove.reset();
@@ -307,12 +310,6 @@ function ProviderActions({
           ) : null}
         </DropdownMenuContent>
       </DropdownMenu>
-      <EntitySheet open={validateOpen} pending={revalidate.isPending} onOpenChange={setValidateOpen}
-        title="Revalidate Provider" description={<>Validate connectivity and credentials for <strong>{account.name}</strong>. This updates its validation status.</>}
-        width="md" footer={<><Button variant="outline" disabled={revalidate.isPending} onClick={() => setValidateOpen(false)}>Cancel</Button><Button disabled={!canValidate || revalidate.isPending} onClick={() => revalidate.mutate()}>{revalidate.isPending ? "Validating…" : "Revalidate Provider"}</Button></>}>
-        <p className="text-sm text-muted-foreground">The current credentials and endpoint are reused. Review the resulting status before routing traffic to this Provider.</p>
-        {revalidate.error ? <p role="alert" className="mt-4 text-sm text-destructive">{revalidate.error.message}</p> : null}
-      </EntitySheet>
       <DeleteEntitySheet
         open={deleteOpen}
         onOpenChange={setDeleteOpen}

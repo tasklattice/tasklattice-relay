@@ -137,7 +137,7 @@ export function MultiSelectCombobox({
               key={option.value}
               type="button"
               aria-label={`Remove ${option.label}`}
-              className="inline-flex min-h-11 max-w-full items-center gap-2 rounded-sm border border-primary/30 bg-primary/10 pl-3 pr-2 text-xs font-medium text-primary transition-colors hover:bg-primary/15 focus-visible:outline-2"
+              className="inline-flex min-h-11 max-w-full items-center gap-2 rounded-sm border border-primary/30 bg-primary/10 pl-3 pr-2 text-xs font-medium text-link transition-colors hover:bg-primary/15 focus-visible:outline-2"
               onClick={(event) => {
                 event.stopPropagation();
                 removeOption(option.value);
@@ -217,7 +217,7 @@ export function MultiSelectCombobox({
           {value.length ? (
             <button
               type="button"
-              className="min-h-8 shrink-0 px-2 font-medium text-foreground hover:text-primary focus-visible:outline-2"
+              className="min-h-8 shrink-0 px-2 font-medium text-foreground hover:text-link focus-visible:outline-2"
               onClick={() => { onValueChange([]); setQuery(""); focusInput(); }}
             >
               Clear all

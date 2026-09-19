@@ -158,7 +158,7 @@ function ProjectSettingsPage() {
       <PageHeader
         title="Project Setting"
         badge={(
-          <Badge className="border-primary/20 bg-primary/7 text-primary" variant="outline">
+          <Badge className="border-primary/20 bg-primary/7 text-link" variant="outline">
             <ShieldCheck />
             Project Administrator
           </Badge>

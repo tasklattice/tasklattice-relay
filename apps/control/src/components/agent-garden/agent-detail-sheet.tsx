@@ -169,7 +169,7 @@ export function AgentDetailSheet({
               <div className="flex flex-wrap items-center gap-2">
                 <Badge
                   variant="secondary"
-                  className="bg-primary/8 text-primary"
+                  className="bg-primary/8 text-link"
                 >
                   {agent.platformLabel}
                 </Badge>

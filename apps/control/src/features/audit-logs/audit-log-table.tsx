@@ -91,7 +91,7 @@ export function AuditLogTable({
         enableSorting: false,
         cell: ({ row }) => (
           <span
-            className="block truncate font-mono text-[10px] font-medium uppercase tracking-[0.04em] text-primary"
+            className="block truncate font-mono text-[10px] font-medium uppercase tracking-[0.04em] text-link"
             title={row.original.action}
           >
             {row.original.verb}

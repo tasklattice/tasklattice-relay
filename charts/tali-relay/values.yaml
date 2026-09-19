@@ -312,9 +312,11 @@ runner:
       cpu: 500m
       memory: 384Mi
 
-# The Control Plane installs the pinned OpenShell chart in each Project
+# Worker installs the pinned OpenShell chart in each Project
 # Namespace. The central Runner routes by ProjectRuntimeTarget.
 # Gateway resources and pull Secrets reuse their openshell.* values.
+# Gateway uses the existing PostgreSQL server with a dedicated database/login
+# per Project and a Deployment (no Gateway data PVC).
 projectOpenShell:
   enabled: true
   nemoclawVersion: 0.0.123
@@ -322,6 +324,7 @@ projectOpenShell:
   serviceNamePrefix: openshell-
   helmChart: /opt/tali/helm/openshell.tgz
   workspace:
+    # Agent workspace storage, separate from Gateway metadata in PostgreSQL.
     storageSize: 1Gi
     storageClass: ""
 

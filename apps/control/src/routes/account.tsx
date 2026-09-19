@@ -289,7 +289,7 @@ function MyAccountPage() {
                         className={cn(
                           "flex min-h-11 items-center gap-2 rounded-md border px-3 text-sm outline-none transition-colors hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring/35",
                           theme === value &&
-                            "border-primary/40 bg-primary/[0.07] text-primary",
+                            "border-primary/40 bg-primary/[0.07] text-link",
                         )}
                         onClick={() => chooseTheme(value)}
                       >
@@ -355,6 +355,7 @@ function MyAccountPage() {
 
                 <div className="flex flex-wrap items-center gap-4 p-5 lg:pl-[18rem]">
                   <Button
+                    variant="edit"
                     className="h-11"
                     type="submit"
                     disabled={preferences.isPending || !dirty}
@@ -987,6 +988,7 @@ function PasswordPanel({ hasPassword }: { hasPassword: boolean }) {
                 Cancel
               </Button>
               <Button
+                variant="edit"
                 type="submit"
                 disabled={reset.isPending || !valid}
               >

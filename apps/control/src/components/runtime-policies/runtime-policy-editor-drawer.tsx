@@ -64,6 +64,7 @@ export function RuntimePolicyEditorDrawer({
   return (
     <EntitySheet
       open={open}
+      pending={mutation.isPending}
       onOpenChange={(next) => !mutation.isPending && onOpenChange(next)}
       eyebrow="OpenShell Policy"
       title={policy ? `Edit ${policy.name}` : "Create Policy"}
@@ -73,7 +74,7 @@ export function RuntimePolicyEditorDrawer({
       footer={(
         <>
           <Button type="button" variant="outline" disabled={mutation.isPending} onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button form="policy-editor-form" type="submit" disabled={mutation.isPending}>
+          <Button variant={policy ? "edit" : "create"} form="policy-editor-form" type="submit" disabled={mutation.isPending}>
             {mutation.isPending ? <Spinner /> : policy ? <Save /> : <FilePlus2 />}
             {mutation.isPending ? "Validating Policy…" : policy ? "Save changes" : "Create Policy"}
           </Button>

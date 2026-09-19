@@ -55,7 +55,7 @@ export function AgentCreationExperience({
   return (
     <main aria-live="polite" className="mx-auto flex min-h-[calc(100vh-12rem)] w-full max-w-5xl flex-col items-center justify-center px-4 py-12 text-center">
       <div className="relative grid size-20 place-items-center rounded-full bg-primary/5">
-        <Spinner className="size-12 text-primary" />
+        <Spinner className="size-12 text-link" />
         <span className="absolute grid size-9 place-items-center rounded-full bg-background text-xs font-semibold tabular-nums shadow-sm">{progress}%</span>
       </div>
       <h1 className="mt-6 font-display text-3xl font-semibold tracking-[-0.02em]">Creating your Supervisor…</h1>
@@ -74,7 +74,7 @@ export function AgentCreationExperience({
             const active = !complete && progress >= previousThreshold;
             return (
               <li key={step.label} className="flex items-center gap-2.5 text-xs sm:block">
-                <span className={cn("grid size-6 shrink-0 place-items-center rounded-full border", complete && "border-primary bg-primary text-primary-foreground", active && "border-primary text-primary")}>
+                <span className={cn("grid size-6 shrink-0 place-items-center rounded-full border", complete && "border-primary bg-primary text-primary-foreground", active && "border-primary text-link")}>
                   {complete ? <Check className="size-3.5" /> : active ? <Spinner className="size-3.5" /> : <Circle className="size-2 fill-current text-muted-foreground/30" />}
                 </span>
                 <span className={cn("sm:mt-2 sm:block", (complete || active) ? "font-medium text-foreground" : "text-muted-foreground")}>{step.label}</span>

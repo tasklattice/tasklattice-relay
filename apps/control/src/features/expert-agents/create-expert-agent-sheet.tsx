@@ -308,7 +308,7 @@ function BuildMethodChoice({
       <span className="flex items-start justify-between gap-4">
         <span className={cn(
           "grid size-10 place-items-center border bg-background text-muted-foreground",
-          active && "border-primary text-primary",
+          active && "border-primary text-link",
         )}>
           <Icon className="size-4" />
         </span>

@@ -1,5 +1,5 @@
 import { parse } from "yaml";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   HelmProjectOpenShellGatewayClient,
   type CommandInput,
@@ -34,6 +34,12 @@ const target = {
   projectName: "Customer Support",
 };
 
+const database = {
+  reconcile: vi.fn(async () => ({ secretName: "openshell-postgresql", checksum: "database-checksum" })),
+  delete: vi.fn(async () => {}),
+};
+beforeEach(() => vi.clearAllMocks());
+
 describe("HelmProjectOpenShellGatewayClient", () => {
   it("passes a verified Namespace owner to the Helm post-renderer", async () => {
     const owner = { apiVersion: "v1", kind: "Namespace", name: target.namespace,
@@ -43,7 +49,8 @@ describe("HelmProjectOpenShellGatewayClient", () => {
       : { exitCode: 0, stderr: "", stdout: "" });
     const readOwner = vi.fn(async () => owner);
     const reconcileStorage = vi.fn(async () => {});
-    await new HelmProjectOpenShellGatewayClient(configuration, run, readOwner, reconcileStorage).reconcile(target);
+    await new HelmProjectOpenShellGatewayClient(configuration, run, readOwner, reconcileStorage, database).reconcile(target);
+    expect(database.reconcile).toHaveBeenCalledWith(target, owner);
     expect(reconcileStorage).toHaveBeenCalledWith(owner, `openshell-${target.namespace}`);
     expect(readOwner).toHaveBeenCalledWith(target.namespace, target.projectId);
     expect(run.mock.calls.find(([input]) => input.args[0] === "upgrade")?.[0].args)
@@ -59,11 +66,12 @@ describe("HelmProjectOpenShellGatewayClient", () => {
       }
       return { exitCode: 0, stderr: "", stdout: "deployed" };
     });
-    const client = new HelmProjectOpenShellGatewayClient(configuration, run);
+    const client = new HelmProjectOpenShellGatewayClient(configuration, run, undefined, undefined, database);
 
     await client.reconcile(target);
 
     expect(run).toHaveBeenCalledTimes(2);
+    expect(database.reconcile.mock.invocationCallOrder[0]).toBeLessThan(run.mock.invocationCallOrder[1]!);
     expect(commands[1]?.args).toEqual(expect.arrayContaining([
       "upgrade",
       "--install",
@@ -77,6 +85,7 @@ describe("HelmProjectOpenShellGatewayClient", () => {
     const values = parse(commands[1]?.stdin ?? "") as Record<string, any>;
     expect(values).toMatchObject({
       fullnameOverride: `openshell-${target.namespace}`,
+      workload: { kind: "deployment" },
       image: {
         repository: configuration.gatewayImageRepository,
         tag: configuration.gatewayImageTag,
@@ -85,10 +94,12 @@ describe("HelmProjectOpenShellGatewayClient", () => {
       podAnnotations: {
         "tali.io/project-id": target.projectId,
         "tali.io/project-name": target.projectName,
+        "checksum/openshell-database": "database-checksum",
       },
       server: {
         auth: { allowUnauthenticatedUsers: true },
         disableTls: true,
+        externalDbSecret: "openshell-postgresql",
         grpcEndpoint:
           `http://openshell-${target.namespace}.${target.namespace}.svc.cluster.local:8080`,
         sandboxImage: configuration.sandboxImage,
@@ -100,6 +111,7 @@ describe("HelmProjectOpenShellGatewayClient", () => {
       resources: configuration.gatewayResources,
       service: { type: "ClusterIP" },
     });
+    expect(commands[1]?.stdin).not.toContain("postgresql://");
     expect(commands[1]?.args.filter((arg) => arg === "3")).toHaveLength(1);
   });
 
@@ -111,7 +123,7 @@ describe("HelmProjectOpenShellGatewayClient", () => {
         ? { exitCode: 1, stderr: "release not found", stdout: "" }
         : { exitCode: 0, stderr: "", stdout: "deployed" };
     });
-    const client = new HelmProjectOpenShellGatewayClient(configuration, run);
+    const client = new HelmProjectOpenShellGatewayClient(configuration, run, undefined, undefined, database);
     const targets = [
       {
         namespace: "tp-abcdefghijklm",
@@ -168,7 +180,7 @@ describe("HelmProjectOpenShellGatewayClient", () => {
       }
       return { exitCode: 0, stderr: "", stdout: "ok" };
     });
-    const client = new HelmProjectOpenShellGatewayClient(configuration, run);
+    const client = new HelmProjectOpenShellGatewayClient(configuration, run, undefined, undefined, database);
 
     await client.reconcile(target);
 
@@ -189,7 +201,7 @@ describe("HelmProjectOpenShellGatewayClient", () => {
 
   it("rejects a pre-compact legacy Namespace before invoking Helm", async () => {
     const run = vi.fn();
-    const client = new HelmProjectOpenShellGatewayClient(configuration, run);
+    const client = new HelmProjectOpenShellGatewayClient(configuration, run, undefined, undefined, database);
 
     await expect(client.reconcile({
       ...target,
@@ -204,9 +216,11 @@ describe("HelmProjectOpenShellGatewayClient", () => {
       stderr: "",
       stdout: "uninstalled",
     }));
-    const client = new HelmProjectOpenShellGatewayClient(configuration, run);
+    const client = new HelmProjectOpenShellGatewayClient(configuration, run, undefined, undefined, database);
 
     await client.delete(target.namespace);
+    expect(database.delete).toHaveBeenCalledWith(target.namespace);
+    expect(run.mock.invocationCallOrder[0]).toBeLessThan(database.delete.mock.invocationCallOrder[0]!);
 
     expect(run).toHaveBeenCalledWith(expect.objectContaining({
       args: expect.arrayContaining([
@@ -217,6 +231,21 @@ describe("HelmProjectOpenShellGatewayClient", () => {
         "--ignore-not-found",
       ]),
     }));
+  });
+
+  it("keeps the database when Gateway uninstall fails", async () => {
+    const run = vi.fn(async () => ({ exitCode: 1, stderr: "uninstall failed", stdout: "" }));
+    const client = new HelmProjectOpenShellGatewayClient(configuration, run, undefined, undefined, database);
+    await expect(client.delete(target.namespace)).rejects.toThrow("uninstall failed");
+    expect(database.delete).not.toHaveBeenCalled();
+  });
+
+  it("does not install a Gateway when database provisioning fails", async () => {
+    const run = vi.fn(async () => ({ exitCode: 1, stderr: "release: not found", stdout: "" }));
+    database.reconcile.mockRejectedValueOnce(new Error("database unavailable"));
+    const client = new HelmProjectOpenShellGatewayClient(configuration, run, undefined, undefined, database);
+    await expect(client.reconcile(target)).rejects.toThrow("database unavailable");
+    expect(run).toHaveBeenCalledTimes(1);
   });
 
   it("surfaces Helm failures as runtime-target reconciliation errors", async () => {
@@ -233,6 +262,7 @@ describe("HelmProjectOpenShellGatewayClient", () => {
             stderr: "release failed readiness",
             stdout: "",
           }),
+      undefined, undefined, database,
     );
 
     await expect(client.reconcile(target)).rejects.toThrow(

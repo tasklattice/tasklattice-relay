@@ -4,6 +4,7 @@ import { projectRuntimeNamespaceSchema } from "@tali/contracts";
 import { stringify } from "yaml";
 import { readProjectNamespaceOwner, reconcileGatewayOwnership } from "./project-resource-ownership";
 import type { ProjectNamespaceInput } from "./project-namespace-client";
+import { PostgresProjectOpenShellDatabase, type ProjectOpenShellDatabase } from "./project-openshell-database";
 
 export interface ProjectOpenShellGatewayClient {
   reconcile(input: ProjectNamespaceInput): Promise<void>;
@@ -110,6 +111,7 @@ export class HelmProjectOpenShellGatewayClient
     private readonly run: CommandRunner = defaultCommandRunner,
     private readonly readOwner = readProjectNamespaceOwner,
     private readonly reconcileOwnership = reconcileGatewayOwnership,
+    private readonly database: ProjectOpenShellDatabase = new PostgresProjectOpenShellDatabase(),
   ) {}
 
   async reconcile(input: ProjectNamespaceInput): Promise<void> {
@@ -117,12 +119,14 @@ export class HelmProjectOpenShellGatewayClient
     projectRuntimeNamespaceSchema.parse(input.namespace);
     const owner = await this.readOwner(input.namespace, input.projectId);
     await this.recoverInterruptedRelease(input.namespace);
+    const database = await this.database.reconcile(input, owner);
     const serviceName = dnsLabel(
       `${this.configuration.serviceNamePrefix}${input.namespace}`,
       "Project OpenShell Gateway service name",
     );
     const values = stringify({
       fullnameOverride: serviceName,
+      workload: { kind: "deployment" },
       image: {
         pullPolicy: this.configuration.imagePullPolicy,
         repository: this.configuration.gatewayImageRepository,
@@ -133,10 +137,12 @@ export class HelmProjectOpenShellGatewayClient
       podAnnotations: {
         "tali.io/project-id": input.projectId,
         "tali.io/project-name": input.projectName,
+        "checksum/openshell-database": database.checksum,
       },
       server: {
         auth: { allowUnauthenticatedUsers: true },
         disableTls: true,
+        externalDbSecret: database.secretName,
         grpcEndpoint:
           `http://${serviceName}.${input.namespace}.svc.cluster.local:8080`,
         sandboxImage: this.configuration.sandboxImage,
@@ -297,6 +303,7 @@ export class HelmProjectOpenShellGatewayClient
 
   async delete(namespace: string): Promise<void> {
     if (!this.configuration.enabled) return;
+    projectRuntimeNamespaceSchema.parse(namespace);
     const result = await this.run({
       args: [
         "uninstall",
@@ -316,6 +323,7 @@ export class HelmProjectOpenShellGatewayClient
         `Project OpenShell Gateway deletion failed: ${(result.stderr || result.stdout).trim().slice(-4_000)}`,
       );
     }
+    await this.database.delete(namespace);
   }
 }
 

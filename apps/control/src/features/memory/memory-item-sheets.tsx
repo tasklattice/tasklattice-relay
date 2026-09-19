@@ -225,10 +225,10 @@ export function FactSheet({
       description={current ? `Updated ${formatMemoryDate(current.updatedAt)}` : "Fact details"}
       width="memory"
       footer={editing ? (
-        <><Button variant="outline" disabled={pending} onClick={() => { setText(current?.text ?? ""); setEditing(false); update.reset(); }}>Cancel</Button><Button disabled={!text.trim() || pending} onClick={() => update.mutate()}>{update.isPending ? "Saving…" : "Save revision"}</Button></>
+        <><Button variant="outline" disabled={pending} onClick={() => { setText(current?.text ?? ""); setEditing(false); update.reset(); }}>Cancel</Button><Button variant="edit" disabled={!text.trim() || pending} onClick={() => update.mutate()}>{update.isPending ? "Saving…" : "Save revision"}</Button></>
       ) : (
         <>
-          {canCurate ? <Button variant="outline" disabled={pending} onClick={() => { update.reset(); setEditing(true); }}><Pencil />Edit</Button> : null}
+          {canCurate ? <Button variant="edit" disabled={pending} onClick={() => { update.reset(); setEditing(true); }}><Pencil />Edit</Button> : null}
           {canCurate ? <Button variant="outline" disabled={pending} onClick={() => status.mutate()}>{current?.status === "active" ? <ShieldOff /> : <RotateCcw />}{current?.status === "active" ? "Invalidate" : "Restore"}</Button> : null}
         </>
       )}
@@ -296,10 +296,10 @@ export function ExperienceSheet({
       description={current ? `Version ${current.version} · ${formatMemoryDate(current.occurredStart ?? current.createdAt)}` : "Structured Agent experience"}
       width="memory"
       footer={editing ? (
-        <><Button variant="outline" disabled={pending} onClick={() => { setDraft(experienceDraft(current)); setEditing(false); update.reset(); }}>Cancel</Button><Button disabled={!draft.title.trim() || !draft.summary.trim() || pending} onClick={() => update.mutate()}>{update.isPending ? "Saving…" : "Save changes"}</Button></>
+        <><Button variant="outline" disabled={pending} onClick={() => { setDraft(experienceDraft(current)); setEditing(false); update.reset(); }}>Cancel</Button><Button variant="edit" disabled={!draft.title.trim() || !draft.summary.trim() || pending} onClick={() => update.mutate()}>{update.isPending ? "Saving…" : "Save changes"}</Button></>
       ) : (
         <>
-          {canCurate ? <Button variant="outline" disabled={pending} onClick={() => { update.reset(); setEditing(true); }}><Pencil />Edit</Button> : null}
+          {canCurate ? <Button variant="edit" disabled={pending} onClick={() => { update.reset(); setEditing(true); }}><Pencil />Edit</Button> : null}
           <Button variant="outline" onClick={() => evidenceHeading.current?.scrollIntoView({ behavior: "auto", block: "start" })}><FileSearch />View evidence</Button>
           {canCurate ? <DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="size-11" aria-label="Experience actions"><ChevronDown /></Button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem disabled={pending} onSelect={() => status.mutate()}>{current?.status === "active" ? <ShieldOff /> : <RotateCcw />}{current?.status === "active" ? "Invalidate" : "Restore"}</DropdownMenuItem></DropdownMenuContent></DropdownMenu> : null}
         </>

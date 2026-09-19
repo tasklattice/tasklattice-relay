@@ -86,7 +86,7 @@ app.kubernetes.io/component: {{ .component }}
 {{- if .Values.secrets.databaseUrl -}}
 {{- .Values.secrets.databaseUrl -}}
 {{- else -}}
-{{- printf "postgresql://litellm:%s@%s:5432/litellm" (urlquery .Values.secrets.postgresPassword | replace "+" "%20") (include "tali.componentName" (dict "root" . "component" "postgresql")) -}}
+{{- printf "postgresql://litellm:%s@%s.%s.svc.cluster.local:5432/litellm" (urlquery .Values.secrets.postgresPassword | replace "+" "%20") (include "tali.componentName" (dict "root" . "component" "postgresql")) .Release.Namespace -}}
 {{- end -}}
 {{- end }}
 

@@ -546,7 +546,7 @@ function ReviewStep({
   return (
     <section className="space-y-6">
       <div className="flex items-start gap-4 border bg-muted/20 p-4">
-        {isImage ? <Box className="size-11 border p-2 text-primary" /> : <AgentGardenIcon type="a2a" className="size-12" />}
+        {isImage ? <Box className="size-11 border p-2 text-link" /> : <AgentGardenIcon type="a2a" className="size-12" />}
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="font-semibold">{identity.name}</h3>
@@ -582,7 +582,7 @@ function ReviewStep({
       </p>
       {pending ? (
         <div role="status" className="flex items-start gap-3 border px-4 py-3 text-sm">
-          <LoaderCircle className="mt-0.5 size-4 shrink-0 animate-spin text-primary" />
+          <LoaderCircle className="mt-0.5 size-4 shrink-0 animate-spin text-link" />
           <span><strong className="block">{isImage ? "Deploying Agent container" : "Validating external Agent"}</strong><span className="mt-1 block text-xs leading-5 text-muted-foreground">{slowProvision ? "The cluster is still pulling the image or waiting for readiness. You can keep this panel open." : isImage ? "Waiting for Kubernetes readiness and A2A discovery…" : "Reading the remote Agent metadata…"}</span></span>
         </div>
       ) : null}
@@ -595,7 +595,7 @@ function FormSection({ children, description, icon: Icon, title }: { children: R
   return (
     <section className="min-w-0 space-y-4 border-t pt-6 first:border-t-0 first:pt-0">
       <div className="flex items-start gap-3">
-        <span className="flex size-9 shrink-0 items-center justify-center border bg-muted/30"><Icon className="size-4 text-primary" /></span>
+        <span className="flex size-9 shrink-0 items-center justify-center border bg-muted/30"><Icon className="size-4 text-link" /></span>
         <div className="min-w-0"><h3 className="text-sm font-semibold">{title}</h3><p className="mt-1 text-xs leading-5 text-muted-foreground">{description}</p></div>
       </div>
       {children}

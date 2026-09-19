@@ -13,7 +13,7 @@ export function UiPreviewNotice({
       role="status"
       className="flex items-start gap-3 border border-primary/20 bg-primary/[0.035] px-4 py-3 text-sm"
     >
-      <span className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-full bg-primary/10 text-primary">
+      <span className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-full bg-primary/10 text-link">
         <FlaskConical className="size-4" />
       </span>
       <div className="min-w-0">

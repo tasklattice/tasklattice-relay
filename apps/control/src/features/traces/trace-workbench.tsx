@@ -59,7 +59,7 @@ const spanVisuals: Record<
 > = {
   workflow: {
     icon: Workflow,
-    text: "text-primary",
+    text: "text-link",
     soft: "bg-primary/10",
     bar: "bg-primary",
   },
@@ -424,7 +424,7 @@ function SpanInspector({ span, trace }: { span: TraceSpan; trace: TraceDetail })
               <div className="divide-y border">
                 {span.links.map((link) => (
                   <div key={`${link.traceId}-${link.spanId}`} className="flex items-start gap-3 p-3">
-                    <Link2 className="mt-0.5 size-4 shrink-0 text-primary" />
+                    <Link2 className="mt-0.5 size-4 shrink-0 text-link" />
                     <div className="min-w-0">
                       <p className="text-xs font-medium">{link.relationship.replaceAll("_", " ")}</p>
                       <p className="mt-1 truncate font-mono text-[10px] text-muted-foreground">{link.traceId}</p>
@@ -594,7 +594,7 @@ function ExecutionView({
                       <span className={cn("block truncate text-[12px] font-medium", error && "text-destructive")}>{span.name}</span>
                       <span className="mt-0.5 block truncate text-[10px] text-muted-foreground">{span.agentName ?? span.serviceName}</span>
                     </span>
-                    {span.links?.length ? <Link2 className="size-3.5 shrink-0 text-primary" aria-label="Linked span" /> : null}
+                    {span.links?.length ? <Link2 className="size-3.5 shrink-0 text-link" aria-label="Linked span" /> : null}
                     <span className={cn("shrink-0 font-mono text-[10px]", error ? "text-destructive" : "text-muted-foreground")}>
                       {formatDuration(span.durationMs)}
                     </span>

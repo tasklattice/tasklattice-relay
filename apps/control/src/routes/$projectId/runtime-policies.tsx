@@ -57,7 +57,7 @@ function PolicyPage() {
       <PageHeader
         title="Runtime Policies"
         description="Manage reusable OpenShell boundaries. Built-in policies come from the deployment ConfigMap; custom policies are managed here."
-        actions={<Button className="h-11" onClick={openCreate}><Plus />Create Policy</Button>}
+        actions={<Button variant="create" className="h-11" onClick={openCreate}><Plus />Create Policy</Button>}
       />
       {catalog.error ? (
         <div role="alert" className="flex min-h-28 items-center justify-between gap-4 border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
@@ -115,7 +115,7 @@ function PolicyPage() {
             <Button variant="destructive" disabled={remove.isPending} onClick={deleteSelected}>
               <Trash2 />{remove.isPending ? "Deleting…" : "Delete Policy"}
             </Button>
-            <Button onClick={openEdit}><Pencil />Edit Policy</Button>
+            <Button variant="edit" onClick={openEdit}><Pencil />Edit Policy</Button>
           </>
         )}
       >

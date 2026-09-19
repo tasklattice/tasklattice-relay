@@ -92,7 +92,7 @@ export function ProjectItem({
       {isSwitching ? (
         <LoaderCircle className="size-4 shrink-0 animate-spin text-muted-foreground" />
       ) : current ? (
-        <span className="rounded-sm bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+        <span className="rounded-sm bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-link">
           Current
         </span>
       ) : null}

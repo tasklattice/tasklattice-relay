@@ -83,7 +83,7 @@ export function NewFolderDialog({
           >
             Cancel
           </Button>
-          <Button disabled={!name.trim() || pending} onClick={onSubmit}>
+          <Button variant="create" disabled={!name.trim() || pending} onClick={onSubmit}>
             {pending ? (
               <LoaderCircle className="animate-spin motion-reduce:animate-none" />
             ) : (
@@ -177,6 +177,7 @@ export function RenameMoveDialog({
             Cancel
           </Button>
           <Button
+            variant="edit"
             disabled={pending || (mode === "rename" && !name.trim())}
             onClick={onSubmit}
           >
@@ -352,7 +353,7 @@ export function UploadFilesSheet({
         </SheetHeader>
         <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 py-5">
           <label className="flex min-h-40 cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-primary/40 bg-primary-surface text-center hover:bg-accent focus-within:ring-2 focus-within:ring-ring">
-            <FileUp className="size-7 text-primary" />
+            <FileUp className="size-7 text-link" />
             <strong className="mt-3 inline-flex items-baseline gap-1 text-sm">
               Choose files <RequiredMark />
             </strong>
@@ -404,7 +405,7 @@ export function UploadFilesSheet({
           >
             Cancel
           </Button>
-          <Button disabled={!files.length || pending} onClick={onUpload}>
+          <Button variant="create" disabled={!files.length || pending} onClick={onUpload}>
             {pending ? (
               <LoaderCircle className="animate-spin motion-reduce:animate-none" />
             ) : (
@@ -733,6 +734,7 @@ export function VectorDocumentActionSheet({
               Cancel
             </Button>
             <Button
+              variant="edit"
               className="h-11"
               disabled={
                 !detail.data ||

@@ -118,7 +118,7 @@ export function AccessPolicies({ projectId }: { projectId: string }) {
                   >
                     <span className="min-w-0">
                       <span className="flex items-center gap-2">
-                        <ShieldCheck className="size-4 shrink-0 text-primary" />
+                        <ShieldCheck className="size-4 shrink-0 text-link" />
                         <strong className="truncate">{policy.name}</strong>
                         {policy.lastReconciliationError ? (
                           <Badge

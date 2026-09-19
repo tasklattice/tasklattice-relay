@@ -36,7 +36,7 @@ const AgentTopologyNode = memo(function AgentTopologyNode({ data, selected }: No
     >
       {data.kind === "EXPERT" ? <Handle type="target" position={Position.Top} className="!size-2 !border-background !bg-muted-foreground" /> : null}
       <div className="flex items-start gap-3">
-        <span className={cn("grid size-8 shrink-0 place-items-center border", data.kind === "CURRENT" ? "border-primary/30 bg-primary/5 text-primary" : "bg-muted/40 text-muted-foreground")}>
+        <span className={cn("grid size-8 shrink-0 place-items-center border", data.kind === "CURRENT" ? "border-primary/30 bg-primary/5 text-link" : "bg-muted/40 text-muted-foreground")}>
           <Icon className="size-4" />
         </span>
         <span className="min-w-0">

@@ -124,7 +124,7 @@ function TracesPage() {
         <>
           <section className="flex flex-col gap-3 border border-border/70 bg-background px-4 py-3 sm:flex-row sm:items-center sm:justify-between" aria-label="Trace selection">
             <div className="flex min-w-0 items-center gap-3">
-              <span className="grid size-9 shrink-0 place-items-center rounded-md bg-primary/10 text-primary">
+              <span className="grid size-9 shrink-0 place-items-center rounded-md bg-primary/10 text-link">
                 <Waypoints className="size-4" />
               </span>
               <div className="min-w-0">

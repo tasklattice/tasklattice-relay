@@ -25,7 +25,7 @@ export function MetricCard({
       <CardHeader>
         <CardDescription>{label}</CardDescription>
         <CardTitle className="text-3xl">{value}</CardTitle>
-        {Icon ? <CardAction className="grid size-9 place-items-center rounded-md border bg-muted/20 text-primary"><Icon className="size-4" /></CardAction> : null}
+        {Icon ? <CardAction className="grid size-9 place-items-center rounded-md border bg-muted/20 text-link"><Icon className="size-4" /></CardAction> : null}
       </CardHeader>
     </Card>
   );

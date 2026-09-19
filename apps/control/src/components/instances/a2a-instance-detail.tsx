@@ -286,7 +286,7 @@ function A2aOverview({ detail }: { detail: ServiceAgentInstanceDetail }) {
           <DetailCardHeader
             title="Operating boundary"
             description="Runtime, protocol, and Project limits applied to this Agent."
-            action={<ShieldCheck className="size-5 text-primary" />}
+            action={<ShieldCheck className="size-5 text-link" />}
           />
           <CardContent>
             <DefinitionList

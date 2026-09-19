@@ -679,6 +679,8 @@ function ModelRoutingsSettingsContent({
         </DeleteEntitySheet>
       ) : null}
       <RegisterModelsDrawer
+        registeredModels={models}
+        canConfigureProvider={canConfigureProvider}
         accounts={providerAccounts}
         initialAccount={registerAccount}
         initialMode={registrationMode}
@@ -1527,7 +1529,7 @@ function RoutingRow({
             className={cn(
               "mt-0.5 grid size-8 shrink-0 place-items-center rounded-md border",
               routing.isDefault
-                ? "border-primary/25 bg-primary/10 text-primary"
+                ? "border-primary/25 bg-primary/10 text-link"
                 : "text-muted-foreground",
             )}
           >

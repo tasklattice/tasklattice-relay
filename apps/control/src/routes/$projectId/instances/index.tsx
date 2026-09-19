@@ -215,7 +215,7 @@ function CreationNotice({ onClose }: { onClose: () => void }) {
     <div role="status" className="flex min-h-16 items-center gap-3 rounded-md border border-primary/20 bg-primary/5 px-4 py-3 text-sm">
       <span className="grid size-8 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground"><Info className="size-4" /></span>
       <p className="min-w-0 flex-1"><strong>Interactive Agent creation submitted.</strong> Its managed runtime is being created in the background.</p>
-      <button type="button" aria-label="Dismiss creation notice" onClick={onClose} className="grid size-11 shrink-0 place-items-center rounded-md text-primary hover:bg-primary/10 focus-visible:outline-2"><X className="size-5" /></button>
+      <button type="button" aria-label="Dismiss creation notice" onClick={onClose} className="grid size-11 shrink-0 place-items-center rounded-md text-link hover:bg-primary/10 focus-visible:outline-2"><X className="size-5" /></button>
     </div>
   );
 }
@@ -374,7 +374,7 @@ function ManagedA2aInstanceRow({
       <span className="pointer-events-none relative z-10 col-span-3 flex min-w-0 items-center gap-3 xl:col-span-1">
         <AgentGardenIcon type="a2a" className="transition-colors group-hover:border-primary/30 group-hover:bg-primary/5" />
         <span className="min-w-0">
-          <Link to="/$projectId/instances/$instanceId" params={{ projectId, instanceId: instance.id }} className="pointer-events-auto block truncate font-medium text-foreground hover:text-primary hover:underline">{instance.name}</Link>
+          <Link to="/$projectId/instances/$instanceId" params={{ projectId, instanceId: instance.id }} className="pointer-events-auto block truncate font-medium text-foreground hover:text-link hover:underline">{instance.name}</Link>
           <span className="mt-1 block truncate font-mono text-xs text-muted-foreground">{instance.id.slice(0, 8)} · {productFormLabel(inventory.classification.form)}</span>
           <span className="mt-1 block truncate text-xs text-muted-foreground xl:hidden">
             {instance.runtime === "kubernetes"
@@ -434,9 +434,9 @@ function ExpertAgentRuntimeRow({
     <div style={gridStyle} className="group relative grid min-h-[5.25rem] grid-cols-[minmax(0,1fr)_2.75rem_2.75rem] items-center gap-3 border-b px-4 py-3 text-sm transition-colors last:border-b-0 hover:bg-muted/30 xl:grid-cols-[var(--instance-grid-columns)]">
       <Link to="/$projectId/instances/$instanceId" params={{ projectId, instanceId: inventory.sourceId }} aria-label={`View ${inventory.name} runtime details`} className="absolute inset-0 z-0 focus-visible:outline-2 focus-visible:outline-offset-[-2px]" />
       <span className="pointer-events-none relative z-10 col-span-3 flex min-w-0 items-center gap-3 xl:col-span-1">
-        <span className="grid size-10 shrink-0 place-items-center rounded-md border bg-muted/35 text-muted-foreground transition-colors group-hover:border-primary/30 group-hover:bg-primary/5 group-hover:text-primary"><Bot className="size-5" /></span>
+        <span className="grid size-10 shrink-0 place-items-center rounded-md border bg-muted/35 text-muted-foreground transition-colors group-hover:border-primary/30 group-hover:bg-primary/5 group-hover:text-link"><Bot className="size-5" /></span>
         <span className="min-w-0">
-          <Link to="/$projectId/instances/$instanceId" params={{ projectId, instanceId: inventory.sourceId }} className="pointer-events-auto block truncate font-medium text-foreground hover:text-primary hover:underline">{inventory.name}</Link>
+          <Link to="/$projectId/instances/$instanceId" params={{ projectId, instanceId: inventory.sourceId }} className="pointer-events-auto block truncate font-medium text-foreground hover:text-link hover:underline">{inventory.name}</Link>
           <span className="mt-1 block truncate font-mono text-xs text-muted-foreground">{inventory.sourceId.slice(0, 8)} · {productFormLabel(inventory.classification.form)}</span>
           <span className="mt-1 block truncate text-xs text-muted-foreground xl:hidden">Owned by {inventory.ownership.owners[0]?.displayName ?? "Unassigned"}</span>
         </span>
@@ -641,7 +641,7 @@ function Instances() {
                     <span className="pointer-events-none relative z-10 col-span-3 flex min-w-0 items-center gap-3 xl:col-span-1">
                       <AgentPlatformIcon platform={platform} className="transition-colors group-hover:border-primary/30 group-hover:bg-primary/5" />
                       <span className="min-w-0">
-                        <Link to="/$projectId/instances/$instanceId" params={{ projectId, instanceId: agent.id }} className="pointer-events-auto block truncate font-medium text-foreground hover:text-primary hover:underline">{agent.name}</Link>
+                        <Link to="/$projectId/instances/$instanceId" params={{ projectId, instanceId: agent.id }} className="pointer-events-auto block truncate font-medium text-foreground hover:text-link hover:underline">{agent.name}</Link>
                         <span className="mt-1 block truncate font-mono text-xs text-muted-foreground">{agent.id.slice(0, 8)} · {productFormLabel(inventoryItem.classification.form)}</span>
                         <span className="mt-1 block truncate text-xs text-muted-foreground xl:hidden">Created by {agent.createdBy?.displayName ?? "Unknown user"}</span>
                       </span>

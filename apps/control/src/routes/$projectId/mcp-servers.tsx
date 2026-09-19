@@ -290,7 +290,7 @@ function McpServers() {
             ]} />
             <section className="border bg-muted/25 p-4">
               <div className="flex items-start gap-3">
-                <ShieldCheck className="mt-0.5 size-5 text-primary" />
+                <ShieldCheck className="mt-0.5 size-5 text-link" />
                 <div>
                   <p className="text-sm font-semibold">Permission Management / Access Control</p>
                   <p className="mt-1 text-xs leading-5 text-muted-foreground">Public key access is always disabled. The Project Team is the ceiling; each Instance Key is restricted again to its explicitly assigned Servers and Tools.</p>
@@ -430,7 +430,7 @@ function McpServers() {
           <FormSection icon={ShieldCheck} title="Permission Management / Access Control" description="Project isolation is mandatory; optional controls can narrow access further.">
             <div className="border bg-muted/25 p-4 text-sm">
               <div className="flex items-start gap-3">
-                <ShieldCheck className="mt-0.5 size-5 text-primary" />
+                <ShieldCheck className="mt-0.5 size-5 text-link" />
                 <div><strong>Allow all LiteLLM Keys: Off</strong><p className="mt-1 text-xs leading-5 text-muted-foreground">Fixed by TaskLattice Relay. This Server is added only to the current Project Team and selected Instance Keys.</p></div>
               </div>
             </div>
@@ -468,7 +468,7 @@ function FormSection({
   return (
     <section className="space-y-4 border-t pt-6 first:border-t-0 first:pt-0">
       <div className="flex items-start gap-3">
-        <span className="flex size-9 shrink-0 items-center justify-center border bg-muted/30"><Icon className="size-4 text-primary" /></span>
+        <span className="flex size-9 shrink-0 items-center justify-center border bg-muted/30"><Icon className="size-4 text-link" /></span>
         <div><h3 className="text-sm font-semibold">{title}</h3><p className="mt-1 text-xs leading-5 text-muted-foreground">{description}</p></div>
       </div>
       {children}

@@ -19,6 +19,7 @@ export function ResourceActionsMenu({
     icon?: ReactNode;
     disabledReason?: string;
     destructive?: boolean;
+    variant?: "default" | "edit" | "destructive";
     onSelect: () => void;
   }[];
 }) {
@@ -39,11 +40,7 @@ export function ResourceActionsMenu({
           <DropdownMenuItem
             key={action.label}
             disabled={Boolean(action.disabledReason)}
-            className={
-              action.destructive
-                ? "text-destructive focus:text-destructive"
-                : undefined
-            }
+            variant={action.variant ?? (action.destructive ? "destructive" : "default")}
             onSelect={action.onSelect}
           >
             {action.icon}

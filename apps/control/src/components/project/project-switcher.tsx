@@ -264,7 +264,7 @@ export function ProjectSwitcher({
                           className={cn(
                             "group/project flex min-h-12 items-stretch rounded-md transition-colors",
                             current
-                              ? "bg-primary/[0.07] text-primary"
+                              ? "bg-primary/[0.07] text-link"
                               : "hover:bg-muted/65",
                           )}
                         >
@@ -302,7 +302,7 @@ export function ProjectSwitcher({
                             ) : current ? (
                               <Check
                                 aria-label={t("projectSwitcher.current")}
-                                className="size-4 shrink-0 text-primary"
+                                className="size-4 shrink-0 text-link"
                               />
                             ) : null}
                           </button>
@@ -317,7 +317,7 @@ export function ProjectSwitcher({
                               title={t("projectSwitcher.projectSettings", {
                                 projectName: project.name,
                               })}
-                              className="grid w-11 shrink-0 place-items-center rounded-r-md border-l border-primary/15 text-primary outline-none transition-colors hover:bg-primary/[0.08] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/35"
+                              className="grid w-11 shrink-0 place-items-center rounded-r-md border-l border-primary/15 text-link outline-none transition-colors hover:bg-primary/[0.08] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/35"
                               onClick={() => {
                                 setOpen(false);
                                 onProjectSettingsOpen();

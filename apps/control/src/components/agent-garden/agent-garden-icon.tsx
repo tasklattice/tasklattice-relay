@@ -72,7 +72,7 @@ export function AgentGardenIcon({
           className={cn("size-8 object-contain", iconClassName)}
         />
       ) : (
-        <Icon className={cn("size-5 text-primary", iconClassName)} />
+        <Icon className={cn("size-5 text-link", iconClassName)} />
       )}
     </span>
   );

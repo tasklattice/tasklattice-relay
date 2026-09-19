@@ -107,7 +107,7 @@ export function AgentProfilePanel({
     >
       <div className="grid lg:grid-cols-[minmax(0,1.45fr)_minmax(19rem,.75fr)]">
         <div className="p-6 sm:p-8">
-          <div className="flex items-center gap-2 text-sm font-semibold text-primary">
+          <div className="flex items-center gap-2 text-sm font-semibold text-link">
             <Bot className="size-4" />
             Agent profile
           </div>
@@ -131,7 +131,7 @@ export function AgentProfilePanel({
         <div className="border-t bg-muted/20 p-6 sm:p-8 lg:border-l lg:border-t-0">
           <div className="flex items-center justify-between gap-3">
             <h3 className="font-semibold">Working context</h3>
-            <ShieldCheck className="size-5 text-primary" />
+            <ShieldCheck className="size-5 text-link" />
           </div>
           <dl className="mt-4">
             {facts.map((fact) => (

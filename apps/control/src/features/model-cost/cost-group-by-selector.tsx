@@ -27,7 +27,7 @@ export function CostGroupBySelector({
               <TabsTrigger
                 key={option.value}
                 value={option.value}
-                className="h-9 rounded-none border-x border-transparent px-4 first:border-l-0 last:border-r-0 data-[state=active]:border-primary data-[state=active]:bg-primary/5 data-[state=active]:text-primary"
+                className="h-9 rounded-none border-x border-transparent px-4 first:border-l-0 last:border-r-0 data-[state=active]:border-primary data-[state=active]:bg-primary/5 data-[state=active]:text-link"
               >
                 <Icon className="size-3.5" />
                 {option.label}

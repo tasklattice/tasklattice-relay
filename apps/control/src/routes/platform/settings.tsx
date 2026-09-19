@@ -254,7 +254,7 @@ function PlatformSettingsPage() {
       <PageHeader
         title="Platform Setting"
         badge={
-          <Badge className="border-primary/20 bg-primary/7 text-primary" variant="outline">
+          <Badge className="border-primary/20 bg-primary/7 text-link" variant="outline">
             <ShieldCheck />
             Platform Administrator
           </Badge>
@@ -536,6 +536,7 @@ function InfrastructureSettings({ settings }: { settings: PlatformSettingsView }
         </Button>
         <Button
           className="h-11"
+          variant="edit"
           disabled={!dirty || !validation || validate.isPending || save.isPending}
           onClick={() => validation && save.mutate({
             ...draft,
@@ -636,7 +637,7 @@ function RuntimeImageRow({ effective, error, onChange, onReset, onSave, overridd
         <span className="min-w-0">
           <strong className="block truncate text-sm">{presentation.name}</strong>
           <span className="mt-0.5 block text-xs text-muted-foreground">Core Agent runtime</span>
-          <Badge variant="outline" className={overridden ? "mt-2 border-primary/25 text-primary" : "mt-2 text-muted-foreground"}>{overridden ? "Platform override" : "Deployment default"}</Badge>
+          <Badge variant="outline" className={overridden ? "mt-2 border-primary/25 text-link" : "mt-2 text-muted-foreground"}>{overridden ? "Platform override" : "Deployment default"}</Badge>
         </span>
       </div>
       <div className="grid min-w-0 gap-2 lg:contents">
@@ -652,7 +653,7 @@ function RuntimeImageRow({ effective, error, onChange, onReset, onSave, overridd
         </div>
       </div>
       <div className="grid grid-cols-2 gap-2 lg:contents">
-        <Button className="h-11 lg:col-start-3 lg:row-start-2 lg:w-40" disabled={!dirty || saveDisabled} onClick={onSave}>
+        <Button variant="edit" className="h-11 lg:col-start-3 lg:row-start-2 lg:w-40" disabled={!dirty || saveDisabled} onClick={onSave}>
           {saving ? <Spinner /> : <Save />}
           Save image
         </Button>
@@ -760,7 +761,7 @@ function SandboxSettings({ settings }: { settings: PlatformSettingsView }) {
             <span className="min-w-0">
               <strong className="block truncate text-sm">OpenShell resources</strong>
               <span className="mt-0.5 block text-xs text-muted-foreground">New Sandboxes only</span>
-              <Badge variant="outline" className={settings.sandbox.cpu || settings.sandbox.memory ? "mt-2 border-primary/25 text-primary" : "mt-2 text-muted-foreground"}>
+              <Badge variant="outline" className={settings.sandbox.cpu || settings.sandbox.memory ? "mt-2 border-primary/25 text-link" : "mt-2 text-muted-foreground"}>
                 {settings.sandbox.cpu || settings.sandbox.memory
                   ? "Platform override"
                   : "Deployment default"}
@@ -819,6 +820,7 @@ function SandboxSettings({ settings }: { settings: PlatformSettingsView }) {
           <div className="grid grid-cols-2 gap-2 lg:contents">
             <Button
               className="h-11 lg:col-start-4 lg:row-start-2 lg:w-40"
+              variant="edit"
               disabled={!defaultsDirty || !cpuValid || !memoryValid || anySaving}
               onClick={() => defaultsSave.mutate()}
             >
@@ -869,6 +871,7 @@ function SandboxSettings({ settings }: { settings: PlatformSettingsView }) {
           </div>
           <Button
             className="h-11 w-full lg:col-start-2 lg:row-start-2 lg:w-40"
+            variant="edit"
             disabled={!policyDirty || !timeoutValid || anySaving}
             onClick={() => policySave.mutate(deletionTimeoutSeconds)}
           >
@@ -977,10 +980,10 @@ function DepartmentsSettings() {
         <div><h2 className="font-sans text-lg font-semibold">Departments</h2><p className="mt-1 max-w-2xl text-sm text-muted-foreground">Create the organization structure and assign an initial Department Administrator. Department and Project administration remain separate scopes.</p></div>
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" className="h-11" disabled={!departments.some((department) => department.status === "active")} onClick={() => setCreateProjectOpen(true)}><Plus />Create Project</Button>
-          <Button className="h-11" disabled={organization.isPending} onClick={() => setCreateDepartmentOpen(true)}><Plus />Create Department</Button>
+          <Button variant="create" className="h-11" disabled={organization.isPending} onClick={() => setCreateDepartmentOpen(true)}><Plus />Create Department</Button>
         </div>
       </div>
-      {organization.isPending ? <div className="grid min-h-64 place-items-center"><Spinner /></div> : organization.error ? <div className="m-5 border-l-2 border-destructive bg-destructive/5 p-4 text-sm text-destructive" role="alert">{organization.error.message}</div> : departments.length ? <div className="divide-y border-b">{departments.map((department) => <DepartmentRow key={department.id} department={department} />)}</div> : <div className="grid min-h-64 place-items-center p-8 text-center"><div><Building2 className="mx-auto size-7 text-muted-foreground" /><h3 className="mt-3 text-sm font-semibold">No Departments</h3><p className="mt-1 text-xs text-muted-foreground">Create the first Department and assign its administrator.</p><Button className="mt-5" onClick={() => setCreateDepartmentOpen(true)}><Plus />Create Department</Button></div></div>}
+      {organization.isPending ? <div className="grid min-h-64 place-items-center"><Spinner /></div> : organization.error ? <div className="m-5 border-l-2 border-destructive bg-destructive/5 p-4 text-sm text-destructive" role="alert">{organization.error.message}</div> : departments.length ? <div className="divide-y border-b">{departments.map((department) => <DepartmentRow key={department.id} department={department} />)}</div> : <div className="grid min-h-64 place-items-center p-8 text-center"><div><Building2 className="mx-auto size-7 text-muted-foreground" /><h3 className="mt-3 text-sm font-semibold">No Departments</h3><p className="mt-1 text-xs text-muted-foreground">Create the first Department and assign its administrator.</p><Button variant="create" className="mt-5" onClick={() => setCreateDepartmentOpen(true)}><Plus />Create Department</Button></div></div>}
       <CreateDepartmentSheet
         key={String(createDepartmentOpen)}
         open={createDepartmentOpen}
@@ -1475,7 +1478,7 @@ function CreateDepartmentSheet({ onCreated, onOpenChange, open, people }: { onCr
       footer={(
         <>
           <Button type="button" variant="outline" disabled={create.isPending} onClick={close}>Cancel</Button>
-          <Button type="submit" form="create-department-form" disabled={create.isPending || !validatedName.success || !administratorUserId}>{create.isPending ? <Spinner /> : <Plus />}Create Department</Button>
+          <Button variant="create" type="submit" form="create-department-form" disabled={create.isPending || !validatedName.success || !administratorUserId}>{create.isPending ? <Spinner /> : <Plus />}Create Department</Button>
         </>
       )}
     >
@@ -1637,7 +1640,7 @@ function SecuritySettings({ settings }: { settings: PlatformSettingsView }) {
     <SettingsSection
       title="Authentication & SSO"
       description="Configure database-owned local and OIDC sign-in. Validate the complete authentication draft before saving it."
-      action={<Badge variant="outline" className="border-primary/25 text-primary">Validation required</Badge>}
+      action={<Badge variant="outline" className="border-primary/25 text-link">Validation required</Badge>}
     >
       <div className="grid gap-3 sm:grid-cols-2">
         <SecurityStatusRow icon={KeyRound} title="Local authentication" description="Username and password sign-in for locally managed accounts." enabled={localAuthenticationEnabled} />
@@ -2097,7 +2100,7 @@ function EmailSettings({ settings }: { settings: PlatformSettingsView }) {
     <SettingsSection
       title="Email delivery"
       description="Configure the platform SMTP service used for Project invitations. Email delivery is stored and managed only in the Platform database."
-      action={<Badge variant="outline" className="border-primary/25 text-primary">Database managed</Badge>}
+      action={<Badge variant="outline" className="border-primary/25 text-link">Database managed</Badge>}
     >
       <div className="flex min-h-16 items-center justify-between gap-4 border-y py-3">
         <span><strong className="block text-sm">Invitation email delivery</strong><span className="mt-0.5 block text-xs text-muted-foreground">Send invitations to people who do not yet have a Relay account.</span></span>
@@ -2166,7 +2169,7 @@ function SettingsSection({ action, children, description, title }: { action: Rea
 }
 
 function SaveButton({ dirty, onClick, saving }: { dirty: boolean; onClick: () => void; saving: boolean }) {
-  return <Button className="h-11" disabled={!dirty || saving} onClick={onClick}>{saving ? <Spinner /> : <Save />}Save changes</Button>;
+  return <Button variant="edit" className="h-11" disabled={!dirty || saving} onClick={onClick}>{saving ? <Spinner /> : <Save />}Save changes</Button>;
 }
 
 function PlatformSettingsSkeleton() {

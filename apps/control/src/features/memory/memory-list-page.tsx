@@ -186,7 +186,7 @@ export function MemoryListPage() {
             </Link>
           </Button>
         ) : embeddingModelReady && permissions.canManageMemories ? (
-          <Button className="h-11" onClick={() => {
+          <Button variant="create" className="h-11" onClick={() => {
             create.reset();
             setCreateName("");
             setCreateOpen(true);
@@ -285,9 +285,9 @@ export function MemoryListPage() {
                     <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="size-11" aria-label={`Actions for ${memory.displayName}`}><MoreHorizontal /></Button></DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-52">
                       <DropdownMenuItem asChild><Link to="/$projectId/memory/$memoryId" params={{ projectId, memoryId: memory.id }}><ArrowRight />Open</Link></DropdownMenuItem>
-                      {permissions.canManageMemories ? <DropdownMenuItem onSelect={() => { rename.reset(); setRenameTarget(memory); setRenameName(memory.displayName); }}><Pencil />Rename</DropdownMenuItem> : null}
+                      {permissions.canManageMemories ? <DropdownMenuItem variant="edit" onSelect={() => { rename.reset(); setRenameTarget(memory); setRenameName(memory.displayName); }}><Pencil />Rename</DropdownMenuItem> : null}
                       {permissions.canExportMemories ? <DropdownMenuItem disabled={exportMemory.isPending} onSelect={() => exportMemory.mutate(memory)}><Download />Export</DropdownMenuItem> : null}
-                      {permissions.canPurgeMemories ? <><DropdownMenuSeparator /><DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={() => { remove.reset(); setDeleteTarget(memory); }}><Trash2 />Delete Memory</DropdownMenuItem></> : null}
+                      {permissions.canPurgeMemories ? <><DropdownMenuSeparator /><DropdownMenuItem variant="destructive" onSelect={() => { remove.reset(); setDeleteTarget(memory); }}><Trash2 />Delete Memory</DropdownMenuItem></> : null}
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
@@ -317,7 +317,7 @@ export function MemoryListPage() {
           icon={BrainCircuit}
           title={emptyCopy.title}
           description={emptyCopy.description}
-          action={!query && status === "all" && embeddingModelReady && permissions.canManageMemories ? <Button className="h-11" onClick={() => setCreateOpen(true)}><Plus />Create Memory</Button> : undefined}
+          action={!query && status === "all" && embeddingModelReady && permissions.canManageMemories ? <Button variant="create" className="h-11" onClick={() => setCreateOpen(true)}><Plus />Create Memory</Button> : undefined}
         />
       )}
 
@@ -328,7 +328,7 @@ export function MemoryListPage() {
         title="Create Memory"
         description="Create a Project-level Memory that can be attached to one OpenClaw or Hermes Agent at a time."
         width="md"
-        footer={<><Button variant="outline" disabled={create.isPending} onClick={() => setCreateOpen(false)}>Cancel</Button><Button disabled={!embeddingModelReady || !createName.trim() || create.isPending} onClick={() => create.mutate()}>{create.isPending ? "Creating…" : "Create Memory"}</Button></>}
+        footer={<><Button variant="outline" disabled={create.isPending} onClick={() => setCreateOpen(false)}>Cancel</Button><Button variant="create" disabled={!embeddingModelReady || !createName.trim() || create.isPending} onClick={() => create.mutate()}>{create.isPending ? "Creating…" : "Create Memory"}</Button></>}
       >
         <div className="space-y-2"><Label htmlFor="memory-create-name" required>Name</Label><Input id="memory-create-name" autoFocus className="h-11" required value={createName} onChange={(event) => setCreateName(event.target.value)} placeholder="Customer Support Memory" maxLength={120} /></div>
         <p className="mt-3 text-xs leading-5 text-muted-foreground">The Memory remains available when its Agent Instance is deleted or replaced.</p>
@@ -342,7 +342,7 @@ export function MemoryListPage() {
         title="Rename Memory"
         description="The provider content and runtime binding are not changed."
         width="md"
-        footer={<><Button variant="outline" disabled={rename.isPending} onClick={() => setRenameTarget(null)}>Cancel</Button><Button disabled={!renameName.trim() || rename.isPending} onClick={() => rename.mutate()}>{rename.isPending ? "Saving…" : "Save name"}</Button></>}
+        footer={<><Button variant="outline" disabled={rename.isPending} onClick={() => setRenameTarget(null)}>Cancel</Button><Button variant="edit" disabled={!renameName.trim() || rename.isPending} onClick={() => rename.mutate()}>{rename.isPending ? "Saving…" : "Save name"}</Button></>}
       >
         <div className="space-y-2"><Label htmlFor="memory-rename-name">Name</Label><Input id="memory-rename-name" autoFocus className="h-11" value={renameName} onChange={(event) => setRenameName(event.target.value)} maxLength={120} /></div>
         {rename.error ? <div className="mt-4"><MemoryNotice tone="error">{errorMessage(rename.error)}</MemoryNotice></div> : null}

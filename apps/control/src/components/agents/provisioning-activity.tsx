@@ -32,7 +32,7 @@ export function ProvisioningActivity({
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0">
             <CardTitle className="flex items-center gap-2 text-base">
-              {live ? <Spinner className="size-4 text-primary" /> : status === "FAILED" ? <AlertTriangle className="size-4 text-destructive" /> : <ScrollText className="size-4" />}
+              {live ? <Spinner className="size-4 text-link" /> : status === "FAILED" ? <AlertTriangle className="size-4 text-destructive" /> : <ScrollText className="size-4" />}
               {state.statusLabel}
             </CardTitle>
             <CardDescription className="mt-2">{state.statusDescription}</CardDescription>

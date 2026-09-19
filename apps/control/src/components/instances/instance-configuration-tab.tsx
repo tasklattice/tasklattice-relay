@@ -164,7 +164,7 @@ export function InstanceConfigurationTab({
                   params={{ projectId, policyId: policy.id }}
                   className="inline-flex min-h-9 items-center gap-2 border bg-muted/20 px-3 text-xs font-medium transition-colors hover:bg-muted/50"
                 >
-                  <ShieldCheck className="size-3.5 text-primary" />
+                  <ShieldCheck className="size-3.5 text-link" />
                   {policy.name}
                   <Badge variant="outline">{policy.status}</Badge>
                 </Link>

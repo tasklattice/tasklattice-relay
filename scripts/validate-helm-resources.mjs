@@ -66,6 +66,7 @@ assert.equal(runnerConfig(defaults).openshell.gatewayEndpoint, undefined);
 const runnerEnv = defaults.find((o) => o.kind === "Deployment" && o.metadata.labels["app.kubernetes.io/component"] === "runner").spec.template.spec.containers[0].env;
 assert.deepEqual(runnerEnv, [{ name: "TALI_RUNNER_CONFIG", value: "/etc/tali-runner/runner.json" }]);
 const defaultConfig = controlConfig(defaults);
+assert.equal(new URL(defaultConfig.database.url).hostname, `${releaseName}-postgresql.${releaseNamespace}.svc.cluster.local`);
 assert.equal(workerConfig(defaults).project_openshell.enabled, true);
 assert.equal(workerConfig(defaults).resource_ownership.enabled, true);
 const argoTrackingId = "relay:apps/Deployment:tali/relay-control";

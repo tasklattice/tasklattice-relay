@@ -46,7 +46,7 @@ export function AgentInstanceActivityTab({
         <CardContent>
           <ol className="space-y-0">
             <li className="relative flex gap-3 border-b py-4">
-              <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+              <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-link">
                 <Activity className="size-4" />
               </span>
               <div className="min-w-0">
@@ -104,7 +104,7 @@ export function AgentInstanceActivityTab({
           <DetailCardHeader
             title="Coordination"
             description="Whether this Agent can plan and delegate work to other Agents."
-            action={<Network className="size-5 text-primary" />}
+            action={<Network className="size-5 text-link" />}
           />
           <CardContent>
             <div className="flex items-start justify-between gap-4">
@@ -135,7 +135,7 @@ export function AgentInstanceActivityTab({
             description="Whether compatible Agents can discover and invoke this Instance."
             action={
               detail.capabilities.acceptsDelegation ? (
-                <MessagesSquare className="size-5 text-primary" />
+                <MessagesSquare className="size-5 text-link" />
               ) : (
                 <Radio className="size-5 text-muted-foreground" />
               )

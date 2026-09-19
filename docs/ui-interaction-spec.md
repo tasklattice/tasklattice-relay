@@ -1,11 +1,18 @@
 # TaskLattice Relay UI and Interaction Specification
 
-Status: Proposed canonical contract
+Status: Canonical design target; implementation partially aligned (see §9)
 
-Version: 1.1-draft (angular ToB profile, 2026-09-17)
+Version: 1.3 (Tali family alignment; desktop-only scope, 2026-09-19)
 
-Scope: Control Plane shell, operational pages, forms, tables, dialogs, sheets,
-drawers, status feedback, and responsive behavior.
+Scope: Authentication, Control Plane shell, operational pages, forms, tables,
+dialogs, sheets, drawers, status feedback, light/dark themes, and desktop window layouts.
+
+**Platform scope: desktop Web only, across the entire Relay project.** Mobile
+and tablet access are not product requirements. Do not propose mobile designs,
+add mobile-specific work, or require mobile/touch acceptance unless the user
+explicitly changes this scope. Existing responsive fallbacks may remain; they
+do not create a mobile support commitment. Keyboard accessibility, zoom, and
+readability in desktop windows remain required.
 
 This document is the single source of truth for cross-product UI and
 interaction rules. Product or page-specific specifications may add domain
@@ -13,8 +20,9 @@ behavior, copy, roles, and acceptance scenarios, but must not redefine the
 visual tokens or common interaction states in this document.
 
 The contract is intentionally implementable with the existing Control Plane
-stack. The runtime implementation remains the final check until every rule in
-this document has a corresponding token, component, or automated test.
+stack. The tables below describe the intended shared design, not a claim that all
+runtime components already implement it. Record differences in §9; verify each
+implementation change against the actual components and rendered UI.
 
 The review method is the Vibe Designing evidence model: design intent becomes
 observable constraints, implementation choices, and browser evidence. A visual
@@ -54,242 +62,80 @@ Every new or substantially changed page specification must state:
 | Maturity mode | `vibe_draft`, `prototype`, or `release_gate` |
 | First-screen priority | What must be visible without scrolling |
 | Primary CTA | The specific action label and its destination |
-| Non-negotiables | Domain, permission, safety, compliance, and responsive constraints |
+| Non-negotiables | Domain, permission, safety, compliance, and desktop layout constraints |
 
 The page type determines what “good” means. This system optimizes for
 operable tasks, trustworthy state, and scanability in a Product Console; it
 does not apply a landing-page or marketing-page visual standard to operational
 work.
 
-## 2. Design direction
+## 2. Tali product-family direction
 
-The product uses a **compact dark-capable operational console** language:
+TaskLattice Guard and TaskLattice Relay are two products in the same Tali family.
+A user switching products should recognize the same typography, blue primary
+action, neutral surfaces, control geometry, focus behavior, and action language.
+Product identity comes from the mark, product suffix, domain content, and scope;
+it does not require a different palette or component system.
 
-- precise, calm, and direct rather than decorative;
-- high information density through hierarchy and structured rows, not tiny
-  unreadable text;
-- restrained surfaces separated by one-pixel rules and small tonal changes;
-- semantic colors reserved for state, risk, and the primary action;
-- progressive disclosure for advanced provider, runtime, policy, and evidence
-  details; and
-- modal, sheet, or drawer surfaces used as focused workspaces when the user is
-  inspecting or completing a bounded task.
+The console remains precise, calm, and compact. Use structured rows and clear
+hierarchy, one-pixel boundaries, progressive disclosure, and focused detail or
+operation surfaces. Do not turn operational pages into promotional layouts.
+The serif brand statement and blue grid belong to the public login surface,
+not to tables, settings forms, or resource inspectors.
 
-The attached reference style is a quality reference for density, hierarchy,
-surface restraint, semantic feedback, and structured detail. It is not a
-requirement to copy its branding, exact colors, or layout.
+### 2.1 Reference sources and boundaries
 
-### 2.1 Reference extraction: compact operation surface
+Reference snapshot: **2026-09-19**, from the local Guard repository and rendered
+login at `http://localhost:38081/`:
 
-The supplied evidence screenshot defines the following reference profile for a
-bounded evidence-upload or resource-operation surface. These are starting
-tokens and layout constraints, not sampled production values. They must be
-represented through semantic tokens and validated against the rendered page.
+- [Guard theme and typography](../../tasklattice-guard/controller/src/styles.css):
+  light neutrals, blue primary, font roles, geometry, and elevation.
+- [Guard login](../../tasklattice-guard/controller/src/routes/login.tsx): split
+  composition, grid, serif statement, form hierarchy, and account guidance.
+- [Guard action conventions](../../tasklattice-guard/docs/ui-action-components-review.md)
+  and [Button variants](../../tasklattice-guard/controller/src/components/ui/button.tsx):
+  blue create/default, amber edit, red destructive, and neutral inspection.
 
-#### Visual profile
+These relative links require the sibling `tasklattice-guard` checkout. The
+normative values are recorded here so the Relay contract is self-contained.
+The reviewed Guard CSS defines a light `:root` palette and some component-level
+`dark:` variants, but **does not define a complete dark theme token set**.
+The dark palette in §4 is a proposed family extension; it is not a report of an
+existing Guard dark-mode implementation.
 
-- Use a near-black canvas, a slightly raised modal/drawer surface, and one
-  additional control surface for inputs and file rows.
-- Use low-contrast one-pixel borders to separate surfaces. Avoid heavy shadows;
-  elevation should primarily communicate overlay ownership.
-- Reserve the strongest accent for the primary action, upload affordance, and
-  active/focused controls.
-- Use muted secondary text for context and metadata rather than making every
-  line equally bright.
+This revision supersedes the 2026-09-17 angular profile, cobalt-indigo palette,
+and historical screenshot palettes as design targets. Keep their evidence as
+history only. Do not combine those palettes with this one on a new surface.
 
-#### Reference palette
+### 2.2 Shared rules versus product semantics
 
-| Reference token | Approximate value | Intended role |
-| --- | --- | --- |
-| `reference-canvas` | `#191919` | Dark page background |
-| `reference-surface-modal` | `#151518` | Operation surface |
-| `reference-surface-control` | `#1D1C22` | Inputs, selectors, file rows |
-| `reference-surface-accent` | `#25203F` | Upload/dropzone emphasis |
-| `reference-border-subtle` | `#302F38` | Boundaries and dividers |
-| `reference-text-primary` | `#F2F1F5` | Titles, values, primary content |
-| `reference-text-secondary` | `#A29FAA` | Labels and supporting copy |
-| `reference-text-muted` | `#686570` | Metadata and helper text |
-| `reference-accent-primary` | `#7B68EE` | Primary action and active control |
-| `reference-accent-link` | `#B09DFF` | Links and file-type affordances |
-| `reference-success` | `#49C96A` | Completed or verified state |
-| `reference-success-surface` | `#12351E` | Success badge background |
-| `reference-danger` | `#FF5151` | Failure or destructive state |
-| `reference-danger-surface` | `#3A171A` | Danger badge/background |
-
-These reference colors must map to the product's semantic roles. Do not mix a
-purple reference primary with the existing cobalt primary on the same surface
-without an explicit theme decision.
-
-#### Reference type and density
-
-Assuming the supplied image is a 2× design export, use these approximate CSS
-values:
-
-| Element | Size / rhythm |
+| Shared across Tali | Product-specific |
 | --- | --- |
-| Operation-surface title | 24–26 / 32 px, weight 600–700 |
-| Body and control text | 15–16 / 22–24 px, weight 400–500 |
-| Field label | 14 / 20 px, weight 500 |
-| Metadata | 12–13 / 18 px, weight 400 |
-| Control height | 48–52 px |
-| Resource/file row | 56–64 px |
-| Group gap | 20–24 px |
-| Control gap | 8–12 px |
-| Desktop inner padding | 24–32 px |
-| Mobile inner padding | 16 px |
-| Observed control radius | approximately 10 px; reference only, normalize to the 2 px ToB core token |
-| Observed grouped-panel radius | approximately 14 px; reference only, normalize to the 4 px ToB core token |
+| Theme roles, font roles, spacing, radii, elevation | Guard shield / Relay lattice mark and product suffix |
+| Creation, editing, destruction, inspection semantics | Guardrails, Routers, Evidence versus Agents, Knowledge, Projects |
+| Form, menu, table, drawer, focus, pending, and error behavior | Organization versus Platform / Department / Project permissions |
+| Login composition and wording pattern | Supported identifiers, actual identity providers, configured default credentials |
+| Desktop layout and accessibility requirements | Resource lifecycle, risk, confirmation content, async progress |
 
-This is `compact productive density`: fit more decisions into one viewport
-without reducing body text below a readable size. Density comes from grouped
-label/value structures, two-line resource rows, compact spacing, and clear
-surface hierarchy—not from shrinking every font.
+A shared appearance never implies shared accounts, permissions, sessions, or
+resource ownership. Keep real product boundaries explicit.
 
-#### Reference operation-surface structure
+### 2.3 Operational composition
 
-Use this order for evidence upload and similar bounded operations:
+For a bounded operation, keep this order: resource identity and impact →
+required inputs → progress and validation → secondary details → action footer.
+The header and footer remain separate from the scrolling body. Use the
+right-side operation drawer contract in §6.5 for persisted resource changes.
+Login, theme selection, query filters, and edits to unsubmitted form state do
+not acquire an extra operation drawer merely to satisfy visual consistency.
 
-```text
-Operation Surface
-├── Header: title, context, close
-├── Body
-│   ├── Resource/control selector
-│   ├── Upload or primary input area
-│   ├── Existing items with state and progress
-│   ├── Description or justification
-│   └── Secondary date/policy fields
-└── Footer: cancel and specific primary action
-```
-
-The header, body, and footer are distinct regions. The footer uses a top
-divider, keeps the primary action visually dominant, and remains visible while
-the body scrolls. File or resource rows show the name, secondary metadata,
-state label, progress where applicable, and a separate remove affordance.
-
-The screenshot shows a centered wide task modal. For this product, the same
-content structure must be adapted to the right-side operation drawer required
-by §6.5 whenever the operation has a side effect. The screenshot is therefore
-a reference for content density and surface craft, not for mutation placement.
-
-### 2.2 Reference extraction: analytics control dashboard
-
-The supplied analytics screenshot defines a second reference mode: a
-light-surface dashboard for scanning, comparing, and then investigating
-operational data. It belongs to the same product family as §2.1, but its
-density is horizontal rather than form-driven.
-
-#### Dashboard intent and scan order
-
-The dashboard supports this sequence:
-
-```text
-Orient → Filter → Compare KPIs → Inspect trend → Investigate breakdown
-```
-
-Use this information order:
-
-1. Persistent shell and current workspace context.
-2. Page title and time/filter controls.
-3. A row of comparable KPI cards.
-4. One primary trend or activity visualization.
-5. Secondary breakdowns, rankings, geographic or request lists.
-
-The first viewport must make the page purpose, current time range, primary
-metrics, and the next investigation path understandable without opening a
-menu. A dashboard is not a collection of decorative cards: every module must
-answer a distinct operational question.
-
-#### Visual profile
-
-- Use a light working canvas, white panels, quiet gray borders, and dark text.
-- Keep the outer blurred or gradient background, if present in a showcase
-  composition, outside the product workspace; it is not part of the console
-  surface contract.
-- Use a persistent left navigation around 220–240 px wide and a compact top
-  bar around 52–56 px high on desktop.
-- Use four equal KPI cards when the metrics are genuinely comparable. Use a
-  full-width primary chart below them and a three-column secondary row only
-  when each panel has a distinct question.
-- Use a 4 px core panel radius, one-pixel borders, and 16–20 px panel
-  padding. Softer screenshot geometry is reference material, not a product
-  variant.
-  Do not add heavy shadows to every card.
-
-#### Reference palette and data color
-
-These are approximate reference values extracted from the screenshot. They
-must map to semantic tokens and must not be copied as unstructured literals.
-
-| Reference token | Approximate value | Intended role |
-| --- | --- | --- |
-| `dashboard-canvas` | `#F7F7F8` | Light page background |
-| `dashboard-surface` | `#FFFFFF` | Cards, charts, lists |
-| `dashboard-border` | `#E6E6EA` | Card boundaries and dividers |
-| `dashboard-text-primary` | `#1F1F22` | Titles, metrics, primary values |
-| `dashboard-text-secondary` | `#77777F` | Labels, axis text, metadata |
-| `dashboard-text-muted` | `#A2A2A8` | Disabled or low-priority context |
-| `dashboard-success` | `#16C784` | Positive usage or healthy metric |
-| `dashboard-warning` | `#F59E0B` | Activity, attention, or threshold |
-| `dashboard-info` | `#3B82F6` | Efficiency, informational series |
-| `dashboard-accent` | `#A855F7` | Brand emphasis or selected control |
-| `dashboard-action` | `#151515` | High-contrast download or export action |
-| `dashboard-chart-neutral` | `#4A4A4D` | Neutral comparison series |
-| `dashboard-chart-grid` | `#ECECEF` | Chart grid and reference lines |
-
-Use no more than four to six active hues in one dashboard viewport unless
-the data domain requires more categories. Every hue must have a stable legend,
-label, or semantic meaning. Use neutral gray for secondary series rather than
-adding a new accent for every dataset.
-
-The dashboard may be more colorful than the operation surface because charts
-need parallel visual channels. This is **semantic chromatic density**, not a
-license for decorative saturation across navigation, cards, or background
-surfaces. Do not mix the screenshot's purple accent with the product's cobalt
-primary without an explicit theme decision.
-
-#### Reference typography and density
-
-| Element | Approximate CSS value | Use |
-| --- | --- | --- |
-| Page title | 24–28 / 32 px, weight 600–700 | Workspace identity |
-| KPI label | 12–13 / 18 px, weight 500 | Metric name and unit |
-| KPI value | 32–40 / 40–48 px, weight 600–700 | Primary comparison value |
-| KPI supporting value | 12–13 / 18 px | Goal, denominator, or period |
-| Chart title | 14–16 / 20–24 px, weight 600 | Panel identity |
-| Axis and legend text | 11–12 / 16 px | Chart annotation |
-| Navigation text | 12–13 / 18 px | Persistent shell |
-| Panel gap | 16–20 px | Grid rhythm |
-| Section gap | 20–24 px | Hierarchy between dashboard bands |
-| Page padding | 24–32 px desktop, 16 px mobile | Workspace breathing room |
-
-This mode is `high horizontal density, moderate vertical density`: multiple
-modules share the viewport, but each module retains readable labels, chart
-legends, and actionable whitespace. Do not increase density by shrinking axis
-labels or KPI values below their readable role.
-
-#### Dashboard interaction contract
-
-- Time ranges, tabs, group-by controls, and filters may update query or view
-  state inline or through a popover; they are non-mutating controls and do not
-  require an operation drawer.
-- Hover and keyboard focus on chart marks expose a readable tooltip containing
-  the date/category, series name, exact value, and relevant unit.
-- Legends and series toggles must visibly change the chart and announce the
-  selected state.
-- Download/export actions must identify the data scope and current filters.
-  They may remain inline when they only produce a client download; a persisted
-  configuration or external resource change follows §6.5.
-- Selecting a KPI, chart mark, or list row must either expose detail, update a
-  filter, or navigate to a known investigation path. Decorative clicks are
-  not allowed.
-- Charts require loading, empty/zero-data, stale-data, error, and
-  unavailable-series states. A blank chart is not an acceptable empty state.
-- A dashboard must preserve the selected time range and filters when moving
-  into a detail view, unless the user explicitly resets them.
-
-The analytics screenshot is therefore a reference for dashboard composition,
-cross-module comparison, and semantic color channels. It does not override the
-right-side operation-drawer rule for side-effecting changes.
+For analytics, use: context → time/filter controls → comparable KPIs → primary
+trend → explanatory breakdowns. Each module must answer a distinct question.
+Use cards only when they group related content; do not make every item an
+equal-weight card. Charts must expose units, legends, keyboard-accessible detail,
+and loading, zero-data, unavailable, stale, and error states. Preserve filters
+when moving into related details. Shared category meanings keep the same color
+role in both modes; use mode-specific contrast values, not screenshot colors.
 
 ## 3. Source of truth and precedence
 
@@ -300,192 +146,244 @@ When rules conflict, apply this order:
 3. The relevant page or domain specification.
 4. Existing component behavior and local implementation detail.
 
-The current implementation uses `Inter` for interface and display text,
-`Noto Sans SC` / `Noto Sans TC` for CJK fallback, and `Chivo Mono` for
-technical values. The previous `Hanken Grotesk` / `Noto Serif SC` proposal is
-retired; it must not be reintroduced by a page-level document.
+The family design target takes precedence over older Relay styling guidance.
+`docs/ui-design-system.md` is the concise companion and
+`docs/control-typography.md` owns the detailed font-role explanation; neither
+may introduce a competing palette or geometry profile.
 
-The code-level token implementation is in
-`apps/control/src/styles.css`. The typography contract test is in
-`apps/control/src/styles.typography.test.ts`. A documentation change that
-changes a token or font role must update both the implementation and its test.
+Code-level tokens live in `apps/control/src/styles.css`; common behavior lives
+in `apps/control/src/components/ui`. Existing typography assertions are in
+`apps/control/src/styles.typography.test.ts`. For an implementation migration,
+update tokens, affected components, and meaningful tests together. A Spec-only
+revision records the target and migration gaps without claiming runtime parity
+or triggering an unrequested application-wide restyle.
 
 ## 4. Visual system
 
-### 4.1 Color roles
+### 4.1 Color roles and theme pairing
 
-Use semantic tokens rather than page-specific literal colors.
+Use semantic tokens; feature pages must not hard-code their own blues, grays,
+or action colors. Light and dark modes share hierarchy, density, geometry,
+action meaning, and information order. Dark mode is not a color inversion and
+must not introduce a separate purple accent, glowing borders, or glass panels.
 
-| Role | Meaning | Usage |
+| Role | Meaning | Required non-color cue |
 | --- | --- | --- |
-| Primary / cobalt-indigo | Main interactive brand action | Primary buttons, selected navigation, links, focus |
-| Info / blue | Informational state | Neutral system information and links when not an action |
-| Success / green | Verified or completed | Match, healthy, enabled, applied |
-| Warning / amber | Attention or incomplete trust | Pending, limited, not anchored, needs review |
-| Danger / red | Failure or destructive risk | Failed, mismatch, blocked, destructive confirmation |
-| Foreground | Primary readable content | Titles, values, actions |
-| Muted foreground | Secondary context | Labels, metadata, helper copy |
+| Primary / blue | Main action, selected interaction | Action label, selected state, or active marker |
+| Info / blue | Neutral information | Info label or icon; never an implied successful operation |
+| Success / green | Confirmed healthy, applied, or completed | Explicit observed state |
+| Warning / amber | Attention, incomplete, pending review | Status label and explanation |
+| Danger / red | Failure or destructive operation | Error text or explicit destructive verb |
+| Edit / amber | Editing or applying changes | Edit / Apply label; this is an action, not a warning status |
+| Neutral | Inspect, cancel, close, metadata | Clear label and hierarchy |
 
-Color is never the only status signal. Pair it with text, an icon, a shape,
-position, or a state label.
+#### 4.1.1 Surface and text tokens
 
-Light mode uses a cool gray canvas, white working surfaces, and a slightly
-darker sidebar. Dark mode uses a deep navy canvas with raised navy surfaces.
-Boundaries use cool-gray one-pixel rules. Shadows are limited to raised
-controls and overlays; do not use glow, ambient gradients, or indiscriminate
-blur.
-
-Purple or other accent colors may be used only when represented by the
-primary-interactive token or an explicitly documented product accent. Never
-use an ambient purple-blue gradient as decoration.
-
-#### 4.1.1 Canonical product palette
-
-The current system's primary color is **cobalt-indigo**, not the purple used
-in the supplied reference screenshot. These are the implementation values in
-`apps/control/src/styles.css`:
+Light core values follow Guard's reviewed `:root` theme. Dark values are the
+family extension defined by this Spec. These are implementation targets.
 
 | Token | Light | Dark | Role |
 | --- | --- | --- | --- |
-| `--primary` | `#4F5FD7` | `#5668D8` | Primary action and selected interaction |
-| `--primary-hover` | `#4050C5` | `#5A6BD9` | Hover |
-| `--primary-active` | `#3442AD` | `#4959C4` | Pressed/active |
-| `--primary-surface` | `#EEF1FF` | `#222D55` | Soft selected surface |
-| `--primary-border` | `#CBD3FF` | `#4656AA` | Primary boundary |
-| `--ring` | `#4F5FD7` | `#7D8CF3` | Keyboard focus |
-| `--link` | `#4057C7` | `#9AA7FF` | Text link |
+| `--background` | `#F7F8FA` | `#101828` | Page canvas |
+| `--foreground` | `#182230` | `#F2F4F7` | Primary text |
+| `--card` | `#FFFFFF` | `#182230` | Working panel and form surface |
+| `--card-foreground` | `#182230` | `#F2F4F7` | Panel text |
+| `--popover` | `#FFFFFF` | `#1D2939` | Menu, tooltip, floating inspector |
+| `--popover-foreground` | `#182230` | `#F2F4F7` | Overlay text |
+| `--muted`, `--secondary` | `#F2F4F7` | `#1D2939` | Grouped or quiet control surface |
+| `--muted-foreground` | `#667085` | `#98A2B3` | Readable supporting text |
+| `--secondary-foreground` | `#344054` | `#EAECF0` | Secondary controls |
+| `--border` | `#E4E7EC` | `#344054` | Decorative separators, panel outlines |
+| `--input` | `#667085` | `#667085` | Required control boundary, ≥3:1 on card/canvas |
+| `--sidebar` | `#FFFFFF` | `#101828` | Permanent navigation |
+| `--sidebar-foreground` | `#344054` | `#D0D5DD` | Navigation labels |
+| `--sidebar-accent` | `#F2F4F7` | `#1D2939` | Navigation hover surface |
+| `--sidebar-accent-foreground` | `#182230` | `#F2F4F7` | Hovered navigation text |
+| `--sidebar-border` | `#E4E7EC` | `#344054` | Navigation boundary |
 
-Supporting semantic roles are green for success, amber for warning, blue for
-information, and red for danger. Chart-specific series may use additional
-colors only when they have a legend or stable data meaning.
+Guard's current light input border is `#D0D5DD`; retain that only as a
+supplemental/decorative boundary where another visible cue identifies the
+control. The target `--input` above deliberately strengthens standalone field
+boundaries for non-text contrast. Quiet panel dividers need not look as strong
+as interactive control boundaries. `--surface-panel` aliases `--card` and
+`--surface-subtle` aliases `--muted`; do not maintain another neutral palette.
 
-The screenshot reference purple (`#7B68EE` / `#A855F7`) is a visual reference
-only. It must not replace the product primary or be mixed with cobalt on the
-same surface without an explicit theme decision.
+#### 4.1.2 Interaction and semantic tokens
+
+| Token | Light | Dark | Role |
+| --- | --- | --- | --- |
+| `--primary` | `#2563EB` | `#2563EB` | Filled primary action |
+| `--primary-foreground` | `#FFFFFF` | `#FFFFFF` | Label on primary action |
+| `--primary-hover` | `#1D4ED8` | `#1D4ED8` | Primary hover |
+| `--primary-active` | `#1E40AF` | `#1E40AF` | Primary pressed |
+| `--primary-surface`, `--accent` | `#EFF4FF` | `#193153` | Soft selection surface |
+| `--primary-border` | `#B2CCFF` | `#3B6BA5` | Selection outline |
+| `--accent-foreground` | `#1849A9` | `#BFDBFE` | Text on selection surface |
+| `--link` | `#1D4ED8` | `#93C5FD` | Standalone text link / text accent |
+| `--ring` | `#1570EF` | `#60A5FA` | Visible keyboard focus |
+| `--success` | `#067647` | `#75E0A7` | Success text/icon |
+| `--success-surface` | `#ECFDF3` | `#12382A` | Success background |
+| `--success-border` | `#ABEFC6` | `#28654F` | Success outline |
+| `--warning` | `#93370D` | `#FEC84B` | Warning text/icon |
+| `--warning-surface` | `#FFFAEB` | `#3A2D1B` | Warning background |
+| `--warning-border` | `#FEDF89` | `#6B532C` | Warning outline |
+| `--destructive` | `#B42318` | `#FDA29B` | Destructive/error text/icon |
+| `--destructive-surface` | `#FEF3F2` | `#3B2022` | Destructive background |
+| `--destructive-border` | `#FECDCA` | `#713438` | Destructive outline |
+| `--info` | `#175CD3` | `#84CAFF` | Information text/icon |
+| `--info-surface` | `#EFF8FF` | `#15324A` | Information background |
+| `--info-border` | `#B2DDFF` | `#275D7E` | Information outline |
+| `--edit-foreground` | `#78350F` | `#FDE68A` | Edit action text |
+| `--edit-surface` | `#FFFBEB` | `#451A03` | Edit action background |
+| `--edit-border` | `#FCD34D` | `#B45309` | Edit action boundary |
+| `--edit-hover` | `#FEF3C7` | `#78350F` | Edit hover background |
+
+The focus ring deliberately strengthens Guard's `#2E90FA` light reference for
+non-text contrast. Destructive text uses a darker red than Guard's `#D92D20`
+so small labels pass on the soft error surface. Primary blue with white text remains a filled-button pair in
+both themes; use `--link` or `--accent-foreground` for blue text on dark panels.
+Never use a pale dark-mode text accent as a filled button with white text.
+`--sidebar-primary` and `--sidebar-ring` alias primary and ring; active navigation
+uses `--primary-surface`, `--accent-foreground`, weight, and an active marker.
+If components use success/warning/info foreground aliases, map them to the
+corresponding semantic text token rather than inventing new colors.
+
+#### 4.1.3 Theme behavior and accessibility
+
+- Workspace preference supports Light, Dark, and System. System follows OS
+  changes; explicit choices persist. Resolve the initial theme before paint
+  and keep SSR/client state consistent to avoid a bright or dark flash.
+- Theme changes preserve filters, selections, unsaved input, route, and open
+  work. All portals (menus, dialogs, tooltips, toasts) use the same theme as
+  their owning surface; no light dropdown may accidentally inherit a dark root.
+- Normal text requires ≥4.5:1 contrast; large text ≥3:1; focus and essential
+  control/state indicators ≥3:1 against adjacent surfaces. Check actual
+  foreground/background pairs after alpha blending, including hover states.
+- Color never carries state alone. Disabled controls must still be legible
+  and explain why they are unavailable when the reason is not obvious.
+- Charts keep category meaning across themes and use readable axes, legends,
+  grid lines, tooltips, and non-color distinctions. Official vendor marks keep
+  approved colors; use the vendor's dark-safe asset or a neutral asset backing.
+- Full-height split workspaces, including the Vector Database directory tree,
+  fill the remaining viewport beneath the header. On desktop the directory
+  tree and content area scroll independently, with a collapsible directory
+  navigator when more content space is needed.
 
 ### 4.2 Typography
 
-Typography is an information hierarchy, not a decorative theme. Assign fonts
-by semantic role rather than by HTML heading level.
+Assign fonts by semantic role, not HTML heading level. The family target uses
+Guard's Hanken Grotesk interface voice with readable CJK sans fallbacks.
 
-| Role | Family | Use | Allowed weights |
+| Role | Family | Use | Weight |
 | --- | --- | --- | --- |
-| Interface | `Inter`, then `Noto Sans SC` / `Noto Sans TC` and platform sans fallbacks | Navigation, body copy, controls, section headings, cards, dialogs, sheets, tables, statuses, metrics | 400, 500, 600, 700 |
-| Display | Same interface family | Page or entity identity where a display treatment is intentionally selected | 400, 500, 600 |
-| Technical | `Chivo Mono`, then platform monospace fallbacks | IDs, permissions, endpoints, routes, model names, hashes, logs, YAML, code, machine values | 400, 500 |
+| Interface | `Hanken Grotesk`, language-matched `Noto Sans SC` / `Noto Sans TC`, platform sans | Navigation, forms, tables, cards, dialogs, operational titles, metrics | 400 / 500 / 600; 700 sparingly |
+| Brand display | Serif stack (`Noto Serif SC` / TC where bundled; Georgia / Songti / platform serif fallback) | Public login statement and login title only | 400–600; avoid synthetic heavy bold |
+| Technical | `Chivo Mono`, platform monospace | IDs, endpoints, permissions, hashes, code, YAML, logs | 400 / 500 |
 
-Semantic rules:
+`font-sans` is the operational default. Existing `font-display` on operational
+page titles must remain sans-serif; use a dedicated brand-display token or
+class for login so a brand font change cannot affect every resource heading.
+Relay uses `.login-heading` with bundled `Noto Serif SC Variable` /
+`Noto Serif TC Variable` and Georgia / Songti fallbacks, weight 600. Keep these
+brand fonts scoped to login; operational display headings stay sans-serif.
 
-- `font-sans` is the default for operational UI.
-- `font-display` is opt-in for page or entity identity; never infer it from
-  `h1`, `h2`, or `h3`.
-- `font-mono` is required for system-produced or system-consumed strings.
-  Native `code`, `kbd`, `samp`, and `pre` elements inherit it automatically.
-- Use tabular numerals for changing or vertically compared metrics, money,
-  durations, counts, versions, and timestamps.
-- Use 400 for body copy, 500 for values and compact emphasis, 600 for
-  operational headings and actions, and 700 only for strong identity accents.
-- Avoid uppercase body copy. Uppercase is reserved for short labels or
-  technical markers with deliberate tracking.
-- CJK text must retain readable glyph fallback and must not depend on a Latin
-  font's missing glyph substitution.
-
-Font loading must keep the supplied license files with redistributed font
-software. Load Latin subsets for `Inter` and `Chivo Mono`, and use the
-unicode-ranged variable CJK assets so visible Chinese glyphs do not require
-shipping an unnecessarily large family to every page.
+Use tabular numerals for changing or aligned metrics, money, durations, and
+counts. Uppercase is limited to short labels; product copy and form labels use
+normal case. Preserve font licenses for redistributed assets. Load Latin
+subsets and unicode-ranged CJK assets; verify English, Simplified Chinese, and
+Traditional Chinese for missing glyphs, wrapping, and weight consistency.
 
 ### 4.3 Type scale and density
 
-The following scale is the default starting point. A component may use a
-smaller size for metadata only when contrast, line height, and scanability
-remain intact.
-
-| Token | Size / line height | Default use |
+| Role | Size / line height | Use |
 | --- | --- | --- |
-| `text-xs` | 12 / 18 px | Metadata, helper text, compact labels |
-| `text-sm` | 14 / 20 px | Body copy, controls, table cells, form values |
-| `text-base` | 16 / 24 px | Long-form body copy and prominent values |
-| `text-lg` | 18 / 27 px | Section headings |
-| `text-xl` | 20 / 28 px | Entity or page subheading |
-| `text-2xl` | 24 / 32 px | Page title |
-| Technical compact | 12–13 / 18–20 px | IDs, hashes, logs, machine values |
+| Metadata | 12 / 18 px | Supporting text, timestamps, captions |
+| Compact UI | 14 / 20 px | Controls, table cells, labels |
+| Standard body | 15 / 22–24 px | Explanations and ordinary body text |
+| Reading body | 16 / 24 px | Longer guidance |
+| Section title | 18 / 26 px, 600 | Operational grouping |
+| Page title | 24 / 32 px, 600 | Resource and route identity |
+| Login title | 30 / 36 px, serif | Sign-in identity |
+| Login statement | 36–48 / 45–60 px, serif | Desktop brand panel |
+| Technical compact | 12–13 / 18–20 px | Machine strings |
 
-Desktop console pages should prefer compact rows and structured label/value
-groups. Mobile pages must preserve readable text and 44 px touch targets even
-when that increases vertical height.
+Default controls are 40 px high in dense desktop contexts and 44 px for form
+submission and login. Compact icon controls must remain easy to target with a
+mouse and have accessible names and visible keyboard focus. Use density
+variants instead of page-local height overrides.
 
 ### 4.4 Spacing, shape, and surfaces
 
-Use a 4 px base rhythm, with 8, 12, 16, 20, 24, and 32 px as the common
-steps. Prefer fewer, deliberate spacing values over arbitrary local numbers.
+Use a 4 px rhythm: 8, 12, 16, 20, 24, 32, 40, 48, and 56 px.
 
-- The default ToB control radius is 2 px: a near-square rectangle, not a
-  visibly soft rounded control. Structural surfaces, tables, and viewport-aligned
-  drawers use 0 px. Cards and floating menus/dialogs use 4 px maximum.
-- This angular profile supersedes the earlier 6 / 8 / 12 px profile and the
-  softer geometry in the reference screenshots (decision: 2026-09-17).
-- Login inputs, sign-in buttons, SSO buttons, alerts, and language controls use
-  the 2 px near-square token by default.
-- Do not add a large rounded container around the login form unless it has a
-  documented layout or trust purpose.
-- Rectangular status badges use 2 px. Circles remain appropriate for avatars,
-  radio controls, status dots, and switch mechanics; they do not justify pill
-  buttons, tabs, inputs, or cards.
-- Use one-pixel borders to clarify ownership and grouping.
-- Panel padding is normally 20–24 px on desktop and 16 px on mobile.
-- A label/value row normally uses 12–16 px vertical padding and a one-pixel
-  divider when multiple rows form a scannable group.
-- Use elevation to indicate layering, not to decorate every card.
+| Token / role | Both themes | Use |
+| --- | --- | --- |
+| `--radius-badge` | 4 px | Status labels and compact chips |
+| `--radius-control` | 6 px | Buttons, inputs, selects, tabs, alerts |
+| `--radius-card` | 8 px | Grouped content panels |
+| `--radius-large` | 10 px | Floating menus, dialogs, login icon / guidance group |
+| Structural edge | 0 px | Shell, split divider, viewport-aligned drawer |
+| Circle | 50% | Avatars, radio controls, status dots only |
 
-### 4.5 Token layers and motion
+These Guard-derived values replace the former 2 / 4 px angular target. Avoid
+pill buttons and a second outer card around the login form. Use semantic radius
+tokens, not arbitrary per-page rounding. One-pixel borders establish ownership;
+20–24 px desktop panel padding and 12–16 px row padding establish
+rhythm. Use fewer containers when separators and whitespace are sufficient.
 
-The system is maintained in layers:
+Light surface elevation follows Guard: `0 1px 2px rgb(16 24 40 / 0.04),
+0 1px 3px rgb(16 24 40 / 0.08)`; overlay elevation is
+`0 12px 32px rgb(16 24 40 / 0.16)`. Dark surfaces rely primarily on tonal
+separation and borders, with `0 1px 3px rgb(0 0 0 / 0.16)` for raised controls
+and `0 12px 32px rgb(0 0 0 / 0.32)` for overlays. No ambient glow or blanket
+shadow on every panel.
 
-1. Visual intent: operational temperament, density, neutral temperature, and
-   language priority.
-2. Semantic roles: primary action, link, surface, border, chart, success,
-   warning, danger, and information.
-3. Value tokens: color, type, spacing, shape, elevation, motion, z-index, and
-   light/dark theme mapping.
-4. Component derivation: hover, active, selected, disabled, loading, error,
-   and responsive variants derived from those roles.
-5. Enforcement: shared component tokens, tests, browser checks, and an
-   explicit record of known gaps.
+### 4.5 Layers and motion
 
-Use semantic stacking layers rather than arbitrary page-local z-index values:
+Maintain semantic layers: Base → Sticky header → Dropdown → Overlay backdrop →
+Modal/drawer → Toast. Avoid ad hoc z-index escalation. Global toast providers
+must wrap route content and dialogs, not just the sidebar; an action must never
+crash while showing its completion or error feedback.
 
-| Layer | Responsibility |
-| --- | --- |
-| Base | Normal document content |
-| Sticky | Persistent headers, table headers, and action bars |
-| Dropdown | Menus, comboboxes, and contextual popovers |
-| Overlay | Drawer backdrop and navigation overlay |
-| Modal | Dialogs, sheets, and operation drawers |
-| Toast | Non-blocking global feedback above modal surfaces |
-
-Motion is feedback or spatial orientation, never decoration. Keep routine
-transitions at or below 300 ms, animate `transform` and `opacity` by default,
-avoid layout-triggering animation, and ensure the same state change remains
-understandable with `prefers-reduced-motion` enabled.
+Routine transitions last 100–200 ms and never exceed 300 ms without a documented
+spatial purpose. Animate opacity and transform; avoid decorative bounce,
+parallax, or layout shifts. Reduced-motion users receive the same visible state
+without decorative motion. Pending actions prevent duplicate submission and
+provide text feedback, not only a spinner.
 
 ### 4.6 Login and trust-boundary profile
 
-The login page is a trust boundary and should feel deliberate, stable, and
-platform-like rather than like a promotional card. Its default geometry uses
-near-square controls within a clearly aligned composition:
+The public login uses a stable **light** product-family surface, even when the
+user's workspace preference is Dark or System. The language menu and validation
+feedback belong to that light scope. Signing in restores the user's workspace
+theme; visiting login must not overwrite it. This is an explicit brand-surface
+exception, not incomplete dark-mode coverage of the operational console.
 
-- The desktop split layout and its divider have no outer card radius.
-- The form does not sit inside an additional floating rounded card by default.
-- Inputs, password visibility controls, sign-in, SSO, alerts, and language
-  controls use 2 px radius; dividers and structural edges use 0 px.
-- The primary sign-in button is a filled rectangle with restrained radius,
-  never a capsule or pill.
-- The login surface uses one-pixel boundaries, clear alignment, compact
-  spacing, and strong type hierarchy to provide hardness; radius alone is not
-  the source of authority.
-- Error, development-default, loading, disabled, and successful redirect
-  states must preserve the same geometry and must not cause layout jumps.
+- Desktop (≥1024 px): blue grid brand panel at about 42.5% width, light-neutral
+  form area at 57.5%; no outer card. Brand grid uses 48 px cells and white
+  one-pixel lines at about 20% opacity. Use 40–56 px horizontal brand padding.
+- Brand lockup: product mark in a restrained outline tile, `TaskLattice` plus
+  `Guard` or `Relay`. Keep the Relay lattice and Guard shield distinct. The
+  protected console may retain its compact `TALI` lockup.
+- Brand content: one short category label, a serif product statement, one
+  supporting sentence, and a quiet boundary/scope footnote. No feature-card wall.
+- Form: top-right language selector; centered form of at most 448 px; lock icon,
+  control-plane label, serif product title, description, associated labels,
+  credentials, optional session preference, inline error, primary sign-in,
+  configured SSO, then account/access guidance. Inputs and buttons are ≥44 px.
+- Copy: `Sign in to TaskLattice {Product}` / `登录 TaskLattice {Product}`.
+  Relay describes agents, knowledge, and project access; Guard describes its
+  actual safety/routing/evidence scope. The Relay statement is “Agents your
+  teams can build. Workspaces you can control.” / “让团队构建智能体，让项目运行有边界。”
+- Relay currently accepts a username, not Guard's username-or-email contract.
+  Show SSO only when configured. Runtime provider failures show an actionable
+  error and keep local sign-in available; disabled placeholder SSO is omitted.
+- Show default credentials only when the backend explicitly reports active
+  development defaults. Relay's existing hint is `admin / password`, not
+  Guard's `admin / admin`; never copy credentials or imply shared identity.
+- Preserve labels and input on failure, allow password visibility with an
+  accessible toggle, prevent duplicate submits, and redirect only after a
+  valid session. Guidance must be real, not an inactive support link.
 
 ## 5. Information architecture
 
@@ -495,10 +393,6 @@ Desktop navigation is persistent and can collapse from 280 px to 72 px. The
 collapsed state retains accessible names and tooltips and persists locally.
 The active item uses surface, weight, and an accent rule; color alone is not
 the active-state signal.
-
-Mobile navigation is a dismissible overlay drawer. It opens from the menu
-button and closes through its close button, backdrop click, navigation,
-or `Escape`. Dismissal returns the page to an unobstructed state.
 
 The account control stays at the bottom of navigation. The top bar contains
 route context and environment context. Future or unavailable sections are
@@ -531,6 +425,17 @@ for the primary action or the most important state.
 When content grows, use pagination, filtering, or virtualization instead of
 making the initial viewport an unbounded list.
 
+### 5.4 Provider and model management
+
+Provider names open a right-side details drawer with connection evidence and
+searchable registered models. Explicit validation keeps returned PASS / FAIL
+checks and Provider status visible; a fulfilled request is not proof of success.
+The drawer and resource menu both offer registration from saved credentials.
+Model registration has separate searchable catalog and selected-model lists,
+includes manual IDs, and prevents duplicate registration within the account.
+Source changes clear stale discovery; background refresh preserves active work.
+See the [Provider / Model interaction contract and review](provider-model-interaction-review.md).
+
 ## 6. Interaction model
 
 ### 6.1 Progressive disclosure
@@ -560,6 +465,27 @@ Every interactive component must define the applicable states below:
 
 No control may look actionable while being disconnected from an outcome.
 
+### 6.2.1 Shared action semantics
+
+| Action | Target variant | Visual treatment |
+| --- | --- | --- |
+| Create, Add, Duplicate confirmation | `create` | Same filled brand blue as `default` |
+| Edit, Apply changes | `edit` | Amber surface, dark/light amber text by theme |
+| Delete, Revoke execution | `destructive` | Red semantic text/surface |
+| Review, Publish, Run test primary step | `default` | Brand blue |
+| Cancel, Close, Back, Copy, Inspect | `outline`, `ghost`, `link` | Neutral or text link |
+| Row action entry | `ghost` icon + menu | Neutral ellipsis; items carry action semantics |
+
+Keep one strongest action per bounded task. Editing a draft is not a warning;
+creating a resource is not already a green success. Color does not determine
+permission, risk, or confirmation requirements. Menus and buttons select a
+shared semantic variant; `className` handles layout, not per-page action colors.
+The shared primitives own hover, focus, active, and disabled treatment. Hover
+must retain the same action meaning; focus must remain visible in both modes.
+Detail headers can expose frequent actions directly; rows keep compact menus.
+Action entry opens the applicable operation surface rather than silently
+performing a persisted mutation.
+
 ### 6.3 Forms
 
 - Use labels associated with controls and describe constraints before submit.
@@ -570,7 +496,7 @@ No control may look actionable while being disconnected from an outcome.
 - Use `Save Draft` only when draft semantics are real; a preview must say that
   content exists only in the current session.
 - Long forms use a persistent action area with `Cancel`, a secondary action,
-  and one primary action. On mobile it must not cover the last field.
+  and one primary action. It must not cover the last field.
 
 ### 6.4 Dialogs, sheets, and drawers
 
@@ -578,7 +504,7 @@ Use the smallest surface that supports the task:
 
 - Dialog: confirmation, short decision, or focused summary.
 - Sheet: bounded create/edit task with several fields or a preview.
-- Drawer: contextual detail or mobile navigation.
+- Drawer: contextual detail or a resource operation.
 - Full page: multi-step work, high-volume data, or content that users need to
   bookmark, compare, or revisit.
 
@@ -594,8 +520,9 @@ order.
 
 ### 6.5 Side-effect boundary and resource actions
 
-All side-effecting changes must begin in a right-side operation drawer on
-desktop. This applies to create, update, delete, revoke, enable, disable,
+Persisted resource changes must begin in a right-side operation drawer on
+desktop. Authentication and personal view/theme preferences follow their own
+flows; see §2.3 and §4.6. The resource rule applies to create, update, delete, revoke, enable, disable,
 retry, restart, reload, approval, and any other action that changes persisted
 state, runtime state, permissions, or external resources.
 
@@ -616,10 +543,9 @@ mutation:
 - High-impact operations still require an explicit confirmation step inside
   the operation flow. The drawer rule does not replace confirmation.
 
-On narrow viewports, the right-side drawer becomes a full-height, full-width
-operation sheet while preserving the same information order, focus behavior,
-action footer, and state semantics. It must not become an unscoped inline
-mutation.
+When resizing a desktop window, preserve the drawer information order, focus
+behavior, readable form width, action footer, and state semantics. Long content
+scrolls inside the drawer without hiding its actions.
 
 #### More-actions menu
 
@@ -670,19 +596,18 @@ retrying an operation that can interrupt runtime, or suspending an offering.
 Confirmation names the resource and impact. Typing the resource name is
 reserved for irreversible deletion.
 
-## 7. Responsive and accessibility contract
+## 7. Desktop layout and accessibility contract
 
 - Use semantic HTML, logical DOM order, and meaningful landmarks.
 - Support full keyboard operation and visible `focus-visible` states.
-- Keep touch targets at least 44 × 44 CSS px where touch interaction applies.
 - Associate labels, descriptions, errors, and status announcements with their
   controls.
 - Dialog focus is trapped and restored correctly.
 - Status is never conveyed by color alone.
-- Tables have accessible names and a usable narrow-screen fallback.
-- Mobile uses a single-column order: header, tabs or filters, primary content,
-  then summary/details.
-- No page may introduce horizontal overflow at a 390 px viewport.
+- Tables have accessible names; wide data uses an explicit content scroll region.
+- Inspect ordinary laptop and desktop windows; do not require phone or tablet
+  viewport checks.
+- Prevent accidental page overflow and clipped controls in desktop layouts.
 - Honor `prefers-reduced-motion`; animate opacity and transform by default.
 - Keep routine transitions under 300 ms.
 - Target WCAG 2.2 AA.
@@ -715,11 +640,11 @@ literal colors, radii, or one-off state behavior through route files.
 
 At minimum, the shared system should provide variants for:
 
-- primary, secondary, ghost, destructive, and disabled buttons;
+- default/create, edit, outline, secondary, ghost, destructive, and disabled buttons;
 - info, success, warning, danger, and neutral status badges/alerts;
 - dense label/value rows and semantic data tables;
 - page headers with status and action slots;
-- dialogs, sheets, drawers, and mobile navigation;
+- dialogs, sheets, drawers, and desktop navigation;
 - resource-scoped `More actions` menus that dispatch to a right-side operation
   drawer;
 - operation-drawer variants driven by resource type, state, role, and
@@ -727,46 +652,30 @@ At minimum, the shared system should provide variants for:
 - loading, empty, error, and retry surfaces; and
 - visible keyboard focus and reduced-motion behavior.
 
-The current code-level baseline is:
+### 9.1 Current alignment and migration gaps — 2026-09-19
 
-- `Inter` / CJK sans fallback / `Chivo Mono` font roles;
-- semantic CSS variables for surfaces, borders, primary, info, success,
-  warning, danger, sidebar, and radius;
-- shared Button, Badge, Select, Tabs, Sidebar, Dialog, and Sheet primitives;
-  and
-- a typography test that prevents heading-level font-family drift.
+The shared Relay theme and primitives have now migrated to the family target.
+The table distinguishes implemented foundations from product-wide integration
+coverage; a shared-token migration does not certify every business workflow.
 
-Implemented alignment (reapplied with angular profile, 2026-09-17):
+| Area | Observed implementation | Target / remaining work |
+| --- | --- | --- |
+| Relay public login | Fixed light scope, blue grid, Hanken interface, bundled SC/TC serif, strengthened input/focus/error pairs | Keep login independent of workspace theme and preserve language coverage |
+| Relay workspace | Hanken + actual variable CJK family names, shared blue and paired neutrals/semantic tokens, 6 / 8 / 10 px geometry | Review specialist charts/editors when their workflows change; do not reintroduce page-local brand palettes |
+| Guard light theme | Reference tokens, Hanken / Noto serif roles and shared geometry | Guard remains a separate repository; strengthened control/focus contrast is a documented target difference |
+| Guard dark theme | Some `dark:` component variants, no complete `.dark` token set in reviewed CSS | Implement there before claiming cross-product dark parity |
+| Action variants | Relay Button supports create/edit; DropdownMenuItem supports edit/destructive; key Knowledge, Memory, Policy, Project, Account and Platform settings actions migrated | Other existing default actions retain blue; classify remaining specialist actions by business meaning as they are reviewed |
+| Tests | Typography contract updated; paired semantic contrast and fixed-light login scope are regression-tested | Browser evidence remains necessary for alpha blending, focus, overflow, and actual state transitions |
+| Shared geometry / layers | Floating surfaces use shared elevation; policy/project pending chrome reflects submission | Some older route-local styling and inline settings mutations remain; their behavior is not certified by this theme pass |
 
-- Shared controls use 2 px radii, panels/cards 4 px, and large floating surfaces
-  4 px. Login controls are near-square. Viewport-aligned
-  drawers keep square outer edges.
-- Shared page titles use 24 px semibold type; operational detail/state headings
-  use the same weight. The workspace top bar is 56 px high and standard page
-  padding is 24 px desktop / 16 px mobile.
-- Vector file new-folder, rename, move, and delete use right-side EntitySheet
-  surfaces. Permanent deletion uses the existing name-confirmation component.
-  Metadata editing keeps its action footer outside the scrolling body.
-- Memory rename/delete already use EntitySheet. Binding, detaching, provider
-  recovery, and retain-event replay now require an explicit drawer action.
-- Provider revalidation opens a drawer with pending, error, and retry feedback.
-- Shared resource menus identify their target in the accessible name; shared
-  sheets restore focus to the opening control, including a menu's trigger.
-- Narrow right-side sheets fill the viewport. Coarse-pointer controls retain
-  44 px targets; reduced-motion preferences suppress decorative transitions.
 
-Known migration and verification gaps:
-
-- This pass restores the shared system and the named file, Memory, and Provider
-  operation paths above. It does not certify every historical page-local
-  mutation as migrated; remaining actions must be audited against §6.
-
-- Stacking is currently expressed partly through local utility values. New
-  work must follow the semantic layer model in §4.5; centralizing z-index
-  tokens is a follow-up implementation task.
-- Provider-dependent operations still require integration verification with
-  configured models, storage, and runtime services. Component-fixture success
-  is not evidence that an external operation completed.
+Keep existing working resource actions, permissions, async state, and drawer
+behavior intact during theme migration. Provider-dependent operations require
+real integration evidence; a component fixture cannot prove external success.
+Migrate shared tokens and primitives first, then shell/tables/forms/drawers,
+then product-specific surfaces. Compare both products at the same viewport,
+locale, theme, density, and state; a light login screenshot alone cannot certify
+dark workspace parity.
 
 For repeatable local interaction review, run
 `npm run dev:ui-review --workspace @tali/control` and open `/ui-review.html` on
@@ -774,11 +683,24 @@ the review server. This development-only entry renders the actual shared and
 file-operation components, with explicitly simulated responses and no API
 calls. Exercise menu dispatch, Escape/focus return, pending duplicate-submit
 prevention, error/input preservation, retry, name-confirmed deletion, and
-desktop/mobile light/dark presentation.
+desktop light/dark presentation.
 
 This list is deliberate gap reporting, not permission to add more exceptions.
 
-### 9.1 Angular-profile verification — 2026-09-17
+### 9.2 Family implementation review — 2026-09-19
+
+Scope: shared theme/primitives and the named operation paths, not a complete
+provider/backend acceptance run. See [review evidence](ui-family-review-2026-09-19.md).
+Type checking, production Control image build, and 50 frontend test files /
+259 tests passed. Real UI and isolated shared-component checks are recorded
+separately; simulated operation success is never evidence of persisted changes.
+
+### 9.3 Historical angular-profile verification — 2026-09-17
+
+Historical evidence only: these token choices are superseded by the family target.
+The mobile checks below are archived observations, not current requirements;
+version 1.3 establishes desktop-only scope.
+The scores below do not certify the new family target or current release.
 
 Review scope: the shared visual system, login, and the migrated operation
 components above. Review mode: `prototype`, not whole-product release approval.
@@ -834,7 +756,7 @@ acceptance check.
 | Decorative motion | Every transition communicates feedback or spatial movement | The action remains understandable with reduced motion enabled |
 | Repeated uppercase eyebrows | Use one route-context breadcrumb and meaningful page titles | No repeated context label competes with the page title |
 | Emoji as product iconography | Use the established icon system or an official vendor asset | Icons have a stable meaning and accessible name |
-| Excessive pills | Use pills for compact status only, not for every label, card, or action | Status badges remain distinguishable from controls |
+| Excessive pills | Use the 4 px status-badge token; reserve circles for avatars, radios, and dots | Status badges remain distinguishable from controls |
 
 Do not solve a hierarchy problem with decoration. First adjust information
 order, type, spacing, density, or surface ownership; add a visual accent only
@@ -842,16 +764,16 @@ when it has a documented product or state role.
 
 ## 11. Verification and definition of done
 
-A UI change is complete only when:
+A runtime UI change is complete only when:
 
 1. The relevant domain behavior and permissions are documented.
 2. Default, hover, focus-visible, active, loading, success, empty, error,
    disabled, and recovery states are implemented or explicitly marked as a
    known gap.
 3. Unit tests, type checking, and the production build pass.
-4. Desktop and mobile rendering are inspected, including a 390 px viewport.
+4. Desktop rendering is inspected at representative laptop and desktop window sizes.
 5. There is no horizontal overflow, clipped content, unreadable text, broken
-   asset, unnamed control, or small touch target.
+   asset, or unnamed/unreachable control in the supported desktop layout.
 6. The primary path and at least one failure/recovery path produce visible
    feedback.
 7. Browser console errors and missing first-party assets are absent.
@@ -861,6 +783,28 @@ A UI change is complete only when:
 Block release regardless of visual score when the primary task is broken,
 state is misleading, a permission boundary is bypassed, controls are
 disconnected, or the page cannot be operated accessibly.
+
+### 11.1 Product-family theme acceptance matrix
+
+For an implementation release, record screenshots and interaction evidence for
+these pairs. Mark unimplemented or untested cells explicitly; do not score them
+as passes. Documentation-only changes require consistency and link checks, not
+fabricated browser evidence or a runtime release score.
+
+| Surface / state | Light | Dark | Desktop layout / interaction evidence |
+| --- | --- | --- | --- |
+| Public login | Fixed family light scope | Same fixed light scope with dark workspace preference retained | Desktop; EN / zh-CN / zh-TW; password reveal, error/retry, success |
+| Shell and resource list | White navigation and work surfaces | Navy canvas with raised surfaces | Expanded/collapsed navigation, active state, long names |
+| Create / edit form | Blue create, amber edit | Same semantics with dark text/surface pairs | Focus order, validation, pending, input preservation, safe retry |
+| Operation drawer / delete | Light panel and red destructive action | Dark raised panel and readable red action | Escape/focus restoration, fixed footer, overflow, name/impact confirmation |
+| Menu / tooltip / toast | Owner's light tokens | Owner's dark tokens | Portal inheritance, readable labels, no provider/context crash |
+| Knowledge file browser | Full-height directory and content panels | Same geometry with dark roles | Independent scrolling, folder selection, collapsible directory |
+| Status / chart / empty state | Semantic labels, readable data colors | Same meaning with adjusted contrast | Non-color cue, correct units, zero/error/loading recovery |
+
+Check representative text, focus, input, selected, and semantic color pairs
+against §4.1.3. Verify System-theme changes and first paint separately from a
+manual theme toggle. Do not require Guard dark screenshots until its target
+palette is implemented; record that as a cross-product implementation gap.
 
 ## 12. Review gate and evidence model
 
@@ -874,7 +818,7 @@ blocker even if the average score passes.
 | Dimension | Verify |
 | --- | --- |
 | Product Intent | Value, target user, primary task, tone, first-screen priority, and CTA match the real goal |
-| Information Architecture | Hierarchy, grouping, order, density, rhythm, navigation, and responsive mental model make the task findable |
+| Information Architecture | Hierarchy, grouping, order, density, rhythm, navigation, and desktop window layout make the task findable |
 | System Craft | Type, spacing, surfaces, radius, elevation, components, states, and desktop rendering behave as one system |
 | Trust & Domain Fit | Terminology, data claims, permissions, risk, compliance, AI confidence, and evidence are credible |
 | Interaction Readiness | The primary path is understandable, responsive, recoverable, and visibly connected to state changes |
@@ -906,7 +850,7 @@ screen. Operational pages prioritize task clarity, state truth, and recovery.
 | --- | --- | ---: | --- |
 | `vibe_draft` | Direction exploration | 7.5 | Prioritize intent, IA, brand expression, and craft; missing integrations may remain notes if they do not invalidate the concept |
 | `prototype` | Path demonstration | 8.0 | Simulated data is allowed, but the primary path and visible state changes are required |
-| `release_gate` | Delivery acceptance | 8.0 | Require production paths, navigation, data, accessibility, responsive behavior, and key states |
+| `release_gate` | Delivery acceptance | 8.0 | Require production paths, navigation, data, accessibility, desktop layout, and key states |
 
 The current Control Plane work uses `prototype` while behavior is being
 demonstrated and `release_gate` before deployment. The mode changes blocker
@@ -922,8 +866,8 @@ Use all applicable evidence layers:
    priority, CTA, and interactive targets.
 3. **Click smoke** — console/page errors, visible state changes, drawer/menu
    behavior, connected controls, and recovery paths.
-4. **Screenshots** — desktop viewport, full page, and mobile viewport when
-   responsive behavior is in scope.
+4. **Screenshots** — representative desktop windows and full-page captures
+   where content length matters. Mobile screenshots are not required.
 
 Screenshot evidence wins when it conflicts with DOM intent: the rendered result
 is what users experience. Visual review must explicitly inspect readability,
@@ -963,7 +907,7 @@ revision regresses the best result.
 
 This specification owns shared UI and interaction rules. Update it first when
 changing fonts, tokens, component states, modal behavior, navigation behavior,
-responsive rules, or accessibility requirements.
+desktop layout rules, or accessibility requirements.
 
 `docs/interaction-design.md` remains the Marketplace information architecture
 and domain direction. `docs/design/approval-interaction-spec.md` remains the

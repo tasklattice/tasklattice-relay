@@ -43,7 +43,7 @@ export function DeleteInstanceSheet({
       </div>
       {retainsMemory ? (
         <div className="flex gap-3 border-l-2 border-primary bg-primary/5 px-4 py-3">
-          <BrainCircuit className="mt-0.5 size-4 shrink-0 text-primary" />
+          <BrainCircuit className="mt-0.5 size-4 shrink-0 text-link" />
           <p className="text-xs leading-5 text-muted-foreground">
             The Agent instance will be deleted. Its Memory will be kept and can be attached to another Agent.
           </p>

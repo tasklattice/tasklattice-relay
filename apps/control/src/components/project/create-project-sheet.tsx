@@ -140,6 +140,7 @@ export function CreateProjectSheet({
 
   return (
     <EntitySheet
+      pending={create.isPending}
       open={open}
       onOpenChange={(next) => {
         if (next) {
@@ -158,6 +159,7 @@ export function CreateProjectSheet({
             Cancel
           </Button>
           <Button
+            variant="create"
             disabled={!departmentId || !validatedName.success || create.isPending}
             onClick={() => create.mutate()}
           >

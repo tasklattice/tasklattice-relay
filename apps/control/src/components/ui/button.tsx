@@ -4,13 +4,16 @@ import { Slot } from "radix-ui"
 
 import { cn } from "@/lib/utils"
 
+const primaryAction = "border-primary-active/20 bg-primary text-primary-foreground shadow-surface hover:border-primary-active/25 hover:bg-primary-hover active:bg-primary-active active:shadow-none";
+
 const buttonVariants = cva(
-  "group/button inline-flex shrink-0 items-center justify-center rounded-md border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap shadow-none transition-[background-color,border-color,color,box-shadow] duration-150 outline-none select-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 active:duration-75 disabled:pointer-events-none disabled:opacity-45 aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3.5",
+  "group/button inline-flex shrink-0 items-center justify-center rounded-md border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap shadow-none transition-[background-color,border-color,color,box-shadow] duration-150 outline-none select-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring active:duration-75 disabled:pointer-events-none disabled:border-border disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100 aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3.5",
   {
     variants: {
       variant: {
-        default:
-          "border-primary-active/20 bg-primary text-primary-foreground shadow-xs hover:border-primary-active/25 hover:bg-primary-hover hover:shadow-sm active:bg-primary-active active:shadow-none disabled:border-border disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100",
+        default: primaryAction,
+        create: primaryAction,
+        edit: "border-edit-border bg-edit-surface text-edit-foreground hover:bg-edit-hover active:bg-edit-hover",
         outline:
           "border-input bg-card text-foreground hover:border-primary-border hover:bg-primary-surface hover:text-accent-foreground active:border-primary-border active:bg-accent aria-expanded:border-primary-border aria-expanded:bg-accent aria-expanded:text-accent-foreground dark:bg-card dark:hover:bg-accent/60",
         secondary:
@@ -18,7 +21,7 @@ const buttonVariants = cva(
         ghost:
           "text-muted-foreground hover:bg-primary-surface hover:text-accent-foreground aria-expanded:bg-primary-surface aria-expanded:text-accent-foreground dark:hover:bg-primary-surface",
         destructive:
-          "bg-destructive/10 text-destructive hover:bg-destructive/20 focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:hover:bg-destructive/30 dark:focus-visible:ring-destructive/40",
+          "border-destructive-border bg-destructive-surface text-destructive hover:border-destructive active:border-destructive",
         link: "text-link underline-offset-4 hover:text-accent-foreground hover:underline",
       },
       size: {

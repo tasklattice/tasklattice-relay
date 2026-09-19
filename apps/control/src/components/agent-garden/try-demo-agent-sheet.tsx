@@ -164,7 +164,7 @@ export function TryDemoAgentSheet({
               <div className="flex flex-wrap gap-2">
                 <Badge
                   variant="secondary"
-                  className="bg-primary/8 text-primary"
+                  className="bg-primary/8 text-link"
                 >
                   {agent.platformLabel}
                 </Badge>
@@ -230,7 +230,7 @@ export function TryDemoAgentSheet({
               className="grid min-h-44 place-items-center border border-dashed"
             >
               <span className="text-center text-sm text-muted-foreground">
-                <LoaderCircle className="mx-auto mb-3 size-5 animate-spin text-primary motion-reduce:animate-none" />
+                <LoaderCircle className="mx-auto mb-3 size-5 animate-spin text-link motion-reduce:animate-none" />
                 Sending task to {agent.name}…
               </span>
             </div>
@@ -264,7 +264,7 @@ export function TryDemoAgentSheet({
                       key={`${step}-${index}`}
                       className="relative border bg-muted/15 px-3 py-3 text-xs"
                     >
-                      <span className="mb-2 grid size-5 place-items-center rounded-full bg-primary/10 text-[10px] font-semibold text-primary">
+                      <span className="mb-2 grid size-5 place-items-center rounded-full bg-primary/10 text-[10px] font-semibold text-link">
                         {index + 1}
                       </span>
                       {step}
@@ -274,7 +274,7 @@ export function TryDemoAgentSheet({
               ) : null}
               <div className="border bg-card">
                 <div className="flex min-h-11 items-center gap-2 border-b px-4 text-xs font-semibold">
-                  <Play className="size-3.5 text-primary" />
+                  <Play className="size-3.5 text-link" />
                   Agent response
                 </div>
                 <pre className="whitespace-pre-wrap break-words px-4 py-4 font-sans text-sm leading-6 text-foreground">

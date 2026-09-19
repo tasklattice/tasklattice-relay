@@ -4,10 +4,10 @@ import { describe, expect, it } from "vitest";
 const styles = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
 
 describe("Control Plane typography contract", () => {
-  it("keeps the angular ToB shape tokens and mobile drawer contract", () => {
-    expect(styles).toContain("--radius-control: 0.125rem;");
-    expect(styles).toContain("--radius-card: 0.25rem;");
-    expect(styles).toContain("--radius-large: 0.25rem;");
+  it("keeps the Tali family shape tokens and mobile drawer contract", () => {
+    expect(styles).toContain("--radius-control: 0.375rem;");
+    expect(styles).toContain("--radius-card: 0.5rem;");
+    expect(styles).toContain("--radius-large: 0.625rem;");
     expect(styles).toContain("--sidebar-item-radius: var(--radius-control);");
     expect(styles).toContain('[data-slot="sheet-content"][data-side="right"]');
     expect(styles).toContain("@media (prefers-reduced-motion: reduce)");
@@ -17,8 +17,8 @@ describe("Control Plane typography contract", () => {
     expect(styles).toContain("--font-display:");
     expect(styles).toContain("--font-sans:");
     expect(styles).toContain("--font-mono:");
-    expect(styles).toContain('--font-display: "Inter"');
-    expect(styles).toContain('--font-sans: "Inter"');
+    expect(styles).toContain('--font-display: "Hanken Grotesk"');
+    expect(styles).toContain('--font-sans: "Hanken Grotesk"');
     expect(styles).not.toContain("--font-heading:");
   });
 
@@ -32,8 +32,8 @@ describe("Control Plane typography contract", () => {
 
   it("uses the Traditional Chinese sans family for zh-TW documents", () => {
     expect(styles).toContain(':root:lang(zh-TW)');
-    expect(styles).toContain('"Noto Sans TC"');
-    expect(styles).not.toContain('"Noto Serif TC"');
+    expect(styles).toContain('"Noto Sans TC Variable"');
+    expect(styles).toContain('--font-brand: "Noto Serif TC Variable"');
     expect(styles).toMatch(/:root:lang\(zh-TW\) body,/);
     expect(styles).toMatch(/:root:lang\(zh-TW\) \.font-display/);
   });

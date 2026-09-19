@@ -40,7 +40,7 @@ export function McpTemplateCatalog({
     <div className="space-y-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="flex items-center gap-2 text-sm font-semibold"><PlugZap className="size-4 text-primary" /> Curated integrations</p>
+          <p className="flex items-center gap-2 text-sm font-semibold"><PlugZap className="size-4 text-link" /> Curated integrations</p>
           <p className="mt-1 text-xs leading-5 text-muted-foreground">
             Pick a reviewed starting point. Registration still creates a private LiteLLM MCP Server for this Project.
           </p>
@@ -103,14 +103,14 @@ export function McpTemplateCatalog({
                     <span className="flex min-w-0 flex-1 flex-col self-stretch">
                       <span className="flex min-h-7 flex-wrap items-start gap-2">
                         <strong className="text-sm leading-6">{template.name}</strong>
-                        <span className="inline-flex h-6 items-center gap-1 rounded-sm bg-primary/8 px-2 text-[9px] font-semibold uppercase tracking-wide text-primary">
+                        <span className="inline-flex h-6 items-center gap-1 rounded-sm bg-primary/8 px-2 text-[9px] font-semibold uppercase tracking-wide text-link">
                           <PackageCheck className="size-3" /> Built-in
                         </span>
                       </span>
                       <span className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{template.description}</span>
                       <span className="mt-auto flex items-center justify-between gap-3 pt-3 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
                         <span>{transportLabel(template.transport)}</span>
-                        <span className="flex items-center gap-1 text-foreground/70 transition-colors group-hover:text-primary">
+                        <span className="flex items-center gap-1 text-foreground/70 transition-colors group-hover:text-link">
                           Configure <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
                         </span>
                       </span>

@@ -262,7 +262,7 @@ function MobileAuditLogList({
                 </span>
                 <span className="mt-1.5 block truncate text-[11px] leading-4">
                   <strong className="font-medium">{event.actor.name}</strong>
-                  <span className="mx-1.5 font-mono text-[10px] uppercase text-primary">
+                  <span className="mx-1.5 font-mono text-[10px] uppercase text-link">
                     {event.verb}
                   </span>
                   <span className="text-muted-foreground">{event.object.type} / </span>
@@ -422,7 +422,7 @@ function AuditLogsPage() {
       />
 
       <div className="flex items-start gap-3 border-l-2 border-primary bg-primary/5 px-4 py-3">
-        <ShieldCheck className="mt-0.5 size-4 shrink-0 text-primary" />
+        <ShieldCheck className="mt-0.5 size-4 shrink-0 text-link" />
         <p className="text-xs leading-5 text-muted-foreground">
           This is a read-only Project trail. Request bodies are stored as expandable
           attachments with credentials and secrets excluded.

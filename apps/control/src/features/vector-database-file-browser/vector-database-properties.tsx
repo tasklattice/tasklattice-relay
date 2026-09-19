@@ -56,8 +56,8 @@ export function VectorDatabaseProperties({
         ]} />
         {canManage ? (
           <div className="grid grid-cols-2 gap-2">
-            <Button variant="outline" className="h-11" onClick={onRename}><Pencil />Rename</Button>
-            <Button variant="outline" className="h-11" onClick={onMove}><Move />Move</Button>
+            <Button variant="edit" className="h-11" onClick={onRename}><Pencil />Rename</Button>
+            <Button variant="edit" className="h-11" onClick={onMove}><Move />Move</Button>
           </div>
         ) : null}
         <ProcessingSummary processing={folder.processingFileCount} failed={folder.failedFileCount} />
@@ -84,8 +84,8 @@ export function VectorDatabaseProperties({
         {document.error ? <p role="alert" className="border-l-2 border-destructive bg-destructive/5 px-3 py-2 text-xs leading-5 text-destructive">{document.error}</p> : null}
         {canManage ? (
           <div className="grid grid-cols-2 gap-2">
-            <Button variant="outline" className="h-11" onClick={onRename}><Pencil />Rename</Button>
-            <Button variant="outline" className="h-11" onClick={onMove}><Move />Move</Button>
+            <Button variant="edit" className="h-11" onClick={onRename}><Pencil />Rename</Button>
+            <Button variant="edit" className="h-11" onClick={onMove}><Move />Move</Button>
           </div>
         ) : null}
         {canManage ? <DeleteAction label="Delete file" onClick={onDelete} /> : null}
@@ -181,7 +181,7 @@ function ProcessingSummary({ failed, processing }: { failed: number; processing:
 function DeleteAction({ label, onClick }: { label: string; onClick: () => void }) {
   return (
     <div className="mt-auto border-t pt-4">
-      <Button variant="ghost" className="h-11 w-full justify-start px-2 text-destructive hover:text-destructive" onClick={onClick}>
+      <Button variant="destructive" className="h-11 w-full justify-start px-2" onClick={onClick}>
         <Trash2 />{label}
       </Button>
     </div>

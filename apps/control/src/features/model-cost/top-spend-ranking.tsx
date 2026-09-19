@@ -68,7 +68,7 @@ export function TopSpendRanking({
       <section aria-labelledby="top-spend-title" className="h-full overflow-hidden rounded-lg border">
         <div className="flex min-h-11 items-center justify-between border-b px-4 py-2">
           <h2 id="top-spend-title" className="font-sans text-sm font-medium">{title}</h2>
-          <Button className="text-primary" variant="ghost" size="sm" onClick={() => setOpen(true)} disabled={!items.length}>View all</Button>
+          <Button className="text-link" variant="ghost" size="sm" onClick={() => setOpen(true)} disabled={!items.length}>View all</Button>
         </div>
         {items.length
           ? <RankingList items={items.slice(0, 5)} selectedId={selectedId} onSelect={onSelect} />

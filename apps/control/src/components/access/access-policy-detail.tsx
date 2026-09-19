@@ -279,7 +279,7 @@ export function AccessPolicyDetail({
                         className="size-6 object-contain"
                       />
                     ) : (
-                      <ServerCog className="size-5 text-primary" />
+                      <ServerCog className="size-5 text-link" />
                     )}
                     {server?.name ?? rule.mcpServerId}
                     <Badge variant="outline">
@@ -366,7 +366,7 @@ export function AccessPolicyDetail({
                     className="flex items-center justify-between gap-4 border p-4 transition-colors hover:bg-muted/35 focus-visible:outline-2"
                   >
                     <span className="flex min-w-0 items-center gap-3">
-                      <Boxes className="size-5 shrink-0 text-primary" />
+                      <Boxes className="size-5 shrink-0 text-link" />
                       <span className="min-w-0">
                         <strong className="block truncate text-sm">
                           {instance.name}
@@ -481,7 +481,7 @@ function Boundary({
   return (
     <Card>
       <CardContent className="flex items-start gap-3 p-5">
-        <Icon className="mt-0.5 size-5 shrink-0 text-primary" />
+        <Icon className="mt-0.5 size-5 shrink-0 text-link" />
         <span>
           <strong className="block text-sm">{title}</strong>
           <span className="mt-1 block text-xs leading-5 text-muted-foreground">

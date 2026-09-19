@@ -303,7 +303,7 @@ export function AccessContextSelection() {
       <AccessHeader onLogout={logout} user={user} />
 
       <section className="mx-auto max-w-4xl px-5 py-10 sm:px-8 sm:py-14">
-        <p className="font-mono text-xs uppercase tracking-[0.08em] text-primary">
+        <p className="font-mono text-xs uppercase tracking-[0.08em] text-link">
           {t("kicker")}
         </p>
         <h1 className="mt-4 font-display text-4xl font-semibold tracking-[-0.005em] sm:text-5xl">

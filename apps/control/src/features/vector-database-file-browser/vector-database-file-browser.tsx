@@ -258,7 +258,7 @@ export function VectorDatabaseFileBrowser({
             </TabsList>
             {view === "files" ? (
               <div className="flex flex-wrap items-center gap-2 pb-3 sm:pb-0">
-                {builtIn ? <Button className="h-11" disabled={!canManage} title={!canManage ? "A validated embedding model and update permission are required" : undefined} onClick={onUpload}><FileUp />Upload files</Button> : null}
+                {builtIn ? <Button variant="create" className="h-11" disabled={!canManage} title={!canManage ? "A validated embedding model and update permission are required" : undefined} onClick={onUpload}><FileUp />Upload files</Button> : null}
                 {builtIn ? <Button variant="outline" className="h-11" disabled={!canManage} title={!canManage ? "A validated embedding model and update permission are required" : undefined} onClick={onNewFolder}><FolderPlus />New folder</Button> : null}
                 <Button variant="ghost" size="icon" className="size-11" aria-label="Refresh files" onClick={onRefresh}>
                   <RefreshCw className={cn(refreshing && "animate-spin motion-reduce:animate-none")} />
@@ -554,7 +554,7 @@ function FileSection({ builtIn, canManage, documents, searching, selection, sort
               <p className="mx-auto mt-2 max-w-sm text-xs leading-5 text-muted-foreground">
                 {searching ? "Try a different file name or folder path." : builtIn ? "Upload source files here to parse and index them." : "Files for this provider are managed outside TaskLattice."}
               </p>
-              {!searching && builtIn && canManage ? <Button className="mt-5 h-11" onClick={onUpload}><FileUp />Upload files</Button> : null}
+              {!searching && builtIn && canManage ? <Button variant="create" className="mt-5 h-11" onClick={onUpload}><FileUp />Upload files</Button> : null}
             </div>
           </div>
         ) : null}
@@ -583,11 +583,11 @@ function ObjectMenu({ canManage, kind, label, onAction }: {
         <Button variant="ghost" size="icon" className="size-11" aria-label={label} onClick={stop}><MoreHorizontal /></Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" onClick={stop}>
-        <DropdownMenuItem onSelect={() => onAction("rename")}><Pencil />Rename</DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => onAction("move")}><Move />Move</DropdownMenuItem>
-        {kind === "file" ? <DropdownMenuItem onSelect={() => onAction("edit-metadata")}><Tags />Edit metadata</DropdownMenuItem> : null}
+        <DropdownMenuItem variant="edit" onSelect={() => onAction("rename")}><Pencil />Rename</DropdownMenuItem>
+        <DropdownMenuItem variant="edit" onSelect={() => onAction("move")}><Move />Move</DropdownMenuItem>
+        {kind === "file" ? <DropdownMenuItem variant="edit" onSelect={() => onAction("edit-metadata")}><Tags />Edit metadata</DropdownMenuItem> : null}
         <DropdownMenuSeparator />
-        <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={() => onAction("delete")}><Trash2 />Delete</DropdownMenuItem>
+        <DropdownMenuItem variant="destructive" onSelect={() => onAction("delete")}><Trash2 />Delete</DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );

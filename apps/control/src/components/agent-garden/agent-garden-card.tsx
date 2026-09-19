@@ -65,12 +65,12 @@ export function AgentGardenCard({
                 : "Registered"}
           </span>
           {preview ? (
-            <span className="mt-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-primary">
+            <span className="mt-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-link">
               {previewAgentLabel(agent)}
             </span>
           ) : null}
           {instanceCount ? (
-            <span className="mt-1 block text-[10px] text-primary">
+            <span className="mt-1 block text-[10px] text-link">
               {instanceCount} instantiated
             </span>
           ) : null}
@@ -82,7 +82,7 @@ export function AgentGardenCard({
         onClick={onDetails}
         className="mt-4 min-h-11 text-left focus-visible:outline-2 focus-visible:outline-offset-2"
       >
-        <strong className="block text-sm leading-6 group-hover:text-primary">
+        <strong className="block text-sm leading-6 group-hover:text-link">
           {agent.name}
         </strong>
         <span className="mt-1 line-clamp-2 block text-xs leading-5 text-muted-foreground">
@@ -93,7 +93,7 @@ export function AgentGardenCard({
       <div className="mt-3 flex flex-wrap gap-1.5">
         <Badge
           variant="secondary"
-          className="bg-primary/8 text-primary"
+          className="bg-primary/8 text-link"
         >
           {agent.platformLabel}
         </Badge>

@@ -228,7 +228,7 @@ function AgentMarketplaceDetail() {
             <div className="flex flex-wrap items-center gap-2">
               <Badge
                 variant="secondary"
-                className="bg-primary/8 text-primary"
+                className="bg-primary/8 text-link"
               >
                 {agent.platformLabel}
               </Badge>
@@ -328,7 +328,7 @@ function AgentMarketplaceDetail() {
                     key={`${step}-${index}`}
                     className="border bg-card p-4"
                   >
-                    <span className="grid size-7 place-items-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+                    <span className="grid size-7 place-items-center rounded-full bg-primary/10 text-xs font-semibold text-link">
                       {index + 1}
                     </span>
                     <strong className="mt-4 block text-sm">
@@ -405,7 +405,7 @@ function AgentMarketplaceDetail() {
                   className="flex min-h-14 w-full items-center gap-3 px-4 py-3 text-left text-sm hover:bg-muted/30 focus-visible:outline-2 focus-visible:outline-offset-[-2px]"
                   onClick={() => setTryOpen(true)}
                 >
-                  <Play className="size-4 shrink-0 text-primary" />
+                  <Play className="size-4 shrink-0 text-link" />
                   <span className="min-w-0 flex-1">{task}</span>
                   <ArrowRight className="size-4 shrink-0 text-muted-foreground" />
                 </button>
@@ -423,7 +423,7 @@ function AgentMarketplaceDetail() {
           />
           <div className="border bg-muted/15 p-4">
             <div className="flex items-center gap-2">
-              <ShieldCheck className="size-4 text-primary" />
+              <ShieldCheck className="size-4 text-link" />
               <strong className="text-sm">Participation model</strong>
             </div>
             <div className="mt-4 divide-y border-y">
@@ -479,7 +479,7 @@ function MarketplaceActions({
       <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
         <span>{usageModeLabel(agent.usageMode)} Agent</span>
         {instanceId ? (
-          <span className="font-medium text-primary">
+          <span className="font-medium text-link">
             Instantiated
           </span>
         ) : (
@@ -565,7 +565,7 @@ function MarketplaceSection({
   return (
     <section>
       <div className="flex items-start gap-3">
-        <span className="mt-0.5 grid size-9 shrink-0 place-items-center border bg-muted/20 text-primary">
+        <span className="mt-0.5 grid size-9 shrink-0 place-items-center border bg-muted/20 text-link">
           <Icon className="size-4" />
         </span>
         <div>
@@ -592,7 +592,7 @@ function MarketplaceList({
   return (
     <section className="border bg-card p-5">
       <div className="flex items-center gap-3">
-        <Icon className="size-4 text-primary" />
+        <Icon className="size-4 text-link" />
         <h2 className="text-sm font-semibold">{title}</h2>
       </div>
       <ul className="mt-4 space-y-3">
@@ -635,7 +635,7 @@ function MarketplaceFactCard({
   return (
     <section className="border bg-card p-4">
       <div className="flex items-center gap-2">
-        <Code2 className="size-4 text-primary" />
+        <Code2 className="size-4 text-link" />
         <h2 className="text-sm font-semibold">At a glance</h2>
       </div>
       <dl className="mt-4 divide-y border-y text-xs">

@@ -47,7 +47,7 @@ export function McpToolList({ tools }: { tools: readonly McpToolDefinition[] }) 
                 {tool.title ? (
                   <p className="mb-1 text-xs font-medium text-muted-foreground">{tool.title}</p>
                 ) : null}
-                <code className="inline-block max-w-full break-all bg-primary/10 px-2 py-1 font-mono text-xs font-semibold text-primary">
+                <code className="inline-block max-w-full break-all bg-primary/10 px-2 py-1 font-mono text-xs font-semibold text-link">
                   {tool.name}
                 </code>
               </div>

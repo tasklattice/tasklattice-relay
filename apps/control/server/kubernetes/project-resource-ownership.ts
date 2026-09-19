@@ -1,7 +1,7 @@
 import { getWorkerConfig } from "../config/worker-config";
 import {
   CoreV1Api, KubeConfig, KubernetesObjectApi, PatchStrategy,
-  type KubernetesObject, type V1Namespace, type V1OwnerReference, type V1StatefulSet,
+  type KubernetesObject, type V1Namespace, type V1OwnerReference,
 } from "@kubernetes/client-node";
 import { projectRuntimeNamespaceSchema } from "@tali/contracts";
 
@@ -95,18 +95,6 @@ async function attachNamedNamespaceOwner(objects: Pick<KubernetesObjectApi, "rea
 
 export async function reconcileGatewayResources(objects: Pick<KubernetesObjectApi, "read" | "patch">,
   owner: V1OwnerReference, name: string) {
-  const statefulSet = await objects.read<V1StatefulSet>({ apiVersion: "apps/v1", kind: "StatefulSet",
-    metadata: { namespace: owner.name, name } });
-  // volumeClaimTemplates are immutable on existing Gateways. Patch the actual
-  // PVC metadata after installation instead of changing those templates.
-  for (const template of statefulSet.spec?.volumeClaimTemplates ?? []) {
-    if (!template.metadata?.name) continue;
-    const start = statefulSet.spec?.ordinals?.start ?? 0;
-    for (let ordinal = start; ordinal < start + (statefulSet.spec?.replicas ?? 1); ordinal++) {
-      await attachNamedNamespaceOwner(objects, "v1", "PersistentVolumeClaim", owner.name,
-        `${template.metadata.name}-${name}-${ordinal}`, owner);
-    }
-  }
   // Helm 3 excludes hooks from post-rendering. These names come from the pinned
   // Project chart and its fixed provisioner values, including certgen outputs.
   for (const [apiVersion, kind, resourceName] of [

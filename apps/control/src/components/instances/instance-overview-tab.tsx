@@ -117,7 +117,7 @@ function CapabilitySection({
 }) {
   return (
     <section className="grid gap-4 border-b py-5 first:pt-0 last:border-b-0 last:pb-0 sm:grid-cols-[2.75rem_minmax(0,1fr)_auto]">
-      <span className="grid size-11 place-items-center rounded-md bg-primary/[0.07] text-primary">
+      <span className="grid size-11 place-items-center rounded-md bg-primary/[0.07] text-link">
         <Icon className="size-5" />
       </span>
       <div className="min-w-0">
@@ -531,7 +531,7 @@ export function InstanceOverviewTab({
             <DetailCardHeader
               title="Operating boundary"
               description="The limits that shape every answer and action."
-              action={<ShieldCheck className="size-5 text-primary" />}
+              action={<ShieldCheck className="size-5 text-link" />}
             />
             <CardContent>
               <dl>
@@ -578,7 +578,7 @@ export function InstanceOverviewTab({
             />
             <CardContent className="space-y-3">
               <div className="flex items-start gap-3 border-b pb-3">
-                <span className="grid size-11 shrink-0 place-items-center rounded-md bg-primary/[0.07] text-primary">
+                <span className="grid size-11 shrink-0 place-items-center rounded-md bg-primary/[0.07] text-link">
                   {terminalFirst ? (
                     <SquareTerminal className="size-5" />
                   ) : (

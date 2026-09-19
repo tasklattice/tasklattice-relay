@@ -112,6 +112,7 @@ function VectorDatabases() {
           </Button>
         ) : embeddingModelReady ? (
           <Button
+            variant="create"
             className="h-11"
             disabled={!permissions.canCreateVectorDatabases}
             onClick={() => { setDraft(emptyDraft); setFormError(""); setFormAttempted(false); create.reset(); setFormOpen(true); }}
@@ -182,7 +183,7 @@ function VectorDatabases() {
         footer={(
           <>
             <Button variant="outline" disabled={create.isPending} onClick={() => setFormOpen(false)}>Cancel</Button>
-            <Button disabled={!embeddingModelReady || create.isPending} onClick={submit}>{create.isPending ? "Creating…" : "Create"}</Button>
+            <Button variant="create" disabled={!embeddingModelReady || create.isPending} onClick={submit}>{create.isPending ? "Creating…" : "Create"}</Button>
           </>
         )}
       >

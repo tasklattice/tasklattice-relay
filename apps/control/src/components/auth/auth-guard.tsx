@@ -19,7 +19,7 @@ export function AuthGuard({ children }: { children: ReactNode }) {
     return (
       <main className="grid min-h-svh place-items-center bg-background p-6">
         <div className="text-center">
-          <LoaderCircle className="mx-auto size-6 animate-spin text-primary" />
+          <LoaderCircle className="mx-auto size-6 animate-spin text-link" />
           <p className="mt-3 text-sm text-muted-foreground">
             {error || "Checking your Project session…"}
           </p>

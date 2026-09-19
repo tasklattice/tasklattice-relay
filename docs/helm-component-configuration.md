@@ -54,7 +54,7 @@ With `secrets.existingSecrets.<component>`, supply that component's file/keys an
 externally managed contents. Mounts expose only the file each component uses.
 
 Project Gateway deployment settings live in `[worker.project_openshell]`:
-Gateway/Supervisor images, base image, chart, storage and pull policy.
+Gateway/Supervisor images, base image, chart, Agent workspace storage and pull policy.
 Tenant TLS/auth remain fixed by the supported Project topology and are validated
 by Helm; they are no longer passed to Runner as display-only environment values.
 Related provisioners live in `[worker.project_runtime_bridge]`,
@@ -64,6 +64,36 @@ Control commits desired state and durable jobs, and reads observed state from th
 database. It never installs tenant charts or waits for runtime resources. Its
 Kubernetes RBAC is read-only for diagnostics. Only Worker has resource mutation
 permissions and the provisioner Secret. See [resource lifecycle](project-resource-lifecycle.md).
+
+### Project OpenShell database
+
+Worker reuses the PostgreSQL server from the shared `[database].url`. Each Project
+gets a dedicated `openshell_tp_<hash>` database and login. The Project Namespace
+contains an `openshell-postgresql` Secret with the upstream chart's `uri` key;
+it contains only that Project's login, never the Control database credentials.
+Worker installs the pinned chart with `workload.kind=deployment` and
+`server.externalDbSecret=openshell-postgresql`. Gateway metadata therefore lives
+on the existing PostgreSQL storage; no `openshell-data-*` PVC is created.
+
+Reconciliation reuses credentials and preserves data. Partial provisioning can
+be retried. Project deletion uninstalls Gateway before dropping its database and
+role, then deletes the Namespace. Only databases/roles owned by this provisioner
+are eligible for cleanup. The runtime bridge remains stateless. Agent workspace
+PVCs are separate and still use `projectOpenShell.workspace` settings.
+
+The bundled PostgreSQL initialization account already has provisioning rights.
+For an external server, `[database].url` must use a direct PostgreSQL connection
+with `CREATEDB` and `CREATEROLE` permissions; the provisioner grants itself the
+ability to assume each dedicated role. Use a hostname reachable from Project
+Namespaces. The chart generates a fully qualified Service hostname by default.
+TLS URL parameters are preserved; any referenced client certificate files must
+also be available to the Gateway. Do not use a transaction-pooling endpoint for
+provisioning, which uses session advisory locks and database DDL.
+
+Backups must include the per-Project databases and roles, plus the Project
+Gateway's Kubernetes credential encryption/JWT Secrets. Backing up only the
+Control database is not sufficient. This layout targets a fresh installation;
+it does not migrate existing Gateway SQLite volumes.
 
 
 Runner operates Sandboxes through each Project Gateway and serves the runtime
@@ -86,6 +116,7 @@ in that init container. Unrelated business components retain their own images.
 | Parsed document content and vector chunks | PostgreSQL TaskLattice schema / pgvector |
 | Ingestion jobs | PostgreSQL Control job queue |
 | Hindsight memory and extraction state | Dedicated Hindsight database/schema on the PostgreSQL PVC |
+| Project OpenShell Gateway metadata | Per-Project PostgreSQL database on the existing PostgreSQL PVC |
 
 Docling is a parser, not a vector database. Deleting its cache does not delete
 uploaded documents or vectors. Back up the PostgreSQL volume/database to
@@ -158,6 +189,7 @@ npm run helm:validate:dev-defaults
 npm run test --workspace @tali/control
 npm run test:component-config:containers
 npm run test:component-init:containers
+npm run test:openshell-database:postgres
 ```
 
 Container checks run isolated Docker containers with no external network:

@@ -92,7 +92,7 @@ export function VectorDocumentDetailsPanel({
                   <DropdownMenuItem onSelect={onMove}><Move />Move</DropdownMenuItem>
                   <DropdownMenuItem onSelect={onEditMetadata}><Pencil />Edit metadata</DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={onDelete}><Trash2 />Delete</DropdownMenuItem>
+                  <DropdownMenuItem variant="destructive" onSelect={onDelete}><Trash2 />Delete</DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             ) : null}
@@ -177,7 +177,7 @@ export function VectorDocumentDetailsPanel({
             <p className="mt-3.5 text-sm leading-6 text-muted-foreground">No custom metadata has been added.</p>
           )}
           {canManage && !metadata.length ? (
-            <Button variant="outline" className="mt-4 h-10" onClick={onEditMetadata}>
+            <Button variant="edit" className="mt-4 h-10" onClick={onEditMetadata}>
               <Plus />Add metadata
             </Button>
           ) : null}

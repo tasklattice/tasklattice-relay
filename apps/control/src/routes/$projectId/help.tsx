@@ -135,7 +135,7 @@ function MarkdownDocument({ body, projectId }: { body: string; projectId: string
     strong: ({ children }) => <strong className="font-semibold text-foreground">{children}</strong>,
     a: ({ children, href }) => {
       const route = getHelpRoute(href);
-      const className = "font-medium text-primary underline decoration-primary/35 underline-offset-4 hover:decoration-primary focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30";
+      const className = "font-medium text-link underline decoration-primary/35 underline-offset-4 hover:decoration-primary focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30";
       return route ? (
         <Link className={className} to={route} params={{ projectId }}>
           {children}

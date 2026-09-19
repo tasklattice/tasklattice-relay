@@ -482,7 +482,7 @@ function ChoiceCard({
         onChange={onChange}
         className="mt-1 size-4 accent-primary"
       />
-      <span className="mt-0.5 shrink-0 text-primary">{icon}</span>
+      <span className="mt-0.5 shrink-0 text-link">{icon}</span>
       <span className="min-w-0">
         <strong className="block truncate text-sm">{title}</strong>
         <span className="mt-1 block text-xs leading-5 text-muted-foreground">

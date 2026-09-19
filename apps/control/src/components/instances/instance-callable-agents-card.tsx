@@ -63,7 +63,7 @@ export function InstanceCallableAgentsCard({ agent }: { agent: Agent }) {
       />
       <CardContent>
         <div className="mb-4 flex items-start gap-3 border-l-2 border-primary bg-primary/[0.035] px-4 py-3">
-          <Waypoints className="mt-0.5 size-4 shrink-0 text-primary" />
+          <Waypoints className="mt-0.5 size-4 shrink-0 text-link" />
           <p className="text-xs leading-5 text-muted-foreground">
             <strong className="text-foreground">{agent.name}</strong> discovers
             only READY callable Instances in this Project. The Runtime Bridge

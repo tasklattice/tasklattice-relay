@@ -173,7 +173,7 @@ function DepartmentSettingsPage() {
       <PageHeader
         title="Department Setting"
         badge={(
-          <Badge className="border-primary/20 bg-primary/7 text-primary" variant="outline">
+          <Badge className="border-primary/20 bg-primary/7 text-link" variant="outline">
             <ShieldCheck />
             Department Administrator
           </Badge>

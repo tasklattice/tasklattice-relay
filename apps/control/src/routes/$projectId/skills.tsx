@@ -542,14 +542,14 @@ function SkillCatalog() {
                 </p>
               ) : (
                 <p className="flex gap-3">
-                  <ShieldCheck className="mt-1 size-4 shrink-0 text-primary" />
+                  <ShieldCheck className="mt-1 size-4 shrink-0 text-link" />
                   <span><strong className="block">{selected.trustLevel === "BUILT_IN" ? "Built into TaskLattice Relay" : "Trusted source"}</strong>{selected.trustLevel === "BUILT_IN" ? "This Skill ships with the platform catalog." : "TaskLattice Relay recorded a successful source verification."}</span>
                 </p>
               )}
               {selected.endpoint.startsWith("tali+postgresql:") ? (
-                <p className="flex gap-3"><Database className="mt-1 size-4 shrink-0 text-primary" /><span><strong className="block">Stored in PostgreSQL</strong>The immutable Vendor Skill archive is stored as BYTEA and verified by SHA-256.</span></p>
+                <p className="flex gap-3"><Database className="mt-1 size-4 shrink-0 text-link" /><span><strong className="block">Stored in PostgreSQL</strong>The immutable Vendor Skill archive is stored as BYTEA and verified by SHA-256.</span></p>
               ) : (
-                <p className="flex gap-3"><Cloud className="mt-1 size-4 shrink-0 text-primary" /><span><strong className="block">Remote package</strong>The package remains external until it is imported into the artifact store.</span></p>
+                <p className="flex gap-3"><Cloud className="mt-1 size-4 shrink-0 text-link" /><span><strong className="block">Remote package</strong>The package remains external until it is imported into the artifact store.</span></p>
               )}
             </div>
             {notice ? <p role="status" className="border-l-2 border-primary bg-primary/5 p-3 text-sm">{notice}</p> : null}
@@ -657,7 +657,7 @@ function SkillCatalog() {
                       aria-pressed={active}
                       className={
                         active
-                          ? "min-h-11 rounded-md border border-primary/25 bg-primary/10 px-3 py-2 text-sm font-medium text-primary outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
+                          ? "min-h-11 rounded-md border border-primary/25 bg-primary/10 px-3 py-2 text-sm font-medium text-link outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
                           : "min-h-11 rounded-md border border-input bg-background px-3 py-2 text-sm text-muted-foreground outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/30"
                       }
                       onClick={() => setDraft({
@@ -831,7 +831,7 @@ function SkillTrustBadge({ trustLevel }: { trustLevel: SkillTrustLevel }) {
         trustLevel === "UNSAFE"
           ? "inline-flex items-center gap-1 rounded-sm bg-destructive/10 px-2 py-1 text-[11px] font-medium text-destructive"
           : trustLevel === "BUILT_IN"
-            ? "inline-flex items-center gap-1 rounded-sm bg-primary/10 px-2 py-1 text-[11px] font-medium text-primary"
+            ? "inline-flex items-center gap-1 rounded-sm bg-primary/10 px-2 py-1 text-[11px] font-medium text-link"
             : "inline-flex items-center gap-1 rounded-sm bg-emerald-500/10 px-2 py-1 text-[11px] font-medium text-emerald-600 dark:text-emerald-400"
       }
     >

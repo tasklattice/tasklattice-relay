@@ -616,7 +616,7 @@ function CapabilityOption({
       aria-pressed={active}
       className={
         active
-          ? "flex min-h-11 items-center gap-2 rounded-md border border-primary/25 bg-primary/10 px-3 py-2 text-left text-xs font-medium text-primary outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
+          ? "flex min-h-11 items-center gap-2 rounded-md border border-primary/25 bg-primary/10 px-3 py-2 text-left text-xs font-medium text-link outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
           : "flex min-h-11 items-center gap-2 rounded-md border border-transparent bg-muted/70 px-3 py-2 text-left text-xs text-foreground outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/30"
       }
       onClick={onClick}

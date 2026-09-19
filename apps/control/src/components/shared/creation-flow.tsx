@@ -92,7 +92,7 @@ export function CreationFlow({
                 className={cn(
                   "relative z-10 min-h-11 text-left transition-colors",
                   vertical
-                    ? "w-full items-start gap-3 rounded-md border border-transparent px-2 py-2 hover:bg-background/70 hover:text-foreground data-[state=active]:border-border/70 data-[state=active]:bg-background data-[state=active]:text-primary data-[state=active]:shadow-sm"
+                    ? "w-full items-start gap-3 rounded-md border border-transparent px-2 py-2 hover:bg-background/70 hover:text-foreground data-[state=active]:border-border/70 data-[state=active]:bg-background data-[state=active]:text-link data-[state=active]:shadow-sm"
                     : "w-full flex-col gap-1.5 rounded-lg px-2 py-1 text-center hover:bg-background/70",
                 )}
               >
@@ -100,14 +100,14 @@ export function CreationFlow({
                   className={cn(
                     "border-2 border-border bg-background font-mono text-[10px] text-muted-foreground",
                     vertical ? "size-5" : "size-7",
-                    "data-[state=active]:border-primary data-[state=active]:bg-background data-[state=active]:text-primary",
+                    "data-[state=active]:border-primary data-[state=active]:bg-background data-[state=active]:text-link",
                     "data-[state=completed]:border-primary data-[state=completed]:bg-primary data-[state=completed]:text-primary-foreground",
                   )}
                 >
                   {index + 1}
                 </StepperIndicator>
                 <span className={cn("min-w-0", !vertical && "max-w-28")}>
-                  <StepperTitle className="truncate text-sm data-[state=active]:text-primary data-[state=inactive]:text-muted-foreground">
+                  <StepperTitle className="truncate text-sm data-[state=active]:text-link data-[state=inactive]:text-muted-foreground">
                     {step.label}
                   </StepperTitle>
                   {vertical ? (
@@ -181,7 +181,7 @@ function CompactMobileStepperNav({
                 </StepperDescription>
               ) : null}
             </span>
-            <span className="shrink-0 font-mono text-xs tabular-nums text-primary">
+            <span className="shrink-0 font-mono text-xs tabular-nums text-link">
               {percentage}%
             </span>
           </span>
