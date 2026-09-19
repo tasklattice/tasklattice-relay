@@ -53,6 +53,18 @@ const input = {
 describe("KubernetesProjectNamespaceClient", () => {
   afterEach(() => vi.unstubAllEnvs());
 
+  it("records the originating release so dev cleanup can distinguish Relay installations", async () => {
+    getWorkerConfig().resource_ownership.controlRelease = "relay-dev";
+    getWorkerConfig().resource_ownership.controlNamespace = "tali";
+    const fake = client();
+    await fake.client.reconcile(input);
+    expect(fake.objects.patch).toHaveBeenCalledWith(expect.objectContaining({
+      metadata: expect.objectContaining({ annotations: expect.objectContaining({
+        "tali.io/control-release": "relay-dev", "tali.io/control-namespace": "tali",
+      }) }),
+    }), undefined, undefined, "tali-control-project-runtime", false, PatchStrategy.ServerSideApply);
+  });
+
   it("adds deployment-configured Argo visibility to an existing Project without recreating it", async () => {
     getWorkerConfig().resource_ownership.sourceTrackingId = "relay:apps/Deployment:tali/relay-control";
     getWorkerConfig().resource_ownership.installationId = "internal";

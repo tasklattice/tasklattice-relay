@@ -40,7 +40,7 @@ while (( $# > 0 )); do
   shift
 done
 
-required_commands=(helm jq kubectl)
+required_commands=(helm jq kubectl node)
 if [[ "$action" == "deploy" ]]; then
   required_commands+=(docker)
 fi
@@ -73,13 +73,7 @@ if ! kubectl --context "$kube_context" version --request-timeout=10s >/dev/null 
 fi
 
 if [[ "$action" == "delete" ]]; then
-  if helm --kube-context "$kube_context" --namespace "$namespace" status "$release_name" >/dev/null 2>&1; then
-    helm --kube-context "$kube_context" --namespace "$namespace" uninstall "$release_name"
-    kubectl --context "$kube_context" --namespace "$namespace" delete secret \
-      "$release_name-example-mcp-github" --ignore-not-found >/dev/null
-  else
-    echo "Helm release does not exist: $namespace/$release_name"
-  fi
+  node "$repository_root/scripts/delete-local.mjs" "$kube_context" "$namespace" "$release_name" "$helm_timeout"
   exit 0
 fi
 

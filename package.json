@@ -50,6 +50,7 @@
     "helm:deploy:dev:keycloak": "bash scripts/deploy-local.sh deploy --keycloak",
     "helm:deploy:dev:example-mcp": "bash scripts/deploy-local.sh deploy --example-mcp",
     "helm:deploy:dev:keycloak:example-mcp": "bash scripts/deploy-local.sh deploy --keycloak --example-mcp",
+    "test:helm-delete:dev": "node --test scripts/testing/delete-local.test.mjs",
     "helm:delete:dev": "bash scripts/deploy-local.sh delete",
     "helm:deploy:agent-sandbox": "bash scripts/deploy-agent-sandbox-local.sh",
     "test:agent-sandbox:live": "bash scripts/test-agent-sandbox-live.sh",

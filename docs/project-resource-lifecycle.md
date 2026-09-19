@@ -56,6 +56,39 @@ Worker use the Control image; migrations add the Worker report, operation table
 and the failed target state. Keep the shared auth key stable so encrypted job
 inputs can be decrypted. Never deploy this chart with an older application image.
 
+## Full local development cleanup
+
+`npm run helm:delete:dev` performs a destructive cleanup of the selected Relay
+installation, including its development database. It retains the shared `tali`
+Namespace (or `HELM_NAMESPACE`) and resources belonging to Guard or other releases.
+It does not delete shared CRDs or an independently installed Agent Sandbox controller.
+
+1. Scale this release's Control, Worker and Runner to zero and wait for their
+   Pods to exit, so reconciliation cannot recreate tenant resources during cleanup.
+2. Discover Relay-managed Project Namespaces again after shutdown. Delete
+   Sandboxes while their controller is still available, uninstall tenant Helm
+   releases, remove their cluster RBAC, and delete each tenant Namespace with all
+   remaining workloads, PVCs, Secrets and Helm release records.
+3. Uninstall the main Relay release. Remove its leftover hooks, Secrets, cluster
+   RBAC and PVCs, including PostgreSQL and Docling model storage.
+4. Wait for the storage provisioner to delete the selected PVs and backing
+   storage. Targeted `Retain` volumes are changed to `Delete`; finalizers are
+   never stripped. A controller/storage timeout reports failure instead of
+   claiming cleanup succeeded. Rerunning the command continues cleanup even
+   when the main release is already absent.
+
+New tenant Namespace annotations `tali.io/control-release` and
+`tali.io/control-namespace` identify their originating release. Older tenant
+Namespaces are recognized by their Relay management labels and Project identity;
+if another Relay installation is present and ownership is ambiguous, the command
+stops before deleting anything and requests those annotations. Unrelated resources
+inside `tali` are never selected using `delete --all`. External databases and
+operator-managed resources outside the selected installation are not dropped.
+
+`KUBE_CONTEXT`, `HELM_NAMESPACE`, `HELM_RELEASE_NAME` and `HELM_TIMEOUT` select the
+same target as deployment. Use `npm run test:helm-delete:dev` for the mocked CLI
+cleanup tests; these do not connect to or change a cluster.
+
 ## Verification
 
 `npm run test:project-initialization:postgres` starts a disposable pgvector

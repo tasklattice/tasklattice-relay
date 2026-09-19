@@ -53,6 +53,8 @@ const workerConfigSchema = z
     expert_agent_runtime: runtimeConfig.prefault({}),
     resource_ownership: z
       .object({
+        controlRelease: z.string().default(""),
+        controlNamespace: z.string().default(""),
         enabled: z.boolean().default(false),
         sourceTrackingId: z.string().default(""),
         installationId: z.string().default(""),

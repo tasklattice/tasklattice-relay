@@ -69,6 +69,8 @@ const defaultConfig = controlConfig(defaults);
 assert.equal(new URL(defaultConfig.database.url).hostname, `${releaseName}-postgresql.${releaseNamespace}.svc.cluster.local`);
 assert.equal(workerConfig(defaults).project_openshell.enabled, true);
 assert.equal(workerConfig(defaults).resource_ownership.enabled, true);
+assert.equal(workerConfig(defaults).resource_ownership.controlRelease, releaseName);
+assert.equal(workerConfig(defaults).resource_ownership.controlNamespace, releaseNamespace);
 const argoTrackingId = "relay:apps/Deployment:tali/relay-control";
 const argoConfigured = parseObjects(renderChart([
   "--set-string", `projectRuntimeNamespaces.argocd.sourceTrackingId=${argoTrackingId}`,

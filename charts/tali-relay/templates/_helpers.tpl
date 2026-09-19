@@ -347,6 +347,8 @@ baseUrl = {{ default (printf "http://%s:%v" (include "tali.componentName" (dict 
 apiKey = {{ .Values.control.worker.docling.apiKey | toJson }}
 
 [worker.resource_ownership]
+controlRelease = {{ .Release.Name | toJson }}
+controlNamespace = {{ .Release.Namespace | toJson }}
 enabled = {{ .Values.projectRuntimeNamespaces.resourceOwnership }}
 sourceTrackingId = {{ .Values.projectRuntimeNamespaces.argocd.sourceTrackingId | toJson }}
 installationId = {{ .Values.projectRuntimeNamespaces.argocd.installationId | toJson }}

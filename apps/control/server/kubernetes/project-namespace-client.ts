@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { getWorkerConfig } from "../config/worker-config";
 import { projectArgoAnnotations } from "./project-resource-ownership";
 import {
   CoreV1Api,
@@ -65,6 +66,7 @@ function managedLabels(projectName: string): Record<string, string> {
 export function projectNamespaceResource(
   input: ProjectNamespaceInput,
 ): V1Namespace {
+  const { controlRelease, controlNamespace } = getWorkerConfig().resource_ownership;
   return {
     apiVersion: "v1",
     kind: "Namespace",
@@ -73,6 +75,10 @@ export function projectNamespaceResource(
       labels: managedLabels(input.projectName),
       annotations: {
         ...projectArgoAnnotations(input.namespace),
+        ...(controlRelease && controlNamespace ? {
+          "tali.io/control-release": controlRelease,
+          "tali.io/control-namespace": controlNamespace,
+        } : {}),
         "tali.io/project-id": input.projectId,
         "tali.io/project-name": input.projectName,
       },
