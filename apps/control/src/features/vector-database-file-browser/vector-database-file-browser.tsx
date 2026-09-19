@@ -197,9 +197,9 @@ export function VectorDatabaseFileBrowser({
   ) : null;
 
   return (
-    <section className="grid min-h-[44rem] min-w-0 grid-cols-[minmax(0,1fr)] bg-card lg:grid-cols-[15.5rem_minmax(0,1fr)]" aria-label="Vector Database workspace">
-      <aside className="border-b bg-knowledge-sidebar lg:border-b-0 lg:border-r lg:border-knowledge-border" aria-label="Knowledge folders">
-        <header className="border-b border-knowledge-border px-4 py-4">
+    <section className="grid min-h-0 min-w-0 flex-1 grid-cols-[minmax(0,1fr)] grid-rows-[auto_minmax(0,1fr)] bg-card lg:grid-cols-[15.5rem_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)] lg:overflow-hidden" aria-label="Vector Database workspace">
+      <aside className="flex min-h-0 min-w-0 flex-col border-b bg-knowledge-sidebar lg:border-b-0 lg:border-r lg:border-knowledge-border" aria-label="Knowledge folders">
+        <header className="shrink-0 border-b border-knowledge-border px-4 py-4">
           <div className="flex items-center justify-between gap-3">
             <KnowledgeBaseSwitcher
               currentDatabaseId={databaseId}
@@ -235,7 +235,7 @@ export function VectorDatabaseFileBrowser({
           </div>
         </header>
 
-        <div className="hidden px-3 py-3 lg:block">
+        <div className="hidden min-h-0 flex-1 overflow-y-auto px-3 py-3 lg:block">
           <div className="mb-2 px-2 text-xs font-medium text-muted-foreground">Folders</div>
           {tree}
           {emptyFolderTree}
@@ -250,7 +250,7 @@ export function VectorDatabaseFileBrowser({
       </aside>
 
       <Tabs value={view} onValueChange={(value) => onViewChange(value as VectorDatabaseWorkspaceView)} className="min-h-0 min-w-0 gap-0 bg-card">
-        <header className="border-b bg-card">
+        <header className="shrink-0 border-b bg-card">
           <div className="flex min-h-14 flex-col gap-2 px-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
             <TabsList variant="line" aria-label="Vector Database view" className="h-14 border-b-0">
               <TabsTrigger value="files" className="h-14 px-3"><FileText />Files</TabsTrigger>

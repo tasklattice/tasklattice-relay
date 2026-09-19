@@ -272,8 +272,8 @@ function VectorDatabaseDetail() {
           : undefined;
 
   return (
-    <div className="flex min-h-[calc(100svh-4rem)] min-w-0 flex-col bg-background">
-      <header className="flex items-start justify-between gap-4 border-b px-5 py-5 sm:px-6 lg:px-8">
+    <div className="flex min-h-[calc(100svh-3.5rem)] min-w-0 flex-col bg-background lg:h-[calc(100dvh-3.5rem)] lg:min-h-0 lg:overflow-hidden">
+      <header className="flex shrink-0 items-start justify-between gap-4 border-b px-5 py-5 sm:px-6 lg:px-8">
         <div className="min-w-0">
           <h1 className="truncate font-display text-2xl font-semibold leading-tight tracking-[-0.02em]">{database.name}</h1>
           <p className="mt-1.5 text-sm text-muted-foreground">
@@ -285,12 +285,12 @@ function VectorDatabaseDetail() {
         </div>
       </header>
       {!modelDeployments.isPending && !embeddingModelReady ? (
-        <div className="px-5 pt-4 sm:px-6 lg:px-8"><EmbeddingModelSetupNotice
+        <div className="shrink-0 px-5 pt-4 sm:px-6 lg:px-8"><EmbeddingModelSetupNotice
           canManageProject={permissions.canManageProject}
           projectId={projectId}
         /></div>
       ) : null}
-      <div className="min-h-0 min-w-0 flex-1 border-b bg-card">
+      <div className="flex min-h-0 min-w-0 flex-1 bg-card">
         <VectorDatabaseFileBrowser
           builtIn={database.provider === "postgresql"}
           canManage={vectorDatabaseAvailable && permissions.canUpdateVectorDatabases}

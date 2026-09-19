@@ -270,7 +270,7 @@ function ProjectSidebar({ createProjectOpen, logout, onCreateProjectOpenChange, 
     ? developerNavGroups
     : navGroups;
   return (
-    <ToastProvider duration={3_000} swipeDirection="right">
+    <>
       <Sidebar
         collapsible="icon"
         mobileDescription={t("navigation.description")}
@@ -366,8 +366,7 @@ function ProjectSidebar({ createProjectOpen, logout, onCreateProjectOpenChange, 
         </div>
         <ToastClose />
       </Toast>
-      <ToastViewport />
-    </ToastProvider>
+    </>
   );
 }
 
@@ -432,73 +431,76 @@ export function AppShell() {
   const activeSidebarOpen = fullBleedRoute ? nestedSidebarOpen : sidebarOpen;
 
   return (
-    <TooltipProvider delayDuration={250}>
-      <SidebarProvider open={activeSidebarOpen} onOpenChange={handleSidebarOpenChange}>
-        {standaloneContextSidebar ? null : (
-          <ProjectSidebar
-            createProjectOpen={createProjectOpen}
-            logout={logout}
-            onCreateProjectOpenChange={setCreateProjectOpen}
-            pathname={pathname}
-            user={user}
-          />
-        )}
-        <SidebarInset>
-          {!fullBleedRoute ? <WorkspaceHeader /> : null}
-          <main
-            id="main-content"
-            className={cn(
-              "min-w-0 w-full",
-              fullBleedRoute
-                ? "flex-1"
-                : workspaceRoute
+    <ToastProvider duration={3_000} swipeDirection="right">
+      <TooltipProvider delayDuration={250}>
+        <SidebarProvider open={activeSidebarOpen} onOpenChange={handleSidebarOpenChange}>
+          {standaloneContextSidebar ? null : (
+            <ProjectSidebar
+              createProjectOpen={createProjectOpen}
+              logout={logout}
+              onCreateProjectOpenChange={setCreateProjectOpen}
+              pathname={pathname}
+              user={user}
+            />
+          )}
+          <SidebarInset>
+            {!fullBleedRoute ? <WorkspaceHeader /> : null}
+            <main
+              id="main-content"
+              className={cn(
+                "min-w-0 w-full",
+                fullBleedRoute
                   ? "flex-1"
-                  : "mx-auto max-w-[1600px] p-4 sm:p-6",
-            )}
-          >
-            {!globalRoute && projectError ? (
-              <div role="status" className="mb-5 border-l-2 border-amber-500 bg-amber-500/5 px-4 py-3 text-sm text-amber-900">
-                {projectError}
-              </div>
-            ) : null}
-            {!globalRoute && projectLoading ? (
-              <div className="space-y-6" aria-label={t("projectEmptyState.loading")}>
-                <div className="h-20 animate-pulse rounded-md bg-muted/70" />
-                <div className="grid gap-4 md:grid-cols-3">
-                  <div className="h-28 animate-pulse rounded-md bg-muted/60" />
-                  <div className="h-28 animate-pulse rounded-md bg-muted/60" />
-                  <div className="h-28 animate-pulse rounded-md bg-muted/60" />
+                  : workspaceRoute
+                    ? "flex-1"
+                    : "mx-auto max-w-[1600px] p-4 sm:p-6",
+              )}
+            >
+              {!globalRoute && projectError ? (
+                <div role="status" className="mb-5 border-l-2 border-amber-500 bg-amber-500/5 px-4 py-3 text-sm text-amber-900">
+                  {projectError}
                 </div>
-                <div className="h-64 animate-pulse rounded-md bg-muted/50" />
-              </div>
-            ) : !currentProject && !globalRoute ? (
-              <section className="mx-auto max-w-md py-20 text-center" aria-labelledby="no-project-title">
-                <h1 id="no-project-title" className="text-lg font-semibold">
-                  {t("projectEmptyState.title")}
-                </h1>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  {t("projectEmptyState.description")}
-                </p>
-                <div className="mt-5 flex justify-center gap-3">
-                  <Button onClick={() => setCreateProjectOpen(true)}>
-                    {t("projectEmptyState.create")}
-                  </Button>
-                  <Button variant="outline" onClick={() => void refreshProjects()}>
-                    {t("common:actions.reload")}
-                  </Button>
+              ) : null}
+              {!globalRoute && projectLoading ? (
+                <div className="space-y-6" aria-label={t("projectEmptyState.loading")}>
+                  <div className="h-20 animate-pulse rounded-md bg-muted/70" />
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <div className="h-28 animate-pulse rounded-md bg-muted/60" />
+                    <div className="h-28 animate-pulse rounded-md bg-muted/60" />
+                    <div className="h-28 animate-pulse rounded-md bg-muted/60" />
+                  </div>
+                  <div className="h-64 animate-pulse rounded-md bg-muted/50" />
                 </div>
-              </section>
-            ) : (
-              <div
-                key={globalRoute ? pathname : currentProject?.id}
-                className={cn("min-w-0", fullBleedRoute && "min-h-full")}
-              >
-                <Outlet />
-              </div>
-            )}
-          </main>
-        </SidebarInset>
-      </SidebarProvider>
-    </TooltipProvider>
+              ) : !currentProject && !globalRoute ? (
+                <section className="mx-auto max-w-md py-20 text-center" aria-labelledby="no-project-title">
+                  <h1 id="no-project-title" className="text-lg font-semibold">
+                    {t("projectEmptyState.title")}
+                  </h1>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    {t("projectEmptyState.description")}
+                  </p>
+                  <div className="mt-5 flex justify-center gap-3">
+                    <Button onClick={() => setCreateProjectOpen(true)}>
+                      {t("projectEmptyState.create")}
+                    </Button>
+                    <Button variant="outline" onClick={() => void refreshProjects()}>
+                      {t("common:actions.reload")}
+                    </Button>
+                  </div>
+                </section>
+              ) : (
+                <div
+                  key={globalRoute ? pathname : currentProject?.id}
+                  className={cn("min-w-0", fullBleedRoute && "min-h-full")}
+                >
+                  <Outlet />
+                </div>
+              )}
+            </main>
+          </SidebarInset>
+        </SidebarProvider>
+      </TooltipProvider>
+      <ToastViewport />
+    </ToastProvider>
   );
 }
