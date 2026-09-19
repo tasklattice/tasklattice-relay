@@ -93,7 +93,7 @@ describe("NemoClaw sandbox image build", () => {
       join(bin, "git"),
       `#!/usr/bin/env bash
 set -euo pipefail
-if [ "$1" = "clone" ]; then
+if [ "$1" = "init" ]; then
   target=""
   for argument in "$@"; do target="$argument"; done
   mkdir -p "$target/scripts" "$target/agents/hermes"
@@ -188,7 +188,7 @@ exit 0
       join(bin, "git"),
       `#!/usr/bin/env bash
 set -euo pipefail
-if [ "$1" = "clone" ]; then
+if [ "$1" = "init" ]; then
   target=""
   for argument in "$@"; do target="$argument"; done
   mkdir -p "$target/scripts" "$target/agents/hermes"
@@ -262,7 +262,7 @@ exit 0
       join(bin, "git"),
       `#!/usr/bin/env bash
 set -euo pipefail
-if [ "$1" = "clone" ]; then
+if [ "$1" = "init" ]; then
   target=""
   for argument in "$@"; do target="$argument"; done
   mkdir -p "$target/agents/langchain-deepagents-code"

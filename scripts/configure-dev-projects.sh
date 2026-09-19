@@ -21,10 +21,10 @@ if ! jq -e '
   and length > 0
   and all(.[];
     (.departmentId | type == "string" and length > 0)
-    and (.id | type == "string" and test("^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$"))
+    and (has("id") | not)
     and (.name | type == "string" and length > 0)
   )
-  and ([.[].id] | length == (unique | length))
+  and ([.[] | [.departmentId, (.name | ascii_downcase)]] | length == (unique | length))
 ' "$projects_file" >/dev/null; then
   echo "Development Project configuration is invalid: $projects_file" >&2
   exit 1
@@ -48,28 +48,20 @@ existing_count=0
 
 while IFS= read -r configured_project; do
   department_id="$(jq -r '.departmentId' <<<"$configured_project")"
-  project_id="$(jq -r '.id' <<<"$configured_project")"
   project_name="$(jq -r '.name' <<<"$configured_project")"
   existing_project="$({
-    jq --arg project_id "$project_id" '
+    jq --arg department_id "$department_id" --arg project_name "$project_name" '
       [
         .departments[]? as $department
+        | select($department.id == $department_id)
         | $department.projects[]?
-        | select(.id == $project_id)
+        | select((.name | ascii_downcase) == ($project_name | ascii_downcase))
         | . + {departmentId: $department.id}
       ][0] // null
     ' <<<"$organization_response"
   })"
 
   if [[ "$existing_project" != "null" ]]; then
-    if ! jq -e \
-      --arg department_id "$department_id" \
-      --arg project_name "$project_name" \
-      '.departmentId == $department_id and .name == $project_name' \
-      <<<"$existing_project" >/dev/null; then
-      echo "Development Project $project_id exists with different name or Department metadata." >&2
-      exit 1
-    fi
     ((existing_count += 1))
     continue
   fi
@@ -84,11 +76,9 @@ while IFS= read -r configured_project; do
   payload="$({
     jq --null-input \
       --arg department_id "$department_id" \
-      --arg project_id "$project_id" \
       --arg project_name "$project_name" \
       '{
         departmentId: $department_id,
-        id: $project_id,
         name: $project_name,
         invitations: []
       }'

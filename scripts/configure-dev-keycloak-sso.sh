@@ -7,6 +7,7 @@ kube_context="${KUBE_CONTEXT:?KUBE_CONTEXT is required}"
 namespace="${HELM_NAMESPACE:-tali}"
 release_name="${HELM_RELEASE_NAME:-tali-relay}"
 repository_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+projects_file="${CONTROL_DEVELOPMENT_PROJECTS_FILE:-$repository_root/config/development-projects.json}"
 
 for command_name in curl jq kubectl; do
   if ! command -v "$command_name" >/dev/null 2>&1; then
@@ -134,15 +135,24 @@ department_id="$({
   ' <<<"$organization_response"
 })"
 
-project_ids="$({
+projects="$({
   jq -c \
     --arg department_id "$department_id" \
+    --slurpfile fixtures "$projects_file" \
     '
     [
       .departments[]?
       | select(.id == $department_id)
       | .projects[]?
-      | .id
+      | . as $project
+      | {
+          id,
+          groupName: ([
+            $fixtures[0][]
+            | select(.departmentId == $department_id and (.name | ascii_downcase) == ($project.name | ascii_downcase))
+            | .keycloakGroup // empty
+          ][0] // .id)
+        }
     ]
   ' <<<"$organization_response"
 })"
@@ -150,7 +160,7 @@ project_ids="$({
 desired_bindings="$({
   jq --null-input \
     --arg department_id "$department_id" \
-    --argjson project_ids "$project_ids" \
+    --argjson projects "$projects" \
     '[
       {
         enabled: true,
@@ -179,16 +189,16 @@ desired_bindings="$({
         "ROLE_REVIEWER",
         "ROLE_USER"
       ] as $project_roles
-      | $project_ids
+      | $projects
       | map(
-          . as $project_id
+          . as $project
           | $project_roles[]
           | {
               enabled: true,
-              group: ("/tali/d/" + $department_id + "/p/" + $project_id + "/r/" + .),
+              group: ("/tali/d/" + $department_id + "/p/" + $project.groupName + "/r/" + .),
               scope: "PROJECT",
               departmentId: $department_id,
-              projectId: $project_id,
+              projectId: $project.id,
               roleId: .
             }
         )
@@ -236,6 +246,6 @@ signing_key_count="$(jq -r '.signingKeyCount // 0' <<<"$validation_response")"
 role_binding_count="$(jq -r '.bindings | length' <<<"$role_bindings_update")"
 echo "Configured Control SSO with Keycloak ($signing_key_count signing keys, $role_binding_count role bindings)."
 
-if [[ -z "$department_id" || "$(jq 'length' <<<"$project_ids")" == "0" ]]; then
+if [[ -z "$department_id" || "$(jq 'length' <<<"$projects")" == "0" ]]; then
   echo "The development Department or Projects do not exist yet; their test role bindings will be added on the next deployment." >&2
 fi

@@ -23,7 +23,6 @@ import type { PrismaClient } from "../generated/prisma/client";
 import type { ControlJobPublisher } from "../jobs/control-job-queue";
 import { ProjectService } from "./project-service";
 import {
-  projectRuntimeNamespace,
   type ProjectRuntimeNamespaceProvisioner,
 } from "./project-runtime-target-service";
 
@@ -115,7 +114,7 @@ async function syncAuthUser(
 }
 
 describe("ProjectService", () => {
-  it("creates a Project with a normalized name and requested immutable ID", async () => {
+  it("creates a Project with a normalized name and a generated ID shared with its Namespace", async () => {
     const db = createTestPrisma();
     const service = new ProjectService(db);
     const local = auth({
@@ -131,23 +130,18 @@ describe("ProjectService", () => {
       "  Agent\tPlatform  ",
       [],
       "department",
-      "agent-platform",
     );
 
     expect(project).toMatchObject({
-      id: "agent-platform",
+      id: expect.stringMatching(/^tp-[a-z2-7]{13}$/),
       name: "Agent Platform",
     });
-    await expect(
-      service.create(
-        local,
-        "dep1",
-        "Another Project",
-        [],
-        "department",
-        "Agent_Platform",
-      ),
-    ).rejects.toThrow("Project ID");
+    expect(await db.projectRuntimeTarget.findUnique({
+      where: { projectId: project.id },
+    })).toMatchObject({ namespace: project.id });
+    const another = await service.create(local, "dep1", "Another Project", [], "platform");
+    expect(another.id).toMatch(/^tp-[a-z2-7]{13}$/);
+    expect(another.id).not.toBe(project.id);
   });
 
   it("lists the seeded project and copies its metadata into new Projects", async () => {
@@ -183,7 +177,7 @@ describe("ProjectService", () => {
       activeRole: "admin",
       assignedRoles: ["admin"],
     });
-    expect(team.id).toMatch(/^ai-platform-[a-f0-9]{8}$/);
+    expect(team.id).toMatch(/^tp-[a-z2-7]{13}$/);
     expect(team).not.toHaveProperty("type");
     await expect(db.projectQuotaRecord.findUniqueOrThrow({
       where: { projectId: team.id },
@@ -198,7 +192,7 @@ describe("ProjectService", () => {
       where: { projectId: team.id },
     })).resolves.toMatchObject({
       clusterId: "in-cluster",
-      namespace: projectRuntimeNamespace(team.id),
+      namespace: team.id,
       observedGeneration: 0,
       status: "pending",
     });

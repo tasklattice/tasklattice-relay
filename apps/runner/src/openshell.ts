@@ -1,5 +1,6 @@
 import { getRunnerConfig } from "./runner-config.js";
 import { createHmac, randomUUID } from "node:crypto";
+import { kubernetesResourceName } from "@tali/contracts/resource-identity";
 import { spawn } from "node:child_process";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -656,14 +657,11 @@ async function ensureProviderPolicyCompositionEnabled(
 }
 
 export function openShellProviderName(sandboxName: string): string {
-  const name = sandboxName.startsWith("tali-")
-    ? sandboxName
-    : `tali-${sandboxName}`;
-  return name.slice(0, 63).replace(/-$/, "");
+  return kubernetesResourceName("credential", JSON.stringify([sandboxName, "inference"]));
 }
 
 export function openShellRuntimeBridgeProviderName(sandboxName: string): string {
-  return `${openShellProviderName(sandboxName).slice(0, 55).replace(/-$/, "")}-bridge`;
+  return kubernetesResourceName("credential", JSON.stringify([sandboxName, "runtime-bridge"]));
 }
 
 export function isOpenShellProviderAttachedError(output: string): boolean {

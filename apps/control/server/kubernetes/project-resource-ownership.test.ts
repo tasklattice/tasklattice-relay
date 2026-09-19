@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { PatchStrategy, type KubernetesObject } from "@kubernetes/client-node";
 import { attachObservedNamespaceOwner, namespaceOwner, projectArgoAnnotations, reconcileSandboxResources, withNamespaceOwner } from "./project-resource-ownership";
 
-const namespace = "tp-abcdefghijklmnop";
+const namespace = "tp-abcdefghijklm";
 const owner = namespaceOwner({ metadata: { name: namespace, uid: "namespace-uid",
   annotations: { "tali.io/project-id": "project-a" } } }, "project-a");
 

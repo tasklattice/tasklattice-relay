@@ -29,7 +29,7 @@ const configuration: ProjectOpenShellGatewayConfiguration = {
 };
 
 const target = {
-  namespace: "tp-abcdefghijklmnop",
+  namespace: "tp-abcdefghijklm",
   projectId: "project-a",
   projectName: "Customer Support",
 };
@@ -114,12 +114,12 @@ describe("HelmProjectOpenShellGatewayClient", () => {
     const client = new HelmProjectOpenShellGatewayClient(configuration, run);
     const targets = [
       {
-        namespace: "tp-abcdefghijklmnop",
+        namespace: "tp-abcdefghijklm",
         projectId: "isolation-1",
         projectName: "Isolation 1",
       },
       {
-        namespace: "tp-bcdefghijklmnopa",
+        namespace: "tp-bcdefghijklmn",
         projectId: "isolation-2",
         projectName: "Isolation 2",
       },

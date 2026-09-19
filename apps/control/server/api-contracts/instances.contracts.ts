@@ -1,3 +1,4 @@
+import { instanceIdSchema } from "@tali/contracts";
 import {
   createAccessPolicySchema,
   createInstanceSchema,
@@ -26,7 +27,7 @@ const accessPolicySchema = createAccessPolicySchema.and(z.looseObject({
   version: z.number().int().positive(),
 })).meta({ id: "AccessPolicy" });
 const instanceSchema = z.looseObject({
-  id: z.string().uuid(),
+  id: instanceIdSchema,
   name: z.string(),
   status: z.string(),
 }).meta({ id: "Instance" });
@@ -42,7 +43,7 @@ const instanceLifecycleEventSchema = z.object({
 }).meta({ id: "InstanceLifecycleEvent" });
 const instanceLifecycleOperationSchema = z.object({
   id: z.string().uuid(),
-  instanceId: z.string().uuid(),
+  instanceId: instanceIdSchema,
   action: z.enum(["provision", "delete"]),
   status: z.enum(["queued", "running", "succeeded", "failed"]),
   stage: z.string().optional(),
@@ -104,7 +105,7 @@ export const instanceContracts = defineContracts([
     method: "post", path: "/instances", operationId: "createInstance",
     summary: "Create a runtime Instance", tags: ["Instances"], request: { body: createInstanceSchema },
     responses: { 202: response("Instance provisioning accepted", z.object({
-      instanceId: z.string().uuid(),
+      instanceId: instanceIdSchema,
       operation: instanceLifecycleOperationSchema,
     })) },
   }),

@@ -19,12 +19,12 @@ describe("Project OpenShell target routing", () => {
     getRunnerConfig().openshell.serviceBaseUrl = "https://openshell.example.test";
 
     expect(resolveOpenShellTarget({
-      namespace: "tp-abcdefghijklmnop",
+      namespace: "tp-abcdefghijklm",
     })).toEqual({
       gatewayEndpoint:
-        "http://openshell-tp-abcdefghijklmnop.tp-abcdefghijklmnop.svc.cluster.local:8080",
+        "http://openshell-tp-abcdefghijklm.tp-abcdefghijklm.svc.cluster.local:8080",
       serviceBaseUrl: "https://openshell.example.test",
-      workspace: "tp-abcdefghijklmnop",
+      workspace: "tp-abcdefghijklm",
     });
   });
 
@@ -38,39 +38,39 @@ describe("Project OpenShell target routing", () => {
       "http://shared-openshell.tali.svc.cluster.local:8080";
 
     expect(resolveOpenShellTarget({
-      namespace: "tp-abcdefghijklmnop",
+      namespace: "tp-abcdefghijklm",
     })).toMatchObject({
       gatewayEndpoint:
         "http://shared-openshell.tali.svc.cluster.local:8080",
-      workspace: "tp-abcdefghijklmnop",
+      workspace: "tp-abcdefghijklm",
     });
   });
 
   it("keys volatile Runner state by target and sandbox", () => {
     expect(sandboxStateKey("i-example", {
-      namespace: "tp-abcdefghijklmnop",
+      namespace: "tp-abcdefghijklm",
     })).not.toBe(sandboxStateKey("i-example", {
-      namespace: "tp-bcdefghijklmnopa",
+      namespace: "tp-bcdefghijklmn",
     }));
   });
 
   it("routes only a complete workspace-qualified OpenShell service host", () => {
     expect(projectServiceRoute(
-      "tp-abcdefghijklmnop--i-example--webui.openshell.example.test",
+      "tp-abcdefghijklm--i-example--webui.openshell.example.test",
       "https://openshell.example.test",
     )).toEqual({
       upstreamHost:
-        "openshell-tp-abcdefghijklmnop.tp-abcdefghijklmnop.svc.cluster.local",
+        "openshell-tp-abcdefghijklm.tp-abcdefghijklm.svc.cluster.local",
       upstreamPort: 8080,
       upstreamProtocol: "http:",
-      workspace: "tp-abcdefghijklmnop",
+      workspace: "tp-abcdefghijklm",
     });
     expect(projectServiceRoute(
       "default--i-example--webui.openshell.example.test",
       "https://openshell.example.test",
     )).toBeUndefined();
     expect(projectServiceRoute(
-      "tp-abcdefghijklmnop.openshell.example.test",
+      "tp-abcdefghijklm.openshell.example.test",
       "https://openshell.example.test",
     )).toBeUndefined();
   });
@@ -78,23 +78,23 @@ describe("Project OpenShell target routing", () => {
   it("does not route two Project service hosts through the same Gateway", () => {
     const serviceBaseUrl = "https://openshell.example.test";
     const first = projectServiceRoute(
-      "tp-abcdefghijklmnop--i-shared--webui.openshell.example.test",
+      "tp-abcdefghijklm--i-shared--webui.openshell.example.test",
       serviceBaseUrl,
     );
     const second = projectServiceRoute(
-      "tp-bcdefghijklmnopa--i-shared--webui.openshell.example.test",
+      "tp-bcdefghijklmn--i-shared--webui.openshell.example.test",
       serviceBaseUrl,
     );
 
     expect(first).toMatchObject({
       upstreamHost:
-        "openshell-tp-abcdefghijklmnop.tp-abcdefghijklmnop.svc.cluster.local",
-      workspace: "tp-abcdefghijklmnop",
+        "openshell-tp-abcdefghijklm.tp-abcdefghijklm.svc.cluster.local",
+      workspace: "tp-abcdefghijklm",
     });
     expect(second).toMatchObject({
       upstreamHost:
-        "openshell-tp-bcdefghijklmnopa.tp-bcdefghijklmnopa.svc.cluster.local",
-      workspace: "tp-bcdefghijklmnopa",
+        "openshell-tp-bcdefghijklmn.tp-bcdefghijklmn.svc.cluster.local",
+      workspace: "tp-bcdefghijklmn",
     });
     expect(first?.upstreamHost).not.toBe(second?.upstreamHost);
     expect(sandboxStateKey("i-shared", {

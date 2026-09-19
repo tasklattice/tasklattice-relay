@@ -12,7 +12,7 @@ import {
 } from "./project-runtime-bridge-client";
 
 const input = {
-  namespace: "tp-abcdefghijklmnop",
+  namespace: "tp-abcdefghijklm",
   projectId: "project-a",
   projectName: "Project A",
   controlUrl: "http://tali-control.tali.svc.cluster.local:38080",

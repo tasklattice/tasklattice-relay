@@ -64,11 +64,13 @@ domain model.
 
 ## Namespace identity and scope
 
-Namespace names use an opaque, deterministic 80-bit SHA-256 identifier encoded
-as lowercase Base32, for example `tp-k7m2p5cx4v6dq2rw`. The fixed `tp-` prefix
-makes the result exactly 19 characters. This lets the same identifier serve as
-the Kubernetes Namespace and OpenShell Workspace while satisfying OpenShell's
-DNS-routable name limit.
+New Projects receive a server-generated ID: `tp-` followed by 13 lowercase
+Base32 characters, for example `tp-k7m2p5cx4v6dq`. The suffix encodes the
+first 65 bits of SHA-256 applied to a random UUID, independently of the Project
+name. The resulting 16-character ID is stored as the real Project primary key
+and used unchanged for its Kubernetes Namespace and OpenShell Workspace. It is
+also the ID used in URLs, ownership, and background jobs. Creation requests
+cannot supply an ID. Retrying initialization reuses the same ID and Namespace.
 
 The Namespace also contains:
 

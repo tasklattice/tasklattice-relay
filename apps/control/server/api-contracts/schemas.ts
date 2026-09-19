@@ -1,8 +1,8 @@
+import { instanceIdSchema } from "@tali/contracts";
 import {
   assignableProjectMembershipRoles,
   builtinProjectRoleIds,
   departmentNameSchema,
-  projectIdSchema,
   projectNameSchema,
   projectCapabilities,
   projectMembershipRoles,
@@ -19,7 +19,7 @@ const money = z.number().nonnegative();
 
 export const projectParamsSchema = z.object({ projectId: id });
 export const departmentParamsSchema = z.object({ departmentId: id });
-export const instanceParamsSchema = projectParamsSchema.extend({ instanceId: uuid });
+export const instanceParamsSchema = projectParamsSchema.extend({ instanceId: instanceIdSchema });
 export const instanceOperationParamsSchema = instanceParamsSchema.extend({
   operationId: uuid,
 });
@@ -203,10 +203,9 @@ export const projectInvitationInputSchema = z.object({
 
 export const createProjectInputSchema = z.object({
   departmentId: id.max(80),
-  id: projectIdSchema.optional(),
   name: projectNameSchema,
   invitations: z.array(projectInvitationInputSchema).max(25),
-}).superRefine(({ invitations }, context) => {
+}).strict().superRefine(({ invitations }, context) => {
   const seen = new Set<string>();
   invitations.forEach(({ email }, index) => {
     const canonicalEmail = email.trim().toLowerCase();

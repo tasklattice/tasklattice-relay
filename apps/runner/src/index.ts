@@ -1,3 +1,4 @@
+import { instanceIdSchema } from "@tali/contracts";
 import { getRunnerConfig } from "./runner-config.js";
 import express from "express";
 import {
@@ -95,7 +96,7 @@ const createSchema = z.object({
   systemPrompt: z.string().min(10).max(8000),
   policyYaml: z.string().min(10).max(64_000),
   apiKey: z.string().min(16).max(512).optional(),
-  instanceId: z.string().uuid(),
+  instanceId: instanceIdSchema,
   projectRuntimeBridgeToken: z.string()
     .regex(/^tali_prc_v1\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/)
     .max(2_048)

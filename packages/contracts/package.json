@@ -8,6 +8,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./resource-identity": {
+      "types": "./dist/resource-identity.d.ts",
+      "default": "./dist/resource-identity.js"
     }
   },
   "scripts": {
@@ -18,6 +22,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@types/node": "^24.13.6",
     "typescript": "^7.0.2"
   }
 }

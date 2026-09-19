@@ -17,7 +17,7 @@ function a2aAgent(): A2aAgentInstance {
     description: "A managed A2A specialist for repository triage workflows.",
     runtime: "kubernetes",
     status: "READY",
-    runtimeNamespace: "tp-abcdefghijklmnop",
+    runtimeNamespace: "tp-abcdefghijklm",
     deploymentName: "tali-a2a-12156ad3de4f83e7",
     serviceName: "tali-a2a-12156ad3de4f83e7",
     podName: "tali-a2a-12156ad3de4f83e7-7954479887-6ntc2",

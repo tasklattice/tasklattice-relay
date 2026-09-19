@@ -61,9 +61,12 @@ export const provisioningStages = [
 // target can be a dedicated 0.0.106 Gateway today or an operator-managed
 // workspace on a newer OpenShell release without changing Agent APIs.
 export const projectRuntimeNamespaceSchema = z.string().regex(
-  /^tp-[a-z2-7]{16}$/,
+  /^tp-[a-z2-7]{13}$/,
   "Project Runtime Target must be a Relay-managed Namespace.",
 );
+
+// External A2A instances are database-only UUIDs; managed instances use short IDs.
+export const instanceIdSchema = z.union([z.uuid(), z.string().regex(/^ti-[a-z2-7]{13}$/)]);
 
 export const runnerRuntimeTargetSchema = z.object({
   namespace: projectRuntimeNamespaceSchema,
@@ -503,7 +506,6 @@ export interface PlatformInfrastructureValidationView {
 export const createPlatformDepartmentSchema = z.object({
   administratorUserId: z.string().trim().min(1),
   description: z.string().trim().max(500).nullable(),
-  id: departmentIdSchema,
   name: departmentNameSchema,
 }).strict();
 
@@ -1972,7 +1974,8 @@ export const onboardAgentSchema = z.discriminatedUnion("sourceType", [
 ]).meta({ id: "OnboardAgentInput" });
 
 export const a2aAgentInstanceSchema = z.object({
-  id: z.string().uuid(),
+  // External Instances are database-only UUIDs; managed Instances own a K8S workload.
+  id: instanceIdSchema,
   agentId: z.string().trim().min(1).max(160),
   kind: z.literal("A2A"),
   name: z.string().trim().min(2).max(160),

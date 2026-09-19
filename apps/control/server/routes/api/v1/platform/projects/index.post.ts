@@ -27,7 +27,6 @@ export default defineHandler(async (event) => {
         input.name,
         input.invitations,
         "platform",
-        input.id,
       ),
       { status: 201 },
     );

@@ -11,7 +11,7 @@ import { namespaceOwner, reconcileSandboxResources, reconcileGatewayResources, w
 
 const exec = promisify(execFile);
 const context = process.env.KUBE_CONTEXT ?? "orbstack";
-const namespace = `tp-${[...randomBytes(16)].map(b => "abcdefghijklmnopqrstuvwxyz234567"[b % 32]).join("")}`;
+const namespace = `tp-${[...randomBytes(13)].map(b => "abcdefghijklmnopqrstuvwxyz234567"[b % 32]).join("")}`;
 const projectId = randomUUID();
 const target = { namespace, projectId, projectName: "Resource ownership acceptance" };
 const configuration = new KubeConfig();

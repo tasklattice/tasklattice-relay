@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { kubernetesResourceName } from "@tali/contracts/resource-identity";
 import { readProjectNamespaceOwner, withNamespaceOwner } from "./project-resource-ownership";
 import {
   AppsV1Api,
@@ -71,11 +72,7 @@ type ManagedAgentOwnership = Pick<
 >;
 
 export function managedAgentResourceName(instanceId: string): string {
-  const identifier = createHash("sha256")
-    .update(instanceId)
-    .digest("hex")
-    .slice(0, 16);
-  return `tali-a2a-${identifier}`;
+  return kubernetesResourceName("instance", instanceId);
 }
 
 function managedAgentKey(agentId: string): string {

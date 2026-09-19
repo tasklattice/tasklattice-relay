@@ -237,7 +237,7 @@ export class VectorDocumentService {
           },
         },
       });
-      const documentId = current?.id ?? documentIdentifier(`${directoryPath}/${filename}`);
+      const documentId = current?.id ?? randomUUID();
       // A failed or still-pending revision does not advance activeRevision.
       const revision = (current?.revisions[0]?.revision ?? 0) + 1;
       if (current) {
@@ -998,16 +998,6 @@ function validateUpload(filename: string, mediaType: string, size: number): void
   if (!ACCEPTED_EXTENSIONS.has(extension) && !mediaType.startsWith("image/")) {
     throw new Error("Unsupported Vector Document. Upload PDF, Office, HTML, Markdown, text, or an image.");
   }
-}
-
-function documentIdentifier(filename: string): string {
-  const slug = filename
-    .replace(/\.[^.]+$/, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "")
-    .slice(0, 80) || "document";
-  return `${slug}-${randomUUID().slice(0, 8)}`;
 }
 
 function advisoryKey(value: string): number {

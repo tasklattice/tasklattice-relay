@@ -8,12 +8,12 @@ const developmentProjects = JSON.parse(
   readFileSync("config/development-projects.json", "utf8"),
 );
 const expectedProjects = [
-  { departmentId: "dep1", id: "proj1", name: "proj1" },
-  { departmentId: "dep1", id: "isolation-1", name: "Isolation 1" },
+  { departmentId: "dep1", name: "proj1", keycloakGroup: "proj1" },
+  { departmentId: "dep1", name: "Isolation 1", keycloakGroup: "isolation-1" },
 ];
 if (JSON.stringify(developmentProjects) !== JSON.stringify(expectedProjects)) {
   throw new Error(
-    "Development defaults must declare proj1 and isolation-1 in dep1.",
+    "Development defaults must declare Project names in dep1 without overriding generated IDs.",
   );
 }
 
@@ -88,9 +88,9 @@ const departmentProjects = taliGroup?.subGroups
   ?.find(({ name }) => name === "dep1")?.subGroups
   ?.find(({ name }) => name === "p")?.subGroups
   ?.map(({ name }) => name) ?? [];
-for (const { id } of expectedProjects) {
-  if (!departmentProjects.includes(id)) {
-    throw new Error(`The Keycloak realm is missing Project group ${id}.`);
+for (const { keycloakGroup: groupName } of expectedProjects) {
+  if (!departmentProjects.includes(groupName)) {
+    throw new Error(`The Keycloak realm is missing Project group ${groupName}.`);
   }
 }
 

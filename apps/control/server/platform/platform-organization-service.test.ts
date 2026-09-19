@@ -33,14 +33,13 @@ describe("PlatformOrganizationService", () => {
     const service = new PlatformOrganizationService(createTestPrisma());
 
     const department = await service.createDepartment({
-      id: "research",
       name: "Research",
       description: "Research organization boundary.",
       administratorUserId: "local-admin",
     }, "local-admin");
 
+    expect(department.id).toMatch(/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/);
     expect(department).toMatchObject({
-      id: "research",
       name: "Research",
       members: [
         expect.objectContaining({ id: "local-admin", role: "administrator" }),
@@ -49,7 +48,7 @@ describe("PlatformOrganizationService", () => {
     });
     await expect(service.get()).resolves.toMatchObject({
       departments: expect.arrayContaining([
-        expect.objectContaining({ id: "research" }),
+        expect.objectContaining({ id: department.id }),
       ]),
     });
   });
@@ -132,7 +131,6 @@ describe("PlatformOrganizationService", () => {
     const service = new PlatformOrganizationService(database);
 
     await expect(service.createDepartment({
-      id: "operations",
       name: "Operations",
       description: null,
       administratorUserId: "disabled-person",

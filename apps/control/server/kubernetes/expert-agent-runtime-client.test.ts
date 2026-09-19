@@ -29,7 +29,7 @@ const envelope = {
 const input = {
   projectId: "project-a",
   projectName: "Project A",
-  namespace: "tp-abcdefghijklmnop",
+  namespace: "tp-abcdefghijklm",
   instanceId: "33333333-3333-4333-8333-333333333333",
   agentId: envelope.snapshot.agentId,
   agentName: "GitHub Weekly Commit Summary",

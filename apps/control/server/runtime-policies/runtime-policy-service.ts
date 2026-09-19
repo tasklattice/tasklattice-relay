@@ -186,15 +186,8 @@ export class RuntimePolicyService {
 
   async create(input: CreateSandboxPolicyInput): Promise<SandboxPolicy> {
     const now = new Date().toISOString();
-    const slug =
-      input.name
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-|-$/g, "")
-        .slice(0, 52)
-        .replace(/-$/, "") || "policy";
     return this.store.saveSandboxPolicy({
-      id: `${slug}-${randomUUID().slice(0, 8)}`,
+      id: randomUUID(),
       ...input,
       policyYaml: normalizeOpenShellPolicy(
         input.policyYaml,

@@ -208,7 +208,7 @@ describe("AgentGardenService", () => {
       data: {
         projectId: projectStore.projectId,
         clusterId: "in-cluster",
-        namespace: "tp-abcdefghijklmnop",
+        namespace: "tp-abcdefghijklm",
         status: "ready",
       },
     });
@@ -275,7 +275,7 @@ describe("AgentGardenService", () => {
       agentId: "a2a-github-daily-triage",
       runtime: "kubernetes",
       status: "READY",
-      runtimeNamespace: "tp-abcdefghijklmnop",
+      runtimeNamespace: "tp-abcdefghijklm",
       deploymentName: "tali-a2a-managed",
       podName: "tali-a2a-managed-76d8d9f4d9-h7k2p",
       imageDigest: expect.stringContaining("demo-test@sha256:"),
@@ -306,7 +306,7 @@ describe("AgentGardenService", () => {
     expect(runtime.remove).toHaveBeenCalledWith(expect.objectContaining({
       agentId: "a2a-github-daily-triage",
       instanceId: instance.id,
-      namespace: "tp-abcdefghijklmnop",
+      namespace: "tp-abcdefghijklm",
     }));
     await expect(service.remove("a2a-github-daily-triage")).rejects.toThrow(
       "managed by TaskLattice Relay",
@@ -432,7 +432,7 @@ describe("AgentGardenService", () => {
       data: {
         projectId: projectStore.projectId,
         clusterId: "in-cluster",
-        namespace: "tp-abcdefghijklmnop",
+        namespace: "tp-abcdefghijklm",
         status: "ready",
       },
     });
@@ -502,7 +502,7 @@ describe("AgentGardenService", () => {
         agentId: agent.id,
         id: agent.configuration.managedInstanceId,
         status: "READY",
-        runtimeNamespace: "tp-abcdefghijklmnop",
+        runtimeNamespace: "tp-abcdefghijklm",
         deploymentName: "tali-a2a-managed",
         podName: "tali-a2a-managed-76d8d9f4d9-h7k2p",
         imageDigest: expect.stringContaining("@sha256:"),
@@ -542,7 +542,7 @@ describe("AgentGardenService", () => {
       data: {
         projectId: projectStore.projectId,
         clusterId: "in-cluster",
-        namespace: "tp-abcdefghijklmnop",
+        namespace: "tp-abcdefghijklm",
         status: "ready",
       },
     });

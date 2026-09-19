@@ -19,7 +19,6 @@ export default defineHandler(async (event) => {
         input.name,
         input.invitations,
         "department",
-        input.id,
       ),
       { status: 201 },
     );

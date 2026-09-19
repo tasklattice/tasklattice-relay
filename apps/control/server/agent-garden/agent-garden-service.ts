@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { kubernetesResourceName } from "@tali/contracts/resource-identity";
 import {
   agentGardenEntrySchema,
   a2aAgentInstanceSchema,
@@ -41,16 +42,6 @@ import {
 import { AgentGardenStore } from "./agent-garden-store";
 import { builtInAgentCatalog } from "./built-in-agent-catalog";
 import { databaseAgentCatalog } from "./database-agent-catalog";
-
-function resourceId(name: string): string {
-  const slug = name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "")
-    .slice(0, 80)
-    .replace(/-$/, "") || "agent";
-  return `${slug}-${randomUUID().slice(0, 8)}`;
-}
 
 function safeError(error: unknown): string {
   return (
@@ -431,7 +422,7 @@ export class AgentGardenService {
       snapshot,
       manifest,
     });
-    const instanceId = this.operationId ?? randomUUID();
+    const instanceId = kubernetesResourceName("instance", this.operationId ?? randomUUID());
     const now = new Date().toISOString();
     const createdBy = {
       id: creator.id,
@@ -565,7 +556,7 @@ export class AgentGardenService {
   ): Promise<AgentGardenEntry> {
     const now = new Date().toISOString();
     const agent = agentGardenEntrySchema.parse({
-      id: this.operationId ?? resourceId(input.name),
+      id: this.operationId ?? randomUUID(),
       name: input.name,
       description: input.description,
       source: "PROJECT_REGISTERED",
@@ -645,9 +636,9 @@ export class AgentGardenService {
     }
 
     const now = new Date().toISOString();
-    const instanceId = this.operationId ?? randomUUID();
+    const instanceId = kubernetesResourceName("instance", this.operationId ?? randomUUID());
     const agent = agentGardenEntrySchema.parse({
-      id: this.operationId ?? resourceId(input.name),
+      id: this.operationId ?? randomUUID(),
       name: input.name,
       description: input.description,
       source: "PROJECT_REGISTERED",
@@ -694,7 +685,7 @@ export class AgentGardenService {
       if (checking.configuration.onboardingSource === CONTAINER_IMAGE_SOURCE) {
         const input = containerInputFromAgent(checking);
         const target = await this.requireRuntimeTarget();
-        const instanceId = checking.configuration.managedInstanceId || randomUUID();
+        const instanceId = checking.configuration.managedInstanceId || kubernetesResourceName("instance", randomUUID());
         if (!checking.configuration.managedInstanceId) {
           checking = await this.store.saveAgent({
             ...checking,
@@ -928,7 +919,7 @@ export class AgentGardenService {
   ): Promise<A2aAgentInstance> {
     const input = containerInputFromAgent(agent);
     const target = await this.requireRuntimeTarget();
-    const instanceId = previous?.id ?? this.operationId ?? randomUUID();
+    const instanceId = previous?.id ?? kubernetesResourceName("instance", this.operationId ?? randomUUID());
     let instance = managedInstance(
       agent,
       input,

@@ -141,7 +141,7 @@ describe("OpenShell Kubernetes command contract", () => {
 
   it("defines a separate Runtime Bridge Provider without putting its token in argv", () => {
     const runtimeBridgeUrl =
-      "http://tali-agent-runtime-bridge.tp-abcdefghijklmnop.svc.cluster.local:8080";
+      "http://tali-agent-runtime-bridge.tp-abcdefghijklm.svc.cluster.local:8080";
     const bridgeInput = {
       ...input,
       projectRuntimeBridgeToken: "tali_prc_v1.test-payload.test-signature",
@@ -149,7 +149,7 @@ describe("OpenShell Kubernetes command contract", () => {
     const command = runtimeBridgeProviderCreateCommand(
       bridgeInput,
       runtimeBridgeUrl,
-      { workspace: "tp-abcdefghijklmnop" },
+      { workspace: "tp-abcdefghijklm" },
     );
     const profile = taliRuntimeBridgeProviderProfile(runtimeBridgeUrl);
 
@@ -184,7 +184,7 @@ describe("OpenShell Kubernetes command contract", () => {
   it("recognizes a missing routed workspace during the first Agent lookup", () => {
     expect(
       isOpenShellWorkspaceNotFoundError(
-        "code: 'Some requested entity was not found', message: \"workspace 'tp-abcdefghijklmnop' not found\"",
+        "code: 'Some requested entity was not found', message: \"workspace 'tp-abcdefghijklm' not found\"",
       ),
     ).toBe(true);
     expect(isOpenShellWorkspaceNotFoundError("sandbox not found")).toBe(false);
@@ -375,7 +375,7 @@ describe("OpenShell Kubernetes command contract", () => {
       "https://inference.example.com/v1",
       "hermes",
       undefined,
-      "http://tali-agent-runtime-bridge.tp-abcdefghijklmnop.svc.cluster.local:8080",
+      "http://tali-agent-runtime-bridge.tp-abcdefghijklm.svc.cluster.local:8080",
     );
 
     expect(policy).toContain("version: 1\n");
@@ -472,7 +472,7 @@ describe("OpenShell Kubernetes command contract", () => {
       "/tmp/tali-nemoclaw-start",
       "/tmp/openshell-policy.yaml",
       "/tmp/tali-run-telemetry.env",
-      { workspace: "tp-abcdefghijklmnop" },
+      { workspace: "tp-abcdefghijklm" },
     );
 
     expect(createArgs).toContain(
@@ -510,7 +510,7 @@ describe("OpenShell Kubernetes command contract", () => {
       "http://inference.example.test/v1",
       "tali/provider/deepseek-chat",
       undefined,
-      "http://tali-agent-runtime-bridge.tp-abcdefghijklmnop.svc.cluster.local:8080",
+      "http://tali-agent-runtime-bridge.tp-abcdefghijklm.svc.cluster.local:8080",
       hermesInput.instanceId,
       true,
       true,
@@ -541,7 +541,7 @@ describe("OpenShell Kubernetes command contract", () => {
       "http://inference.example.test/v1",
       "tali/provider/deepseek-chat",
       { mode: "native", citations: "auto" },
-      "http://tali-agent-runtime-bridge.tp-abcdefghijklmnop.svc.cluster.local:8080",
+      "http://tali-agent-runtime-bridge.tp-abcdefghijklm.svc.cluster.local:8080",
       hermesInput.instanceId,
       true,
       false,
@@ -687,7 +687,7 @@ describe("OpenShell Kubernetes command contract", () => {
   });
 
   it("enables the scoped Durable Memory plugin for OpenClaw without exposing a Bank id", () => {
-    const bridge = "http://tali-agent-runtime-bridge.tp-abcdefghijklmnop.svc.cluster.local:8080";
+    const bridge = "http://tali-agent-runtime-bridge.tp-abcdefghijklm.svc.cluster.local:8080";
     const bootstrap = getAgentPlatformRuntime("openclaw").bootstrapScript(
       "http://openclaw.example.test",
       "18789",
@@ -822,9 +822,9 @@ describe("OpenShell Kubernetes command contract", () => {
   it("initializes a routed workspace through the bootstrapped default scope", () => {
     const target = {
       gatewayEndpoint:
-        "http://openshell-tp-abcdefghijklmnop.tp-abcdefghijklmnop.svc.cluster.local:8080",
+        "http://openshell-tp-abcdefghijklm.tp-abcdefghijklm.svc.cluster.local:8080",
       serviceBaseUrl: "http://openshell.localhost:8080",
-      workspace: "tp-abcdefghijklmnop",
+      workspace: "tp-abcdefghijklm",
     };
     expect(
       openShellWorkspaceAdminArguments([

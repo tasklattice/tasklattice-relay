@@ -8,7 +8,6 @@ import {
   builtinProjectRoleIds,
   canonicalExternalRoleGroupPath,
   departmentRoleIds,
-  departmentIdSchema,
   departmentNameSchema,
   externalRoleBindingInputSchema,
   isProjectCapability,
@@ -19,8 +18,6 @@ import {
   platformRoleIds,
   platformSettingsSections,
   providerPresets,
-  scopedEntityIdFromName,
-  scopedEntityIdLimits,
   scopedEntityNameLimits,
   type PlatformOrganizationView,
   type PlatformInfrastructureValidationView,
@@ -483,7 +480,7 @@ function InfrastructureSettings({ settings }: { settings: PlatformSettingsView }
             Runtime Namespaces
           </legend>
           <p className="max-w-3xl text-xs leading-5 text-muted-foreground">
-            New Projects receive a stable 19-character Kubernetes Namespace that is also valid as an OpenShell Workspace. Validation prevents changing the cluster identity while existing Runtime Targets belong to another cluster.
+            New Projects receive a stable 16-character Kubernetes Namespace that is also valid as an OpenShell Workspace. Validation prevents changing the cluster identity while existing Runtime Targets belong to another cluster.
           </p>
           <div className="grid gap-4 md:grid-cols-[minmax(13rem,0.7fr)_minmax(13rem,1fr)] md:items-end">
             <label className="flex min-h-11 items-center justify-between gap-4 rounded-md border px-3 py-2">
@@ -1433,14 +1430,10 @@ function RoleCatalogRow({
 
 function CreateDepartmentSheet({ onCreated, onOpenChange, open, people }: { onCreated: () => void | Promise<void>; onOpenChange: (open: boolean) => void; open: boolean; people: PlatformOrganizationView["people"] }) {
   const [name, setName] = useState("");
-  const [id, setId] = useState("");
-  const [idEdited, setIdEdited] = useState(false);
   const [description, setDescription] = useState("");
   const [administratorUserId, setAdministratorUserId] = useState("");
   const resetFields = () => {
     setName("");
-    setId("");
-    setIdEdited(false);
     setDescription("");
     setAdministratorUserId("");
   };
@@ -1454,11 +1447,9 @@ function CreateDepartmentSheet({ onCreated, onOpenChange, open, people }: { onCr
   });
   const activePeople = people.filter((person) => person.status === "active");
   const validatedName = departmentNameSchema.safeParse(name);
-  const validatedId = departmentIdSchema.safeParse(id);
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     create.mutate({
-      id: id.trim(),
       name: name.trim(),
       description: description.trim() || null,
       administratorUserId,
@@ -1484,22 +1475,16 @@ function CreateDepartmentSheet({ onCreated, onOpenChange, open, people }: { onCr
       footer={(
         <>
           <Button type="button" variant="outline" disabled={create.isPending} onClick={close}>Cancel</Button>
-          <Button type="submit" form="create-department-form" disabled={create.isPending || !validatedName.success || !validatedId.success || !administratorUserId}>{create.isPending ? <Spinner /> : <Plus />}Create Department</Button>
+          <Button type="submit" form="create-department-form" disabled={create.isPending || !validatedName.success || !administratorUserId}>{create.isPending ? <Spinner /> : <Plus />}Create Department</Button>
         </>
       )}
     >
       <form id="create-department-form" onSubmit={submit} className="space-y-7">
         <div className="space-y-2">
           <Label htmlFor="department-name" required>Department name</Label>
-          <Input id="department-name" autoFocus required value={name} maxLength={scopedEntityNameLimits.max} aria-invalid={Boolean(name) && !validatedName.success} onChange={(event) => { const next = event.target.value; setName(next); if (!idEdited) setId(scopedEntityIdFromName(next)); create.reset(); }} placeholder="Research & Development" />
+          <Input id="department-name" autoFocus required value={name} maxLength={scopedEntityNameLimits.max} aria-invalid={Boolean(name) && !validatedName.success} onChange={(event) => { setName(event.target.value); create.reset(); }} placeholder="Research & Development" />
           <p className="text-xs leading-5 text-muted-foreground">{scopedEntityNameLimits.min}–{scopedEntityNameLimits.max} characters. Slashes, backslashes, and control characters are not allowed.</p>
           {name && !validatedName.success ? <p className="text-xs text-destructive" role="alert">{validatedName.error.issues[0]?.message}</p> : null}
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="department-id" required>Department ID</Label>
-          <Input id="department-id" className="font-mono" required value={id} maxLength={scopedEntityIdLimits.max} aria-invalid={Boolean(id) && !validatedId.success} onChange={(event) => { setIdEdited(true); setId(event.target.value.toLowerCase()); create.reset(); }} placeholder="research-development" aria-describedby="department-id-help" />
-          <p id="department-id-help" className="text-xs leading-5 text-muted-foreground">Immutable ID used in APIs, ownership references, and SSO paths. Use {scopedEntityIdLimits.min}–{scopedEntityIdLimits.max} lowercase letters, numbers, or hyphens.</p>
-          {id && !validatedId.success ? <p className="text-xs text-destructive" role="alert">{validatedId.error.issues[0]?.message}</p> : null}
         </div>
         <div className="space-y-2"><Label htmlFor="department-description">Description</Label><Textarea id="department-description" value={description} onChange={(event) => setDescription(event.target.value)} placeholder="What this Department owns…" /></div>
         <div className="space-y-2"><Label htmlFor="department-administrator" required>Initial Department Administrator</Label><Select value={administratorUserId} onValueChange={setAdministratorUserId} required><SelectTrigger id="department-administrator" size="lg" className="w-full"><SelectValue placeholder="Select an active person" /></SelectTrigger><SelectContent>{activePeople.map((person) => <SelectItem key={person.id} value={person.id}>{person.displayName} · {person.email}</SelectItem>)}</SelectContent></Select><p className="text-xs leading-5 text-muted-foreground">This assignment does not grant Platform Administrator or Project Administrator access.</p></div>

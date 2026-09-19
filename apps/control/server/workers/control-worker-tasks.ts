@@ -1,3 +1,4 @@
+import { instanceIdSchema } from "@tali/contracts";
 import { runResourceOperation } from "./resource-operation-task";
 import { z } from "zod";
 import { ProviderRegistrationCleanup } from "../providers/provider-registration-cleanup";
@@ -44,7 +45,7 @@ const vectorDocumentIngestionPayloadSchema = z.object({
 });
 const instanceLifecyclePayloadSchema = z.object({
   projectId: z.string().trim().min(1),
-  instanceId: z.string().uuid(),
+  instanceId: instanceIdSchema,
   operationId: z.string().uuid(),
   action: z.enum(["provision", "delete"]),
 });

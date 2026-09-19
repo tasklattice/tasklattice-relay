@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { kubernetesResourceName } from "@tali/contracts/resource-identity";
 import { readFile } from "node:fs/promises";
 
 export interface SecretStore {
@@ -15,11 +15,7 @@ function kubernetesSlug(value: string, fallback: string): string {
 }
 
 function kubernetesSecretName(projectId: string, resourceId: string): string {
-  const digest = createHash("sha256")
-    .update(`${projectId}:${resourceId}`)
-    .digest("hex")
-    .slice(0, 10);
-  return `tali-secret-${kubernetesSlug(projectId, "project").slice(0, 12)}-${kubernetesSlug(resourceId, "resource").slice(0, 24)}-${digest}`;
+  return kubernetesResourceName("secret", JSON.stringify([projectId, resourceId]));
 }
 
 export function kubernetesSecretLabels(

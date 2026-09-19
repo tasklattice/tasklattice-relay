@@ -32,17 +32,17 @@ afterEach(() => {
 });
 
 describe("Agent sandbox naming", () => {
-  it("derives the runtime identifier only from the Instance UUID", () => {
-    const name = agentSandboxName("12345678-1234-4000-8000-123456789abc");
+  it("reuses the canonical Instance ID as its Sandbox name", () => {
+    const name = agentSandboxName("ti-abcdefghijkl2");
 
-    expect(name).toBe("i-3k63vmz25el99oe64");
-    expect(name).toHaveLength(19);
+    expect(name).toBe("ti-abcdefghijkl2");
+    expect(name).toHaveLength(16);
     expect(name).toMatch(/^[a-z][a-z0-9-]+[a-z0-9]$/);
   });
 
   it("keeps separate UUIDs distinct within the compact identifier", () => {
     expect(agentSandboxName("abcdef01-1234-4000-8000-123456789abc"))
-      .toBe("i-td6hwjapuayo42xmk");
+      .not.toBe(agentSandboxName("12345678-1234-4000-8000-123456789abc"));
   });
 });
 

@@ -16,6 +16,7 @@ const url = process.env.ASYNC_PROJECT_DATABASE_URL;
 describe.skipIf(!url)("Project initialization on PostgreSQL", () => {
   let db: PrismaClient;
   let jobs: PgBossControlJobQueue;
+  let projectId: string;
   const auth: PlatformPrincipal = { user: { id: "local-admin", username: "admin", email: "admin@tasklattice.local",
     displayName: "Administrator", systemRole: "platform_administrator", hasPassword: true } };
   beforeAll(async () => {
@@ -28,27 +29,31 @@ describe.skipIf(!url)("Project initialization on PostgreSQL", () => {
 
   it("commits the task and all initial data atomically, then rolls both back on enqueue failure", async () => {
     const service = new ProjectService(db, undefined, undefined, jobs);
-    const created = await service.create(auth, "dep1", "Async integration", [], "platform", "async-integration");
+    const created = await service.create(auth, "dep1", "Async integration", [], "platform");
+    projectId = created.id;
+    expect(projectId).toMatch(/^tp-[a-z2-7]{13}$/);
     expect(created.initialization?.status).toBe("pending");
-    expect(await db.projectRuntimeTarget.findUnique({ where: { projectId: created.id } })).toMatchObject({ status: "pending" });
+    expect(await db.projectRuntimeTarget.findUnique({ where: { projectId } })).toMatchObject({ status: "pending", namespace: projectId });
     const tasks = await db.$queryRawUnsafe<Array<{ count: bigint }>>(
       'SELECT count(*) FROM tali_control_jobs.job WHERE name=$1 AND data->>\'projectId\'=$2', CONTROL_JOB_QUEUES.projectRuntimeReconcile, created.id);
     expect(Number(tasks[0]?.count)).toBe(1);
+    let rolledBackProjectId: string | undefined;
     const failure = vi.spyOn(jobs, "enqueueProjectRuntimeReconcile").mockImplementationOnce(async (...args) => {
+      rolledBackProjectId = args[0];
       // Prove that even an already-inserted queue row rolls back with the Project.
       await PgBossControlJobQueue.prototype.enqueueProjectRuntimeReconcile.apply(jobs, args);
       throw new Error("Injected queue failure");
     });
-    await expect(service.create(auth, "dep1", "Rollback integration", [], "platform", "async-rollback")).rejects.toThrow("Injected queue failure");
+    await expect(service.create(auth, "dep1", "Rollback integration", [], "platform")).rejects.toThrow("Injected queue failure");
     failure.mockRestore();
-    expect(await db.project.findUnique({ where: { id: "async-rollback" } })).toBeNull();
+    expect(rolledBackProjectId).toMatch(/^tp-[a-z2-7]{13}$/);
+    expect(await db.project.findUnique({ where: { id: rolledBackProjectId! } })).toBeNull();
     const remaining = await db.$queryRawUnsafe<Array<{ count: bigint }>>(
-      'SELECT count(*) FROM tali_control_jobs.job WHERE data->>\'projectId\'=$1', "async-rollback");
+      'SELECT count(*) FROM tali_control_jobs.job WHERE data->>\'projectId\'=$1', rolledBackProjectId);
     expect(Number(remaining[0]?.count)).toBe(0);
   });
 
   it("queues encrypted resource operations and recovers retries without replaying completed work", async () => {
-    const projectId = "async-integration";
     await db.projectRuntimeTarget.update({ where: { projectId }, data: { status: "ready", observedGeneration: 1 } });
     const publisher = new ResourceOperationService(db, jobs);
     const accepted = await publisher.enqueue(projectId, "local-admin", "remove", { id: "test-agent", secret: "do-not-persist-plaintext" });
@@ -73,7 +78,6 @@ describe.skipIf(!url)("Project initialization on PostgreSQL", () => {
   });
 
   it("preserves failures, permits retry and prevents resurrection when deletion races creation", async () => {
-    const projectId = "async-integration";
     const namespaces = { reconcile: vi.fn(async (): Promise<void> => { throw new Error("Cluster unavailable"); }), deleteAndWait: vi.fn(async () => undefined) };
     const gateways = { reconcile: vi.fn(async () => undefined), delete: vi.fn(async () => undefined) };
     const bridges = { reconcile: vi.fn(async () => undefined) };

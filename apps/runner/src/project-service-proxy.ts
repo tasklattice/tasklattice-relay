@@ -4,7 +4,7 @@ import { request as httpsRequest } from "node:https";
 import type { Duplex } from "node:stream";
 import { resolveOpenShellTarget } from "./runtime-target.js";
 
-const workspacePattern = /^tp-[a-z2-7]{16}$/;
+import { projectRuntimeNamespaceSchema } from "@tali/contracts";
 
 export interface ProjectServiceRoute {
   upstreamHost: string;
@@ -37,7 +37,7 @@ export function projectServiceRoute(
   const resourcePattern = /^[a-z][a-z0-9-]{0,61}[a-z0-9]$/;
   if (
     extra.length
-    || !workspacePattern.test(workspace)
+    || !projectRuntimeNamespaceSchema.safeParse(workspace).success
     || !resourcePattern.test(sandbox)
     || !resourcePattern.test(service)
   ) return undefined;

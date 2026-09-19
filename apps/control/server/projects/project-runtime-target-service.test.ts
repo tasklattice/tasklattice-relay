@@ -1,4 +1,4 @@
-import { OPENSHELL_ROUTABLE_NAME_MAX_LENGTH, PROJECT_RUNTIME_NAMESPACE_PREFIX } from "./project-runtime-identity";
+import { generateProjectId, OPENSHELL_ROUTABLE_NAME_MAX_LENGTH, PROJECT_RUNTIME_NAMESPACE_PREFIX } from "./project-runtime-identity";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   developmentControlConfig,
@@ -69,13 +69,34 @@ afterEach(() => {
 });
 
 describe("ProjectRuntimeTargetService", () => {
+  it("reuses the Project ID when recovering a missing Namespace target and on reconciliation", async () => {
+    setControlConfigForTests(enabledConfig());
+    const db = createTestPrisma();
+    const projectId = generateProjectId();
+    await db.project.create({ data: {
+      id: projectId, name: "Generated identity", departmentId: "dep1", createdBy: "local-admin",
+    } });
+    const namespaces = namespaceClient();
+    const gateways = gatewayClient();
+    const service = new ProjectRuntimeTargetService(db, namespaces.client, gateways.client, bridgeClient().client);
+    await service.ensureProjectNamespace(projectId);
+    await service.ensureProjectNamespace(projectId);
+    expect(projectId).toMatch(/^tp-[a-z2-7]{13}$/);
+    expect(projectId).toHaveLength(16);
+    expect(await db.projectRuntimeTarget.findUnique({ where: { projectId } }))
+      .toMatchObject({ namespace: projectId, status: "ready" });
+    for (const [target] of namespaces.reconcile.mock.calls) {
+      expect(target).toMatchObject({ namespace: projectId, projectId });
+    }
+  });
+
   it("generates stable opaque DNS-safe Namespace names", () => {
     setControlConfigForTests(enabledConfig());
     const first = projectRuntimeNamespace("customer-support-12345678");
     const second = projectRuntimeNamespace("customer-support-12345678");
     expect(first).toBe(second);
-    expect(first).toMatch(/^tp-[a-z2-7]{16}$/);
-    expect(first).toHaveLength(OPENSHELL_ROUTABLE_NAME_MAX_LENGTH);
+    expect(first).toMatch(/^tp-[a-z2-7]{13}$/);
+    expect(first).toHaveLength(16);
     expect(first.startsWith(PROJECT_RUNTIME_NAMESPACE_PREFIX)).toBe(true);
     expect(first).not.toContain("customer-support");
   });

@@ -4,7 +4,7 @@ import { test } from "node:test";
 import { parseAllDocuments, stringify } from "yaml";
 import { resolve } from "node:path";
 
-const owner = { apiVersion: "v1", kind: "Namespace", name: "tp-abcdefghijklmnop",
+const owner = { apiVersion: "v1", kind: "Namespace", name: "tp-abcdefghijklm",
   uid: "namespace-uid", controller: false, blockOwnerDeletion: false };
 const script = resolve("scripts/project-openshell-owner.mjs");
 function render(input) {

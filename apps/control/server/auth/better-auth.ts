@@ -33,7 +33,7 @@ function createBetterAuth(
     basePath: "/api/auth",
     secret: config.auth.secret,
     trustedOrigins: config.server.public_urls,
-    advanced: { cookiePrefix: betterAuthCookiePrefix },
+    advanced: { cookiePrefix: betterAuthCookiePrefix, database: { generateId: () => randomUUID() } },
     database: prismaAdapter(prisma(), {
       provider: "postgresql",
       transaction: true,

@@ -1,5 +1,6 @@
 import { getWorkerConfig } from "../config/worker-config";
-import { createHash, randomUUID } from "node:crypto";
+import { createHash } from "node:crypto";
+import { generateKubernetesResourceId, kubernetesResourceName } from "@tali/contracts/resource-identity";
 import { reconcileSandboxOwnership } from "../kubernetes/project-resource-ownership";
 import {
   defaultNativeAgentMemoryConfiguration,
@@ -57,11 +58,7 @@ import {
 import { InstanceLifecycleOperationService } from "./instance-lifecycle-service";
 
 export function agentSandboxName(id: string): string {
-  const compactId = BigInt(`0x${id.replaceAll("-", "")}`)
-    .toString(36)
-    .padStart(25, "0")
-    .slice(-17);
-  return `i-${compactId}`;
+  return kubernetesResourceName("instance", id);
 }
 
 function costKeyIdentifier(value: string): string {
@@ -250,7 +247,7 @@ export class InstanceService {
         );
     }
     const policy = await this.runtimePolicies.resolve(input.policyId);
-    const id = randomUUID();
+    const id = generateKubernetesResourceId("instance");
     const effectiveRequestKey = requestKey ?? `instance:${id}`;
     const now = new Date().toISOString();
     const sandboxName = agentSandboxName(id);

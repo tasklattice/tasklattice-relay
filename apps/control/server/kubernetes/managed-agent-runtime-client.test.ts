@@ -15,7 +15,7 @@ const input: ManagedAgentRuntimeInput = {
   agentId: "agent-research-a",
   instanceId: "6ed68a7c-4b63-4c37-a0ce-51a189d567f0",
   projectId: "project-a",
-  namespace: "tp-abcdefghijklmnop",
+  namespace: "tp-abcdefghijklm",
   name: "Research Agent",
   description: "Handles delegated research and source validation tasks.",
   category: "Research",

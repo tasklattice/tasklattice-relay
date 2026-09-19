@@ -8,7 +8,7 @@ afterEach(() => {
 
 describe("HttpAgentDiscoveryClient", () => {
   it("keeps a managed container on its internal Service endpoint", async () => {
-    const endpoint = "http://tali-a2a-test.tp-abcdefghijklmnop.svc.cluster.local:8080";
+    const endpoint = "http://tali-a2a-test.tp-abcdefghijklm.svc.cluster.local:8080";
     const agent = agentGardenEntrySchema.parse({
       id: "managed-agent",
       name: "Managed Agent",

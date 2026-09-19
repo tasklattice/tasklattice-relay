@@ -44,4 +44,12 @@ describe("Department and Project naming rules", () => {
       name: "AI Platform",
     });
   });
+
+  it("rejects client-supplied Project IDs, including canonical-looking IDs", () => {
+    for (const id of ["agent-platform", "tp-v3i65n4c7jslorbf"]) {
+      expect(createProjectInputSchema.safeParse({
+        departmentId: "dep1", invitations: [], name: "AI Platform", id,
+      }).success).toBe(false);
+    }
+  });
 });

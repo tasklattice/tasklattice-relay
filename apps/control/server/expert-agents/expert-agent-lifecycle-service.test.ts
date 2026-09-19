@@ -267,7 +267,7 @@ describe("Agent Developer lifecycle", () => {
       data: {
         projectId: store.projectId,
         clusterId: "in-cluster",
-        namespace: "tp-abcdefghijklmnop",
+        namespace: "tp-abcdefghijklm",
         status: "ready",
       },
     });
@@ -332,7 +332,7 @@ describe("Agent Developer lifecycle", () => {
 
     await expect(garden.removeInstance(first.id)).resolves.toBe(true);
     expect(deactivate).toHaveBeenCalledWith({
-      namespace: "tp-abcdefghijklmnop",
+      namespace: "tp-abcdefghijklm",
       instanceId: first.id,
     });
     await expect(database.agentRecord.findUniqueOrThrow({

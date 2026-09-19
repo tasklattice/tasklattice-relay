@@ -10,7 +10,7 @@ const instance: A2aAgentInstance = {
   description: "A managed A2A specialist used for delegated GitHub triage tasks.",
   runtime: "kubernetes",
   status: "READY",
-  runtimeNamespace: "tp-pcpaznt4ypgomhwn",
+  runtimeNamespace: "tp-pcpaznt4ypgom",
   deploymentName: "tali-a2a-12156ad3de4f83e7",
   serviceName: "tali-a2a-12156ad3de4f83e7",
   podName: "tali-a2a-12156ad3de4f83e7-7954479887-6ntc2",
@@ -119,7 +119,7 @@ describe("KubernetesManagedAgentLogStream", () => {
       "isolation-1",
       {
         agentId: "6bf695e2-55c9-49d3-a54d-e5818eea6318",
-        namespace: "tp-pcpaznt4ypgomhwn",
+        namespace: "tp-pcpaznt4ypgom",
         workloadName: "tali-expert-a1b2c3",
       },
       { tailLines: 100, timestamps: true, previous: false },
@@ -127,11 +127,11 @@ describe("KubernetesManagedAgentLogStream", () => {
     );
 
     expect(core.listNamespacedPod).toHaveBeenCalledWith({
-      namespace: "tp-pcpaznt4ypgomhwn",
+      namespace: "tp-pcpaznt4ypgom",
       labelSelector: "app.kubernetes.io/instance=tali-expert-a1b2c3",
     });
     expect(logs.log).toHaveBeenCalledWith(
-      "tp-pcpaznt4ypgomhwn",
+      "tp-pcpaznt4ypgom",
       "tali-expert-a1b2c3-7d9f",
       "expert-agent",
       expect.anything(),

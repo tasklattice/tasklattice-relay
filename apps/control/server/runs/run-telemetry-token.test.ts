@@ -8,12 +8,12 @@ describe("Run telemetry token", () => {
   it("round-trips only the scoped Project and Instance claims", () => {
     const token = signRunTelemetryToken({
       projectId: "individual",
-      instanceId: "11111111-1111-4111-8111-111111111111",
+      instanceId: "ti-abcdefghijklm",
       agentPlatform: "openclaw",
     });
     expect(verifyRunTelemetryToken(token)).toMatchObject({
       projectId: "individual",
-      instanceId: "11111111-1111-4111-8111-111111111111",
+      instanceId: "ti-abcdefghijklm",
       agentPlatform: "openclaw",
     });
   });
@@ -21,7 +21,7 @@ describe("Run telemetry token", () => {
   it("rejects a tampered scope", () => {
     const token = signRunTelemetryToken({
       projectId: "individual",
-      instanceId: "11111111-1111-4111-8111-111111111111",
+      instanceId: "ti-abcdefghijklm",
       agentPlatform: "hermes",
     });
     const [header, body, signature] = token.split(".");

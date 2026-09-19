@@ -80,7 +80,7 @@ describe("ControlWorkerTasks", () => {
       runtimeTargets: {} as ProjectRuntimeTargetService,
       instances: () => service,
     });
-    const instanceId = "00000000-0000-4000-8000-000000000401";
+    const instanceId = "ti-abcdefghijklm";
     const operationId = "00000000-0000-4000-8000-000000000501";
 
     await expect(tasks.instanceLifecycle(metadata(
@@ -113,7 +113,7 @@ describe("ControlWorkerTasks", () => {
       runtimeTargets: {} as ProjectRuntimeTargetService,
       instances: () => service,
     });
-    const instanceId = "00000000-0000-4000-8000-000000000402";
+    const instanceId = "ti-bcdefghijklmn";
     const operationId = "00000000-0000-4000-8000-000000000502";
 
     await expect(tasks.instanceLifecycle(metadata(

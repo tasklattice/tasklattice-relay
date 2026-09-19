@@ -148,7 +148,6 @@ describe("DepartmentSettingsService", () => {
       "Inherited Project",
       [],
       "department",
-      "inherited-project",
     );
     await expect(database.projectQuotaRecord.findUniqueOrThrow({
       where: { projectId: project.id },

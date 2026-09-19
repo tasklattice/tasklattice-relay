@@ -1,6 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
 import {
-  projectIdSchema,
   projectNameSchema,
   type ProjectMembershipRole,
 } from "@tali/contracts";
@@ -44,7 +43,7 @@ import {
   PROJECT_DELETION_GRACE_PERIOD_MS,
   type ProjectDeletionSchedule,
 } from "./project-deletion-contract";
-import { projectRuntimeNamespace } from "./project-runtime-identity";
+import { generateProjectId } from "./project-runtime-identity";
 import { durableMemoryEnabledForProject } from "../memories/durable-memory-feature";
 
 export type ProjectRole = ProjectMembershipRole;
@@ -116,17 +115,6 @@ export type ProjectMemberView = HumanProjectMemberView;
 export interface InitialProjectInvitation {
   email: string;
   role: ProjectRole;
-}
-
-function slug(value: string): string {
-  return (
-    value
-      .trim()
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-|-$/g, "")
-      .slice(0, 48) || "project"
-  );
 }
 
 function auditorMemberView(member: ProjectMemberView): ProjectMemberView {
@@ -450,7 +438,6 @@ export class ProjectService {
     name: string,
     invitations: InitialProjectInvitation[],
     authority: "department" | "platform" = "department",
-    requestedProjectId?: string,
   ): Promise<ProjectView> {
     const currentUserId = await this.acceptPendingInvitations(auth);
     if (authority === "platform") {
@@ -498,13 +485,7 @@ export class ProjectService {
       throw new Error("Department not found or unavailable.");
     }
     const projectName = projectNameSchema.parse(name);
-    const suffix = randomUUID().slice(0, 8);
-    const generatedProjectId = `${slug(projectName)
-      .slice(0, 48 - suffix.length - 1)
-      .replace(/-+$/, "")}-${suffix}`;
-    const projectId = projectIdSchema.parse(
-      requestedProjectId ?? generatedProjectId,
-    );
+    const projectId = generateProjectId();
     const duplicateId = await this.db.project.findUnique({
       where: { id: projectId },
       select: { id: true },
@@ -637,7 +618,7 @@ export class ProjectService {
                 ? []
                 : [
                     {
-                      id: `invite-${randomUUID()}`,
+                      id: randomUUID(),
                       email: invitation.email,
                       role: invitation.role,
                       invitedBy: currentUserId,
@@ -648,7 +629,7 @@ export class ProjectService {
           runtimeTarget: {
             create: {
               clusterId: runtimeNamespaceConfig.clusterId,
-              namespace: projectRuntimeNamespace(projectId),
+              namespace: projectId,
             },
           },
         },
@@ -1185,7 +1166,7 @@ export class ProjectService {
         return transaction.projectInvitation.upsert({
           where: { projectId_email: { projectId, email: normalizedEmail } },
           create: {
-            id: `invite-${randomUUID()}`,
+            id: randomUUID(),
             projectId,
             email: normalizedEmail,
             role,

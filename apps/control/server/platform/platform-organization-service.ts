@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import {
   createPlatformDepartmentSchema,
   platformPeopleQuerySchema,
@@ -244,19 +245,16 @@ export class PlatformOrganizationService {
     const department = await this.db.$transaction(async (transaction) => {
       const existing = await transaction.department.findFirst({
         where: {
-          OR: [
-            { id: normalized.id },
-            { name: { equals: normalized.name, mode: "insensitive" } },
-          ],
+          name: { equals: normalized.name, mode: "insensitive" },
         },
         select: { id: true },
       });
       if (existing) {
-        throw new Error("A Department with this ID or name already exists.");
+        throw new Error("A Department with this name already exists.");
       }
       return transaction.department.create({
         data: {
-          id: normalized.id,
+          id: randomUUID(),
           name: normalized.name,
           description: normalized.description,
           createdBy: actorId,

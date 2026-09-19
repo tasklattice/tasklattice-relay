@@ -13,7 +13,7 @@ describe("Project Runtime Bridge token", () => {
   it("round-trips a Project and Namespace scoped identity", () => {
     const identity = {
       projectId: "project-a",
-      namespace: "tp-abcdefghijklmnop",
+      namespace: "tp-abcdefghijklm",
     };
     const token = signProjectRuntimeBridgeToken(identity, "runner-secret");
 
@@ -25,7 +25,7 @@ describe("Project Runtime Bridge token", () => {
 
   it("rejects payload tampering", () => {
     const token = signProjectRuntimeBridgeToken(
-      { projectId: "project-a", namespace: "tp-abcdefghijklmnop" },
+      { projectId: "project-a", namespace: "tp-abcdefghijklm" },
       "runner-secret",
     );
     const [prefix, payload, signature] = token.split(".");
@@ -39,7 +39,7 @@ describe("Project Runtime Bridge token", () => {
 describe("Project Runtime Expert Agent token", () => {
   const identity = {
     projectId: "project-a",
-    namespace: "tp-abcdefghijklmnop",
+    namespace: "tp-abcdefghijklm",
     agentId: "11111111-1111-4111-8111-111111111111",
     versionId: "22222222-2222-4222-8222-222222222222",
     contentDigest: `sha256:${"a".repeat(64)}`,
@@ -84,7 +84,7 @@ describe("Project Runtime Coordinator token", () => {
   it("round-trips a Project, Namespace, Coordinator, and fixed Memory identity", () => {
     const identity = {
       projectId: "project-a",
-      namespace: "tp-abcdefghijklmnop",
+      namespace: "tp-abcdefghijklm",
       coordinatorInstanceId: "11111111-1111-4111-8111-111111111111",
       memoryId: "22222222-2222-4222-8222-222222222222",
     };
@@ -99,7 +99,7 @@ describe("Project Runtime Coordinator token", () => {
   it("keeps legacy coordinator credentials valid without granting Memory access", () => {
     const identity = {
       projectId: "project-a",
-      namespace: "tp-abcdefghijklmnop",
+      namespace: "tp-abcdefghijklm",
       coordinatorInstanceId: "11111111-1111-4111-8111-111111111111",
     };
     const token = signProjectRuntimeCoordinatorToken(identity, "runner-secret");
@@ -111,7 +111,7 @@ describe("Project Runtime Coordinator token", () => {
   it("rejects payload tampering", () => {
     const token = signProjectRuntimeCoordinatorToken({
       projectId: "project-a",
-      namespace: "tp-abcdefghijklmnop",
+      namespace: "tp-abcdefghijklm",
       coordinatorInstanceId: "11111111-1111-4111-8111-111111111111",
     }, "runner-secret");
     const [prefix, payload, signature] = token.split(".");

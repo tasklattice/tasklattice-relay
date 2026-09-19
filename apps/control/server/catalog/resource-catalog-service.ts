@@ -48,16 +48,6 @@ import {
 } from "./vector-document-service";
 import type { VectorStoreSearchResponse } from "./vector-store-protocol";
 
-function resourceId(name: string): string {
-  const slug = name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "")
-    .slice(0, 80)
-    .replace(/-$/, "") || "resource";
-  return `${slug}-${randomUUID().slice(0, 8)}`;
-}
-
 function liteLLMServerId(projectId: string, resourceId: string): string {
   const projectHash = createHash("sha256").update(projectId).digest("hex").slice(0, 10);
   return `tali_${projectHash}_${resourceId.replace(/[^a-zA-Z0-9_]/g, "_").slice(0, 80)}`;
@@ -115,7 +105,7 @@ export class ResourceCatalogService {
 
   async createSkill(input: CreateSkillDefinitionInput): Promise<SkillDefinition> {
     return this.store.saveSkillDefinition({
-      id: resourceId(input.name),
+      id: randomUUID(),
       ...input,
       updatedAt: new Date().toISOString(),
     });
@@ -160,7 +150,7 @@ export class ResourceCatalogService {
   async createMcpServer(input: CreateMcpServerDefinitionInput): Promise<McpServerDefinition> {
     this.assertSafeRegistration(input);
     await this.quotas.assertCanCreate("mcp");
-    const id = resourceId(input.name);
+    const id = randomUUID();
     const server = await this.store.saveMcpServerDefinition({
       id,
       litellmServerId: liteLLMServerId(this.store.projectId, id),
@@ -255,7 +245,7 @@ export class ResourceCatalogService {
     await this.quotas.assertCanCreate("knowledge-base");
     const resolvedInput = await this.resolveKnowledgeSourceEmbedding(input);
     const source = await this.store.saveKnowledgeSourceDefinition({
-      id: resourceId(resolvedInput.name),
+      id: randomUUID(),
       ...resolvedInput,
       status: "UNAVAILABLE",
       lastReconciliationError: null,

@@ -14,7 +14,7 @@ function namespace(projectId: string, uid = "namespace-uid"): V1Namespace {
     kind: "Namespace",
     metadata: {
       annotations: { "tali.io/project-id": projectId },
-      name: "tp-abcdefghijklmnop",
+      name: "tp-abcdefghijklm",
       uid,
     },
   };
@@ -45,7 +45,7 @@ function client(input?: {
 }
 
 const input = {
-  namespace: "tp-abcdefghijklmnop",
+  namespace: "tp-abcdefghijklm",
   projectId: "project-a",
   projectName: "Customer Support",
 };

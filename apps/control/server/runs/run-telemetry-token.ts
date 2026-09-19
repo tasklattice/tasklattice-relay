@@ -1,3 +1,4 @@
+import { instanceIdSchema } from "@tali/contracts";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import { agentPlatformIds, type AgentPlatformId } from "@tali/contracts";
@@ -13,7 +14,7 @@ const claimsSchema = z.object({
   iat: z.number().int().nonnegative(),
   iss: z.literal(issuer),
   projectId: z.string().min(1),
-  instanceId: z.string().uuid(),
+  instanceId: instanceIdSchema,
   agentPlatform: z.enum(agentPlatformIds),
 }).strict();
 

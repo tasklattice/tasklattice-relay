@@ -11,6 +11,7 @@ import {
   type V1Service,
 } from "@kubernetes/client-node";
 import { createHash } from "node:crypto";
+import { kubernetesResourceName } from "@tali/contracts/resource-identity";
 import { readProjectNamespaceOwner, withNamespaceOwner } from "./project-resource-ownership";
 import type { ExpertAgentRuntimeEnvelope } from "@tali/contracts";
 import { PROJECT_RUNTIME_BRIDGE_NAME } from "./project-runtime-bridge-client";
@@ -59,10 +60,7 @@ type ExpertRuntimeObjectApi = Pick<KubernetesObjectApi, "delete" | "patch">;
 type ExpertRuntimeAppsApi = Pick<AppsV1Api, "readNamespacedDeployment">;
 
 export function expertAgentRuntimeResourceName(instanceId: string): string {
-  return `tali-expert-${createHash("sha256")
-    .update(instanceId)
-    .digest("hex")
-    .slice(0, 16)}`;
+  return kubernetesResourceName("instance", instanceId);
 }
 
 export function expertAgentRuntimeEndpoint(
