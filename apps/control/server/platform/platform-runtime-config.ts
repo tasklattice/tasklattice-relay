@@ -18,7 +18,6 @@ export function deploymentBootstrapRuntimeConfiguration(): PlatformRuntimeConfig
   const config = getControlConfig();
   return {
     controlInternalUrl: config.server.internal_url
-      || config.server.public_url
       || "",
     runner: {
       url: config.runner?.url || "",

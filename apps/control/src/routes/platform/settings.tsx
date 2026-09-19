@@ -1716,7 +1716,11 @@ function SecuritySettings({ settings }: { settings: PlatformSettingsView }) {
             Clear the stored Client secret on save
           </label>
         </div>
-        <ReadOnlySetting id="security-oidc-callback" label="Callback URL" value={security.sso.callbackUrl} />
+        <div className="space-y-3">
+          {security.sso.callbackUrls.map((url, index) => (
+            <ReadOnlySetting key={url} id={`security-oidc-callback-${index}`} label={`Callback URL${security.sso.callbackUrls.length > 1 ? ` ${index + 1}` : ""}`} value={url} />
+          ))}
+        </div>
       </div>
       <div className="mt-8">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">

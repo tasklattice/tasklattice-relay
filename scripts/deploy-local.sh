@@ -190,7 +190,7 @@ if [[ "$enable_keycloak" == "true" ]]; then
   )
 fi
 
-control_helm_args=(--set-string "control.publicUrl=$control_public_url")
+control_helm_args=(--set-string "control.publicUrls[0]=$control_public_url")
 
 example_mcp_helm_args=()
 if [[ "$enable_example_mcp" == "true" ]]; then

@@ -16,10 +16,6 @@ const runtimeConfig = z
     readyTimeoutMs: z.number().int().positive().default(120000),
   })
   .strict();
-const bridgeConfig = runtimeConfig.extend({
-  storageSize: z.string().default("1Gi"),
-  storageClass: z.string().optional(),
-});
 const openShellConfig = z
   .object({
     enabled: z.boolean().default(false),
@@ -53,7 +49,7 @@ const workerConfigSchema = z
       .strict()
       .prefault({}),
     project_openshell: openShellConfig.prefault({}),
-    project_runtime_bridge: bridgeConfig.prefault({}),
+    project_runtime_bridge: runtimeConfig.prefault({}),
     expert_agent_runtime: runtimeConfig.prefault({}),
     resource_ownership: z
       .object({

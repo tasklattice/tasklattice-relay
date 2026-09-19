@@ -99,6 +99,8 @@ describe("component configuration contract", () => {
       (object) => object.stringData?.["worker.toml"],
     );
     const worker = loadWorker(workerSecret.stringData["worker.toml"]);
+    expect(worker.project_runtime_bridge).not.toHaveProperty("storageSize");
+    expect(worker.project_runtime_bridge).not.toHaveProperty("storageClass");
     expect(worker.healthPort).toBe(9191);
     expect(worker.docling.baseUrl).toBe("http://config-test-docling:5001");
     expect(worker.project_openshell.supervisorImagePullPolicy).toBe("Never");
@@ -136,6 +138,17 @@ describe("component configuration contract", () => {
     const config = { worker: developmentWorkerConfig() };
     config.worker.healthPort = 0;
     expect(() => loadWorker(stringify(config))).toThrow("healthPort");
+  });
+
+  it("validates public origins and rejects the removed single URL", () => {
+    const config = developmentControlConfig();
+    config.server.public_urls = ["https://relay.example/", "http://localhost:38080"];
+    expect(load(stringify(config)).server.public_urls).toEqual(["https://relay.example", "http://localhost:38080"]);
+    for (const urls of [[], ["https://relay.example/path"], ["https://user:password@relay.example"], ["https://relay.example?query=1"], ["ftp://relay.example"]]) {
+      config.server.public_urls = urls;
+      expect(() => load(stringify(config))).toThrow("public_urls");
+    }
+    expect(() => load(stringify({ ...developmentControlConfig(), server: { public_url: "https://relay.example" } }))).toThrow();
   });
 
   it("rejects incomplete runtime configuration before provisioning", () => {

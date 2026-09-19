@@ -114,8 +114,11 @@ control:
       limits:
         cpu: 250m
         memory: 512Mi
-  # Canonical browser origin used by Better Auth for cookies and callbacks.
-  publicUrl: http://localhost:38080
+  # Allowed browser origins. Redirects stay on the origin used by each request.
+  publicUrls:
+    - http://localhost:38080
+  # Enable only when the ingress overwrites X-Forwarded-Host/Proto.
+  trustProxyHeaders: false
   hostAliases: []
   service:
     type: LoadBalancer
@@ -322,13 +325,10 @@ projectOpenShell:
     storageSize: 1Gi
     storageClass: ""
 
-# One lightweight capability proxy is reconciled into every Project Runtime
-# Namespace. The MVP exports connected A2A Agents; the mounted claim is the
-# stable extension boundary for packaged MCP, Vector Database, and Skill assets.
+# One stateless capability proxy is reconciled into every Project Runtime
+# Namespace. It forwards Agent capability requests to Control without a PVC.
 projectRuntimeBridge:
   enabled: true
-  storageSize: 1Gi
-  storageClass: ""
   resources:
     requests:
       cpu: 25m
@@ -628,8 +628,8 @@ agentSandbox:
 # TaskLattice Relay's current trusted-cluster integration. Put the services behind an
 # authenticated ingress or configure OpenShell TLS/OIDC for shared clusters.
 openshell:
-  # Packaging gate only: this dependency is installed by Control in Projects.
-  # The Control chart rejects enabling it in its own namespace.
+  # Worker installs its image-bundled chart in Project Namespaces.
+  # OpenShell is not a Relay chart dependency; enabling it here is rejected.
   enabled: false
   imagePullSecrets: []
   image:

@@ -111,6 +111,7 @@ release 部署的 Controller：Helm 会移除该 release 原先管理的依赖�
 ```bash
 npm run helm:dependencies
 npm run helm:validate:agent-sandbox
+npm run helm:package:worker
 npm run test:agent-sandbox:live
 ```
 
@@ -118,12 +119,5 @@ Chart 验证覆盖 bundled/external 两种模式、4 个 beta-only CRD、旧 Web
 移除、扩展参数、显式 `leaderElect: false`、镜像凭据和可选监控资源，并接入 PR
 和 release CI。现有资源、离线镜像、OpenShift、开发默认值验证也均通过。
 
-实时测试使用本地 Relay runner 镜像中的 OpenShell 0.0.106 CLI，在临时 Namespace
-安装同版本 Gateway/Supervisor，通过真实 Kubernetes API 验证创建、命令执行、
-暂停、恢复、PVC UID 保留、文件内容保留，以及删除 Sandbox 后 Pod/PVC 回收。
-测试自动清理自己的临时 Namespace；独立 Controller 保留供开发使用。
-
-验收环境为 2026-09-13 的 OrbStack Kubernetes v1.35.6，Controller 镜像为
-`registry.k8s.io/agent-sandbox/agent-sandbox-controller:v1.0.2`。
-此次测试覆盖 OpenShell 与 Sandbox Controller 的边界，没有部署整个 Relay UI、
-执行真实模型任务或验证上游 Router、Warm Pool、RL SDK 的运行效果。
+独立 Controller 安装只准备 Agent Sandbox Chart。上述 `helm:package:worker`
+为实时测试准备 OpenShell Chart；共享 Control/Worker 镜像构建也会自动执行该步骤。

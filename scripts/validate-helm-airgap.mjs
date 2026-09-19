@@ -30,6 +30,10 @@ if (chartPath.endsWith(".tgz")) {
   execFileSync("tar", ["-xzf", chartPath, "-C", extractedChartRoot]);
   valuesRoot = join(extractedChartRoot, "tali-relay");
 
+  if (existsSync(join(valuesRoot, "charts/openshell"))) {
+    throw new Error("OpenShell belongs in the Worker image, not the Relay chart archive.");
+  }
+
   for (const requiredPath of [
     "Chart.lock",
     "values-openshift.yaml",
@@ -37,7 +41,6 @@ if (chartPath.endsWith(".tgz")) {
     "charts/agent-sandbox/Chart.yaml",
     "charts/agent-sandbox/LICENSE",
     "charts/agent-sandbox/crds/agents.x-k8s.io_sandboxes.yaml",
-    "charts/openshell/Chart.yaml",
   ]) {
     if (!existsSync(join(valuesRoot, requiredPath))) {
       console.error(
@@ -68,7 +71,7 @@ const rendered = execFileSync(
     "--values",
     join(valuesRoot, "values-airgap.yaml"),
     "--set-string",
-    "control.publicUrl=https://tali.apps.airgap.example.com",
+    "control.publicUrls[0]=https://tali.apps.airgap.example.com",
     "--set",
     "keycloak.enabled=true",
     "--set-string",

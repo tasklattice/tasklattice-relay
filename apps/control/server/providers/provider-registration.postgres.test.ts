@@ -252,7 +252,7 @@ describe.skipIf(!databaseUrl)("Provider registration on PostgreSQL", () => {
 
   it("does not occupy the auth connection pool while remote probes are blocked", async () => {
     vi.stubGlobal("taliPrisma", db);
-    const config = developmentControlConfig(); config.server.public_url = "http://tali.local";
+    const config = developmentControlConfig(); config.server.public_urls = ["http://tali.local"];
     config.auth.local.initial_platform_administrator_password = "correct-horse-battery";
     setControlConfigForTests(config); resetBetterAuthForTests();
     await ensureInitialPlatformAdministrator();
@@ -266,7 +266,7 @@ describe.skipIf(!databaseUrl)("Provider registration on PostgreSQL", () => {
     })));
     try {
       await waiting;
-      const response = await (await auth()).handler(new Request("http://tali.local/api/auth/sign-in/username", {
+      const response = await (await auth(new Request("http://tali.local"))).handler(new Request("http://tali.local/api/auth/sign-in/username", {
         method: "POST", headers: { "content-type": "application/json", origin: "http://tali.local" },
         body: JSON.stringify({ username: "admin", password: "correct-horse-battery" }),
       }));
@@ -276,13 +276,13 @@ describe.skipIf(!databaseUrl)("Provider registration on PostgreSQL", () => {
 
   it("keeps actual local sign-in available after registration rolls back", async () => {
     vi.stubGlobal("taliPrisma", db);
-    const config = developmentControlConfig(); config.server.public_url = "http://tali.local";
+    const config = developmentControlConfig(); config.server.public_urls = ["http://tali.local"];
     config.auth.local.initial_platform_administrator_password = "correct-horse-battery";
     setControlConfigForTests(config); resetBetterAuthForTests();
     await ensureInitialPlatformAdministrator();
     await rejectWrite();
     await expect(service.createConnection(input)).rejects.toThrow("injected registration");
-    const response = await (await auth()).handler(new Request("http://tali.local/api/auth/sign-in/username", {
+    const response = await (await auth(new Request("http://tali.local"))).handler(new Request("http://tali.local/api/auth/sign-in/username", {
       method: "POST", headers: { "content-type": "application/json", origin: "http://tali.local" },
       body: JSON.stringify({ username: "admin", password: "correct-horse-battery" }),
     }));

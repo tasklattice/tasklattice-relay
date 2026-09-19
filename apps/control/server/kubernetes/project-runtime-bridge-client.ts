@@ -6,7 +6,6 @@ import {
   PatchStrategy,
   type KubernetesObject,
   type V1Deployment,
-  type V1PersistentVolumeClaim,
   type V1Secret,
   type V1Service,
 } from "@kubernetes/client-node";
@@ -34,8 +33,6 @@ interface ProjectRuntimeBridgeConfiguration {
   revision: string;
   imagePullSecrets: Array<{ name: string }>;
   resources: Record<string, unknown>;
-  storageClass?: string | undefined;
-  storageSize: string;
 }
 
 type RuntimeBridgeObjectApi = Pick<KubernetesObjectApi, "patch">;
@@ -101,18 +98,6 @@ export function projectRuntimeBridgeResources(
     metadata,
     type: "Opaque",
     stringData: { "project-token": input.token },
-  };
-  const persistentVolumeClaim: V1PersistentVolumeClaim = {
-    apiVersion: "v1",
-    kind: "PersistentVolumeClaim",
-    metadata,
-    spec: {
-      accessModes: ["ReadWriteOnce"],
-      resources: { requests: { storage: configuration.storageSize } },
-      ...(configuration.storageClass
-        ? { storageClassName: configuration.storageClass }
-        : {}),
-    },
   };
   const service: V1Service = {
     apiVersion: "v1",
@@ -191,18 +176,10 @@ export function projectRuntimeBridgeResources(
             },
             volumeMounts: [
               { name: "tmp", mountPath: "/tmp" },
-              {
-                name: "project-capabilities",
-                mountPath: "/project-capabilities",
-              },
             ],
           }],
           volumes: [
             { name: "tmp", emptyDir: {} },
-            {
-              name: "project-capabilities",
-              persistentVolumeClaim: { claimName: PROJECT_RUNTIME_BRIDGE_NAME },
-            },
           ],
         },
       },
@@ -238,7 +215,7 @@ export function projectRuntimeBridgeResources(
       ],
     },
   };
-  return [secret, persistentVolumeClaim, service, deployment, networkPolicy];
+  return [secret, service, deployment, networkPolicy];
 }
 
 export class KubernetesProjectRuntimeBridgeClient

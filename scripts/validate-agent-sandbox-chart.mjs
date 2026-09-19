@@ -1,7 +1,12 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { parseAllDocuments } from "yaml";
+
+const chart = parseAllDocuments(readFileSync("charts/tali-relay/Chart.yaml", "utf8"))[0].toJS();
+assert(!chart.dependencies.some((dependency) => dependency.name === "openshell"),
+  "OpenShell is a Worker image asset, not a Relay Helm dependency");
 
 function render(...args) {
   return parseAllDocuments(execFileSync("helm", [

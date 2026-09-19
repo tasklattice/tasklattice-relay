@@ -19,7 +19,7 @@ const rendered = execFileSync(
     "--values",
     "charts/tali-relay/values-openshift.yaml",
     "--set-string",
-    "control.publicUrl=https://tali.apps.example.com",
+    "control.publicUrls[0]=https://tali.apps.example.com",
     "--set",
     "keycloak.enabled=true",
     "--set-string",

@@ -1,3 +1,4 @@
+import { requestOrigin } from "../../../../../../http/request-origin";
 import { defineHandler } from "nitro";
 import { projectInvitationInputSchema } from "../../../../../../api-contracts/schemas";
 import { unauthorizedResponse } from "../../../../../../auth/auth";
@@ -14,6 +15,7 @@ export default defineHandler(async (event) => {
       userId,
       input.email,
       input.role,
+      requestOrigin(event.req),
     ), { status: 201 });
   } catch (error) {
     if (error instanceof Error && error.message.includes("authentication")) return unauthorizedResponse(error);

@@ -152,7 +152,9 @@ function parseObjects(rendered) {
 
 const rendered = renderChart([
   "--set-string",
-  "control.publicUrl=http://192.0.2.10",
+  "control.publicUrls[0]=http://192.0.2.10",
+  "--set-string",
+  "control.publicUrls[1]=https://relay.example.com",
   "--set",
   "keycloak.enabled=true",
   "--set-string",
@@ -162,6 +164,12 @@ const rendered = renderChart([
 ]);
 
 const objects = parseObjects(rendered);
+const realm = JSON.parse(objects.find((object) => object.kind === "ConfigMap"
+  && object.metadata?.name === `${releaseName}-keycloak-realm`).data["tali-realm.json"]);
+const relayClient = realm.clients.find((client) => client.clientId === "tali-control-plane");
+assert.deepEqual(relayClient.webOrigins, ["http://192.0.2.10", "https://relay.example.com"]);
+assert.deepEqual(relayClient.redirectUris, relayClient.webOrigins.map((origin) => `${origin}/api/auth/callback/corporate-sso`));
+assert.equal(relayClient.attributes["post.logout.redirect.uris"], relayClient.webOrigins.map((origin) => `${origin}/login`).join("##"));
 
 function litellmContainerFrom(collection) {
   return collection
@@ -483,6 +491,13 @@ if (!projectRouterEgress?.ports?.some((port) => port.protocol === "TCP" && port.
 }
 requireObject("PodDisruptionBudget", `${releaseName}-hindsight-api`);
 
+const hindsightLauncher = requireObject("ConfigMap", `${releaseName}-hindsight-launcher`);
+assert.deepEqual(Object.keys(hindsightLauncher.metadata).sort(), ["annotations", "labels", "name"]);
+for (const [key, file] of [["bootstrap.py", "hindsight-bootstrap.py"], ["entrypoint.py", "hindsight-entrypoint.py"]]) {
+  assert.equal(hindsightLauncher.data[key].trim(), readFileSync(`${chartPath}/files/${file}`, "utf8").trim(),
+    `Hindsight launcher ${key} must be stored under ConfigMap.data`);
+}
+
 const hindsightMigration = requireComponentObject(objects, "Job", "hindsight-migration");
 if (hindsightMigration.metadata?.annotations?.[syncWaveAnnotation] !== "20") {
   throw new Error("The Hindsight migration Job must run in the database sync wave.");
@@ -686,12 +701,9 @@ const localSecret = localObjects.find(
     object.metadata?.name === `${releaseName}-control-config`,
 );
 const localControlToml = localSecret?.stringData?.["control.toml"] ?? "";
-if (!/^public_url\s*=\s*"http:\/\/localhost:38080"$/m.test(localControlToml)) {
-  throw new Error(
-    "Control bootstrap must render Better Auth's canonical server.public_url.",
-  );
-}
 const localConfig = controlConfig(localObjects);
+assert.deepEqual(localConfig.server.public_urls, ["http://localhost:38080"]);
+assert.equal(localConfig.server.trust_proxy_headers, false);
 assert.equal(localConfig.server.internal_url, `http://${releaseName}-control.${releaseNamespace}.svc.cluster.local:38080`);
 assert.equal(localConfig.runner.url, `http://${releaseName}-runner:9090`);
 assert.equal(localConfig.litellm.url, `http://${releaseName}-litellm.${releaseNamespace}.svc.cluster.local:4000`);
@@ -921,7 +933,7 @@ const localControlService = localObjects.find(
 );
 if (localControlService?.spec?.type !== "LoadBalancer") {
   throw new Error(
-    "The Control Service must render as LoadBalancer with the canonical control.publicUrl.",
+    "The Control Service must render as LoadBalancer with the allowed control.publicUrls.",
   );
 }
 
@@ -930,7 +942,7 @@ const localWithPublicUrlObjects = parseObjects(
     "--set",
     "control.service.type=LoadBalancer",
     "--set-string",
-    "control.publicUrl=http://198.51.100.20",
+    "control.publicUrls[0]=http://198.51.100.20",
   ]),
 );
 
@@ -969,7 +981,7 @@ for (const [kind, name, annotation, shouldChange] of checksumComparisons) {
     throw new Error(
       `${kind}/${name} ${annotation} ${
         shouldChange ? "must" : "must not"
-      } change when only control.publicUrl changes.`,
+      } change when only control.publicUrls changes.`,
     );
   }
 }
@@ -978,18 +990,18 @@ const missingOidcPublicUrlResult = spawnSync(
   "helm",
   templateArguments([
     "--set-string",
-    "control.publicUrl=",
+    "control.publicUrls=",
   ]),
   { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
 );
 if (
   missingOidcPublicUrlResult.status === 0 ||
   !missingOidcPublicUrlResult.stderr.includes(
-    "control.publicUrl is required for Better Auth",
+    "control.publicUrls must contain at least one allowed origin",
   )
 ) {
   throw new Error(
-    "The Chart must require control.publicUrl for authentication callbacks and invitation links.",
+    "The Chart must require control.publicUrls for authentication origin validation.",
   );
 }
 

@@ -1112,6 +1112,7 @@ export class ProjectService {
     currentUserId: string,
     email: string,
     role: ProjectRole,
+    origin: string,
   ): Promise<HumanProjectMemberView> {
     await this.requireRole(projectId, currentUserId, ["admin"]);
     const normalizedEmail = email.trim().toLowerCase();
@@ -1196,6 +1197,7 @@ export class ProjectService {
     );
     try {
       await this.invitationMailer.sendProjectInvitation({
+        loginUrl: origin,
         email: normalizedEmail,
         inviterEmail: inviter.email,
         inviterName: inviter.displayName,

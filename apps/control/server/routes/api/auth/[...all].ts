@@ -14,7 +14,7 @@ const ssoPaths = new Set([
 
 export default defineHandler(async (event) => {
   const pathname = new URL(event.req.url).pathname.replace(/\/+$/, "");
-  const instance = ssoPaths.has(pathname) ? await ssoAuth() : await auth();
+  const instance = ssoPaths.has(pathname) ? await ssoAuth(event.req) : await auth(event.req);
   if (pathname === "/api/auth/sign-out") {
     return handleSsoSignOut(event.req, instance);
   }

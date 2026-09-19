@@ -61,7 +61,7 @@ jobs:
           helm template tali-relay charts/tali-relay
           --namespace tali
           --kube-version 1.29.0
-          --set control.publicUrl=http://192.0.2.10
+          --set-string 'control.publicUrls[0]=http://192.0.2.10'
           --set keycloak.enabled=true
           --set keycloak.publicUrl=http://192.0.2.11:8080
           > /dev/null
@@ -138,13 +138,14 @@ jobs:
         if: matrix.image == 'tali-control'
         with:
           version: ${{ env.HELM_VERSION }}
-      - name: Package Helm chart for Control Plane image
+      - name: Package Relay and Worker charts for the shared image
         if: matrix.image == 'tali-control'
         shell: bash
         run: |
           registry="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}"
           TALI_IMAGE_REGISTRY="${registry}" \
             bash scripts/package-control-plane-chart.sh "${GITHUB_REF_NAME#v}"
+          bash scripts/package-worker-charts.sh
       - id: image
         name: Resolve image tags
         shell: bash
@@ -369,6 +370,9 @@ jobs:
           cat "${built_list}" "${runtime_list}" | sort -u > "${offline_list}"
 
           rendered_chart="dist/rendered-image-inventory-${version}.yaml"
+          # Worker carries OpenShell in its image, outside the Relay chart.
+          # Validate the same Worker build artifact in the offline inventory.
+          bash scripts/package-worker-charts.sh
           {
             helm template tali-relay "dist/tali-relay-${version}.tgz" \
               --namespace tali \
@@ -376,9 +380,16 @@ jobs:
             helm template tali-relay "dist/tali-relay-${version}.tgz" \
               --namespace tali \
               --kube-version 1.29.0 \
-              --set control.publicUrl=http://192.0.2.10 \
+              --set-string 'control.publicUrls[0]=http://192.0.2.10' \
+              --set exampleMcp.enabled=true \
               --set keycloak.enabled=true \
               --set keycloak.publicUrl=http://192.0.2.11:8080
+            helm template openshell "dist/worker-charts/openshell.tgz" \
+              --namespace project-image-inventory \
+              --kube-version 1.29.0 \
+              --set server.disableTls=true \
+              --set supervisor.sideloadMethod=init-container \
+              --set-string "supervisor.image.tag=${OPENSHELL_VERSION}"
           } > "${rendered_chart}"
 
           while IFS= read -r image; do

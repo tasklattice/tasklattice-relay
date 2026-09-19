@@ -99,10 +99,18 @@ jobs:
               - 'package-lock.json'
               - 'charts/tali-relay/**'
               - 'scripts/prepare-helm-dependencies.sh'
+              - 'scripts/prepare-agent-sandbox-chart.sh'
+              - 'scripts/package-worker-charts.sh'
               - 'scripts/package-control-plane-chart.sh'
               - 'scripts/validate-helm-*.mjs'
               - 'scripts/validate-development-defaults.mjs'
             core_images:
+              - 'scripts/package-worker-charts.sh'
+              - 'scripts/package-control-plane-chart.sh'
+              - 'scripts/prepare-agent-sandbox-chart.sh'
+              - 'scripts/prepare-helm-dependencies.sh'
+              - 'charts/tali-relay/**'
+              - 'package.json'
               - '.dockerignore'
               - '.github/workflows/pr-ci.yml'
               - 'infra/docker/Dockerfile'
@@ -215,7 +223,7 @@ jobs:
           version: v3.18.4
       - name: Prepare OpenShell chart for ownership tests
         if: matrix.module == 'openshell-isolation'
-        run: npm run helm:dependencies
+        run: npm run helm:package:worker
       - name: Prepare Hermes proxy test environment
         if: matrix.module == 'runtime-integrations'
         shell: bash
@@ -330,9 +338,11 @@ jobs:
         if: matrix.target == 'control'
         with:
           version: v3.18.4
-      - name: Package chart for control image
+      - name: Package Relay and Worker charts for the shared image
         if: matrix.target == 'control'
-        run: bash scripts/package-control-plane-chart.sh
+        run: |
+          bash scripts/package-control-plane-chart.sh
+          bash scripts/package-worker-charts.sh
       - name: Build image target
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:

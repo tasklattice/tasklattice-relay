@@ -343,7 +343,7 @@ export interface PlatformSecuritySettingsView {
   configurationError: string | null;
   localAuthenticationEnabled: boolean;
   sso: {
-    callbackUrl: string;
+    callbackUrls: string[];
     clientId: string;
     clientSecretConfigured: boolean;
     displayName: string;

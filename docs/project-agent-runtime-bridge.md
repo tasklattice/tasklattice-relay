@@ -57,8 +57,10 @@ The Project Runtime Bridge owns:
 - transport isolation between a Supervisor container and provider endpoints;
 - a Project-scoped signed identity when calling Control;
 - forwarding a separately signed Coordinator Instance identity for every
-  discovery, Agent Card, and delegation request;
-- a mounted `/project-capabilities` PVC as the future packaged-asset boundary.
+  discovery, Agent Card, and delegation request.
+
+The Bridge is stateless: its Deployment uses only an ephemeral `/tmp` volume
+and does not create or mount a PVC.
 
 The Control Plane continues to own Agent Garden registration, the Instance
 Registry, Agent credentials, capability filtering, Project ownership checks,

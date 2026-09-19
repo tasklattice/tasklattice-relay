@@ -7,6 +7,8 @@ on:
       - "scripts/helm-kind-smoke.sh"
       - "scripts/preload-helm-kind-images.sh"
       - "scripts/prepare-helm-dependencies.sh"
+      - "scripts/prepare-agent-sandbox-chart.sh"
+      - "scripts/package-worker-charts.sh"
       - "scripts/reclaim-github-runner-space.sh"
   push:
     branches:
@@ -16,6 +18,8 @@ on:
       - "scripts/helm-kind-smoke.sh"
       - "scripts/preload-helm-kind-images.sh"
       - "scripts/prepare-helm-dependencies.sh"
+      - "scripts/prepare-agent-sandbox-chart.sh"
+      - "scripts/package-worker-charts.sh"
       - "scripts/reclaim-github-runner-space.sh"
   workflow_run:
     workflows:
@@ -117,9 +121,11 @@ jobs:
         if: github.event_name != 'workflow_run'
         uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
 
-      - name: Package chart for the current Control Plane image
+      - name: Package Relay and Worker charts for the shared image
         if: github.event_name != 'workflow_run'
-        run: bash scripts/package-control-plane-chart.sh
+        run: |
+          bash scripts/package-control-plane-chart.sh
+          bash scripts/package-worker-charts.sh
 
       - name: Build current Control Plane image
         if: github.event_name != 'workflow_run'

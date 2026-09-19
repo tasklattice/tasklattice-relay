@@ -18,8 +18,12 @@ environment variables. Kubernetes discovery and process bootstrap variables
 schema_version = 1
 
 [server]
-# Required canonical browser origin for Better Auth cookies and callbacks.
-public_url = "https://tali.example.com"
+# Allowed browser origins, with no canonical redirect target.
+public_urls = ["https://tali.example.com", "https://relay.example.com"]
+# Enable only behind an ingress that overwrites forwarded host/protocol headers.
+trust_proxy_headers = false
+# Service-to-service address; never used for browser redirects.
+internal_url = "http://tali-relay-control.tali.svc.cluster.local:38080"
 
 [database]
 url = "postgresql://tali:password@postgresql:5432/tali"
@@ -33,11 +37,22 @@ initial_platform_administrator_email = "admin@tasklattice.local"
 initial_platform_administrator_password = "replace-with-a-strong-password"
 ```
 
-`server.public_url` is always required because Better Auth uses it as the
-canonical origin for secure session cookies, origin checks, and OAuth
-callbacks. The OIDC redirect URI is
-`<server.public_url>/api/auth/callback/corporate-sso`; scopes are fixed to
-`openid profile email`.
+`server.public_urls` is a nonempty allowlist of exact HTTP(S) origins, including
+any non-default ports. Entries cannot contain paths, credentials, queries or
+fragments. Ordering has no meaning. Login, logout and OAuth callbacks use the
+validated origin of the incoming request; the UI never redirects to a configured
+canonical domain. Cookies remain scoped to each host, with Secure cookies on HTTPS.
+
+By default, forwarded headers are ignored. Set `server.trust_proxy_headers=true`
+only when the trusted ingress overwrites `X-Forwarded-Host` and `X-Forwarded-Proto`.
+The resolved origin must still appear in `public_urls`; unknown hosts or protocols
+are rejected. Internal service addresses are not browser origins and must not be
+added to the allowlist just to satisfy internal connectivity.
+
+Register `<origin>/api/auth/callback/corporate-sso` and `<origin>/login` with the
+OIDC provider for each allowed origin. Platform Settings lists all callback URLs;
+the embedded Keycloak realm is generated from the same list. Scopes are fixed to
+`openid profile email groups`.
 
 OIDC is configured only from **Platform Setting -> Security & SSO** and is
 stored in the Platform database. There is no `control.toml` fallback. Complete
@@ -61,8 +76,8 @@ bootstrap Local credential exists before a draft can enable Local sign-in.
 SMTP is configured only from **Platform Setting -> Email delivery** and is
 stored in the Platform database. There is no `control.toml` fallback.
 Invitations to an email address that does not already map to a Relay user are
-rejected until email delivery is enabled. SMTP still uses `server.public_url`
-for the browser-visible sign-in link. Set implicit TLS for port 465; for port
+rejected until email delivery is enabled. Invitation links use the validated origin of the
+request that sends the invitation. Set implicit TLS for port 465; for port
 587 leave it off so the transport can upgrade with STARTTLS. Username and
 password must either both be configured or both be empty for an unauthenticated
 internal relay.
@@ -95,8 +110,8 @@ the database is canonical: changing these file values and restarting does not
 overwrite an administrator's settings. OpenShell gateway topology remains
 deployment-owned and read-only in Platform Setting.
 
-The other deployment sections are read directly at process startup and apply
-to both Control and Worker:
+Control and Worker share the core configuration. Sections under `[worker]`
+exist only in `worker.toml` and are read only by Worker:
 
 | Section | Responsibility |
 | --- | --- |
@@ -106,7 +121,10 @@ to both Control and Worker:
 | `[worker.project_openshell]` | Tenant chart, images, separate Gateway/Supervisor pull policies, storage |
 | `[worker.project_runtime_bridge]`, `[worker.expert_agent_runtime]` | Images, resources, pull secrets, readiness timeout |
 | `[worker.resource_ownership]` | Namespace ownership and Argo CD tracking annotations |
-| `[demo]`, `[worker.provisioning]` | Example image and instance provisioning timeout |
+| `[worker.provisioning]` | Instance provisioning timeout |
+
+Demo Agent image defaults belong to the demo module, not the core configuration.
+`images.exampleMcp` configures only the optional example MCP Deployment.
 
 Nested resources and pull secrets are TOML objects/arrays, not JSON strings in
 environment variables. Unknown section keys and invalid typed values fail

@@ -1,3 +1,4 @@
+import { requestOrigin } from "../http/request-origin";
 import { randomUUID } from "node:crypto";
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
@@ -20,17 +21,18 @@ import {
 export const authSessionIdleTimeoutSeconds = 30 * 60;
 export const authSessionUpdateAgeSeconds = 0;
 
-function createBetterAuth(runtime: PlatformAuthRuntimeSettings) {
+function createBetterAuth(
+  runtime: PlatformAuthRuntimeSettings,
+  origin: string,
+) {
   const config = getControlConfig();
-  const baseURL = config.server.public_url;
-  if (!baseURL) throw new Error("server.public_url is required for Better Auth.");
 
   return betterAuth({
     appName: "TaskLattice Relay",
-    baseURL,
+    baseURL: origin,
     basePath: "/api/auth",
     secret: config.auth.secret,
-    trustedOrigins: [baseURL],
+    trustedOrigins: config.server.public_urls,
     advanced: { cookiePrefix: betterAuthCookiePrefix },
     database: prismaAdapter(prisma(), {
       provider: "postgresql",
@@ -135,7 +137,7 @@ function createBetterAuth(runtime: PlatformAuthRuntimeSettings) {
                 clientSecret: runtime.sso.clientSecret,
                 scopes: ["openid", "profile", "email", "groups"],
                 requireIdTokenVerification: true,
-                postLogoutRedirectURI: `${baseURL.replace(/\/$/, "")}/login`,
+                postLogoutRedirectURI: `${origin}/login`,
                 mapProfileToUser: (profile) => ({
                   name:
                     typeof profile.name === "string" && profile.name.trim()
@@ -162,36 +164,45 @@ interface BetterAuthState {
 
 declare global {
   var taliBetterAuth: BetterAuthInstance | undefined;
-  var taliBetterAuthLocalState: BetterAuthState | undefined;
-  var taliBetterAuthSsoState: BetterAuthState | undefined;
+  var taliBetterAuthLocalState: Map<string, BetterAuthState> | undefined;
+  var taliBetterAuthSsoState: Map<string, BetterAuthState> | undefined;
 }
 
-export async function auth(): Promise<BetterAuthInstance> {
+export async function auth(request: Request): Promise<BetterAuthInstance> {
+  const origin = requestOrigin(request);
+  const cache = (globalThis.taliBetterAuthLocalState ??= new Map());
+  const cached = cache.get(origin);
   const runtime = await new PlatformSettingsService().authRuntimeSettings();
   const revisionKey = `${runtime.revision}:${runtime.localAuthenticationEnabled}`;
-  if (globalThis.taliBetterAuthLocalState?.revisionKey === revisionKey) {
-    return globalThis.taliBetterAuthLocalState.instance;
+  if (cached?.revisionKey === revisionKey) {
+    return cached.instance;
   }
-  const instance = createBetterAuth({
-    ...runtime,
-    sso: { ...runtime.sso, enabled: false },
-  });
-  globalThis.taliBetterAuthLocalState = { instance, revisionKey };
+  const instance = createBetterAuth(
+    {
+      ...runtime,
+      sso: { ...runtime.sso, enabled: false },
+    },
+    origin,
+  );
+  cache.set(origin, { instance, revisionKey });
   return instance;
 }
 
-export async function ssoAuth(): Promise<BetterAuthInstance> {
+export async function ssoAuth(request: Request): Promise<BetterAuthInstance> {
+  const origin = requestOrigin(request);
+  const cache = (globalThis.taliBetterAuthSsoState ??= new Map());
+  const cached = cache.get(origin);
   const settings = new PlatformSettingsService();
   const revisionKey = await settings.authRevisionKey();
-  if (globalThis.taliBetterAuthSsoState?.revisionKey === revisionKey) {
-    return globalThis.taliBetterAuthSsoState.instance;
+  if (cached?.revisionKey === revisionKey) {
+    return cached.instance;
   }
   const runtime = await settings.authRuntimeSettings();
-  const instance = createBetterAuth(runtime);
-  globalThis.taliBetterAuthSsoState = {
+  const instance = createBetterAuth(runtime, origin);
+  cache.set(origin, {
     instance,
     revisionKey: String(runtime.revision),
-  };
+  });
   return instance;
 }
 

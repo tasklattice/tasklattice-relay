@@ -1,4 +1,4 @@
-import { getControlConfig } from "../config/control-config";
+import { requestOrigin } from "../http/request-origin";
 import { prisma } from "../db/prisma";
 import type { PrismaClient } from "../generated/prisma/client";
 import { PlatformSettingsService } from "../platform/platform-settings-service";
@@ -68,6 +68,7 @@ export async function handleSsoSignOut(
   db: PrismaClient = prisma(),
   oidcFetch: typeof fetch = fetch,
 ): Promise<Response> {
+  const origin = requestOrigin(request);
   const body = await readSignOutBody(request);
   let providerLogoutUrl = "";
   let accountId = "";
@@ -129,7 +130,7 @@ export async function handleSsoSignOut(
           }
           logoutUrl.searchParams.set(
             "post_logout_redirect_uri",
-            `${getControlConfig().server.public_url!.replace(/\/$/, "")}/login`,
+            `${origin}/login`,
           );
           logoutUrl.searchParams.set("client_id", runtime.sso.clientId);
           providerLogoutUrl = logoutUrl.toString();

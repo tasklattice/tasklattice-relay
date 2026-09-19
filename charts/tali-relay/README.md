@@ -44,10 +44,12 @@ separately released `tasklattice-guard` project must use the same namespace
 when integrated with Relay. It is not a dependency of this Chart and no Guard
 workload is packaged by this repository.
 
-`control.publicUrl` is independent of `control.service.type`, but it is always
-required as Better Auth's canonical browser origin. Set it to the exact origin
-users open, including scheme and non-default port; it is also used for OIDC
-callbacks and invitation links.
+`control.publicUrls` is a nonempty list of allowed browser origins, independent
+of `control.service.type`. Include scheme and non-default port. Authentication
+redirects and invitation links follow the caller's validated origin; there is no
+canonical-domain redirect. For a TLS-terminating ingress, set
+`control.trustProxyHeaders=true` only if it overwrites forwarded host/protocol
+headers. The embedded Keycloak client registers callbacks for every listed origin.
 
 Install a released chart:
 
@@ -108,21 +110,32 @@ setting when the database has no runtime configuration.
 
 The Chart requires `projectOpenShell.enabled=true`,
 `runner.projectTargetRouting.enabled=true`, `projectRuntimeNamespaces.enabled=true`,
-and `openshell.enabled=false`. Control installs the pinned official OpenShell
+and `openshell.enabled=false`. Worker installs the pinned official OpenShell
 chart as a separate Helm release in each Project Namespace. The Gateway uses that
 Namespace for Sandboxes, with a private `ClusterIP` Service and NetworkPolicy.
 Its image, resources and pull Secrets come from `openshell.*` values. The
-OpenShell dependency remains packaged for this purpose; it is never deployed
-in the Control namespace.
+OpenShell chart is bundled into the Worker image for this purpose; it is not a
+Relay Helm dependency and is never deployed in the Control namespace.
 
-The main Control Plane ServiceAccount can ensure Namespaces and reconcile the
-official per-Project OpenShell releases. The separate Control Worker uses a
-PostgreSQL-backed durable queue for delayed Project deletion and periodic
-Namespace plus Gateway repair. Runtime workloads receive neither identity.
+The main Control Plane ServiceAccount has diagnostic read access. The Control
+Worker creates Namespaces and installs the per-Project OpenShell releases through
+a PostgreSQL-backed durable queue, which also handles delayed Project deletion
+and periodic Namespace plus Gateway repair. Runtime workloads receive neither identity.
+
+`npm run helm:dependencies` prepares only the Agent Sandbox dependency and
+validates the Relay render and Worker configuration. The standalone
+`helm:deploy:agent-sandbox` command also prepares only Agent Sandbox.
+
+`npm run helm:package:worker` downloads and patches OpenShell, verifies its
+Gateway and Supervisor image versions, and writes `dist/worker-charts/openshell.tgz`.
+The shared Control/Worker image build runs this step and copies that artifact to
+`/opt/tali/helm/openshell.tgz`. Only Worker consumes it. OpenShell is absent from
+the Relay chart archive; release image inventories validate the separate Worker
+artifact so dynamically deployed images remain available offline.
 Operators can also repair all mappings with the packaged one-shot command:
 
 ```bash
-kubectl -n <control-namespace> exec deployment/<release>-control -- \
+kubectl -n <control-namespace> exec deployment/<release>-control-worker -- \
   node apps/control/.output/tools/project-runtime-reconcile.mjs
 ```
 
@@ -186,7 +199,7 @@ test:e2e:project-resource-ownership`; it creates and removes an isolated Project
 Namespace and requires an installed Sandbox controller and cached Runner image.
 
 Workload rollout checksums are component-scoped. Updating Control-only
-settings such as `control.publicUrl` restarts the Control Deployment but does
+settings such as `control.publicUrls` restarts the Control Deployment but does
 not roll Runner, LiteLLM, or PostgreSQL. Changing a Service type by itself does
 not restart application Pods.
 
@@ -252,7 +265,7 @@ roots in `/var/run/tali-ca/ca-bundle.pem`. LiteLLM receives `SSL_CERT_FILE`,
 modified. Certificate changes trigger a rollout. If initialization fails,
 inspect `kubectl logs <pod> -c build-ca-bundle` for the certificate error.
 
-The dependency preparation step applies the small OpenShell overlay in
+The Worker chart packaging step applies the small OpenShell overlay in
 `patches/openshell.patch`, which applies the configured
 `openshell.resources` to its pre-install certificate-generation Job. Keep or
 upstream that patch when refreshing the dependency so the hook can run before
@@ -293,16 +306,15 @@ only in PostgreSQL and have no values-file or `control.toml` fallback.
 
 ## Disconnected / air-gapped installation
 
-The released Control Plane image contains the complete packaged Chart,
-including OpenShell, Agent Sandbox, their CRDs, and the Agent Sandbox upstream
-license:
+The released shared Control/Worker image contains the complete Relay Chart,
+including Agent Sandbox, its CRDs and upstream license:
 
 ```text
 /opt/tali/helm/tali-relay.tgz
 ```
 
-The runtime image intentionally does not include the Helm CLI. Extract the
-archive and render it with the Helm binary already approved for the
+The image also carries `/opt/tali/helm/openshell.tgz` and the Helm CLI for Worker's
+Project installs. Extract the Relay archive and render it with the Helm binary approved for the
 disconnected environment without contacting a Helm or OCI repository:
 
 ```bash
@@ -349,7 +361,8 @@ oc -n tali create secret docker-registry airgap-registry \
 
 Dependency preparation (`npm run helm:dependencies`) needs network access and
 is a build-time operation only. Do not run it in the disconnected environment;
-use the `.tgz` embedded in the released Control Plane image.
+use the Relay `.tgz` embedded in the released shared Control/Worker image.
+Worker uses its separate image-bundled OpenShell chart without downloading it.
 
 ## OpenShift
 
@@ -385,7 +398,8 @@ oc new-project "${NAMESPACE}"
 helm upgrade --install tali-relay charts/tali-relay \
   --namespace "${NAMESPACE}" \
   --values charts/tali-relay/values-openshift.yaml \
-  --set-string "control.publicUrl=https://${CONTROL_HOST}" \
+  --set-string "control.publicUrls[0]=https://${CONTROL_HOST}" \
+  --set control.trustProxyHeaders=true \
   --set-string "openshift.routes.control.host=${CONTROL_HOST}" \
   --wait \
   --wait-for-jobs \
@@ -565,7 +579,7 @@ Control pod. For a cluster with a reserved load-balancer address:
 helm upgrade --install tali-relay charts/tali-relay \
   --namespace tali \
   --create-namespace \
-  --set control.publicUrl=http://192.168.139.2:38080 \
+  --set-string "control.publicUrls[0]=http://192.168.139.2:38080" \
   --set keycloak.enabled=true \
   --set keycloak.publicUrl=http://192.168.139.3:8080 \
   --set keycloak.service.loadBalancerIP=192.168.139.3
@@ -687,7 +701,7 @@ production.
 
 TaskLattice Relay control and LiteLLM intentionally use the same `database-url`.
 LiteLLM owns the PostgreSQL `public` schema; the control plane and its Prisma
-migration history live in the compatibility `tasklattice` schema. The control Deployment has
+migration history live in the `tasklattice` schema. Control and Worker each have
 an init container that runs `prisma migrate deploy`, including the SQL migration
 that creates the default Project and preconfigured Skill, MCP Server, Knowledge
 Source, Agent Role, and policy metadata.
@@ -695,6 +709,21 @@ Source, Agent Role, and policy metadata.
 An external database supplied through Control and LiteLLM component Secrets must allow the
 configured role to create and modify the `tasklattice` schema. There is no
 SQLite mode or control-plane data PVC.
+
+### Development database baseline
+
+Relay owns one SQL migration:
+`20260919000000_initial_control_plane/migration.sql`. It initializes the complete
+`tasklattice` schema and built-in seed data, including Worker runtime settings,
+Project resource operations, vector storage and memory metadata. Tests consume
+the same baseline. LiteLLM's `public` schema, Hindsight's separate database and
+PgBoss's queue schema remain managed by their upstream components.
+
+This baseline targets a fresh database; earlier development migration histories
+are not supported. Use a fresh development database or PostgreSQL volume when
+switching from an older baseline. Reinstalling Helm or rebuilding an image does
+not clear a retained PVC: reusing one can cause duplicate-object errors followed
+by Prisma `P3009`. The chart never resets an existing database automatically.
 
 Project and Agent Garden resource creation/removal run as durable Worker jobs.
 Control has read-only cluster diagnostics permissions. See

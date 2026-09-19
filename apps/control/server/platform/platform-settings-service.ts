@@ -795,7 +795,6 @@ export class PlatformSettingsService {
     roleBindings: ExternalRoleBindingView[] = [],
   ): PlatformSecuritySettingsView {
     const config = getControlConfig();
-    const publicUrl = config.server.public_url?.replace(/\/$/, "") ?? "";
     let configurationError: string | null = null;
     let clientSecretConfigured = Boolean(settings?.oidcClientSecretEncrypted);
     if (settings?.oidcClientSecretEncrypted) {
@@ -817,7 +816,7 @@ export class PlatformSettingsService {
       localAuthenticationEnabled:
         settings?.localAuthenticationEnabled ?? config.auth.local.enabled,
       sso: {
-        callbackUrl: `${publicUrl}/api/auth/callback/corporate-sso`,
+        callbackUrls: config.server.public_urls.map((origin) => `${origin}/api/auth/callback/corporate-sso`),
         clientId: settings?.oidcClientId ?? "",
         clientSecretConfigured,
         displayName: settings?.oidcDisplayName ?? "SSO",

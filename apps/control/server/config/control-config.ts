@@ -13,74 +13,100 @@ const runtimeNamespacesConfigSchema = z.object({
   cluster_id: z.string().trim().min(1).max(120),
 });
 
-const localAuthConfigSchema = z.object({
-  enabled: z.boolean().default(true),
-  initial_platform_administrator_username: z.string().trim().min(1),
-  initial_platform_administrator_email: z.string().email(),
-  initial_platform_administrator_password: z.string().min(1).max(128),
-}).strict();
+const localAuthConfigSchema = z
+  .object({
+    enabled: z.boolean().default(true),
+    initial_platform_administrator_username: z.string().trim().min(1),
+    initial_platform_administrator_email: z.string().email(),
+    initial_platform_administrator_password: z.string().min(1).max(128),
+  })
+  .strict();
 
-const memoryConfig = z.object({
-  enabled: z.boolean().default(true),
-  projectAllowlist: z.array(z.string().min(1)).default([]),
-  baseUrl: z.string().url().default("http://localhost:8888"),
-  apiKey: z.string().default(""),
-  routerToken: z.string().default(""),
-  embeddingDimensions: z.number().int().positive().default(1536),
-  recallTimeoutMs: z.number().int().min(100).max(8000).default(1500),
-}).strict();
+const memoryConfig = z
+  .object({
+    enabled: z.boolean().default(true),
+    projectAllowlist: z.array(z.string().min(1)).default([]),
+    baseUrl: z.string().url().default("http://localhost:8888"),
+    apiKey: z.string().default(""),
+    routerToken: z.string().default(""),
+    embeddingDimensions: z.number().int().positive().default(1536),
+    recallTimeoutMs: z.number().int().min(100).max(8000).default(1500),
+  })
+  .strict();
 
-const controlConfigSchema = z.object({
-  schema_version: z.literal(1),
-  server: z.object({
-    public_url: z.string().url().optional(),
-    internal_url: z.string().url().optional(),
-  }),
-  database: z.object({
-    url: z.string().trim().min(1),
-  }),
-  auth: z.object({
-    secret: z.string().min(32),
-    local: localAuthConfigSchema,
-  }).superRefine((value, context) => {
-    if (
-      value.local.enabled &&
-      (!value.local.initial_platform_administrator_username ||
-        !value.local.initial_platform_administrator_email ||
-        !value.local.initial_platform_administrator_password)
-    ) {
-      context.addIssue({
-        code: "custom",
-        path: ["local"],
-        message:
-          "Local authentication requires the initial Platform Administrator username, email, and password.",
-      });
-    }
-  }),
-  // Bootstrap only: persisted Platform Settings remain authoritative.
-  runner: z.object({
-    url: z.string().url(),
-    token: z.string().min(1),
-  }).optional(),
-  litellm: z.object({
-    url: z.string().url(),
-    master_key: z.string(),
-  }).optional(),
-  memory: memoryConfig.prefault({}),
-  metrics: z.object({ token: z.string().default("") }).strict().prefault({}),
-  demo: z.object({ image: z.string().default("") }).strict().prefault({}),
-  runtime_namespaces: runtimeNamespacesConfigSchema.default(
-    defaultRuntimeNamespacesConfig,
-  ),
-}).strict().superRefine((value, context) => {
-  if (!value.server.public_url) {
-    context.addIssue({
-      code: "custom",
-      path: ["server", "public_url"],
-      message: "server.public_url is required for Better Auth.",
-    });
-  }
-});
+const publicOriginSchema = z
+  .string()
+  .url()
+  .refine((value) => {
+    const url = new URL(value);
+    return (
+      ["http:", "https:"].includes(url.protocol) &&
+      !url.username &&
+      !url.password &&
+      !url.host.includes("*") &&
+      url.pathname === "/" &&
+      !url.search &&
+      !url.hash
+    );
+  }, "Public URLs must be HTTP(S) origins without credentials, paths, queries or fragments.")
+  .transform((value) => new URL(value).origin);
+
+const controlConfigSchema = z
+  .object({
+    schema_version: z.literal(1),
+    server: z
+      .object({
+        public_urls: z.array(publicOriginSchema).min(1),
+        trust_proxy_headers: z.boolean().default(false),
+        internal_url: z.string().url().optional(),
+      })
+      .strict(),
+    database: z.object({
+      url: z.string().trim().min(1),
+    }),
+    auth: z
+      .object({
+        secret: z.string().min(32),
+        local: localAuthConfigSchema,
+      })
+      .superRefine((value, context) => {
+        if (
+          value.local.enabled &&
+          (!value.local.initial_platform_administrator_username ||
+            !value.local.initial_platform_administrator_email ||
+            !value.local.initial_platform_administrator_password)
+        ) {
+          context.addIssue({
+            code: "custom",
+            path: ["local"],
+            message:
+              "Local authentication requires the initial Platform Administrator username, email, and password.",
+          });
+        }
+      }),
+    // Bootstrap only: persisted Platform Settings remain authoritative.
+    runner: z
+      .object({
+        url: z.string().url(),
+        token: z.string().min(1),
+      })
+      .optional(),
+    litellm: z
+      .object({
+        url: z.string().url(),
+        master_key: z.string(),
+      })
+      .optional(),
+    memory: memoryConfig.prefault({}),
+    metrics: z
+      .object({ token: z.string().default("") })
+      .strict()
+      .prefault({}),
+    runtime_namespaces: runtimeNamespacesConfigSchema.default(
+      defaultRuntimeNamespacesConfig,
+    ),
+  })
+  .strict();
 
 export type ControlConfig = z.infer<typeof controlConfigSchema>;
 
@@ -91,7 +117,8 @@ declare global {
 const developmentConfig: ControlConfig = controlConfigSchema.parse({
   schema_version: 1,
   server: {
-    public_url: "http://localhost:5173",
+    public_urls: ["http://localhost:5173"],
+    internal_url: "http://localhost:5173",
   },
   database: {
     url: "postgresql://tali:development@127.0.0.1:5432/tali",

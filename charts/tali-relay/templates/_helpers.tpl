@@ -276,13 +276,28 @@ app.kubernetes.io/component: {{ .component }}
 {{- end }}
 
 {{- define "tali.controlConfig" -}}
-{{- if not .Values.control.publicUrl -}}
-{{- fail "control.publicUrl is required for Better Auth" -}}
+{{- if hasKey .Values.control "publicUrl" -}}
+{{- fail "control.publicUrl was removed; configure control.publicUrls as an origin array" -}}
+{{- end -}}
+{{- if not .Values.control.publicUrls -}}
+{{- fail "control.publicUrls must contain at least one allowed origin" -}}
+{{- end -}}
+{{- if not (kindIs "slice" .Values.control.publicUrls) -}}
+{{- fail "control.publicUrls must be an array of HTTP(S) origins" -}}
+{{- end -}}
+{{- range .Values.control.publicUrls -}}
+{{- if not (kindIs "string" .) -}}
+{{- fail "control.publicUrls entries must be HTTP(S) origins" -}}
+{{- end -}}
+{{- if not (regexMatch "^https?://[^/?#@*[:space:]]+/?$" .) -}}
+{{- fail "control.publicUrls entries must be HTTP(S) origins without paths, credentials, queries or fragments" -}}
+{{- end -}}
 {{- end -}}
 schema_version = 1
 
 [server]
-public_url = {{ .Values.control.publicUrl | toJson }}
+public_urls = {{ .Values.control.publicUrls | toJson }}
+trust_proxy_headers = {{ .Values.control.trustProxyHeaders }}
 internal_url = {{ printf "http://%s.%s.svc.cluster.local:%v" (include "tali.componentName" (dict "root" . "component" "control")) .Release.Namespace .Values.control.service.port | toJson }}
 
 [database]
@@ -310,9 +325,6 @@ cluster_id = {{ .Values.projectRuntimeNamespaces.clusterId | toJson }}
 
 [metrics]
 token = {{ .Values.secrets.metricsToken | toJson }}
-
-[demo]
-image = {{ include "tali.image" (dict "root" . "image" .Values.images.exampleMcp) | toJson }}
 
 [memory]
 enabled = {{ and .Values.features.durableMemory.enabled .Values.hindsight.enabled }}
@@ -368,10 +380,6 @@ imagePullPolicy = {{ .Values.images.control.pullPolicy | toJson }}
 revision = {{ default .Chart.AppVersion .Values.global.rolloutRevision | toJson }}
 imagePullSecrets = {{ include "tali.tomlValue" .Values.global.imagePullSecrets }}
 resources = {{ include "tali.tomlValue" .Values.projectRuntimeBridge.resources }}
-storageSize = {{ .Values.projectRuntimeBridge.storageSize | toJson }}
-{{- with .Values.projectRuntimeBridge.storageClass }}
-storageClass = {{ . | toJson }}
-{{- end }}
 
 [worker.expert_agent_runtime]
 enabled = {{ and .Values.projectRuntimeNamespaces.enabled .Values.projectRuntimeBridge.enabled .Values.expertAgentRuntime.enabled }}

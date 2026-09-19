@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { verifyPassword } from "better-auth/crypto";
 import {
   developmentControlConfig,
+  getControlConfig,
   setControlConfigForTests,
 } from "../config/control-config";
 import { createTestPrisma } from "../test/prisma";
@@ -42,9 +43,9 @@ function cookieHeader(response: Response): string {
     .join("; ");
 }
 
-async function signIn(password: string): Promise<Response> {
-  return (await auth()).handler(
-    new Request("http://tali.local/api/auth/sign-in/username", {
+async function signIn(password: string, origin = "http://tali.local"): Promise<Response> {
+  return (await auth(new Request(origin))).handler(
+    new Request(`${origin}/api/auth/sign-in/username`, {
       body: JSON.stringify({
         password,
         rememberMe: true,
@@ -52,7 +53,7 @@ async function signIn(password: string): Promise<Response> {
       }),
       headers: {
         "content-type": "application/json",
-        origin: "http://tali.local",
+        origin,
       },
       method: "POST",
     }),
@@ -66,7 +67,7 @@ describe("Better Auth platform authentication", () => {
     globalThis.taliPrisma = db;
     vi.stubEnv("TALI_CONFIG", "/test/control.toml");
     const config = developmentControlConfig();
-    config.server.public_url = "http://tali.local";
+    config.server.public_urls = ["http://tali.local"];
     config.auth.local.initial_platform_administrator_password = "correct-horse-battery";
     setControlConfigForTests(config);
     resetBetterAuthForTests();
@@ -135,7 +136,7 @@ describe("Better Auth platform authentication", () => {
 
   it("bootstraps the canonical admin / password development credentials", async () => {
     const config = developmentControlConfig();
-    config.server.public_url = "http://tali.local";
+    config.server.public_urls = ["http://tali.local"];
     expect(config.auth.local.initial_platform_administrator_username).toBe("admin");
     expect(config.auth.local.initial_platform_administrator_password).toBe("password");
 
@@ -174,7 +175,7 @@ describe("Better Auth platform authentication", () => {
     ).resolves.toBe(true);
 
     const config = developmentControlConfig();
-    config.server.public_url = "http://tali.local";
+    config.server.public_urls = ["http://tali.local"];
     config.auth.local.initial_platform_administrator_password = "different-password-value";
     setControlConfigForTests(config);
     await ensureInitialPlatformAdministrator();
@@ -209,7 +210,6 @@ describe("Better Auth platform authentication", () => {
 
     expect(await publicAuthConfig()).toEqual({
       authRequired: true,
-      canonicalOrigin: "http://tali.local",
       developmentDefaults: false,
       localEnabled: true,
       mode: "local-sso",
@@ -235,7 +235,7 @@ describe("Better Auth platform authentication", () => {
     ), { status: 200 })) as unknown as typeof fetch;
     vi.stubGlobal("fetch", discoveryFetch);
     const settings = new PlatformSettingsService(db, discoveryFetch);
-    const before = await ssoAuth();
+    const before = await ssoAuth(new Request("http://tali.local"));
 
     await saveValidatedSecurity(settings, {
       localAuthenticationEnabled: true,
@@ -250,7 +250,6 @@ describe("Better Auth platform authentication", () => {
 
     expect(await publicAuthConfig()).toEqual({
       authRequired: true,
-      canonicalOrigin: "http://tali.local",
       developmentDefaults: false,
       localEnabled: true,
       mode: "local-sso",
@@ -258,9 +257,21 @@ describe("Better Auth platform authentication", () => {
       ssoEnabled: true,
     });
     expect(JSON.stringify(await publicAuthConfig())).not.toContain("online-secret");
-    const reconfigured = await ssoAuth();
+    const reconfigured = await ssoAuth(new Request("http://tali.local"));
     expect(reconfigured).not.toBe(before);
     await reconfigured.api.getSession({ headers: new Headers() });
+    getControlConfig().server.public_urls.push("https://relay.example");
+    for (const origin of ["https://relay.example", "http://tali.local"]) {
+      const request = new Request(`${origin}/api/auth/sign-in/social`, {
+        method: "POST",
+        headers: { "content-type": "application/json", origin },
+        body: JSON.stringify({ provider: "corporate-sso", callbackURL: `${origin}/proj1`, disableRedirect: true }),
+      });
+      const response = await (await ssoAuth(request)).handler(request);
+      expect(response.status).toBe(200);
+      const authorization = new URL((await response.json()).url);
+      expect(authorization.searchParams.get("redirect_uri")).toBe(`${origin}/api/auth/callback/corporate-sso`);
+    }
   });
 
   it("clears the Relay session and returns the OIDC Provider logout URL", async () => {
@@ -312,11 +323,13 @@ describe("Better Auth platform authentication", () => {
         refreshToken,
       },
     });
-    const signedIn = await signIn("correct-horse-battery");
+    const origin = "http://alternate.tali.local";
+    getControlConfig().server.public_urls.push(origin);
+    const signedIn = await signIn("correct-horse-battery", origin);
 
-    const sso = await ssoAuth();
+    const sso = await ssoAuth(new Request(origin));
     const response = await handleSsoSignOut(
-      new Request("http://tali.local/api/auth/sign-out", {
+      new Request(`${origin}/api/auth/sign-out`, {
         body: JSON.stringify({
           callbackURL: "/login",
           disableRedirect: true,
@@ -324,7 +337,7 @@ describe("Better Auth platform authentication", () => {
         headers: {
           "content-type": "application/json",
           cookie: cookieHeader(signedIn),
-          origin: "http://tali.local",
+          origin,
         },
         method: "POST",
       }),
@@ -345,7 +358,7 @@ describe("Better Auth platform authentication", () => {
     expect(logoutUrl.searchParams.get("id_token_hint")).toBe(idToken);
     expect(logoutUrl.searchParams.get("client_id")).toBe("tali-control-plane");
     expect(logoutUrl.searchParams.get("post_logout_redirect_uri")).toBe(
-      "http://tali.local/login",
+      `${origin}/login`,
     );
     await expect(db.authSession.count()).resolves.toBe(0);
     expect(response.headers.get("set-cookie")).toContain(
@@ -394,7 +407,7 @@ describe("Better Auth platform authentication", () => {
       throw new Error("identity provider offline");
     }));
 
-    const sso = await ssoAuth();
+    const sso = await ssoAuth(new Request("http://tali.local"));
     await expect(sso.handler(new Request(
       "http://tali.local/api/auth/sign-in/social",
       {
@@ -415,13 +428,35 @@ describe("Better Auth platform authentication", () => {
     });
   });
 
-  it("requires one canonical public URL for every authentication mode", async () => {
+  it("keeps sessions and callbacks on each requested origin with scheme-appropriate cookies", async () => {
+    getControlConfig().server.public_urls = ["http://tali.local", "https://relay.example"];
+    for (const origin of ["https://relay.example", "http://tali.local", "https://relay.example"]) {
+      const request = new Request(`${origin}/api/auth/sign-in/username`, {
+        method: "POST",
+        headers: { "content-type": "application/json", origin },
+        body: JSON.stringify({ username: "admin", password: "correct-horse-battery", callbackURL: `${origin}/proj1` }),
+      });
+      const instance = await auth(request);
+      const response = await instance.handler(request);
+      expect(response.status).toBe(200);
+      expect(await response.json()).toMatchObject({ url: `${origin}/proj1` });
+      const cookie = response.headers.get("set-cookie")!;
+      expect(cookie.includes("; Secure")).toBe(origin.startsWith("https:"));
+      expect(cookie.includes("__Secure-tali-relay.session_token")).toBe(origin.startsWith("https:"));
+      expect(cookie).not.toContain("Domain=");
+      const me = await handleAuthMe(new Request(`${origin}/api/v1/auth/me`, { headers: { cookie: cookieHeader(response) } }));
+      expect(me.status).toBe(200);
+    }
+    await expect(auth(new Request("https://attacker.example"))).rejects.toThrow();
+  });
+
+  it("rejects authentication without an allowed request origin", async () => {
     const config = developmentControlConfig();
-    delete config.server.public_url;
+    config.server.public_urls = [];
     setControlConfigForTests(config);
     resetBetterAuthForTests();
-    await expect(auth()).rejects.toThrow(
-      "server.public_url is required for Better Auth",
+    await expect(auth(new Request("http://tali.local"))).rejects.toThrow(
+      "not in the allowed hosts list",
     );
   });
 });

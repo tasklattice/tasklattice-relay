@@ -1,4 +1,3 @@
-import { getControlConfig } from "../config/control-config";
 import {
   PlatformSettingsService,
   type PlatformEmailRuntimeSettings,
@@ -8,6 +7,7 @@ import { createSmtpTransport } from "./smtp-transport";
 
 export interface ProjectInvitationEmail {
   email: string;
+  loginUrl: string;
   inviterEmail: string;
   inviterName: string;
   projectName: string;
@@ -23,8 +23,6 @@ export class SmtpInvitationMailer implements InvitationMailer {
   constructor(
     private readonly loadSmtp: () => Promise<PlatformEmailRuntimeSettings> =
       () => new PlatformSettingsService().emailRuntimeSettings(),
-    private readonly publicUrl: string | undefined =
-      getControlConfig().server.public_url,
   ) {}
 
   async assertConfigured(): Promise<void> {
@@ -37,11 +35,7 @@ export class SmtpInvitationMailer implements InvitationMailer {
         "SMTP invitation delivery is not enabled in Platform Setting.",
       );
     }
-    if (!this.publicUrl) {
-      throw new Error(
-        "SMTP invitation delivery requires server.public_url in the Control Plane.",
-      );
-    }
+
   }
 
   async verify(): Promise<void> {
@@ -55,7 +49,8 @@ export class SmtpInvitationMailer implements InvitationMailer {
   ): Promise<void> {
     const smtp = await this.loadSmtp();
     this.assertRuntimeConfigured(smtp);
-    const loginUrl = this.publicUrl!.replace(/\/$/, "");
+    const loginUrl = invitation.loginUrl;
+    if (!loginUrl) throw new Error("Invitation delivery requires the requesting origin.");
     const roleLabel = ({
       admin: "Project Administrator",
       auditor: "Auditor",

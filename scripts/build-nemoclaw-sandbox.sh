@@ -95,8 +95,7 @@ build_image() {
 build_context="$(mktemp -d "${TMPDIR:-/tmp}/tali-nemoclaw.XXXXXX")"
 trap 'rm -rf "$build_context"' EXIT
 
-git clone --quiet --filter=blob:none https://github.com/NVIDIA/NemoClaw.git "$build_context"
-git -C "$build_context" checkout --quiet "$NEMOCLAW_VERSION"
+node "$REPOSITORY_ROOT/scripts/prepare-nemoclaw-source.mjs" "$build_context" "$NEMOCLAW_VERSION"
 
 if [ "$AGENT_PLATFORM" = "openclaw" ]; then
   node "$REPOSITORY_ROOT/scripts/patch-nemoclaw-openclaw-no-proxy.mjs" \

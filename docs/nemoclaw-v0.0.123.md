@@ -52,6 +52,31 @@ or Durable Memory attachment still requires Embedding.
 
 ## Local acceptance
 
+### Source cache for image builds
+
+The three `images:build:dev:sandbox:*` commands share pristine NemoClaw sources
+under `${TMPDIR:-/tmp}/tali-nemoclaw-cache`. The cache is keyed by repository and
+`NEMOCLAW_VERSION` (a release tag or commit), and a cache hit requires no Git network
+access. Each build copies the source into a disposable directory before applying
+platform patches. Changing the version creates a separate cache entry.
+
+The initial download uses a shallow fetch with complete blobs over HTTPS, bypassing
+broad local GitHub-to-SSH URL rewrites for this fetch only. Failed downloads retry
+up to three times and never publish an incomplete cache. Docker image pulls and
+dependencies installed inside Docker builds still need network access.
+
+Set `NEMOCLAW_SOURCE_CACHE_DIR` to retain sources outside the OS temporary directory
+or to use a fresh cache. To refresh a moved tag, remove its cache entry (the build
+prints the path). Release tags are otherwise treated as immutable.
+
+After a failure in the Deep Agents build, resume just that image:
+
+```sh
+npm run images:build:dev:sandbox:deepagents
+```
+
+### Runtime checks
+
 Build the Runner and the three images using the repository's `images:build:dev:*`
 commands. Install the independent Controller in a fresh local test cluster with
 `npm run helm:deploy:agent-sandbox`, then run:

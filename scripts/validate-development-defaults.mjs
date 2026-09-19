@@ -30,7 +30,7 @@ const rendered = execFileSync(
     "--values",
     "charts/tali-relay/values-dev.yaml",
     "--set-string",
-    "control.publicUrl=http://localhost:38080",
+    "control.publicUrls[0]=http://localhost:38080",
     "--set",
     "keycloak.enabled=true",
     "--set-string",

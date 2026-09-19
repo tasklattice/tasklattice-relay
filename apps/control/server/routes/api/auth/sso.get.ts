@@ -1,21 +1,25 @@
+import {
+  requestOrigin,
+  sameOriginCallback,
+} from "../../../http/request-origin";
 import { defineHandler } from "nitro";
 import { ssoAuth } from "../../../auth/better-auth";
 import { problemResponse } from "../../../http/responses";
 
 export default defineHandler(async (event) => {
   const requestUrl = new URL(event.req.url);
+  const origin = requestOrigin(event.req);
   const requestedCallback = requestUrl.searchParams.get("callbackURL") ?? "/";
-  const callbackURL =
-    requestedCallback.startsWith("/") && !requestedCallback.startsWith("//")
-      ? requestedCallback
-      : "/";
+  const callbackURL = sameOriginCallback(requestedCallback, origin);
 
-  const authResponse = await (await ssoAuth()).handler(
-    new Request(new URL("/api/auth/sign-in/social", requestUrl.origin), {
+  const authResponse = await (
+    await ssoAuth(event.req)
+  ).handler(
+    new Request(new URL("/api/auth/sign-in/social", origin), {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        origin: requestUrl.origin,
+        origin: origin,
       },
       body: JSON.stringify({
         callbackURL,

@@ -4,6 +4,8 @@ node_modules
 **/dist
 !dist/control-plane-chart
 !dist/control-plane-chart/**
+!dist/worker-charts
+!dist/worker-charts/**
 **/.output
 **/.tanstack
 coverage

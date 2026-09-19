@@ -96,7 +96,7 @@ run(
 run("Pinned Hindsight live integration", "npm", ["run", "test:hindsight:integration"]);
 run("Kubernetes and monitoring manifests", "node", ["scripts/validate-helm-resources.mjs"]);
 run("OpenShift arbitrary-UID manifests", "node", ["scripts/validate-helm-openshift.mjs"]);
-run("Database upgrade compatibility", "node", ["scripts/validate-prisma-migrations.mjs"]);
+run("Database migration file validation", "node", ["scripts/validate-prisma-migrations.mjs"]);
 
 validateProductionHasNoMemoryMocks();
 
@@ -115,7 +115,7 @@ const scenarios = [
   "12 role capability and UI visibility matrix",
   "13 reproducible UI loading/empty/error/degraded/deletion/conflict states",
   "14 OpenShift non-root/read-only/minimal-RBAC rendering",
-  "15 additive migration over an existing Project/Instance database",
+  "15 Project/Instance/Memory behavior on the fresh database baseline",
   "16 production Memory build has no mock provider or fixed fallback data",
 ];
 console.log("\nDurable Memory acceptance passed:");

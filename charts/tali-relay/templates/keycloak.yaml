@@ -145,14 +145,19 @@ data:
           "directAccessGrantsEnabled": false,
           "defaultClientScopes": ["profile", "email"],
           "optionalClientScopes": ["groups"],
-          "redirectUris": [
-            {{ printf "%s/api/auth/callback/corporate-sso" (trimSuffix "/" .Values.control.publicUrl) | quote }}
-          ],
-          "webOrigins": [
-            {{ trimSuffix "/" .Values.control.publicUrl | quote }}
-          ],
+          {{- $redirectUris := list }}
+          {{- $origins := list }}
+          {{- $logoutUris := list }}
+          {{- range .Values.control.publicUrls }}
+          {{- $origin := trimSuffix "/" . }}
+          {{- $origins = append $origins $origin }}
+          {{- $redirectUris = append $redirectUris (printf "%s/api/auth/callback/corporate-sso" $origin) }}
+          {{- $logoutUris = append $logoutUris (printf "%s/login" $origin) }}
+          {{- end }}
+          "redirectUris": {{ $redirectUris | toJson }},
+          "webOrigins": {{ $origins | toJson }},
           "attributes": {
-            "post.logout.redirect.uris": {{ printf "%s/*" (trimSuffix "/" .Values.control.publicUrl) | quote }}
+            "post.logout.redirect.uris": {{ join "##" $logoutUris | quote }}
           }
         }
       ],
@@ -253,7 +258,7 @@ spec:
       labels:
         {{- include "tali.selectorLabels" (dict "root" . "component" $component) | nindent 8 }}
       annotations:
-        checksum/realm: {{ printf "%s:%s:%d" (toJson .Values.keycloak) .Values.control.publicUrl .Release.Revision | sha256sum }}
+        checksum/realm: {{ printf "%s:%s:%d" (toJson .Values.keycloak) (toJson .Values.control.publicUrls) .Release.Revision | sha256sum }}
         checksum/keycloak-secret: {{ include "tali.keycloakSecretChecksum" . }}
     spec:
       serviceAccountName: {{ include "tali.runtimeServiceAccountName" . }}

@@ -1,5 +1,5 @@
--- Initial control-plane schema and built-in seed data.
--- Baseline for fresh databases; replaces the development migration history.
+-- Initial Relay schema and built-in seed data, including Worker resource operations.
+-- Fresh-database baseline; no upgrade path from earlier development migrations.
 
 CREATE SCHEMA IF NOT EXISTS tasklattice;
 
@@ -943,6 +943,7 @@ CREATE TABLE tasklattice.platform_settings (
     runtime_cluster_id text,
     local_authentication_enabled boolean,
     runtime_images jsonb,
+    worker_runtime jsonb,
     CONSTRAINT platform_settings_runtime_deletion_timeout_check CHECK (((runtime_namespace_deletion_timeout_seconds >= 10) AND (runtime_namespace_deletion_timeout_seconds <= 1800))),
     CONSTRAINT platform_settings_singleton_check CHECK ((id = 'platform'::text)),
     CONSTRAINT platform_settings_smtp_port_check CHECK (((smtp_port >= 1) AND (smtp_port <= 65535)))
@@ -1093,7 +1094,7 @@ CREATE TABLE tasklattice.project_runtime_targets (
     created_at timestamp(6) with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at timestamp(6) with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     CONSTRAINT project_runtime_targets_generation_check CHECK (((generation >= 1) AND (observed_generation >= 0) AND (observed_generation <= generation))),
-    CONSTRAINT project_runtime_targets_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'reconciling'::text, 'ready'::text, 'retry'::text, 'deleting'::text])))
+    CONSTRAINT project_runtime_targets_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'reconciling'::text, 'ready'::text, 'retry'::text, 'failed'::text, 'deleting'::text])))
 );
 
 CREATE TABLE tasklattice.projects (
@@ -2149,3 +2150,12 @@ CREATE INDEX provider_registration_cleanup_due_idx ON tasklattice.provider_regis
 
 CREATE UNIQUE INDEX model_deployments_active_model_key ON tasklattice.model_deployments (project_id, provider_account_id, (payload->>'modelId'), (payload->>'modelType')) WHERE deleted_at IS NULL;
 CREATE UNIQUE INDEX department_models_active_model_key ON tasklattice.department_inference_resources (department_id, provider_account_id, (payload->>'modelId'), (payload->>'modelType')) WHERE kind = 'MODEL' AND deleted_at IS NULL;
+
+-- Durable Worker operations for Project and Agent Garden resources.
+CREATE TABLE "tasklattice"."resource_operations" (
+  id UUID PRIMARY KEY, project_id TEXT NOT NULL REFERENCES tasklattice.projects(id) ON DELETE CASCADE,
+  actor_id TEXT NOT NULL, action TEXT NOT NULL, input_encrypted TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending', result JSONB, last_error TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(), updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX resource_operations_project_status_idx ON tasklattice.resource_operations(project_id, status);

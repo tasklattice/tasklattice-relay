@@ -212,8 +212,7 @@ export const hermesMvpA2aAgentIds = [
 ] as const;
 
 export function demoTestImageReference(): string {
-  return getControlConfig().demo.image
-    || "ghcr.io/tasklattice/demo-test:dev";
+  return "ghcr.io/tasklattice/demo-test:dev";
 }
 
 export function demoAgentEndpoint(id: string): string {

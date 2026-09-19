@@ -710,7 +710,7 @@ describe("ProjectService", () => {
     const team = await service.create(administrator, "dep1", "DevOps", []);
     await switchToAdministrator(db, team.id, administratorId);
 
-    await service.invite(team.id, administratorId, member.email, "user");
+    await service.invite(team.id, administratorId, member.email, "user", "http://tali.local");
     await expect(
       service.requireRole(team.id, memberId, ["admin"]),
     ).rejects.toThrow(/permission/i);
@@ -754,8 +754,7 @@ describe("ProjectService", () => {
       team.id,
       administratorId,
       "new-user@example.com",
-      "admin",
-    );
+      "admin", "http://tali.local");
 
     const invitedUser = auth({
       displayName: "New User",
@@ -813,7 +812,7 @@ describe("ProjectService", () => {
     await switchToAdministrator(db, team.id, administratorId);
 
     await expect(
-      service.invite(team.id, administratorId, "new-user@example.com", "user"),
+      service.invite(team.id, administratorId, "new-user@example.com", "user", "http://tali.local"),
     ).rejects.toThrow(/SMTP invitation delivery is not configured/i);
     expect(
       await db.projectInvitation.count({ where: { projectId: team.id } }),
@@ -848,7 +847,7 @@ describe("ProjectService", () => {
     await switchToAdministrator(db, team.id, administratorId);
 
     await expect(
-      service.invite(team.id, administratorId, "retry@example.com", "user"),
+      service.invite(team.id, administratorId, "retry@example.com", "user", "http://tali.local"),
     ).rejects.toThrow(/Invitation saved.*SMTP delivery failed/i);
     expect(
       await db.projectInvitation.findUnique({
@@ -901,8 +900,7 @@ describe("ProjectService", () => {
       team.id,
       administratorId,
       administrator.user.email,
-      "auditor",
-    );
+      "auditor", "http://tali.local");
     expect(await service.members(team.id, administratorId)).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -941,7 +939,7 @@ describe("ProjectService", () => {
       [],
     );
     await switchToAdministrator(db, team.id, firstId);
-    await service.invite(team.id, firstId, second.user.email, "admin");
+    await service.invite(team.id, firstId, second.user.email, "admin", "http://tali.local");
     await switchToAdministrator(db, team.id, secondId);
 
     const outcomes = await Promise.allSettled([
@@ -993,8 +991,7 @@ describe("ProjectService", () => {
       team.id,
       administratorId,
       developer.email,
-      "developer",
-    );
+      "developer", "http://tali.local");
     const now = new Date().toISOString();
     await db.agentRecord.create({
       data: {

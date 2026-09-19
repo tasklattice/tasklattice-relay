@@ -9,10 +9,6 @@ home: https://github.com/tasklattice/tasklattice-relay
 sources:
   - https://github.com/tasklattice/tasklattice-relay
 dependencies:
-  - name: openshell
-    version: 0.0.106
-    repository: file://../../.helm-dependencies/openshell
-    condition: openshell.enabled
   - name: agent-sandbox
     alias: agentSandbox
     version: 0.1.0

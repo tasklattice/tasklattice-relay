@@ -1,8 +1,11 @@
 schema_version = 1
 
 [server]
-# Canonical browser origin used by Better Auth for cookies and callbacks.
-public_url = "http://192.168.139.2:38080"
+# Allowed browser origins. Redirects follow the current request.
+public_urls = ["http://192.168.139.2:38080"]
+trust_proxy_headers = false
+# Bootstrap address used by internal services to call Control.
+internal_url = "http://tali-relay-control.tali.svc.cluster.local:38080"
 
 [database]
 url = "postgresql://tali:CHANGE_ME@postgresql:5432/tali"

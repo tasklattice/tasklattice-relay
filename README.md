@@ -167,6 +167,11 @@ Agent Sandbox v1.0.2 supports an optional bundled controller or an existing
 cluster controller selected with `agentSandbox.enabled`. See the
 [upgrade and deployment guide](docs/agent-sandbox-v1.0.2.md).
 
+OpenShell's Chart is a Worker build asset, separate from Relay's Helm dependencies.
+The shared Control/Worker image build runs `npm run helm:package:worker` and bundles
+the patched chart at `/opt/tali/helm/openshell.tgz`. Deploying Relay or the standalone
+Agent Sandbox controller does not download or patch OpenShell.
+
 The OpenShell supervisor and selected Agent image are pulled when an Instance
 creates its Sandbox rather than running as permanent control-plane Pods.
 The release workflow selects upstream dependencies by the tags declared at the
@@ -202,7 +207,7 @@ gateway clients. Before shared or internet-facing use, override every
 For an end-to-end SSO test environment, the Chart can deploy an ephemeral,
 preconfigured Keycloak. Do not enable `keycloak.enabled` alone:
 `keycloak.publicUrl` must be reachable from both the browser and the Control
-Pod, and `control.publicUrl` must match the browser-visible TaskLattice Relay origin
+Pod, and `control.publicUrls` must include every browser-visible TaskLattice Relay origin
 used for the OIDC callback.
 See the [Chart documentation](charts/tali-relay/README.md) for existing
 Secrets, image pull Secrets, embedded Keycloak examples, and external runtime

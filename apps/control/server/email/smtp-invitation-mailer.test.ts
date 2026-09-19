@@ -40,11 +40,11 @@ describe("SmtpInvitationMailer", () => {
     };
     const mailer = new SmtpInvitationMailer(
       async () => smtp,
-      "https://tali.example.com",
     );
 
     await mailer.verify();
     await mailer.sendProjectInvitation({
+      loginUrl: "https://tali.example.com",
       email: "new-user@example.com",
       inviterEmail: "admin@example.com",
       inviterName: "Platform Administrator",
@@ -73,7 +73,6 @@ describe("SmtpInvitationMailer", () => {
         secure: false,
         username: "",
       }),
-      "https://tali.example.com",
     );
     await expect(mailer.assertConfigured()).rejects.toThrow(/not enabled/i);
   });

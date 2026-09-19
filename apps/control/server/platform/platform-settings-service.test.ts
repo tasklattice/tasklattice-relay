@@ -30,7 +30,7 @@ async function saveValidatedSecurity(
 describe("PlatformSettingsService", () => {
   beforeEach(() => {
     const config = developmentControlConfig();
-    config.server.public_url = "https://tali.example";
+    config.server.public_urls = ["https://tali.example"];
     setControlConfigForTests(config);
   });
 

@@ -24,7 +24,7 @@ if ! jq -e --arg namespace "$namespace" --arg release "$release_name" '
 fi
 
 if [[ "${HELM_DEPENDENCIES_PREPARED:-false}" != "true" ]]; then
-  bash "$repository_root/scripts/prepare-helm-dependencies.sh"
+  bash "$repository_root/scripts/prepare-agent-sandbox-chart.sh"
 fi
 chart="$repository_root/.helm-dependencies/agent-sandbox"
 values="$repository_root/charts/tali-relay/examples/agent-sandbox-standalone-values.yaml"

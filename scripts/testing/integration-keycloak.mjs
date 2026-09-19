@@ -15,6 +15,7 @@ const clientId = "tali-control-plane";
 const clientSecret = "integration-client-secret";
 const testPassword = "integration-user-password";
 const redirectUri = "http://127.0.0.1:38080/api/auth/callback/corporate-sso";
+const alternateRedirectUri = "https://relay.example.test/api/auth/callback/corporate-sso";
 
 function docker(args, options = {}) {
   const output = execFileSync("docker", args, {
@@ -51,7 +52,9 @@ function renderRealm(baseUrl) {
     "--kube-version",
     "1.29.0",
     "--set-string",
-    `control.publicUrl=${redirectUri.replace(/\/api\/auth\/callback\/corporate-sso$/, "")}`,
+    `control.publicUrls[0]=${redirectUri.replace(/\/api\/auth\/callback\/corporate-sso$/, "")}`,
+    "--set-string",
+    `control.publicUrls[1]=${new URL(alternateRedirectUri).origin}`,
     "--set",
     "keycloak.enabled=true",
     "--set-string",
@@ -122,7 +125,7 @@ function jwtPayload(token) {
   return JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
 }
 
-async function completeAuthorizationCodeFlow(discovery) {
+async function completeAuthorizationCodeFlow(discovery, redirectUri) {
   const verifier = randomBytes(48).toString("base64url");
   const challenge = createHash("sha256").update(verifier).digest("base64url");
   const state = randomBytes(16).toString("hex");
@@ -220,7 +223,7 @@ try {
     throw new Error("Keycloak did not publish an OIDC signing key.");
   }
 
-  const tokens = await completeAuthorizationCodeFlow(discovery);
+  const tokens = await completeAuthorizationCodeFlow(discovery, redirectUri);
   const claims = jwtPayload(tokens.access_token);
   const groups = Array.isArray(claims.groups) ? claims.groups : [];
   if (claims.preferred_username !== "alice") {
@@ -236,7 +239,17 @@ try {
   if (!userInfoResponse.ok || userInfo.email !== "alice@tali.test") {
     throw new Error("Keycloak userinfo did not return the configured test identity.");
   }
-  console.log(`Keycloak integration passed (${jwks.keys.length} signing keys, ${groups.length} role groups).`);
+  const alternateTokens = await completeAuthorizationCodeFlow(discovery, alternateRedirectUri);
+  for (const [callback, session] of [[redirectUri, tokens], [alternateRedirectUri, alternateTokens]]) {
+    const loginUrl = `${new URL(callback).origin}/login`;
+    const logout = new URL(discovery.end_session_endpoint);
+    logout.search = new URLSearchParams({ client_id: clientId, id_token_hint: session.id_token, post_logout_redirect_uri: loginUrl }).toString();
+    const response = await fetch(logout, { redirect: "manual" });
+    if (response.status !== 302 || response.headers.get("location") !== loginUrl) {
+      throw new Error(`Keycloak did not accept the logout redirect for ${loginUrl}: HTTP ${response.status}.`);
+    }
+  }
+  console.log(`Keycloak integration passed (two login/logout origins, ${jwks.keys.length} signing keys, ${groups.length} role groups).`);
 } catch (error) {
   failed = true;
   const logs = spawnSync("docker", ["logs", "--tail", "200", name], { encoding: "utf8" });
