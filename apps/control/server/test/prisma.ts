@@ -61,8 +61,13 @@ export function createTestPrisma(): PrismaClient {
   // Keep service tests on the same baseline as production. pg-mem cannot
   // execute PL/pgSQL triggers or pgvector operations; PostgreSQL integration
   // checks must cover those database-specific features.
+  const seededProjectId = migration.match(/^INSERT INTO tasklattice\.projects .* VALUES \('([^']+)'/m)?.[1];
+  if (!seededProjectId || !/^tp-[a-z2-7]{13}$/.test(seededProjectId)) {
+    throw new Error("The baseline must seed a canonical Project ID for service fixtures.");
+  }
   const testMigration = migration
-    // Service fixtures historically use individual; the production seed uses proj1.
+    // Existing service fixtures use individual; production uses a canonical ID.
+    .replaceAll(seededProjectId, "individual")
     .replaceAll("proj1", "individual")
     .replaceAll("tasklattice.model_usage_fact_observation_id_seq", "model_usage_fact_observation_id_seq")
     .replace(/CREATE EXTENSION[^;]+;\s*/g, "")

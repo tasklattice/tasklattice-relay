@@ -5,6 +5,8 @@ on:
     paths:
       - "charts/tali-relay/**"
       - "scripts/helm-kind-smoke.sh"
+      - "scripts/create-kind-ci.sh"
+      - ".github/workflows/helm-kind-smoke.yml"
       - "scripts/preload-helm-kind-images.sh"
       - "scripts/prepare-helm-dependencies.sh"
       - "scripts/prepare-agent-sandbox-chart.sh"
@@ -16,6 +18,8 @@ on:
     paths:
       - "charts/tali-relay/**"
       - "scripts/helm-kind-smoke.sh"
+      - "scripts/create-kind-ci.sh"
+      - ".github/workflows/helm-kind-smoke.yml"
       - "scripts/preload-helm-kind-images.sh"
       - "scripts/prepare-helm-dependencies.sh"
       - "scripts/prepare-agent-sandbox-chart.sh"
@@ -109,13 +113,11 @@ jobs:
         run: bash scripts/prepare-helm-dependencies.sh
 
       - name: Create Kind cluster
-        uses: helm/kind-action@v1.14.0
-        with:
-          version: v0.31.0
-          kubectl_version: v1.32.0
-          cluster_name: tali-ci
-          node_image: kindest/node:v1.32.0@sha256:c48c62eac5da28cdadcf560d1d8616cfa6783b58f0d94cf63ad1bf49600cb027
-          wait: 120s
+        env:
+          KIND_VERSION: v0.31.0
+          KUBECTL_VERSION: v1.32.0
+          KIND_NODE_IMAGE: kindest/node:v1.32.0@sha256:c48c62eac5da28cdadcf560d1d8616cfa6783b58f0d94cf63ad1bf49600cb027
+        run: bash scripts/create-kind-ci.sh
 
       - name: Set up cached Control Plane builder
         if: github.event_name != 'workflow_run'
@@ -203,3 +205,10 @@ jobs:
             --all-containers \
             --prefix \
             --tail 200 || true
+
+      - name: Delete Kind cluster
+        if: always()
+        run: |
+          if command -v kind >/dev/null 2>&1; then
+            kind delete cluster --name "${KIND_CLUSTER_NAME}"
+          fi

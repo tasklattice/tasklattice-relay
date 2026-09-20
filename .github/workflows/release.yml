@@ -43,12 +43,12 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
       - run: npm ci
-      - run: npm test
-      - run: npm run typecheck
       - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
         with:
           version: ${{ env.HELM_VERSION }}
       - run: npm run helm:dependencies
+      - run: npm test
+      - run: npm run typecheck
       - run: helm lint charts/tali-relay
       - run: npm run helm:validate:resources
       - run: npm run helm:validate:agent-sandbox

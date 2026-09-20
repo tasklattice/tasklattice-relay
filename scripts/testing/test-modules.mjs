@@ -305,10 +305,11 @@ export const testModules = [
       "apps/control/src/lib/help-content*",
       "apps/control/src/lib/project-storage*",
       "apps/control/src/lib/uuid*",
-      "apps/control/src/styles.typography.test.ts",
+      "apps/control/src/styles*.test.ts",
     ],
     controlTestPatterns: [
       "apps/control/server/api-contracts/**",
+      "apps/control/server/config/**",
       "apps/control/server/http/**",
       "apps/control/server/secrets/**",
       "apps/control/src/components/layout/**",
@@ -322,7 +323,7 @@ export const testModules = [
       "apps/control/src/lib/help-content.test.ts",
       "apps/control/src/lib/project-storage.test.ts",
       "apps/control/src/lib/uuid.test.ts",
-      "apps/control/src/styles.typography.test.ts",
+      "apps/control/src/styles*.test.ts",
     ],
     pythonTests: [],
     nodeTests: [],
@@ -347,7 +348,7 @@ export const testModules = [
       "apps/control/server/projects/project-runtime-target-service.test.ts",
     ],
     pythonTests: [],
-    nodeTests: ["scripts/testing/project-openshell-owner.test.mjs"],
+    nodeTests: ["scripts/testing/project-openshell-owner.test.mjs", "scripts/testing/delete-local.test.mjs", "scripts/testing/create-kind-ci.test.mjs"],
     runnerTestPatterns: ["apps/runner/src/runtime-target.test.ts"],
   },
   {
@@ -357,6 +358,7 @@ export const testModules = [
     sourcePatterns: [
       "apps/runner/src/agent-platform.ts",
       "apps/runner/src/index.ts",
+      "apps/runner/src/runner-config*",
       "apps/runner/src/nemoclaw*",
       "infra/docker/Dockerfile.nemoclaw-*",
       "scripts/build-nemoclaw-sandbox.sh",
@@ -365,9 +367,10 @@ export const testModules = [
     ],
     controlTestPatterns: [],
     pythonTests: [],
-    nodeTests: [],
+    nodeTests: ["scripts/testing/nemoclaw-source-cache.test.mjs"],
     runnerTestPatterns: [
       "apps/runner/src/nemoclaw*.test.ts",
+      "apps/runner/src/runner-config.test.ts",
     ],
   },
   {

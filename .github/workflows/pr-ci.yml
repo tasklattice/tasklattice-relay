@@ -218,9 +218,12 @@ jobs:
       - name: Build shared contracts
         run: npm run build --workspace @tali/contracts
       - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
-        if: matrix.module == 'openshell-isolation'
+        if: contains(fromJSON('["openshell-isolation", "control-ui", "runtime"]'), matrix.module)
         with:
           version: v3.18.4
+      - name: Prepare Relay chart dependencies for configuration tests
+        if: contains(fromJSON('["openshell-isolation", "control-ui", "runtime"]'), matrix.module)
+        run: npm run helm:dependencies
       - name: Prepare OpenShell chart for ownership tests
         if: matrix.module == 'openshell-isolation'
         run: npm run helm:package:worker
