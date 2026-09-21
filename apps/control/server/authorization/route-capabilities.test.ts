@@ -10,6 +10,12 @@ import {
 } from "./route-capabilities";
 
 describe("Project route capability declarations", () => {
+  it("requires settings access for Namespace checks and reconcile permission for repair", () => {
+    expect(projectRouteAdmissionPolicy("GET", "/api/v1/projects/project-a/initialization/check")?.requirements)
+      .toEqual([{ capability: "CAP_PROJECT_SETTINGS_UPDATE", resourceType: "Project" }]);
+    expect(projectRouteAdmissionPolicy("POST", "/api/v1/projects/project-a/initialization/reconcile")?.requirements)
+      .toEqual([{ capability: "CAP_RUNTIME_OPERATION_RECONCILE", resourceType: "Project" }]);
+  });
   it("reserves Agent definition routes for the active Developer role", () => {
     expect(projectRouteAdmissionPolicy(
       "GET",

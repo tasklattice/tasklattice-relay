@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/button";
 import { ProjectMembers } from "@/components/project/project-members";
 import { ProjectQuotaSettings } from "@/components/project/project-quota-settings";
 import { DeleteProjectSheet } from "@/components/project/delete-project-sheet";
+import { ProjectInitializationSettings } from "@/components/project/project-initialization-settings";
 import { useProject } from "@/hooks/use-project";
 import { useProjectPermissions } from "@/hooks/use-project-permissions";
 import type { Project } from "@/types/project";
@@ -205,6 +206,7 @@ function ProjectGeneralSettings({
 
   return (
     <div className="divide-y">
+      <ProjectInitializationSettings key={project.id} project={project} />
       <div className="flex flex-col justify-between gap-3 p-5 sm:flex-row sm:items-start">
         <div>
           <h2 className="text-lg font-semibold">Project profile</h2>

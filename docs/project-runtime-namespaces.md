@@ -6,16 +6,38 @@ execution target rather than a second product control plane.
 
 ## Creation and repair model
 
-Project creation is synchronous:
+Project initialization is asynchronous:
 
-1. Relay creates the Project and its runtime-target mapping in PostgreSQL.
-2. Before returning a successful API response, the Control Plane uses
-   server-side apply to ensure that the mapped Namespace exists with the
-   Relay-owned labels and annotations.
-3. It reconciles the pinned
-   official OpenShell Helm chart into that Namespace and waits for readiness.
-4. If Namespace or Gateway creation fails, Project creation fails and Relay compensates by
-   deleting the new database Project.
+1. Relay creates the Project, runtime-target mapping, and durable initialization
+   job in one PostgreSQL transaction, then returns a pending Project.
+2. Worker ensures that the mapped Namespace exists with the Relay-owned labels
+   and annotations.
+3. Worker reconciles the pinned OpenShell Helm release and runtime bridge into
+   that Namespace, then records readiness.
+4. Failures retain the Project and initialization error for retry.
+
+### Checking and reinitializing from Project Settings
+
+Project administrators can use **Project Settings → General → Project
+initialization** to inspect recorded Worker progress and run **Check Namespace**.
+The live check reads Kubernetes and verifies the runtime target's cluster and
+Namespace mapping, Namespace existence, Project ownership, Active phase, and
+Relay metadata. It does not treat a database `ready` record as proof that the
+Namespace still exists, and does not certify individual Gateway or Agent Pods.
+An API permission or connectivity failure is shown as unavailable, not missing.
+
+**Reinitialize Project** opens an operation drawer and queues the existing Worker
+reconciliation flow, including for previously ready Projects. It recreates a
+missing Namespace and reapplies infrastructure configuration; it does not delete
+the Namespace, reset Project data, or restore data already deleted from Kubernetes.
+Progress and errors refresh automatically. Active runtime leases and deleting
+Projects block scheduling; mismatched targets are refused instead of adopted.
+
+The read-only check is `GET /api/v1/projects/{projectId}/initialization/check`.
+Manual repair is `POST /api/v1/projects/{projectId}/initialization/reconcile`
+and returns HTTP 202 after durable scheduling. Both require Project administrator
+access; repair additionally requires `CAP_RUNTIME_OPERATION_RECONCILE`.
+The existing `/initialization/retry` endpoint retains its failed-setup semantics.
 
 The independent Control Worker also reconciles active Runtime Targets in the
 background. A PostgreSQL-backed durable queue provides retries, exponential

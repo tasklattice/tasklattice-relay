@@ -130,6 +130,12 @@ export interface ProjectRuntimeStatus {
   lastError: string | null;
   updatedAt: string | null;
 }
+export function checkProjectNamespace(projectId: string): Promise<import("@tali/contracts").ProjectNamespaceCheck> {
+  return projectRequest(`/api/v1/projects/${encodeURIComponent(projectId)}/initialization/check`);
+}
+export function reinitializeProject(projectId: string): Promise<ProjectRuntimeStatus> {
+  return projectRequest(`/api/v1/projects/${encodeURIComponent(projectId)}/initialization/reconcile`, { method: "POST" });
+}
 export function getProjectRuntime(projectId: string): Promise<ProjectRuntimeStatus> {
   return projectRequest(`/api/v1/projects/${encodeURIComponent(projectId)}/initialization`);
 }

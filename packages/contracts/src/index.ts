@@ -1,4 +1,5 @@
 import { z } from "zod";
+export { projectNamespaceCheckSchema, type ProjectNamespaceCheck } from "./project-initialization.js";
 import type {
   ExternalRoleId,
   ProjectCapability,

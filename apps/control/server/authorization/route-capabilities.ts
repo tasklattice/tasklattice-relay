@@ -139,6 +139,8 @@ export function projectRouteAdmissionPolicy(
     return policy("PROJECT", [requirement("CAP_PROJECT_VIEW", "Project")]); // Handler also checks operation ownership.
   }
   if (tail[0] === "initialization") {
+    if (tail.length === 2 && tail[1] === "check" && method === "GET") return policy("PROJECT", [requirement("CAP_PROJECT_SETTINGS_UPDATE", "Project")]);
+    if (tail.length === 2 && tail[1] === "reconcile" && method === "POST") return policy("PROJECT", [requirement("CAP_RUNTIME_OPERATION_RECONCILE", "Project")]);
     if (tail.length === 1 && method === "GET") return policy("PROJECT", [requirement("CAP_PROJECT_VIEW", "Project")]);
     if (tail.length === 2 && tail[1] === "retry" && method === "POST") return policy("PROJECT", [requirement("CAP_RUNTIME_OPERATION_RECONCILE", "Project")]);
   }

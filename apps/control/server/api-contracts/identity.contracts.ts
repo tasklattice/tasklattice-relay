@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { updateDepartmentSettingsSchema } from "@tali/contracts";
+import { updateDepartmentSettingsSchema, projectNamespaceCheckSchema } from "@tali/contracts";
 import { defineContracts } from "./contract";
 import { projectRoute, response, route } from "./helpers";
 import {
@@ -142,6 +142,16 @@ export const identityContracts = defineContracts([
     summary: "Read background resource operation", tags: ["Projects"],
     request: { params: projectParamsSchema.extend({ id: z.string().uuid() }) },
     responses: { 200: response("Resource operation", z.object({ id: z.string().uuid(), action: z.string(), status: z.string(), result: z.unknown(), lastError: z.string().nullable(), createdAt: z.string(), updatedAt: z.string() })) },
+  }),
+  projectRoute({
+    method: "get", path: "/initialization/check", operationId: "checkProjectNamespace",
+    summary: "Check the live Project Namespace and ownership", tags: ["Projects"],
+    responses: { 200: response("Namespace check", projectNamespaceCheckSchema) },
+  }),
+  projectRoute({
+    method: "post", path: "/initialization/reconcile", operationId: "reinitializeProject",
+    summary: "Reinitialize Project infrastructure, including previously ready Projects", tags: ["Projects"],
+    responses: { 202: response("Initialization scheduled", z.object({ status: z.string(), generation: z.number(), observedGeneration: z.number(), attempts: z.number(), lastError: z.string().nullable(), updatedAt: z.string().nullable() })) },
   }),
   projectRoute({
     method: "get", path: "/initialization", operationId: "getProjectInitialization",
