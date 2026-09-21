@@ -1,0 +1,17 @@
+# Overlay for Relay behind a TLS-terminating ingress and an OIDC provider whose
+# public hostname needs a DNS override inside the Control pod.
+# Replace the example domains and IP with addresses reachable in your environment.
+# This configures neither an ingress nor an OIDC provider; configure the issuer
+# and credentials in Platform Setting -> Security & SSO.
+control:
+  publicUrls:
+    - "https://relay.example.com"
+  # Use true only when your trusted ingress overwrites X-Forwarded-Host and
+  # X-Forwarded-Proto. Use false for direct access without such a proxy.
+  trustProxyHeaders: true
+  # Kubernetes hostAliases is an array; each element is an object containing
+  # ip and hostnames. Hostnames contain no scheme, path, or port.
+  hostAliases:
+    - ip: "192.0.2.20"
+      hostnames:
+        - "sso.example.com"

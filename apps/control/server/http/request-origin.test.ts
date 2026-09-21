@@ -57,6 +57,34 @@ describe("request origin", () => {
     expect(requestOrigin(proxied)).toBe("https://relay.example.com");
   });
 
+  it("diagnoses TLS termination and accepts the public origin with trusted proxy headers", () => {
+    const config = developmentControlConfig();
+    config.server.public_urls = ["https://relay.example.com:8443"];
+    setControlConfigForTests(config);
+    const request = new Request("http://control.tali.svc:8080/api/auth/sign-in/username", {
+      headers: {
+        host: "relay.example.com:8443",
+        "x-forwarded-host": "relay.example.com:8443",
+        "x-forwarded-proto": "https",
+      },
+    });
+
+    expect(() => requestOrigin(request)).toThrow(
+      'Resolved origin: "http://relay.example.com:8443"; '
+      + 'allowed origins: ["https://relay.example.com:8443"]; '
+      + "trust_proxy_headers: false",
+    );
+
+    config.server.trust_proxy_headers = true;
+    expect(requestOrigin(request)).toBe("https://relay.example.com:8443");
+
+    // Trust alone cannot recover the public scheme when the proxy omits it.
+    request.headers.delete("x-forwarded-proto");
+    expect(() => requestOrigin(request)).toThrow(
+      'Resolved origin: "http://relay.example.com:8443"',
+    );
+  });
+
   it("preserves local paths and rejects external or backslash callbacks", () => {
     const origin = "https://relay.example.com";
     expect(sameOriginCallback("/project?tab=agents#active", origin)).toBe(

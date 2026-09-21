@@ -14,7 +14,12 @@ export function requestOrigin(request: Request): string {
   ).origin;
   // Better Auth checks hosts; also enforce the configured protocol and port.
   if (!server.public_urls.includes(origin)) {
-    throw new Error("Request origin is not in server.public_urls.");
+    throw new Error(
+      `Request origin is not in server.public_urls. Resolved origin: ${JSON.stringify(origin)}; `
+      + `allowed origins: ${JSON.stringify(server.public_urls)}; `
+      + `trust_proxy_headers: ${server.trust_proxy_headers}. `
+      + "Check the public URL scheme and port, and the trusted ingress X-Forwarded-Host/Proto headers.",
+    );
   }
   return origin;
 }

@@ -119,6 +119,14 @@ control:
     - http://localhost:38080
   # Enable only when the ingress overwrites X-Forwarded-Host/Proto.
   trustProxyHeaders: false
+  # Pod-local DNS overrides: an array of objects, not a hostname/IP map.
+  # Each entry has an IP address and an array of bare hostnames (no scheme/port).
+  # Example:
+  # hostAliases:
+  #   - ip: "192.0.2.20"
+  #     hostnames:
+  #       - "sso.example.com"
+  # See examples/control-public-urls-host-aliases-values.yaml.
   hostAliases: []
   service:
     type: LoadBalancer
