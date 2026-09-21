@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, CheckCircle2, LoaderCircle, RefreshCw } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronDown, LoaderCircle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { checkProjectNamespace, getProjectRuntime, reinitializeProject } from "@/services/project";
 import type { Project } from "@/types/project";
@@ -15,6 +16,7 @@ const statusLabels: Record<string, string> = {
 export function ProjectInitializationSettings({ project }: { project: Project }) {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const runtimeKey = ["project", project.id, "runtime"];
   const runtime = useQuery({
     queryKey: runtimeKey,
@@ -54,6 +56,7 @@ export function ProjectInitializationSettings({ project }: { project: Project })
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" disabled={check.isFetching || runtime.isFetching} onClick={() => {
+            setDetailsOpen(true);
             void runtime.refetch();
             void check.refetch();
           }}>
@@ -69,14 +72,22 @@ export function ProjectInitializationSettings({ project }: { project: Project })
         <span className="flex items-center gap-2">Recorded initialization <Badge variant="outline">{recordedStatus}</Badge></span>
         {runtime.data?.updatedAt ? <span className="text-xs text-muted-foreground">Updated {new Date(runtime.data.updatedAt).toLocaleString()}</span> : null}
       </div>
-      {runtime.error ? <p role="alert" className="text-sm text-destructive">{runtime.error.message}</p> : null}
-      {runtime.data?.lastError ? <p role="alert" className="whitespace-pre-wrap break-words border-l-2 border-destructive pl-3 text-sm text-destructive">{runtime.data.lastError}</p> : null}
-
-      <div className="space-y-3 rounded-md border bg-card p-4" aria-busy={check.isFetching}>
-        <div className="flex flex-wrap items-center justify-between gap-2" role="status">
-          <h3 className="text-sm font-semibold">{check.isFetching ? "Checking Kubernetes…" : check.isError ? "Namespace check unavailable" : check.data ? check.data.healthy ? "Namespace verified" : "Namespace needs attention" : "Namespace not yet checked"}</h3>
-          {check.data ? <span className="text-xs text-muted-foreground">Last checked {new Date(check.data.checkedAt).toLocaleString()}</span> : null}
-        </div>
+      <Collapsible open={detailsOpen} onOpenChange={setDetailsOpen} className="rounded-md border bg-card">
+        <CollapsibleTrigger asChild>
+          <Button variant="ghost" className="h-auto min-h-11 w-full justify-between gap-4 whitespace-normal px-4 py-3 text-left text-foreground">
+            <span className="min-w-0 space-y-1">
+              <span className="block text-sm font-semibold" role="status">{runtime.isError ? "Initialization status unavailable" : runtime.data?.lastError ? "Initialization needs attention" : check.isFetching ? "Checking Kubernetes…" : check.isError ? "Namespace check unavailable" : check.data ? check.data.healthy ? "Namespace verified" : "Namespace needs attention" : "Namespace not yet checked"}</span>
+              {check.data ? <span className="block text-xs font-normal text-muted-foreground">Last checked {new Date(check.data.checkedAt).toLocaleString()}</span> : null}
+            </span>
+            <span className="flex shrink-0 items-center gap-2 text-xs font-medium text-muted-foreground">
+              {detailsOpen ? "Hide details" : "View details"}
+              <ChevronDown aria-hidden="true" className={`size-4 transition-transform motion-reduce:transition-none ${detailsOpen ? "rotate-180" : ""}`} />
+            </span>
+          </Button>
+        </CollapsibleTrigger>
+        <CollapsibleContent className="space-y-3 border-t p-4" aria-busy={check.isFetching}>
+        {runtime.error ? <p role="alert" className="text-sm text-destructive">{runtime.error.message}</p> : null}
+        {runtime.data?.lastError ? <p role="alert" className="whitespace-pre-wrap break-words border-l-2 border-destructive pl-3 text-sm text-destructive">{runtime.data.lastError}</p> : null}
         {check.error ? <p role="alert" className="text-sm text-destructive">{check.error.message}</p> : null}
         {check.data ? <>
           <p className="break-words font-mono text-xs text-muted-foreground">{check.data.clusterId} / {check.data.namespace}</p>
@@ -91,7 +102,8 @@ export function ProjectInitializationSettings({ project }: { project: Project })
           </ul>
         </> : <p className="text-sm text-muted-foreground">The check reads Kubernetes directly and verifies Namespace mapping, ownership, phase, and Relay metadata.</p>}
         <p className="text-xs text-muted-foreground">Namespace verification does not certify that every Agent or Gateway Pod is healthy.</p>
-      </div>
+        </CollapsibleContent>
+      </Collapsible>
 
       <Sheet open={open} onOpenChange={(next) => { if (!initialize.isPending) setOpen(next); }}>
         <SheetContent className="gap-0 sm:max-w-lg" closeDisabled={initialize.isPending}>
