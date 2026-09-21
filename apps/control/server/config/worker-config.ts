@@ -26,6 +26,8 @@ const openShellConfig = z
     gatewayImageRepository: z.string().default(""),
     gatewayImageTag: z.string().default(""),
     gatewayResources: resources.default({}),
+    gatewayPodSecurityContext: z.record(z.string(), z.unknown()).default({}),
+    gatewaySecurityContext: z.record(z.string(), z.unknown()).default({}),
     imagePullPolicy: pullPolicy.default("IfNotPresent"),
     imagePullSecrets: pullSecrets.default([]),
     supervisorImageRepository: z.string().default(""),

@@ -77,6 +77,8 @@ export interface ProjectOpenShellGatewayConfiguration {
   chart: string;
   enabled: boolean;
   gatewayResources: Record<string, unknown>;
+  gatewayPodSecurityContext?: Record<string, unknown>;
+  gatewaySecurityContext?: Record<string, unknown>;
   gatewayImageRepository: string;
   gatewayImageTag: string;
   imagePullSecrets: Array<{ name: string }>;
@@ -133,6 +135,8 @@ export class HelmProjectOpenShellGatewayClient
         tag: this.configuration.gatewayImageTag,
       },
       imagePullSecrets: this.configuration.imagePullSecrets,
+      podSecurityContext: this.configuration.gatewayPodSecurityContext ?? {},
+      securityContext: this.configuration.gatewaySecurityContext ?? {},
       networkPolicy: { enabled: true },
       podAnnotations: {
         "tali.io/project-id": input.projectId,

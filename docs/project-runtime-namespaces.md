@@ -124,6 +124,36 @@ Chart. Test environments use the same topology as UAT.
 
 ## Project Gateway topology
 
+### Gateway security contexts
+
+Relay values expose the per-Project Gateway Pod and container security contexts:
+
+```yaml
+openshell:
+  podSecurityContext:
+    fsGroup: 0
+  securityContext:
+    runAsNonRoot: false
+    runAsUser: 0
+```
+
+Worker reads these objects from `worker.toml` and passes them to each Project's
+OpenShell Helm release during reconciliation. Empty objects retain the bundled
+chart defaults; supplied fields override those defaults, including `0` and
+`false`. Other Kubernetes security context fields can be supplied in the same
+objects. The example requires an SCC that permits the requested UID and group.
+Changing values does not grant SCC permissions.
+
+Deploy both the updated Relay chart and updated Control/Worker image. The next
+successful Project reconciliation updates the Gateway Deployment's Pod template
+and rolls out its Pods. Failed Project initializations still require Retry setup.
+These values affect the `openshell-gateway` container and its Pod only: they do
+not change the certgen Job or the Agent `Sandbox.spec.podTemplate`. In pinned
+OpenShell 0.0.106, the Sandbox driver rejects arbitrary security contexts in
+`--driver-config-json`; Gateway settings must not be presented as Sandbox settings.
+
+### Routing and lifecycle
+
 OpenShell 0.0.106 fixes the Kubernetes sandbox Namespace at the Gateway level.
 Relay therefore deploys one official OpenShell Gateway release inside every
 Project Namespace while retaining one centralized Runner. The Project

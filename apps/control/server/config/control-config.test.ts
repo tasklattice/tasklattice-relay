@@ -81,6 +81,10 @@ describe("component configuration contract", () => {
           "control.worker.healthPort=9191",
           "--set",
           "openshell.supervisor.image.pullPolicy=Never",
+          "--set-json",
+          'openshell.podSecurityContext={"fsGroup":0,"fsGroupChangePolicy":"OnRootMismatch"}',
+          "--set-json",
+          'openshell.securityContext={"runAsNonRoot":false,"runAsUser":0}',
           "--set",
           "hindsight.enabled=false",
           "--set-string",
@@ -104,6 +108,14 @@ describe("component configuration contract", () => {
     expect(worker.healthPort).toBe(9191);
     expect(worker.docling.baseUrl).toBe("http://config-test-docling:5001");
     expect(worker.project_openshell.supervisorImagePullPolicy).toBe("Never");
+    expect(worker.project_openshell.gatewayPodSecurityContext).toEqual({
+      fsGroup: 0,
+      fsGroupChangePolicy: "OnRootMismatch",
+    });
+    expect(worker.project_openshell.gatewaySecurityContext).toEqual({
+      runAsNonRoot: false,
+      runAsUser: 0,
+    });
     expect(worker.project_openshell.gatewayResources).toHaveProperty(
       "requests.memory",
     );

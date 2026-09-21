@@ -1,4 +1,5 @@
-import { parse } from "yaml";
+import { parse, parseAllDocuments } from "yaml";
+import { execFileSync } from "node:child_process";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   HelmProjectOpenShellGatewayClient,
@@ -41,6 +42,31 @@ const database = {
 beforeEach(() => vi.clearAllMocks());
 
 describe("HelmProjectOpenShellGatewayClient", () => {
+  it("applies Gateway security overrides to the bundled chart without losing zero or false", async () => {
+    const run = vi.fn(async (input: CommandInput) => input.args[0] === "status"
+      ? { exitCode: 1, stderr: "release: not found", stdout: "" }
+      : { exitCode: 0, stderr: "", stdout: "" });
+    await new HelmProjectOpenShellGatewayClient({
+      ...configuration,
+      gatewayPodSecurityContext: { fsGroup: 0, fsGroupChangePolicy: "OnRootMismatch" },
+      gatewaySecurityContext: { runAsNonRoot: false, runAsUser: 0 },
+    }, run, undefined, undefined, database).reconcile(target);
+    const values = run.mock.calls.find(([input]) => input.args[0] === "upgrade")![0].stdin!;
+    const rendered = execFileSync("helm", [
+      "template", "openshell", "../../.helm-dependencies/openshell",
+      "--namespace", target.namespace, "--values", "-",
+    ], { input: values, encoding: "utf8" });
+    const deployment = parseAllDocuments(rendered).map((doc) => doc.toJSON())
+      .find((object) => object?.kind === "Deployment");
+    expect(deployment.spec.template.spec.securityContext).toEqual({
+      fsGroup: 0, fsGroupChangePolicy: "OnRootMismatch",
+    });
+    expect(deployment.spec.template.spec.containers.find((container: { name: string }) => container.name === "openshell-gateway")
+      .securityContext).toEqual({
+      runAsNonRoot: false, runAsUser: 0,
+      allowPrivilegeEscalation: false, capabilities: { drop: ["ALL"] },
+    });
+  });
   it("passes a verified Namespace owner to the Helm post-renderer", async () => {
     const owner = { apiVersion: "v1", kind: "Namespace", name: target.namespace,
       uid: "namespace-uid", controller: false, blockOwnerDeletion: false };

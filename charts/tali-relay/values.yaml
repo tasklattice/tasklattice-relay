@@ -642,6 +642,17 @@ openshell:
   # Worker installs its image-bundled chart in Project Namespaces.
   # OpenShell is not a Relay chart dependency; enabling it here is rejected.
   enabled: false
+  # Security contexts for the per-Project OpenShell Gateway installed by Worker.
+  # These objects merge with the bundled upstream chart defaults. They do not
+  # configure Agent Sandbox Pods or the certgen hook Job.
+  # Example for a Gateway permitted to run as root by the cluster's SCC:
+  # podSecurityContext:
+  #   fsGroup: 0
+  # securityContext:
+  #   runAsNonRoot: false
+  #   runAsUser: 0
+  podSecurityContext: {}
+  securityContext: {}
   imagePullSecrets: []
   image:
     repository: ghcr.io/nvidia/openshell/gateway
