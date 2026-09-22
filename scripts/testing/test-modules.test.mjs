@@ -16,6 +16,26 @@ import { testScenarios } from "./test-scenarios.mjs";
 
 const root = resolve(import.meta.dirname, "../..");
 
+test("prepares the Worker chart before modules that render OpenShell", () => {
+  // This suite also runs before npm ci, so keep workflow checks dependency-free.
+  const workflow = readFileSync(join(root, ".github/workflows/pr-ci.yml"), "utf8");
+  const moduleJob = workflow.split("\n  module_tests:\n")[1]?.split(/\n  [\w-]+:\n/)[0];
+  assert.ok(moduleJob, "missing module test job");
+  const steps = moduleJob.split(/^      - /m).slice(1);
+  const helmIndex = steps.findIndex((step) => step.includes("uses: azure/setup-helm@"));
+  const chartIndex = steps.findIndex((step) => step.includes("run: npm run helm:package:worker"));
+  const testIndex = steps.findIndex((step) => step.includes("run: npm run test:module"));
+  assert.ok(helmIndex >= 0 && chartIndex > helmIndex && testIndex > chartIndex,
+    "install Helm and package the Worker chart before running tests");
+  for (const index of [helmIndex, chartIndex]) {
+    const modules = steps[index].match(/if: contains\(fromJSON\('([^']+)'\), matrix\.module\)/)?.[1];
+    assert.ok(modules, "chart prerequisites must select their test modules");
+    for (const id of ["agent-lifecycle", "openshell-isolation"]) {
+      assert.ok(JSON.parse(modules).includes(id), `${id} is missing a chart prerequisite`);
+    }
+  }
+});
+
 function filesBelow(path) {
   return readdirSync(path, { withFileTypes: true }).flatMap((entry) => {
     const target = join(path, entry.name);
