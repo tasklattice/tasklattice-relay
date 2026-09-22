@@ -38,12 +38,21 @@ const openShellConfig = z
     sandboxImagePullSecrets: pullSecrets.default([]),
     workspaceDefaultStorageSize: z.string().default("1Gi"),
     workspaceStorageClass: z.string().optional(),
+    certgenActiveDeadlineSeconds: z.number().int().positive().default(300),
+    helmTimeoutSeconds: z.number().int().positive().default(600),
+    helmProcessTimeoutSeconds: z.number().int().positive().default(2100),
     helmBin: z.string().default("helm"),
     ownerRenderer: z
       .string()
       .default("/app/scripts/project-openshell-owner.mjs"),
   })
-  .strict();
+  .strict()
+  .refine((value) => value.helmTimeoutSeconds > value.certgenActiveDeadlineSeconds, {
+    message: "helmTimeoutSeconds must exceed certgenActiveDeadlineSeconds",
+  })
+  .refine((value) => value.helmProcessTimeoutSeconds >= value.helmTimeoutSeconds * 3 + 60, {
+    message: "helmProcessTimeoutSeconds must allow three Helm phases plus 60 seconds",
+  });
 const workerConfigSchema = z
   .object({
     provisioning: z

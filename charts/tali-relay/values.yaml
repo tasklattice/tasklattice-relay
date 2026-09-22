@@ -331,6 +331,10 @@ projectOpenShell:
   releaseName: openshell
   serviceNamePrefix: openshell-
   helmChart: /opt/tali/helm/openshell.tgz
+  certgenActiveDeadlineSeconds: 300
+  helmTimeoutSeconds: 600
+  # Budget for hooks, readiness and atomic rollback; not just one Helm wait.
+  helmProcessTimeoutSeconds: 2100
   workspace:
     # Agent workspace storage, separate from Gateway metadata in PostgreSQL.
     storageSize: 1Gi

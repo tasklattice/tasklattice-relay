@@ -25,6 +25,7 @@ package="$work_dir/packaged/openshell-${version}.tgz"
 helm template openshell "$package" \
   --namespace project-worker-chart-validation --kube-version 1.29.0 \
   --set server.disableTls=true --set supervisor.sideloadMethod=init-container \
+  --set pkiInitJob.activeDeadlineSeconds=420 \
   --set-string "supervisor.image.tag=$version" > "$work_dir/rendered.yaml"
 for image in "ghcr.io/nvidia/openshell/gateway:$version" "ghcr.io/nvidia/openshell/supervisor:$version"; do
   if ! grep -Fq "$image" "$work_dir/rendered.yaml"; then
@@ -32,6 +33,11 @@ for image in "ghcr.io/nvidia/openshell/gateway:$version" "ghcr.io/nvidia/openshe
     exit 1
   fi
 done
+
+if ! grep -Eq '^[[:space:]]+activeDeadlineSeconds: 420$' "$work_dir/rendered.yaml"; then
+  echo "Worker chart does not honor the configurable certgen deadline." >&2
+  exit 1
+fi
 
 # Keep an unpacked copy for the Project ownership and live integration tests.
 mkdir -p "$(dirname "$chart")" "$output"

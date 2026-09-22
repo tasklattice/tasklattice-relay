@@ -1,5 +1,7 @@
 import { getWorkerConfig } from "../config/worker-config";
 import { spawn } from "node:child_process";
+import { randomUUID } from "node:crypto";
+import { readGatewayDiagnostics, startGatewayDiagnostics, type GatewayDiagnosticReader } from "./project-openshell-diagnostics";
 import { projectRuntimeNamespaceSchema } from "@tali/contracts";
 import { stringify } from "yaml";
 import { readProjectNamespaceOwner, reconcileGatewayOwnership } from "./project-resource-ownership";
@@ -26,7 +28,7 @@ export interface CommandOutput {
 
 export type CommandRunner = (input: CommandInput) => Promise<CommandOutput>;
 
-const defaultCommandRunner: CommandRunner = ({
+export const defaultCommandRunner: CommandRunner = ({
   args,
   command,
   stdin,
@@ -40,10 +42,13 @@ const defaultCommandRunner: CommandRunner = ({
   let stderr = "";
   let settled = false;
   let timeout: NodeJS.Timeout | undefined;
+  let killTimeout: NodeJS.Timeout | undefined;
+  let timedOut = false;
   const finish = (output: CommandOutput) => {
     if (settled) return;
     settled = true;
     if (timeout) clearTimeout(timeout);
+    if (killTimeout) clearTimeout(killTimeout);
     resolve(output);
   };
   child.stdout!.on("data", (data: Buffer) => {
@@ -56,25 +61,30 @@ const defaultCommandRunner: CommandRunner = ({
     if (settled) return;
     settled = true;
     if (timeout) clearTimeout(timeout);
+    if (killTimeout) clearTimeout(killTimeout);
     reject(error);
   });
   child.on("close", (code) =>
-    finish({ exitCode: code ?? 1, stderr, stdout }),
+    finish({ exitCode: timedOut ? 124 : code ?? 1, stderr, stdout }),
   );
+  child.stdin?.on("error", () => {}); // EPIPE when Helm exits before reading values.
   if (stdin !== undefined) child.stdin!.end(stdin);
   timeout = setTimeout(() => {
+    timedOut = true;
+    stderr += `\nHelm command timed out after ${timeoutMs}ms.`;
     child.kill("SIGTERM");
-    finish({
-      exitCode: 124,
-      stderr: `${stderr}\nHelm command timed out after ${timeoutMs}ms.`,
-      stdout,
-    });
+    // Resolve only on close, so retries cannot race a still-running Helm.
+    killTimeout = setTimeout(() => child.kill("SIGKILL"), 10_000);
+    killTimeout.unref();
   }, timeoutMs);
   timeout.unref();
 });
 
 export interface ProjectOpenShellGatewayConfiguration {
   chart: string;
+  certgenActiveDeadlineSeconds?: number;
+  helmTimeoutSeconds?: number;
+  helmProcessTimeoutSeconds?: number;
   enabled: boolean;
   gatewayResources: Record<string, unknown>;
   gatewayPodSecurityContext?: Record<string, unknown>;
@@ -114,6 +124,7 @@ export class HelmProjectOpenShellGatewayClient
     private readonly readOwner = readProjectNamespaceOwner,
     private readonly reconcileOwnership = reconcileGatewayOwnership,
     private readonly database: ProjectOpenShellDatabase = new PostgresProjectOpenShellDatabase(),
+    private readonly diagnostics: GatewayDiagnosticReader = readGatewayDiagnostics,
   ) {}
 
   async reconcile(input: ProjectNamespaceInput): Promise<void> {
@@ -128,6 +139,7 @@ export class HelmProjectOpenShellGatewayClient
     );
     const values = stringify({
       fullnameOverride: serviceName,
+      pkiInitJob: { activeDeadlineSeconds: this.configuration.certgenActiveDeadlineSeconds ?? 300 },
       workload: { kind: "deployment" },
       image: {
         pullPolicy: this.configuration.imagePullPolicy,
@@ -173,34 +185,60 @@ export class HelmProjectOpenShellGatewayClient
         sideloadMethod: "init-container",
       },
     });
-    const result = await this.run({
-      args: [
-        "upgrade",
-        "--install",
-        this.configuration.releaseName,
-        this.configuration.chart,
-        "--namespace",
-        input.namespace,
-        "--atomic",
-        "--wait",
-        "--wait-for-jobs",
-        "--timeout",
-        "5m",
-        "--history-max",
-        "3",
-        "--values",
-        "-",
-        ...(owner ? ["--post-renderer", getWorkerConfig().project_openshell.ownerRenderer, "--post-renderer-args", JSON.stringify(owner),
-          "--post-renderer-args", serviceName] : []),
-      ],
-      command: getWorkerConfig().project_openshell.helmBin,
-      stdin: values,
-      timeoutMs: 330_000,
-    });
+    const attemptId = randomUUID();
+    const stopDiagnostics = startGatewayDiagnostics(input.namespace, attemptId, this.diagnostics, `${serviceName}-certgen`);
+    let result: CommandOutput;
+    let diagnostics: Awaited<ReturnType<typeof stopDiagnostics>>;
+    try {
+      result = await this.run({
+        args: [
+          "upgrade",
+          "--install",
+          this.configuration.releaseName,
+          this.configuration.chart,
+          "--namespace",
+          input.namespace,
+          "--atomic",
+          "--wait",
+          "--wait-for-jobs",
+          "--timeout",
+          `${this.configuration.helmTimeoutSeconds ?? 600}s`,
+          "--history-max",
+          "3",
+          "--values",
+          "-",
+          ...(owner ? ["--post-renderer", getWorkerConfig().project_openshell.ownerRenderer, "--post-renderer-args", JSON.stringify(owner),
+            "--post-renderer-args", serviceName] : []),
+        ],
+        command: getWorkerConfig().project_openshell.helmBin,
+        stdin: values,
+        timeoutMs: (this.configuration.helmProcessTimeoutSeconds ?? 2100) * 1000,
+      });
+    } catch (error) {
+      result = { exitCode: 1, stdout: "", stderr: error instanceof Error ? error.message : String(error) };
+    } finally {
+      diagnostics = await stopDiagnostics();
+    }
     if (result.exitCode !== 0) {
-      throw new Error(
-        `Project OpenShell Gateway reconciliation failed: ${(result.stderr || result.stdout).trim().slice(-4_000)}`,
-      );
+      const output = `${result.stderr}\n${result.stdout}`.trim().slice(-4_000);
+      const failureLayer = result.exitCode === 124 ? "worker-process-timeout"
+        : diagnostics.deadlineExceeded ? "certgen-job-deadline"
+        : /context deadline exceeded|timed out waiting/i.test(output) ? "helm-wait-timeout"
+        : "helm-failure-unknown";
+      const report = { attemptId, namespace: input.namespace, failureLayer,
+        certgenDeadlineSeconds: this.configuration.certgenActiveDeadlineSeconds ?? 300,
+        helmTimeoutSeconds: this.configuration.helmTimeoutSeconds ?? 600,
+        processTimeoutSeconds: this.configuration.helmProcessTimeoutSeconds ?? 2100,
+        ...diagnostics };
+      console.error(JSON.stringify({ event: "openshell.install.failed", ...report }));
+      // The resource-operation task persists only the first 4,000 characters.
+      // Put the layer and resource reasons first; full snapshots stay in logs.
+      const resourceSummary = diagnostics.snapshots
+        .filter((s) => s.kind !== "Event")
+        .sort((a, b) => Number(b.kind === "Pod") - Number(a.kind === "Pod"))
+        .map((s) => `${s.kind}/${s.name ?? "unknown"} uid=${s.uid ?? "unknown"} ${JSON.stringify(s.details)}`)
+        .join("\n").slice(0, 2400);
+      throw new Error(`Project OpenShell Gateway reconciliation failed: ${failureLayer}; attempt=${attemptId}; namespace=${input.namespace}\n${resourceSummary}\nHelm: ${output}`);
     }
     if (owner) await this.reconcileOwnership(owner, serviceName);
   }
@@ -279,10 +317,10 @@ export class HelmProjectOpenShellGatewayClient
             "--wait",
             "--wait-for-jobs",
             "--timeout",
-            "5m",
+            `${this.configuration.helmTimeoutSeconds ?? 600}s`,
           ],
           command: getWorkerConfig().project_openshell.helmBin,
-          timeoutMs: 330_000,
+          timeoutMs: (this.configuration.helmProcessTimeoutSeconds ?? 2100) * 1000,
         })
       : await this.run({
           args: [

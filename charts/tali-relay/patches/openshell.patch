@@ -11,6 +11,15 @@ diff --git a/openshell/Chart.yaml b/openshell/Chart.yaml
 diff --git a/openshell/templates/certgen.yaml b/openshell/templates/certgen.yaml
 --- a/openshell/templates/certgen.yaml
 +++ b/openshell/templates/certgen.yaml
+@@ -65,7 +65,7 @@ metadata:
+     helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+ spec:
+   backoffLimit: 3
+-  activeDeadlineSeconds: 120
++  activeDeadlineSeconds: {{ .Values.pkiInitJob.activeDeadlineSeconds | default 300 }}
+   ttlSecondsAfterFinished: 300
+   template:
+     metadata:
 @@ -82,6 +82,8 @@ spec:
          - name: certgen
            image: {{ include "openshell.image" . | quote }}

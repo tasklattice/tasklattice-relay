@@ -11,6 +11,9 @@ apiKey = ""
 
 [worker.project_openshell]
 enabled = false
+certgenActiveDeadlineSeconds = 300
+helmTimeoutSeconds = 600
+helmProcessTimeoutSeconds = 2100
 
 [worker.project_runtime_bridge]
 enabled = false

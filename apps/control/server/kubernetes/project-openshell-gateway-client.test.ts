@@ -7,6 +7,11 @@ import {
   type ProjectOpenShellGatewayConfiguration,
 } from "./project-openshell-gateway-client";
 
+vi.mock("./project-openshell-diagnostics", async (importOriginal) => ({
+  ...await importOriginal<typeof import("./project-openshell-diagnostics")>(),
+  readGatewayDiagnostics: async () => [],
+}));
+
 const configuration: ProjectOpenShellGatewayConfiguration = {
   chart: "/opt/tali/helm/openshell.tgz",
   enabled: true,
@@ -42,6 +47,22 @@ const database = {
 beforeEach(() => vi.clearAllMocks());
 
 describe("HelmProjectOpenShellGatewayClient", () => {
+  it("passes configured deadlines and surfaces Pod reasons ahead of Helm output", async () => {
+    const run = vi.fn(async (input: CommandInput) => input.args[0] === "status"
+      ? { exitCode: 1, stderr: "release: not found", stdout: "" }
+      : { exitCode: 1, stderr: "context deadline exceeded", stdout: "" });
+    const client = new HelmProjectOpenShellGatewayClient({ ...configuration,
+      certgenActiveDeadlineSeconds: 420, helmTimeoutSeconds: 900, helmProcessTimeoutSeconds: 3000,
+    }, run, async () => undefined, undefined, database, async () => [{
+      kind: "Pod", name: "gateway-broken", uid: "pod-uid", details: { waitingReason: "ImagePullBackOff" },
+    }]);
+    await expect(client.reconcile(target)).rejects.toThrow(/helm-wait-timeout; attempt=.*gateway-broken[\s\S]*ImagePullBackOff[\s\S]*context deadline exceeded/s);
+    const upgrade = run.mock.calls.find(([input]) => input.args[0] === "upgrade")![0];
+    expect(upgrade.args).toContain("900s");
+    expect(upgrade.timeoutMs).toBe(3000000);
+    expect(parse(upgrade.stdin!).pkiInitJob.activeDeadlineSeconds).toBe(420);
+  });
+
   it("applies Gateway security overrides to the bundled chart without losing zero or false", async () => {
     const run = vi.fn(async (input: CommandInput) => input.args[0] === "status"
       ? { exitCode: 1, stderr: "release: not found", stdout: "" }
@@ -56,6 +77,9 @@ describe("HelmProjectOpenShellGatewayClient", () => {
       "template", "openshell", "../../.helm-dependencies/openshell",
       "--namespace", target.namespace, "--values", "-",
     ], { input: values, encoding: "utf8" });
+    const certgen = parseAllDocuments(rendered).map((doc) => doc.toJSON())
+      .find((object) => object?.kind === "Job");
+    expect(certgen.spec.activeDeadlineSeconds).toBe(300);
     const deployment = parseAllDocuments(rendered).map((doc) => doc.toJSON())
       .find((object) => object?.kind === "Deployment");
     expect(deployment.spec.template.spec.securityContext).toEqual({
