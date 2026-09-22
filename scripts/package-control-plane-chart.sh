@@ -24,10 +24,21 @@ if [[ "$version" != "0.0.0-dev" ]]; then
     echo "Release chart builds require a semantic version tag in GitHub Actions." >&2
     exit 2
   fi
-  if [[ "${GITHUB_WORKFLOW_REF:-}" != */.github/workflows/release.yml@refs/tags/"${GITHUB_REF_NAME}" ]]; then
-    echo "Release chart builds are only supported by .github/workflows/release.yml." >&2
-    exit 2
-  fi
+  case "${GITHUB_WORKFLOW_REF:-}" in
+    */.github/workflows/release.yml@refs/tags/"${GITHUB_REF_NAME}")
+      if [[ "${GITHUB_REF_NAME}" == *-rc.* ]]; then
+        echo "RC tags must use release-control-plane.yml." >&2
+        exit 2
+      fi
+      ;;
+    */.github/workflows/release-control-plane.yml@refs/tags/"${GITHUB_REF_NAME}")
+      node "$repository_root/scripts/control-plane-release.mjs" metadata "$GITHUB_REF_NAME" >/dev/null
+      ;;
+    *)
+      echo "Release chart builds require an approved tag release workflow." >&2
+      exit 2
+      ;;
+  esac
   if [[ "${GITHUB_REF_NAME#v}" != "$version" ]]; then
     echo "Release chart version does not match the workflow tag: $version" >&2
     exit 2
@@ -47,6 +58,11 @@ sed -i.bak \
   "s|imageRegistry: ghcr.io/tasklattice|imageRegistry: ${image_registry}|" \
   "$work_dir/tali-relay/values.yaml"
 rm -f "$work_dir/tali-relay/values.yaml.bak"
+
+if [[ "${GITHUB_WORKFLOW_REF:-}" == */.github/workflows/release-control-plane.yml@refs/tags/"${GITHUB_REF_NAME:-}" ]]; then
+  node "$repository_root/scripts/control-plane-release.mjs" pin-values "$GITHUB_REF_NAME" \
+    "$work_dir/tali-relay/values.yaml" "$image_registry"
+fi
 
 mkdir -p "$output_root"
 helm lint "$work_dir/tali-relay"

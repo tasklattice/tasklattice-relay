@@ -61,6 +61,7 @@
     "helm:validate:resources": "node scripts/validate-helm-resources.mjs",
     "helm:validate:dev-defaults": "node scripts/validate-development-defaults.mjs",
     "helm:validate:openshift": "node scripts/validate-helm-openshift.mjs && node --test scripts/testing/openshift-image-puller-rbac.test.mjs",
+    "test:release:control": "node --test scripts/testing/control-plane-release.test.mjs",
     "helm:validate:airgap": "node scripts/validate-helm-airgap.mjs",
     "test:integration:keycloak": "node scripts/testing/integration-keycloak.mjs",
     "test:integration:memory": "node scripts/test-hindsight-integration.mjs",

@@ -39,17 +39,22 @@ RUN --mount=type=cache,target=/root/.npm \
     npm_config_fetch_retry_maxtimeout=120000 \
     npm ci --include=optional
 
-FROM dependencies AS build
+FROM dependencies AS build-source
 COPY tsconfig.base.json ./
 COPY apps ./apps
 COPY artifacts ./artifacts
 COPY docs ./docs
 COPY packages ./packages
 COPY scripts/validate-prisma-migrations.mjs ./scripts/validate-prisma-migrations.mjs
+# Control imports the expert runtime package; compile it as a library, but do
+# not build Runner/demo applications or any of their container images.
+FROM build-source AS control-build
 RUN npm run build --workspace @tali/contracts \
     && npm run build --workspace @tali/expert-agent-runtime \
-    && npm run build --workspace @tali/control \
-    && npm run build --workspace @tali/runner \
+    && npm run build --workspace @tali/control
+
+FROM control-build AS build
+RUN npm run build --workspace @tali/runner \
     && npm run build --workspace @tali/example-mcp-server
 
 FROM dependencies AS production-dependencies
@@ -71,11 +76,11 @@ COPY --from=production-dependencies /app/node_modules ./node_modules
 COPY --from=helm-cli /usr/local/bin/helm /usr/local/bin/helm
 COPY package.json package-lock.json ./
 COPY apps/control/package.json apps/control/package.json
-COPY --from=build /app/apps/control/prisma ./apps/control/prisma
-COPY --from=build /app/apps/control/prisma.config.ts ./apps/control/prisma.config.ts
-COPY --from=build /app/apps/control/server/config ./apps/control/server/config
-COPY --from=build /app/apps/control/.output ./apps/control/.output
-COPY --from=build /app/artifacts/skills/vendor ./artifacts/skills/vendor
+COPY --from=control-build /app/apps/control/prisma ./apps/control/prisma
+COPY --from=control-build /app/apps/control/prisma.config.ts ./apps/control/prisma.config.ts
+COPY --from=control-build /app/apps/control/server/config ./apps/control/server/config
+COPY --from=control-build /app/apps/control/.output ./apps/control/.output
+COPY --from=control-build /app/artifacts/skills/vendor ./artifacts/skills/vendor
 COPY dist/control-plane-chart/tali-relay.tgz /opt/tali/helm/tali-relay.tgz
 # Control and Worker share this image; only Worker installs Project charts.
 COPY dist/worker-charts/openshell.tgz /opt/tali/helm/openshell.tgz

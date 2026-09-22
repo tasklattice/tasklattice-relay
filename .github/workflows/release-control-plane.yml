@@ -1,0 +1,205 @@
+name: Release Control Plane RC
+
+on:
+  push:
+    tags:
+      - "v*.*.*-rc.*"
+
+concurrency:
+  group: control-plane-release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: "22"
+  HELM_VERSION: "v3.18.4"
+  DOCKER_BUILD_RECORD_UPLOAD: "false"
+  DOCKER_BUILD_SUMMARY: "false"
+
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: read
+    outputs:
+      version: ${{ steps.release.outputs.version }}
+      baseVersion: ${{ steps.release.outputs.baseVersion }}
+      rc: ${{ steps.release.outputs.rc }}
+      registry: ${{ steps.release.outputs.registry }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - id: release
+        name: Parse RC tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/control-plane-release.mjs metadata "$GITHUB_REF_NAME" >> "$GITHUB_OUTPUT"
+          echo "registry=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Verify base images and reject an already published RC
+        env:
+          REGISTRY: ${{ steps.release.outputs.registry }}
+          VERSION: ${{ steps.release.outputs.version }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            echo "This RC is already released. Create a new RC tag instead." >&2
+            exit 1
+          fi
+          for reference in "$REGISTRY/tali-control:$VERSION" "$REGISTRY/charts/tali-relay:$VERSION"; do
+            if docker buildx imagetools inspect "$reference" >/dev/null 2>&1; then
+              echo "Refusing to overwrite published artifact: $reference" >&2
+              exit 1
+            fi
+          done
+          mkdir -p dist/control-release
+          node scripts/control-plane-release.mjs base-images "$GITHUB_REF_NAME" "$REGISTRY" > dist/control-release/base-images.txt
+          while IFS= read -r image; do
+            digest="$(docker buildx imagetools inspect "$image" --format '{{.Manifest.Digest}}')"
+            [[ "$digest" =~ ^sha256:[a-f0-9]{64}$ ]]
+            printf 'reused\t%s\t%s\n' "$image" "$digest" >> dist/control-release/images.tsv
+          done < dist/control-release/base-images.txt
+      - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+        with:
+          version: ${{ env.HELM_VERSION }}
+      - name: Validate and package once for both architectures
+        env:
+          TALI_IMAGE_REGISTRY: ${{ steps.release.outputs.registry }}
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          npm run build:shared
+          npm run typecheck --workspace @tali/control
+          node --test scripts/testing/control-plane-release.test.mjs
+          bash scripts/package-control-plane-chart.sh "$VERSION"
+          bash scripts/package-worker-charts.sh
+          npm run helm:validate:openshift
+          cd apps/control
+          npx vitest run --config vitest.config.ts server/config/worker-config.test.ts server/kubernetes/project-namespace-client.test.ts server/kubernetes/project-image-puller.test.ts server/kubernetes/project-openshell-gateway-client.test.ts server/kubernetes/project-openshell-diagnostics.test.ts
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: control-release-inputs
+          path: |
+            dist/control-plane-chart/tali-relay.tgz
+            dist/worker-charts/openshell.tgz
+            dist/control-release/
+          if-no-files-found: error
+
+  build:
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - architecture: amd64
+            runner: ubuntu-24.04
+          - architecture: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: control-release-inputs
+          path: dist
+      - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          file: infra/docker/Dockerfile
+          target: control
+          platforms: linux/${{ matrix.architecture }}
+          push: true
+          pull: true
+          tags: ${{ needs.prepare.outputs.registry }}/tali-control:${{ needs.prepare.outputs.version }}-${{ matrix.architecture }}
+          cache-from: |
+            type=gha,scope=tali-control-${{ matrix.architecture }}
+            type=gha,scope=control-rc-${{ matrix.architecture }}
+          cache-to: type=gha,mode=max,scope=control-rc-${{ matrix.architecture }}
+          provenance: mode=max
+          sbom: true
+
+  publish:
+    needs: [prepare, build]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      packages: write
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+      BASE_VERSION: ${{ needs.prepare.outputs.baseVersion }}
+      RC: ${{ needs.prepare.outputs.rc }}
+      REGISTRY: ${{ needs.prepare.outputs.registry }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: control-release-inputs
+          path: dist
+      - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+        with:
+          version: ${{ env.HELM_VERSION }}
+      - name: Publish Control manifest, Helm chart and prerelease
+        shell: bash
+        run: |
+          set -euo pipefail
+          image="$REGISTRY/tali-control:$VERSION"
+          # Do not silently reuse changed base tags after a long build.
+          while IFS=$'\t' read -r kind reference expected; do
+            actual="$(docker buildx imagetools inspect "$reference" --format '{{.Manifest.Digest}}')"
+            [[ "$actual" == "$expected" ]] || { echo "Base image changed: $reference" >&2; exit 1; }
+          done < dist/control-release/images.tsv
+          docker buildx imagetools create --tag "$image" "$image-amd64" "$image-arm64"
+          digest="$(docker buildx imagetools inspect "$image" --format '{{.Manifest.Digest}}')"
+          printf 'built\t%s\t%s\n' "$image" "$digest" >> dist/control-release/images.tsv
+          asset="dist/control-release/tali-relay-$VERSION.tgz"
+          cp dist/control-plane-chart/tali-relay.tgz "$asset"
+          printf '%s' "$GH_TOKEN" | helm registry login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          helm push "$asset" "oci://$REGISTRY/charts"
+          {
+            echo "# Control Plane $BASE_VERSION RC$RC"
+            echo
+            echo "Source commit: $GITHUB_SHA"
+            echo "Built: Control/Worker $VERSION (amd64 + arm64), Relay chart, patched embedded Worker chart."
+            echo "Reused: Runner, Expert Runtime, LiteLLM, demo and Sandbox images at $BASE_VERSION."
+            echo "No latest or stable image tags were updated. See images.tsv for resolved image digests."
+            echo
+            echo '```bash'
+            echo "helm upgrade --install tali-relay oci://$REGISTRY/charts/tali-relay --version $VERSION -n tali --create-namespace -f your-values.yaml"
+            echo '```'
+            echo
+            echo "Remove old images.control.tag overrides from your values to use this RC."
+            echo "This RC sorts below stable $BASE_VERSION in SemVer; select its version explicitly."
+          } > dist/control-release/RELEASE.md
+          gh release create "$GITHUB_REF_NAME" "$asset" dist/control-release/images.tsv dist/control-release/RELEASE.md \
+            --verify-tag --prerelease --latest=false \
+            --title "Control Plane $BASE_VERSION RC$RC" --notes-file dist/control-release/RELEASE.md
