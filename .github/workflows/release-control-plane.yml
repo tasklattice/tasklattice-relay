@@ -1,4 +1,4 @@
-name: Release Control Plane RC
+name: Release incremental RC
 
 on:
   push:
@@ -15,6 +15,10 @@ permissions:
 env:
   NODE_VERSION: "22"
   HELM_VERSION: "v3.18.4"
+  OPENSHELL_VERSION: "0.0.106"
+  NEMOCLAW_VERSION: "v0.0.123"
+  AGENT_SANDBOX_VERSION: "v1.0.2"
+  LITELLM_IMAGE: "litellm/litellm-database:v1.87.0"
   DOCKER_BUILD_RECORD_UPLOAD: "false"
   DOCKER_BUILD_SUMMARY: "false"
 
@@ -26,11 +30,14 @@ jobs:
       packages: read
     outputs:
       version: ${{ steps.release.outputs.version }}
-      baseVersion: ${{ steps.release.outputs.baseVersion }}
+      series: ${{ steps.release.outputs.series }}
+      matrix: ${{ steps.plan.outputs.matrix }}
       rc: ${{ steps.release.outputs.rc }}
       registry: ${{ steps.release.outputs.registry }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: ${{ env.NODE_VERSION }}
@@ -49,7 +56,7 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Verify base images and reject an already published RC
+      - name: Reject already published RC artifacts
         env:
           REGISTRY: ${{ steps.release.outputs.registry }}
           VERSION: ${{ steps.release.outputs.version }}
@@ -61,19 +68,19 @@ jobs:
             echo "This RC is already released. Create a new RC tag instead." >&2
             exit 1
           fi
-          for reference in "$REGISTRY/tali-control:$VERSION" "$REGISTRY/tali-expert-agent-runtime:$VERSION" "$REGISTRY/charts/tali-relay:$VERSION"; do
+          for repository in tali-control tali-openshell-runner tali-expert-agent-runtime tali-litellm demo-test tali-nemoclaw-sandbox tali-nemoclaw-hermes-sandbox tali-nemoclaw-deepagents-sandbox charts/tali-relay; do
+            reference="$REGISTRY/$repository:$VERSION"
             if docker buildx imagetools inspect "$reference" >/dev/null 2>&1; then
               echo "Refusing to overwrite published artifact: $reference" >&2
               exit 1
             fi
           done
-          mkdir -p dist/control-release
-          node scripts/control-plane-release.mjs base-images "$GITHUB_REF_NAME" "$REGISTRY" > dist/control-release/base-images.txt
-          while IFS= read -r image; do
-            digest="$(docker buildx imagetools inspect "$image" --format '{{.Manifest.Digest}}')"
-            [[ "$digest" =~ ^sha256:[a-f0-9]{64}$ ]]
-            printf 'reused\t%s\t%s\n' "$image" "$digest" >> dist/control-release/images.tsv
-          done < dist/control-release/base-images.txt
+      - name: Plan builds against the previous successful RC
+        id: plan
+        env:
+          REGISTRY: ${{ steps.release.outputs.registry }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/control-plane-release.mjs plan "$GITHUB_REF_NAME" "$REGISTRY" >> "$GITHUB_OUTPUT"
       - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
         with:
           version: ${{ env.HELM_VERSION }}
@@ -82,16 +89,14 @@ jobs:
           TALI_IMAGE_REGISTRY: ${{ steps.release.outputs.registry }}
           VERSION: ${{ steps.release.outputs.version }}
         run: |
-          npm run build:shared
-          npm run typecheck --workspace @tali/control
-          npm run typecheck --workspace @tali/expert-agent-runtime
-          npm run test --workspace @tali/expert-agent-runtime
-          node --test scripts/testing/control-plane-release.test.mjs
           bash scripts/package-control-plane-chart.sh "$VERSION"
           bash scripts/package-worker-charts.sh
+          npm run test:modules:config
+          node --test scripts/testing/control-plane-release.test.mjs
+          npm test
+          npm run typecheck
           npm run helm:validate:openshift
-          cd apps/control
-          npx vitest run --config vitest.config.ts server/config/worker-config.test.ts server/kubernetes/project-namespace-client.test.ts server/kubernetes/project-image-puller.test.ts server/kubernetes/project-openshell-gateway-client.test.ts server/kubernetes/project-openshell-diagnostics.test.ts
+          npm run helm:validate:airgap
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: control-release-inputs
@@ -105,24 +110,7 @@ jobs:
     needs: prepare
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - architecture: amd64
-            runner: ubuntu-24.04
-            image: tali-control
-            target: control
-          - architecture: arm64
-            runner: ubuntu-24.04-arm
-            image: tali-control
-            target: control
-          - architecture: amd64
-            runner: ubuntu-24.04
-            image: tali-expert-agent-runtime
-            target: expert-agent-runtime
-          - architecture: arm64
-            runner: ubuntu-24.04-arm
-            image: tali-expert-agent-runtime
-            target: expert-agent-runtime
+      matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
     runs-on: ${{ matrix.runner }}
     permissions:
       contents: read
@@ -140,9 +128,10 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        if: matrix.agent == ''
         with:
           context: .
-          file: infra/docker/Dockerfile
+          file: ${{ matrix.dockerfile }}
           target: ${{ matrix.target }}
           platforms: linux/${{ matrix.architecture }}
           push: true
@@ -152,8 +141,26 @@ jobs:
             type=gha,scope=${{ matrix.image }}-${{ matrix.architecture }}
             type=gha,scope=${{ matrix.image }}-rc-${{ matrix.architecture }}
           cache-to: type=gha,mode=max,scope=${{ matrix.image }}-rc-${{ matrix.architecture }}
+          build-args: |
+            OPENSHELL_VERSION=${{ env.OPENSHELL_VERSION }}
+            LITELLM_IMAGE=${{ env.LITELLM_IMAGE }}
           provenance: mode=max
           sbom: true
+      - name: Build Sandbox architecture
+        if: matrix.agent != ''
+        env:
+          DOCKER_DEFAULT_PLATFORM: linux/${{ matrix.architecture }}
+          NEMOCLAW_AGENT_PLATFORM: ${{ matrix.agent }}
+          IMAGE: ${{ matrix.reference }}
+          ARCH: ${{ matrix.architecture }}
+        run: |
+          export NEMOCLAW_IMAGE="$IMAGE-$ARCH"
+          export NEMOCLAW_HERMES_IMAGE="$IMAGE-$ARCH"
+          export NEMOCLAW_DEEPAGENTS_IMAGE="$IMAGE-$ARCH"
+          export NEMOCLAW_BUILD_OUTPUT=ci-push
+          export NEMOCLAW_UPSTREAM_IMAGE="${IMAGE%:*}:build-upstream-${IMAGE##*:}-$ARCH"
+          export NEMOCLAW_FALLBACK_BASE_IMAGE="${IMAGE%:*}:build-base-${IMAGE##*:}-$ARCH"
+          bash scripts/build-nemoclaw-sandbox.sh
 
   publish:
     needs: [prepare, build]
@@ -163,7 +170,7 @@ jobs:
       packages: write
     env:
       VERSION: ${{ needs.prepare.outputs.version }}
-      BASE_VERSION: ${{ needs.prepare.outputs.baseVersion }}
+      SERIES: ${{ needs.prepare.outputs.series }}
       RC: ${{ needs.prepare.outputs.rc }}
       REGISTRY: ${{ needs.prepare.outputs.registry }}
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -182,40 +189,35 @@ jobs:
       - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
         with:
           version: ${{ env.HELM_VERSION }}
-      - name: Publish Control and Expert Runtime manifests, Helm chart and prerelease
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Publish RC manifests, Helm chart and prerelease
         shell: bash
         run: |
           set -euo pipefail
-          # Do not silently reuse changed base tags after a long build.
-          while IFS=$'\t' read -r kind reference expected; do
-            actual="$(docker buildx imagetools inspect "$reference" --format '{{.Manifest.Digest}}')"
-            [[ "$actual" == "$expected" ]] || { echo "Base image changed: $reference" >&2; exit 1; }
-          done < dist/control-release/images.tsv
-          for repository in tali-control tali-expert-agent-runtime; do
-            image="$REGISTRY/$repository:$VERSION"
-            docker buildx imagetools create --tag "$image" "$image-amd64" "$image-arm64"
-            digest="$(docker buildx imagetools inspect "$image" --format '{{.Manifest.Digest}}')"
-            printf 'built\t%s\t%s\n' "$image" "$digest" >> dist/control-release/images.tsv
-          done
+          node scripts/control-plane-release.mjs publish-images "$GITHUB_REF_NAME" dist/control-release/plan.json
           asset="dist/control-release/tali-relay-$VERSION.tgz"
           cp dist/control-plane-chart/tali-relay.tgz "$asset"
           printf '%s' "$GH_TOKEN" | helm registry login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
           helm push "$asset" "oci://$REGISTRY/charts"
           {
-            echo "# Control Plane $BASE_VERSION RC$RC"
+            echo "# Relay $SERIES RC$RC"
             echo
             echo "Source commit: $GITHUB_SHA"
-            echo "Built: Control/Worker and Expert Runtime $VERSION (amd64 + arm64), Relay chart, patched embedded Worker chart."
-            echo "Reused: Runner, LiteLLM, demo and Sandbox images at $BASE_VERSION."
-            echo "No latest or stable image tags were updated. See images.tsv for resolved image digests."
+            echo "All eight first-party images are published as $VERSION (amd64 + arm64)."
+            echo "See release-manifest.json for per-image build/reuse decisions, source tags and digests."
+            echo "No latest or stable image tags were updated."
             echo
             echo '```bash'
             echo "helm upgrade --install tali-relay oci://$REGISTRY/charts/tali-relay --version $VERSION -n tali --create-namespace -f your-values.yaml"
             echo '```'
             echo
-            echo "Remove old images.control.tag and images.expertAgentRuntime.tag overrides from your values to use this RC."
-            echo "This RC sorts below stable $BASE_VERSION in SemVer; select its version explicitly."
+            echo "Remove stale images.*.tag overrides from your values to use this RC."
+            echo "Select this prerelease explicitly with --version."
           } > dist/control-release/RELEASE.md
-          gh release create "$GITHUB_REF_NAME" "$asset" dist/control-release/images.tsv dist/control-release/RELEASE.md \
+          gh release create "$GITHUB_REF_NAME" "$asset" dist/control-release/release-manifest.json dist/control-release/RELEASE.md \
             --verify-tag --prerelease --latest=false \
-            --title "Control Plane $BASE_VERSION RC$RC" --notes-file dist/control-release/RELEASE.md
+            --title "Relay $SERIES RC$RC" --notes-file dist/control-release/RELEASE.md

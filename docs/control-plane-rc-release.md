@@ -1,80 +1,102 @@
-# Control Plane-only RC releases
+# Complete, incremental RC releases
 
-Push a new immutable tag on the commit to release:
+The historical workflow path `.github/workflows/release-control-plane.yml` now
+publishes a **complete Relay RC**, not a Control-only patch. Its display name is
+`Release incremental RC`. Stable releases still use `release.yml`, which excludes
+RC tags.
 
 ```sh
-git tag v0.2.5-rc.1
-git push origin v0.2.5-rc.1
-# Next fix: v0.2.5-rc.2 (do not move an existing tag).
+git tag v0.2.8-rc.1
+git push origin v0.2.8-rc.1
+# After fixes:
+git tag v0.2.8-rc.2
+git push origin v0.2.8-rc.2
 ```
 
-`.github/workflows/release-control-plane.yml` parses the tag into release version
-`0.2.5-rc.1`, base image version `0.2.5`, and RC sequence `1`. The existing full
-release workflow excludes `v*.*.*-rc.*`. Other prerelease names keep their existing
-full-release behavior. RC tags must have canonical numeric versions and a positive
-RC sequence (no leading zeros). There is no manual version input or branch build.
+## No stable-release dependency
 
-## What is built
+RC1 builds all eight first-party images for amd64 and arm64:
 
-- Multi-architecture `ghcr.io/<owner>/tali-control:0.2.5-rc.1` (amd64, arm64).
-  Control API, UI, Worker and runtime bridge share this image.
-- Multi-architecture `ghcr.io/<owner>/tali-expert-agent-runtime:0.2.5-rc.1`.
-  This component did not exist in the 0.2.5 release; it is built from the same
-  commit as Control on every RC to keep their runtime contracts aligned.
-- `oci://ghcr.io/<owner>/charts/tali-relay`, version/appVersion `0.2.5-rc.1`.
-- The patched OpenShell Worker chart embedded in the Control image.
-- A GitHub **pre-release**, titled `Control Plane 0.2.5 RC1`, with the Relay Chart,
-  image reference/digest inventory, and upgrade notes.
+- tali-control (Control, Worker, runtime bridge)
+- tali-openshell-runner
+- tali-expert-agent-runtime
+- tali-litellm
+- demo-test
+- tali-nemoclaw-sandbox
+- tali-nemoclaw-hermes-sandbox
+- tali-nemoclaw-deepagents-sandbox
 
-Runner, LiteLLM, demo and all three Sandbox images are reused from
-`0.2.5`; no container builds are run for them. The packaged Chart explicitly pins
-those image tags rather than inheriting the RC appVersion. Third-party image
-versions remain as declared by the chart. No stable image tags or `latest` move.
-Base images must already be accessible in the repository owner's GHCR namespace.
-Their manifest digests are checked before building and again before publication.
+Every image and the Relay Chart uses the current RC version, for example
+`0.2.8-rc.1`. Neither `0.2.7` nor a not-yet-published stable `0.2.8` is required.
+Third-party dependencies retain the upstream versions declared in the source.
+Control embeds the freshly packaged Relay and patched OpenShell Worker charts.
 
-The dedicated Expert Runtime build stage compiles only contracts and the
-expert-runtime package. Control builds on that stage; neither image runs
-Runner/demo application builds. npm workspace installation is still shared. BuildKit caches are best-effort
-(tag workflows may not see caches from unrelated refs); cache misses never cause
-images beyond Control and Expert Runtime to be built.
+## Subsequent RCs
 
-Control's two architecture jobs consume the **same prepared Chart artifacts**.
-The build matrix has four jobs: two images times two architectures. Validation
-includes Control and Expert Runtime typechecking, the Expert Runtime test suite,
-targeted provisioning/timeout tests, tag/version
-policy tests, Chart linting and OpenShift Helm validation. This is not the full
-release test matrix and does not run a live OpenShift deployment.
+The planner queries all published GitHub prereleases and selects the highest
+lower RC number in the same series. A failed workflow without a completed GitHub
+Release is not a predecessor. The previous `release-manifest.json` records source
+commit, all eight image digests, and build/reuse provenance. Its source SHA must
+match its tag and be an ancestor of the new commit.
 
-## Upgrading
+If no predecessor, no compatible manifest, or divergent history exists, perform
+a full build. A malformed manifest/tag mismatch fails closed. Missing per-image
+metadata causes that image to be rebuilt. An unavailable reuse digest stops the
+release rather than silently using a different image.
+
+The planner compares Git paths (including deletions and both sides of renames):
+
+| Changed source | Rebuilt images |
+|---|---|
+| Control, charts, docs or skill artifacts | Control |
+| Runner | Control + Runner |
+| Expert Runtime | Control + Expert Runtime + demo-test |
+| Example MCP/A2A | Control + demo-test |
+| Contracts, lockfiles, Dockerfiles, workflows, scripts, unknown paths | All eight |
+
+Control is always rebuilt because its embedded Chart has the new RC version.
+The rules intentionally prefer extra rebuilds over missing a shared dependency.
+First-party library dependencies may still be compiled inside an image build;
+this does not imply building/publishing another image.
+
+Unchanged images are copied by **manifest digest**, not by a mutable prior tag,
+and get the new RC tag. Their content digests must remain identical. Both CPU
+architectures and attached attestations remain in the copied multiarch manifest.
+BuildKit cache can accelerate rebuilt core images; correctness does not depend on
+cache hits. Sandbox builds use the existing full-release builder scripts.
+
+The Actions summary shows the plan. The downloadable `release-manifest.json`
+records what was built versus reused, source RC/digest, new reference and digest.
+The GitHub prerelease is created only after all images and the Chart are published.
+Control's two architecture jobs consume exactly the same prepared Chart files.
+Validation runs the full workspace tests/typechecks and Helm/OCP checks even when
+only a subset of images needs rebuilding.
+
+## Upgrade
 
 ```sh
 helm upgrade --install tali-relay \
   oci://ghcr.io/tasklattice/charts/tali-relay \
-  --version 0.2.5-rc.1 -n tali --create-namespace -f your-values.yaml
+  --version 0.2.8-rc.2 -n tali --create-namespace -f your-values.yaml
 ```
 
-Remove stale `images.*.tag` overrides from your values if you want the RC Chart's
-Control/reused-image version policy. Avoid blindly using `--reuse-values`, which
-can retain old image tags. Preserve your environment-specific settings such as
-`openshift.enabled` and credentials. Externally managed Worker config Secrets
-still need updating when configuration changes.
+Remove stale `images.*.tag` overrides to use the new Chart's version policy. Avoid
+blindly using `--reuse-values`, which can preserve old tags. Preserve environment
+settings such as `openshift.enabled`; externally managed Worker Secrets still need
+updating for configuration changes. Select prereleases explicitly with `--version`.
 
-SemVer sorts `0.2.5-rc.1` **below** stable `0.2.5`. Select the RC explicitly; do not
-expect automatic latest-version resolution to upgrade stable 0.2.5 to this RC.
-Every RC in this series rebuilds Control and Expert Runtime, reusing the other
-first-party images from base `0.2.5`. If a fix needs incompatible changes to those
-reused components (such as Runner/Sandbox), use a full release instead.
+No stable or `latest` tag is changed by this workflow. The existing stable release
+workflow still performs full builds; automatically promoting a validated RC's
+same digests to a stable release is not implemented by this RC workflow change.
 
-## Permissions and failures
+## Permissions and retries
 
-The repository's Actions token needs GHCR package access. Only build/publish jobs
-have package write permission, and only the publication job can create a GitHub
-Release. Actions are pinned to commit SHAs. The Chart packager only accepts tagged
-runs from the approved full-release or Control RC workflow paths.
+GitHub Actions needs GHCR package access. Build/publish jobs have package write
+permission; only publication has GitHub Release write permission. Actions are
+pinned to commit SHAs. RC parsing and Chart packaging remain tag-workflow guarded.
 
-Already published final image/chart versions or GitHub Releases are rejected at
-preflight. Publication across GHCR and GitHub is not transactional: a failure can
-leave architecture tags or a final image/chart behind. Prefer a new RC tag after
-partial publication; do not delete/repoint a released tag to silently replace it.
-No release workflow has been executed by local validation.
+Already published final image/chart versions or GitHub Releases are rejected.
+Publishing across GHCR and GitHub is not transactional: a failure may leave some
+images or the Chart published. Use a new RC tag after partial publication instead
+of silently replacing released content. Failed architecture tags alone can be
+rebuilt. This code change does not create, move or push any release tags.
