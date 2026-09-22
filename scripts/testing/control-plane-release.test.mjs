@@ -1,6 +1,8 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
-import { readFileSync } from "node:fs";
+import { readFileSync, mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { parse } from "yaml";
 import { parseControlReleaseTag, pinControlReleaseValues, releaseImages, affectedImages, makePlan, selectPreviousRelease } from "../control-plane-release.mjs";
@@ -69,6 +71,43 @@ test("packager refuses unrelated workflows, version mismatches and RC full build
     assert.equal(result.status, 2, result.stderr);
   }
 });
+test("Sandbox release guard accepts RC and stable workflows without bypassing tag or architecture checks", () => {
+  const directory = mkdtempSync(join(tmpdir(), "relay-sandbox-guard-"));
+  // Stop at the first source-preparation command: no downloads or Docker calls.
+  writeFileSync(join(directory, "node"), '#!/bin/sh\necho "sandbox-guard-passed" >&2\nexit 86\n', { mode: 0o755 });
+  const invoke = (overrides = {}) => spawnSync("bash", ["scripts/build-nemoclaw-sandbox.sh"], {
+    encoding: "utf8", env: { ...process.env, PATH: `${directory}:${process.env.PATH}`,
+      CI: "true", GITHUB_ACTIONS: "true", GITHUB_REF_TYPE: "tag", GITHUB_REF_NAME: "v0.2.8-rc.1",
+      GITHUB_WORKFLOW_REF: "owner/repo/.github/workflows/release-control-plane.yml@refs/tags/v0.2.8-rc.1",
+      NEMOCLAW_BUILD_OUTPUT: "ci-push", NEMOCLAW_AGENT_PLATFORM: "openclaw",
+      NEMOCLAW_UPSTREAM_IMAGE: "example/upstream:rc", DOCKER_DEFAULT_PLATFORM: "linux/amd64",
+      NEMOCLAW_IMAGE: "example/sandbox:0.2.8-rc.1-amd64", ...overrides },
+  });
+  try {
+    for (const agent of ["openclaw", "hermes", "deepagents"]) {
+      for (const arch of ["amd64", "arm64"]) {
+        const image = `example/sandbox:0.2.8-rc.1-${arch}`;
+        const result = invoke({ NEMOCLAW_AGENT_PLATFORM: agent, DOCKER_DEFAULT_PLATFORM: `linux/${arch}`,
+          NEMOCLAW_IMAGE: image, NEMOCLAW_HERMES_IMAGE: image, NEMOCLAW_DEEPAGENTS_IMAGE: image });
+        assert.equal(result.status, 86, result.stderr);
+        assert.match(result.stderr, /sandbox-guard-passed/);
+      }
+    }
+    const stable = invoke({ GITHUB_REF_NAME: "v0.2.8", NEMOCLAW_IMAGE: "example/sandbox:0.2.8-amd64",
+      GITHUB_WORKFLOW_REF: "owner/repo/.github/workflows/release.yml@refs/tags/v0.2.8" });
+    assert.equal(stable.status, 86, stable.stderr);
+    for (const overrides of [
+      { CI: "false" }, { GITHUB_REF_TYPE: "branch" },
+      { GITHUB_WORKFLOW_REF: "owner/repo/.github/workflows/unknown.yml@refs/tags/v0.2.8-rc.1" },
+      { GITHUB_WORKFLOW_REF: "owner/repo/.github/workflows/release-control-plane.yml@refs/heads/main" },
+      { GITHUB_REF_NAME: "v0.2.8-rc.01", GITHUB_WORKFLOW_REF: "owner/repo/.github/workflows/release-control-plane.yml@refs/tags/v0.2.8-rc.01" },
+      { GITHUB_REF_NAME: "v0.2.8", GITHUB_WORKFLOW_REF: "owner/repo/.github/workflows/release-control-plane.yml@refs/tags/v0.2.8" },
+      { NEMOCLAW_IMAGE: "example/sandbox:0.2.8-rc.2-amd64" },
+      { NEMOCLAW_IMAGE: "example/sandbox:0.2.8-rc.1-arm64" },
+    ]) assert.equal(invoke(overrides).status, 2, JSON.stringify(overrides));
+  } finally { rmSync(directory, { recursive: true, force: true }); }
+});
+
 test("RC workflow uses the planned matrix and handles sandbox builds separately", () => {
   const full = parse(readFileSync(".github/workflows/release.yml", "utf8"));
   const rc = parse(readFileSync(".github/workflows/release-control-plane.yml", "utf8"));

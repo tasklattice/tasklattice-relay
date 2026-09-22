@@ -55,10 +55,19 @@ case "$BUILD_OUTPUT" in
       echo "Release image builds require a semantic version tag in GitHub Actions." >&2
       exit 2
     fi
-    if [[ "${GITHUB_WORKFLOW_REF:-}" != */.github/workflows/release.yml@refs/tags/"${GITHUB_REF_NAME}" ]]; then
-      echo "Release image builds are only supported by .github/workflows/release.yml." >&2
-      exit 2
-    fi
+    case "${GITHUB_WORKFLOW_REF:-}" in
+      */.github/workflows/release.yml@refs/tags/"${GITHUB_REF_NAME}") ;;
+      */.github/workflows/release-control-plane.yml@refs/tags/"${GITHUB_REF_NAME}")
+        if [[ ! "$GITHUB_REF_NAME" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-rc\.([1-9][0-9]*)$ ]]; then
+          echo "Incremental RC image builds require a canonical vMAJOR.MINOR.PATCH-rc.N tag." >&2
+          exit 2
+        fi
+        ;;
+      *)
+        echo "Release image builds require an approved tag release workflow." >&2
+        exit 2
+        ;;
+    esac
     if [ -z "${NEMOCLAW_UPSTREAM_IMAGE:-}" ]; then
       echo "NEMOCLAW_UPSTREAM_IMAGE is required when NEMOCLAW_BUILD_OUTPUT=ci-push." >&2
       exit 2
