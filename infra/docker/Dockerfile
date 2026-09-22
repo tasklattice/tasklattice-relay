@@ -48,10 +48,12 @@ COPY packages ./packages
 COPY scripts/validate-prisma-migrations.mjs ./scripts/validate-prisma-migrations.mjs
 # Control imports the expert runtime package; compile it as a library, but do
 # not build Runner/demo applications or any of their container images.
-FROM build-source AS control-build
+FROM build-source AS expert-runtime-build
 RUN npm run build --workspace @tali/contracts \
-    && npm run build --workspace @tali/expert-agent-runtime \
-    && npm run build --workspace @tali/control
+    && npm run build --workspace @tali/expert-agent-runtime
+
+FROM expert-runtime-build AS control-build
+RUN npm run build --workspace @tali/control
 
 FROM control-build AS build
 RUN npm run build --workspace @tali/runner \
@@ -130,9 +132,9 @@ ENV NODE_ENV=production \
 WORKDIR /app
 COPY --from=production-dependencies /app/node_modules ./node_modules
 COPY packages/contracts/package.json ./packages/contracts/package.json
-COPY --from=build /app/packages/contracts/dist ./packages/contracts/dist
+COPY --from=expert-runtime-build /app/packages/contracts/dist ./packages/contracts/dist
 COPY apps/expert-agent-runtime/package.json ./apps/expert-agent-runtime/package.json
-COPY --from=build /app/apps/expert-agent-runtime/dist ./apps/expert-agent-runtime/dist
+COPY --from=expert-runtime-build /app/apps/expert-agent-runtime/dist ./apps/expert-agent-runtime/dist
 USER node
 EXPOSE 8080
 CMD ["node", "apps/expert-agent-runtime/dist/server.js"]

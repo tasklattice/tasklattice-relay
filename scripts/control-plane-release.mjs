@@ -11,7 +11,6 @@ export function parseControlReleaseTag(tag) {
 
 export const reusedImages = {
   runner: "tali-openshell-runner",
-  expertAgentRuntime: "tali-expert-agent-runtime",
   litellm: "tali-litellm",
   exampleMcp: "demo-test",
   openclawSandbox: "tali-nemoclaw-sandbox",
@@ -23,6 +22,7 @@ export function pinControlReleaseValues(values, tag, registry) {
   const { version, baseVersion } = parseControlReleaseTag(tag);
   values.global.imageRegistry = registry;
   values.images.control.tag = version;
+  values.images.expertAgentRuntime.tag = version;
   for (const [key, repository] of Object.entries(reusedImages)) {
     if (values.images[key]?.repository !== repository) throw new Error(`Unexpected image definition: ${key}`);
     values.images[key].tag = baseVersion;

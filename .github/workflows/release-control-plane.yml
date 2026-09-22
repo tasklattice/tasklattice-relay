@@ -61,7 +61,7 @@ jobs:
             echo "This RC is already released. Create a new RC tag instead." >&2
             exit 1
           fi
-          for reference in "$REGISTRY/tali-control:$VERSION" "$REGISTRY/charts/tali-relay:$VERSION"; do
+          for reference in "$REGISTRY/tali-control:$VERSION" "$REGISTRY/tali-expert-agent-runtime:$VERSION" "$REGISTRY/charts/tali-relay:$VERSION"; do
             if docker buildx imagetools inspect "$reference" >/dev/null 2>&1; then
               echo "Refusing to overwrite published artifact: $reference" >&2
               exit 1
@@ -84,6 +84,8 @@ jobs:
         run: |
           npm run build:shared
           npm run typecheck --workspace @tali/control
+          npm run typecheck --workspace @tali/expert-agent-runtime
+          npm run test --workspace @tali/expert-agent-runtime
           node --test scripts/testing/control-plane-release.test.mjs
           bash scripts/package-control-plane-chart.sh "$VERSION"
           bash scripts/package-worker-charts.sh
@@ -107,8 +109,20 @@ jobs:
         include:
           - architecture: amd64
             runner: ubuntu-24.04
+            image: tali-control
+            target: control
           - architecture: arm64
             runner: ubuntu-24.04-arm
+            image: tali-control
+            target: control
+          - architecture: amd64
+            runner: ubuntu-24.04
+            image: tali-expert-agent-runtime
+            target: expert-agent-runtime
+          - architecture: arm64
+            runner: ubuntu-24.04-arm
+            image: tali-expert-agent-runtime
+            target: expert-agent-runtime
     runs-on: ${{ matrix.runner }}
     permissions:
       contents: read
@@ -129,15 +143,15 @@ jobs:
         with:
           context: .
           file: infra/docker/Dockerfile
-          target: control
+          target: ${{ matrix.target }}
           platforms: linux/${{ matrix.architecture }}
           push: true
           pull: true
-          tags: ${{ needs.prepare.outputs.registry }}/tali-control:${{ needs.prepare.outputs.version }}-${{ matrix.architecture }}
+          tags: ${{ needs.prepare.outputs.registry }}/${{ matrix.image }}:${{ needs.prepare.outputs.version }}-${{ matrix.architecture }}
           cache-from: |
-            type=gha,scope=tali-control-${{ matrix.architecture }}
-            type=gha,scope=control-rc-${{ matrix.architecture }}
-          cache-to: type=gha,mode=max,scope=control-rc-${{ matrix.architecture }}
+            type=gha,scope=${{ matrix.image }}-${{ matrix.architecture }}
+            type=gha,scope=${{ matrix.image }}-rc-${{ matrix.architecture }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}-rc-${{ matrix.architecture }}
           provenance: mode=max
           sbom: true
 
@@ -168,19 +182,21 @@ jobs:
       - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
         with:
           version: ${{ env.HELM_VERSION }}
-      - name: Publish Control manifest, Helm chart and prerelease
+      - name: Publish Control and Expert Runtime manifests, Helm chart and prerelease
         shell: bash
         run: |
           set -euo pipefail
-          image="$REGISTRY/tali-control:$VERSION"
           # Do not silently reuse changed base tags after a long build.
           while IFS=$'\t' read -r kind reference expected; do
             actual="$(docker buildx imagetools inspect "$reference" --format '{{.Manifest.Digest}}')"
             [[ "$actual" == "$expected" ]] || { echo "Base image changed: $reference" >&2; exit 1; }
           done < dist/control-release/images.tsv
-          docker buildx imagetools create --tag "$image" "$image-amd64" "$image-arm64"
-          digest="$(docker buildx imagetools inspect "$image" --format '{{.Manifest.Digest}}')"
-          printf 'built\t%s\t%s\n' "$image" "$digest" >> dist/control-release/images.tsv
+          for repository in tali-control tali-expert-agent-runtime; do
+            image="$REGISTRY/$repository:$VERSION"
+            docker buildx imagetools create --tag "$image" "$image-amd64" "$image-arm64"
+            digest="$(docker buildx imagetools inspect "$image" --format '{{.Manifest.Digest}}')"
+            printf 'built\t%s\t%s\n' "$image" "$digest" >> dist/control-release/images.tsv
+          done
           asset="dist/control-release/tali-relay-$VERSION.tgz"
           cp dist/control-plane-chart/tali-relay.tgz "$asset"
           printf '%s' "$GH_TOKEN" | helm registry login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
@@ -189,15 +205,15 @@ jobs:
             echo "# Control Plane $BASE_VERSION RC$RC"
             echo
             echo "Source commit: $GITHUB_SHA"
-            echo "Built: Control/Worker $VERSION (amd64 + arm64), Relay chart, patched embedded Worker chart."
-            echo "Reused: Runner, Expert Runtime, LiteLLM, demo and Sandbox images at $BASE_VERSION."
+            echo "Built: Control/Worker and Expert Runtime $VERSION (amd64 + arm64), Relay chart, patched embedded Worker chart."
+            echo "Reused: Runner, LiteLLM, demo and Sandbox images at $BASE_VERSION."
             echo "No latest or stable image tags were updated. See images.tsv for resolved image digests."
             echo
             echo '```bash'
             echo "helm upgrade --install tali-relay oci://$REGISTRY/charts/tali-relay --version $VERSION -n tali --create-namespace -f your-values.yaml"
             echo '```'
             echo
-            echo "Remove old images.control.tag overrides from your values to use this RC."
+            echo "Remove old images.control.tag and images.expertAgentRuntime.tag overrides from your values to use this RC."
             echo "This RC sorts below stable $BASE_VERSION in SemVer; select its version explicitly."
           } > dist/control-release/RELEASE.md
           gh release create "$GITHUB_REF_NAME" "$asset" dist/control-release/images.tsv dist/control-release/RELEASE.md \

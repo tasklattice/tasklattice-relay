@@ -18,26 +18,31 @@ RC sequence (no leading zeros). There is no manual version input or branch build
 
 - Multi-architecture `ghcr.io/<owner>/tali-control:0.2.5-rc.1` (amd64, arm64).
   Control API, UI, Worker and runtime bridge share this image.
+- Multi-architecture `ghcr.io/<owner>/tali-expert-agent-runtime:0.2.5-rc.1`.
+  This component did not exist in the 0.2.5 release; it is built from the same
+  commit as Control on every RC to keep their runtime contracts aligned.
 - `oci://ghcr.io/<owner>/charts/tali-relay`, version/appVersion `0.2.5-rc.1`.
 - The patched OpenShell Worker chart embedded in the Control image.
 - A GitHub **pre-release**, titled `Control Plane 0.2.5 RC1`, with the Relay Chart,
   image reference/digest inventory, and upgrade notes.
 
-Runner, Expert Runtime, LiteLLM, demo and all three Sandbox images are reused from
+Runner, LiteLLM, demo and all three Sandbox images are reused from
 `0.2.5`; no container builds are run for them. The packaged Chart explicitly pins
 those image tags rather than inheriting the RC appVersion. Third-party image
 versions remain as declared by the chart. No stable image tags or `latest` move.
 Base images must already be accessible in the repository owner's GHCR namespace.
 Their manifest digests are checked before building and again before publication.
 
-The Docker Control stage compiles contracts and the expert-runtime package as
-required dependencies of Control, but no longer runs Runner/demo application
-builds. npm workspace installation is still shared. BuildKit caches are best-effort
+The dedicated Expert Runtime build stage compiles only contracts and the
+expert-runtime package. Control builds on that stage; neither image runs
+Runner/demo application builds. npm workspace installation is still shared. BuildKit caches are best-effort
 (tag workflows may not see caches from unrelated refs); cache misses never cause
-other product images to be built.
+images beyond Control and Expert Runtime to be built.
 
-Both architecture jobs consume the **same prepared Chart artifacts**. Validation
-includes Control typechecking, targeted provisioning/timeout tests, tag/version
+Control's two architecture jobs consume the **same prepared Chart artifacts**.
+The build matrix has four jobs: two images times two architectures. Validation
+includes Control and Expert Runtime typechecking, the Expert Runtime test suite,
+targeted provisioning/timeout tests, tag/version
 policy tests, Chart linting and OpenShift Helm validation. This is not the full
 release test matrix and does not run a live OpenShift deployment.
 
@@ -57,8 +62,9 @@ still need updating when configuration changes.
 
 SemVer sorts `0.2.5-rc.1` **below** stable `0.2.5`. Select the RC explicitly; do not
 expect automatic latest-version resolution to upgrade stable 0.2.5 to this RC.
-Every RC in this series reuses base `0.2.5` images. If a fix changes shared runtime
-contracts incompatibly or needs Runner/Sandbox changes, use a full release instead.
+Every RC in this series rebuilds Control and Expert Runtime, reusing the other
+first-party images from base `0.2.5`. If a fix needs incompatible changes to those
+reused components (such as Runner/Sandbox), use a full release instead.
 
 ## Permissions and failures
 
