@@ -31,6 +31,37 @@ Every image and the Relay Chart uses the current RC version, for example
 Third-party dependencies retain the upstream versions declared in the source.
 Control embeds the freshly packaged Relay and patched OpenShell Worker charts.
 
+## Explicit release stages
+
+```text
+plan → validate
+  ├─ build-core-platforms    → publish-core-manifests
+  └─ build-sandbox-platforms → publish-sandbox-manifests
+                                  ↓ (both groups successful)
+                             publish-chart
+                                  ↓
+                             github-release
+```
+
+- **Plan** resolves the previous RC, image changes and four separate matrices.
+- **Validate** runs tests and packages the two Chart inputs once.
+- **Architecture builds** use separate Core and Sandbox jobs; names include the
+  image/Agent and CPU architecture. These jobs push architecture-specific tags.
+- **Manifest jobs** run once per image (five Core, three Sandbox). Each either
+  merges architecture manifests or copies the previous digest, then uploads a
+  receipt tied to this tag and commit. The job name shows `build` or `reuse`.
+- **Chart publication** requires successful manifest jobs in both groups and
+  checks all eight receipts before pushing the Chart and saving release assets.
+- **GitHub Release** only consumes verified assets after Chart publication; it
+  has no registry write permission.
+
+If a whole group is reuse-only, skip its architecture build matrix but still run
+its manifest jobs. A failed/cancelled build or validation is not treated as that
+legitimate skip. Manifest stages may complete independently, as in the stable
+release workflow; Chart/Release publication cannot proceed after either fails.
+The shared `.github/actions/publish-rc-image` composite only deduplicates the
+per-image setup/publish steps; it does not merge the visible Core/Sandbox stages.
+
 ## Subsequent RCs
 
 The planner queries all published GitHub prereleases and selects the highest
@@ -69,6 +100,8 @@ The Actions summary shows the plan. The downloadable `release-manifest.json`
 records what was built versus reused, source RC/digest, new reference and digest.
 The GitHub prerelease is created only after all images and the Chart are published.
 Control's two architecture jobs consume exactly the same prepared Chart files.
+Each manifest job emits an independent `rc-image-receipt-<key>` artifact. Missing,
+duplicate, foreign-tag/commit or invalid-digest receipts block final publication.
 Validation runs the full workspace tests/typechecks and Helm/OCP checks even when
 only a subset of images needs rebuilding.
 

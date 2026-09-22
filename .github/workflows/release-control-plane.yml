@@ -23,7 +23,8 @@ env:
   DOCKER_BUILD_SUMMARY: "false"
 
 jobs:
-  prepare:
+  plan:
+    name: Plan RC image changes
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -31,9 +32,14 @@ jobs:
     outputs:
       version: ${{ steps.release.outputs.version }}
       series: ${{ steps.release.outputs.series }}
-      matrix: ${{ steps.plan.outputs.matrix }}
       rc: ${{ steps.release.outputs.rc }}
       registry: ${{ steps.release.outputs.registry }}
+      coreBuildMatrix: ${{ steps.plan.outputs.coreBuildMatrix }}
+      sandboxBuildMatrix: ${{ steps.plan.outputs.sandboxBuildMatrix }}
+      coreManifestMatrix: ${{ steps.plan.outputs.coreManifestMatrix }}
+      sandboxManifestMatrix: ${{ steps.plan.outputs.sandboxManifestMatrix }}
+      coreBuildRequired: ${{ steps.plan.outputs.coreBuildRequired }}
+      sandboxBuildRequired: ${{ steps.plan.outputs.sandboxBuildRequired }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -42,12 +48,9 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
-      - run: npm ci
       - id: release
         name: Parse RC tag
-        shell: bash
         run: |
-          set -euo pipefail
           node scripts/control-plane-release.mjs metadata "$GITHUB_REF_NAME" >> "$GITHUB_OUTPUT"
           echo "registry=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
       - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
@@ -61,9 +64,7 @@ jobs:
           REGISTRY: ${{ steps.release.outputs.registry }}
           VERSION: ${{ steps.release.outputs.version }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        shell: bash
         run: |
-          set -euo pipefail
           if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
             echo "This RC is already released. Create a new RC tag instead." >&2
             exit 1
@@ -75,19 +76,36 @@ jobs:
               exit 1
             fi
           done
-      - name: Plan builds against the previous successful RC
+      - name: Plan builds against previous successful RC
         id: plan
         env:
           REGISTRY: ${{ steps.release.outputs.registry }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: node scripts/control-plane-release.mjs plan "$GITHUB_REF_NAME" "$REGISTRY" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: rc-plan
+          path: dist/control-release/plan.json
+          if-no-files-found: error
+
+  validate:
+    name: Validate and package RC inputs
+    needs: plan
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
       - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
         with:
           version: ${{ env.HELM_VERSION }}
-      - name: Validate and package once for both architectures
+      - name: Package shared charts and validate
         env:
-          TALI_IMAGE_REGISTRY: ${{ steps.release.outputs.registry }}
-          VERSION: ${{ steps.release.outputs.version }}
+          TALI_IMAGE_REGISTRY: ${{ needs.plan.outputs.registry }}
+          VERSION: ${{ needs.plan.outputs.version }}
         run: |
           bash scripts/package-control-plane-chart.sh "$VERSION"
           bash scripts/package-worker-charts.sh
@@ -99,18 +117,19 @@ jobs:
           npm run helm:validate:airgap
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: control-release-inputs
+          name: rc-charts
           path: |
             dist/control-plane-chart/tali-relay.tgz
             dist/worker-charts/openshell.tgz
-            dist/control-release/
           if-no-files-found: error
 
-  build:
-    needs: prepare
+  build-core-platforms:
+    name: Build Core / ${{ matrix.image }} / ${{ matrix.architecture }}
+    needs: [plan, validate]
+    if: needs.plan.outputs.coreBuildRequired == 'true'
     strategy:
       fail-fast: false
-      matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
+      matrix: ${{ fromJSON(needs.plan.outputs.coreBuildMatrix) }}
     runs-on: ${{ matrix.runner }}
     permissions:
       contents: read
@@ -118,8 +137,9 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        if: matrix.key == 'control'
         with:
-          name: control-release-inputs
+          name: rc-charts
           path: dist
       - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
       - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
@@ -128,7 +148,6 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
-        if: matrix.agent == ''
         with:
           context: .
           file: ${{ matrix.dockerfile }}
@@ -136,7 +155,7 @@ jobs:
           platforms: linux/${{ matrix.architecture }}
           push: true
           pull: true
-          tags: ${{ needs.prepare.outputs.registry }}/${{ matrix.image }}:${{ needs.prepare.outputs.version }}-${{ matrix.architecture }}
+          tags: ${{ matrix.reference }}-${{ matrix.architecture }}
           cache-from: |
             type=gha,scope=${{ matrix.image }}-${{ matrix.architecture }}
             type=gha,scope=${{ matrix.image }}-rc-${{ matrix.architecture }}
@@ -146,8 +165,27 @@ jobs:
             LITELLM_IMAGE=${{ env.LITELLM_IMAGE }}
           provenance: mode=max
           sbom: true
-      - name: Build Sandbox architecture
-        if: matrix.agent != ''
+
+  build-sandbox-platforms:
+    name: Build Sandbox / ${{ matrix.agent }} / ${{ matrix.architecture }}
+    needs: [plan, validate]
+    if: needs.plan.outputs.sandboxBuildRequired == 'true'
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.sandboxBuildMatrix) }}
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push Sandbox architecture
         env:
           DOCKER_DEFAULT_PLATFORM: linux/${{ matrix.architecture }}
           NEMOCLAW_AGENT_PLATFORM: ${{ matrix.agent }}
@@ -162,47 +200,122 @@ jobs:
           export NEMOCLAW_FALLBACK_BASE_IMAGE="${IMAGE%:*}:build-base-${IMAGE##*:}-$ARCH"
           bash scripts/build-nemoclaw-sandbox.sh
 
-  publish:
-    needs: [prepare, build]
+  publish-core-manifests:
+    name: Manifest Core / ${{ matrix.image }} / ${{ matrix.action }}
+    needs: [plan, validate, build-core-platforms]
+    # A reuse-only group legitimately skips its architecture builds.
+    if: >-
+      ${{ !cancelled() && needs.plan.result == 'success' && needs.validate.result == 'success' &&
+          (needs.build-core-platforms.result == 'success' ||
+           (needs.build-core-platforms.result == 'skipped' && needs.plan.outputs.coreBuildRequired == 'false')) }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.coreManifestMatrix) }}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/publish-rc-image
+        with:
+          image-key: ${{ matrix.key }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  publish-sandbox-manifests:
+    name: Manifest Sandbox / ${{ matrix.image }} / ${{ matrix.action }}
+    needs: [plan, validate, build-sandbox-platforms]
+    if: >-
+      ${{ !cancelled() && needs.plan.result == 'success' && needs.validate.result == 'success' &&
+          (needs.build-sandbox-platforms.result == 'success' ||
+           (needs.build-sandbox-platforms.result == 'skipped' && needs.plan.outputs.sandboxBuildRequired == 'false')) }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.sandboxManifestMatrix) }}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/publish-rc-image
+        with:
+          image-key: ${{ matrix.key }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  publish-chart:
+    name: Publish Helm chart and assemble release manifest
+    needs: [plan, validate, publish-core-manifests, publish-sandbox-manifests]
+    if: >-
+      ${{ !cancelled() && needs.plan.result == 'success' && needs.validate.result == 'success' &&
+          needs.publish-core-manifests.result == 'success' && needs.publish-sandbox-manifests.result == 'success' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    env:
+      VERSION: ${{ needs.plan.outputs.version }}
+      REGISTRY: ${{ needs.plan.outputs.registry }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: rc-plan
+          path: dist/control-release
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: rc-charts
+          path: dist
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          pattern: rc-image-receipt-*
+          path: dist/image-receipts
+          merge-multiple: true
+      - name: Verify all eight image publication receipts
+        run: node scripts/control-plane-release.mjs assemble-manifest "$GITHUB_REF_NAME" dist/control-release/plan.json
+      - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+        with:
+          version: ${{ env.HELM_VERSION }}
+      - name: Publish Helm chart
+        run: |
+          asset="dist/control-release/tali-relay-$VERSION.tgz"
+          cp dist/control-plane-chart/tali-relay.tgz "$asset"
+          printf '%s' "$GH_TOKEN" | helm registry login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          helm push "$asset" "oci://$REGISTRY/charts"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: rc-release-assets
+          path: |
+            dist/control-release/tali-relay-*.tgz
+            dist/control-release/release-manifest.json
+          if-no-files-found: error
+
+  github-release:
+    name: Create GitHub prerelease
+    needs: [plan, publish-chart]
+    if: ${{ !cancelled() && needs.plan.result == 'success' && needs.publish-chart.result == 'success' }}
     runs-on: ubuntu-24.04
     permissions:
       contents: write
-      packages: write
     env:
-      VERSION: ${{ needs.prepare.outputs.version }}
-      SERIES: ${{ needs.prepare.outputs.series }}
-      RC: ${{ needs.prepare.outputs.rc }}
-      REGISTRY: ${{ needs.prepare.outputs.registry }}
+      VERSION: ${{ needs.plan.outputs.version }}
+      SERIES: ${{ needs.plan.outputs.series }}
+      RC: ${{ needs.plan.outputs.rc }}
+      REGISTRY: ${{ needs.plan.outputs.registry }}
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
-          name: control-release-inputs
-          path: dist
-      - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
-      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
-        with:
-          version: ${{ env.HELM_VERSION }}
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-      - run: npm ci --ignore-scripts
-      - name: Publish RC manifests, Helm chart and prerelease
-        shell: bash
+          name: rc-release-assets
+          path: dist/control-release
+      - name: Create GitHub prerelease with verified artifacts
         run: |
-          set -euo pipefail
-          node scripts/control-plane-release.mjs publish-images "$GITHUB_REF_NAME" dist/control-release/plan.json
-          asset="dist/control-release/tali-relay-$VERSION.tgz"
-          cp dist/control-plane-chart/tali-relay.tgz "$asset"
-          printf '%s' "$GH_TOKEN" | helm registry login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
-          helm push "$asset" "oci://$REGISTRY/charts"
           {
             echo "# Relay $SERIES RC$RC"
             echo
@@ -218,6 +331,6 @@ jobs:
             echo "Remove stale images.*.tag overrides from your values to use this RC."
             echo "Select this prerelease explicitly with --version."
           } > dist/control-release/RELEASE.md
-          gh release create "$GITHUB_REF_NAME" "$asset" dist/control-release/release-manifest.json dist/control-release/RELEASE.md \
+          gh release create "$GITHUB_REF_NAME" "dist/control-release/tali-relay-$VERSION.tgz" dist/control-release/release-manifest.json dist/control-release/RELEASE.md \
             --verify-tag --prerelease --latest=false \
             --title "Relay $SERIES RC$RC" --notes-file dist/control-release/RELEASE.md

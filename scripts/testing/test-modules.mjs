@@ -341,6 +341,8 @@ export const testModules = [
       "apps/runner/src/project-service-proxy.ts",
       "apps/runner/src/runtime-target*",
       "charts/tali-relay/**",
+      ".github/actions/publish-rc-image/**",
+      ".github/workflows/release-control-plane.yml",
       "scripts/control-plane-release.mjs",
       "scripts/package-control-plane-chart.sh",
       "scripts/testing/control-plane-release.test.mjs",

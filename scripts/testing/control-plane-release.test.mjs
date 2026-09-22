@@ -2,10 +2,10 @@ import { strict as assert } from "node:assert";
 import { test } from "node:test";
 import { readFileSync, mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { parse } from "yaml";
-import { parseControlReleaseTag, pinControlReleaseValues, releaseImages, affectedImages, makePlan, selectPreviousRelease } from "../control-plane-release.mjs";
+import { parseControlReleaseTag, pinControlReleaseValues, releaseImages, affectedImages, makePlan, selectPreviousRelease, releaseMatrices, assembleReleaseManifest } from "../control-plane-release.mjs";
 const registry = "ghcr.io/tasklattice";
 const sha = "a".repeat(40);
 function previous() {
@@ -108,13 +108,99 @@ test("Sandbox release guard accepts RC and stable workflows without bypassing ta
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 
-test("RC workflow uses the planned matrix and handles sandbox builds separately", () => {
+test("grouped matrices retain all manifests when a group needs no builds", () => {
+  const full = releaseMatrices(previous());
+  assert.equal(full.coreBuildMatrix.include.length, 10);
+  assert.equal(full.sandboxBuildMatrix.include.length, 6);
+  assert.equal(full.coreManifestMatrix.include.length, 5);
+  assert.equal(full.sandboxManifestMatrix.include.length, 3);
+  assert(full.coreBuildRequired && full.sandboxBuildRequired);
+  const incremental = releaseMatrices(makePlan("v0.2.8-rc.2", registry, sha, ["apps/control/server/foo.ts"], previous()));
+  assert.equal(incremental.coreBuildMatrix.include.length, 2);
+  assert.equal(incremental.sandboxBuildRequired, false);
+  assert.deepEqual(incremental.sandboxBuildMatrix, { include: [] });
+  assert.equal(incremental.sandboxManifestMatrix.include.length, 3);
+  assert(incremental.sandboxManifestMatrix.include.every(i => i.action === "reuse"));
+});
+
+test("release manifest requires eight matching publication receipts", () => {
+  const plan = makePlan("v0.2.8-rc.2", registry, sha, [], previous());
+  const receipts = plan.images.map(i => ({ key: i.key, tag: plan.tag, sourceSha: sha, reference: i.reference, digest: `sha256:${"b".repeat(64)}` }));
+  const manifest = assembleReleaseManifest(plan, receipts);
+  assert.equal(manifest.images.length, 8);
+  assert(manifest.images.every(i => i.digest === receipts[0].digest));
+  assert.equal(manifest.images.find(i => i.key === "runner").sourceTag, "v0.2.8-rc.1");
+  for (const invalid of [receipts.slice(1), [...receipts.slice(1), receipts[1]],
+    receipts.map((r, index) => index ? r : { ...r, sourceSha: "c".repeat(40) }),
+    receipts.map((r, index) => index ? r : { ...r, tag: "v0.2.8-rc.99" }),
+    receipts.map((r, index) => index ? r : { ...r, digest: "invalid" }),
+    receipts.map(r => r.key === "runner" ? { ...r, digest: `sha256:${"c".repeat(64)}` } : r),
+  ]) assert.throws(() => assembleReleaseManifest(plan, invalid));
+});
+
+test("per-image publication writes isolated receipts and assembly requires every image", () => {
+  const directory = mkdtempSync(join(tmpdir(), "relay-rc-publication-"));
+  const script = resolve("scripts/control-plane-release.mjs");
+  const plan = makePlan("v0.2.8-rc.2", registry, sha, [], previous());
+  const digest = `sha256:${"b".repeat(64)}`;
+  writeFileSync(join(directory, "plan.json"), JSON.stringify(plan));
+  writeFileSync(join(directory, "git"), `#!/bin/sh\nprintf '%s' '${sha}'\n`, { mode: 0o755 });
+  writeFileSync(join(directory, "docker"), '#!/bin/sh\nprintf "%s\\n" "$*" >> "$CALL_LOG"\ncase "$*" in *inspect*) printf "%s" "$TEST_DIGEST" ;; esac\n', { mode: 0o755 });
+  const invoke = (command, key) => spawnSync(process.execPath, [script, command, plan.tag, "plan.json", ...(key ? [key] : [])], {
+    cwd: directory, encoding: "utf8", env: { ...process.env, PATH: `${directory}:${process.env.PATH}`,
+      CALL_LOG: join(directory, "calls.log"), TEST_DIGEST: digest },
+  });
+  try {
+    assert.notEqual(invoke("assemble-manifest").status, 0);
+    for (const image of plan.images) {
+      const result = invoke("publish-image", image.key);
+      assert.equal(result.status, 0, result.stderr);
+      const receipt = JSON.parse(readFileSync(join(directory, `dist/image-receipts/${image.key}.json`), "utf8"));
+      assert.equal(receipt.reference, image.reference);
+      assert.equal(receipt.sourceSha, sha);
+    }
+    assert.equal(invoke("assemble-manifest").status, 0);
+    const manifest = JSON.parse(readFileSync(join(directory, "dist/control-release/release-manifest.json"), "utf8"));
+    assert.equal(manifest.images.length, 8);
+    const calls = readFileSync(join(directory, "calls.log"), "utf8");
+    assert(calls.includes(`${registry}/tali-control:0.2.8-rc.2-amd64 ${registry}/tali-control:0.2.8-rc.2-arm64`));
+    assert(calls.includes(`--tag ${registry}/tali-openshell-runner:0.2.8-rc.2 ${registry}/tali-openshell-runner@${digest}`));
+    assert.notEqual(invoke("publish-image", "unknown").status, 0);
+  } finally { rmSync(directory, { recursive: true, force: true }); }
+});
+
+test("RC stages separate validation, grouped builds, manifests, chart and GitHub publication", () => {
   const full = parse(readFileSync(".github/workflows/release.yml", "utf8"));
   const rc = parse(readFileSync(".github/workflows/release-control-plane.yml", "utf8"));
   assert(full.on.push.tags.includes("!v*.*.*-rc.*"));
   assert.deepEqual(rc.on.push.tags, ["v*.*.*-rc.*"]);
-  assert.equal(rc.jobs.build.strategy.matrix, "${{ fromJSON(needs.prepare.outputs.matrix) }}");
-  assert(rc.jobs.build.steps.some(s => s.run?.includes("scripts/build-nemoclaw-sandbox.sh")));
+  const jobs = rc.jobs;
+  assert.deepEqual(Object.keys(jobs), ["plan", "validate", "build-core-platforms", "build-sandbox-platforms", "publish-core-manifests", "publish-sandbox-manifests", "publish-chart", "github-release"]);
+  assert.equal(jobs.validate.needs, "plan");
+  for (const group of ["core", "sandbox"]) {
+    const build = jobs[`build-${group}-platforms`];
+    const publish = jobs[`publish-${group}-manifests`];
+    assert.deepEqual(build.needs, ["plan", "validate"]);
+    assert.equal(build.if, `needs.plan.outputs.${group}BuildRequired == 'true'`);
+    assert.equal(build.strategy.matrix, `\${{ fromJSON(needs.plan.outputs.${group}BuildMatrix) }}`);
+    assert.deepEqual(publish.needs, ["plan", "validate", `build-${group}-platforms`]);
+    assert(publish.if.includes("!cancelled()") && publish.if.includes("needs.validate.result == 'success'"));
+    assert(publish.if.includes(`needs.build-${group}-platforms.result == 'success'`));
+    assert(publish.if.includes(`needs.build-${group}-platforms.result == 'skipped' && needs.plan.outputs.${group}BuildRequired == 'false'`));
+    assert.equal(publish.strategy.matrix, `\${{ fromJSON(needs.plan.outputs.${group}ManifestMatrix) }}`);
+  }
+  assert(jobs["build-sandbox-platforms"].steps.some(s => s.run?.includes("scripts/build-nemoclaw-sandbox.sh")));
+  assert(!jobs["build-core-platforms"].steps.some(s => s.run?.includes("scripts/build-nemoclaw-sandbox.sh")));
+  assert.deepEqual(jobs["publish-chart"].needs, ["plan", "validate", "publish-core-manifests", "publish-sandbox-manifests"]);
+  assert(jobs["publish-chart"].if.includes("needs.publish-core-manifests.result == 'success'"));
+  assert(jobs["publish-chart"].if.includes("needs.publish-sandbox-manifests.result == 'success'"));
+  assert.deepEqual(jobs["github-release"].needs, ["plan", "publish-chart"]);
+  assert(jobs["github-release"].if.includes("needs.publish-chart.result == 'success'"));
+  assert.equal(jobs["publish-chart"].permissions.contents, "read");
+  assert.deepEqual(jobs["github-release"].permissions, { contents: "write" });
+  const composite = parse(readFileSync(".github/actions/publish-rc-image/action.yml", "utf8"));
+  assert(composite.runs.steps.some(s => s.run?.includes('publish-image "$GITHUB_REF_NAME"')));
+  assert(composite.runs.steps.some(s => s.with?.name === "rc-image-receipt-${{ inputs.image-key }}"));
   const dockerfile = readFileSync("infra/docker/Dockerfile", "utf8");
   const expert = dockerfile.split("FROM node:22-bookworm-slim AS expert-agent-runtime\n")[1];
   assert(expert.includes("--from=expert-runtime-build"));
