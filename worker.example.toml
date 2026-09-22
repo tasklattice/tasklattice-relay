@@ -9,6 +9,11 @@ enabled = true
 baseUrl = "http://127.0.0.1:5001"
 apiKey = ""
 
+# Helm sets these from openshift.enabled and the Relay release namespace.
+[worker.openshift]
+enabled = false
+# imageSourceNamespace = "tali"
+
 [worker.project_openshell]
 enabled = false
 certgenActiveDeadlineSeconds = 300

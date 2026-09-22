@@ -353,6 +353,10 @@ enabled = {{ .Values.projectRuntimeNamespaces.resourceOwnership }}
 sourceTrackingId = {{ .Values.projectRuntimeNamespaces.argocd.sourceTrackingId | toJson }}
 installationId = {{ .Values.projectRuntimeNamespaces.argocd.installationId | toJson }}
 
+[worker.openshift]
+enabled = {{ .Values.openshift.enabled }}
+imageSourceNamespace = {{ .Release.Namespace | toJson }}
+
 [worker.project_openshell]
 enabled = {{ .Values.projectOpenShell.enabled }}
 targetRouting = {{ .Values.runner.projectTargetRouting.enabled }}

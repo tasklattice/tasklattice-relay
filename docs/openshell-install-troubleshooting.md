@@ -65,3 +65,54 @@ do not paste credentials into logs. Helm's original output remains in the error.
 
 Increasing waits can help slow scheduling/image pulls, but does not fix
 unauthorized registries, invalid security contexts or unbindable PVCs.
+
+## OpenShift cross-namespace ImageStream pulling
+
+Use the existing switch; no separate values flag is required:
+
+```yaml
+openshift:
+  enabled: true
+```
+
+Helm generates `[worker.openshift]` with `enabled = true` and
+`imageSourceNamespace` set to the Relay release namespace. Worker initialization
+creates/verifies the tenant Namespace, then reconciles a RoleBinding **in the
+control-plane namespace**, before installing Gateway (including certgen) or
+runtime bridge workloads. This is equivalent to:
+
+```sh
+oc policy add-role-to-group system:image-puller \
+  "system:serviceaccounts:${tenant_ns}" -n "$control_ns"
+```
+
+The binding grants only that tenant's ServiceAccount group the built-in
+`system:image-puller` ClusterRole in the source namespace. It covers future
+ServiceAccounts too. Worker applies a deterministic binding per tenant Namespace
+UID, verifies ownership of existing bindings, and does not force SSA conflicts.
+The cluster-scoped tenant Namespace is the owner, so Kubernetes garbage collection
+removes the binding when that Namespace is deleted. A recreated Namespace uses a
+new binding name/owner UID. Manually created bindings are not removed or adopted.
+
+Helm also installs a Role and RoleBinding for the Worker in the source namespace:
+RoleBinding get/create/patch plus `bind` restricted to `system:image-puller`.
+There is no new cluster-wide `bind` or `escalate` permission. The Helm installer
+must have permission to grant this scoped authority. API errors stop initialization
+before workload installation and report the source, tenant, role and API status.
+
+Rebuild/deploy the Worker image and upgrade the Relay chart to apply the config
+and RBAC together. For existing Projects, trigger initialization/reconciliation
+to backfill bindings. If using an externally managed Worker config Secret, mirror
+the generated `[worker.openshift]` settings there. Disabling the switch stops
+reconciliation; it does not revoke previously granted bindings while their tenant
+Namespaces still exist.
+
+This changes authorization only: it does not resolve ImageStream tags, rewrite
+Pod image URLs, copy registry credentials, clear explicit `imagePullSecrets`, or
+wait for OpenShift's ServiceAccount pull-secret provisioning. Images must already
+point to the integrated registry under the control-plane namespace. If pulling
+still fails, inspect actual Pod images, SA/pull-secret names and Events. External
+registries, new-SA credential races, CA errors and missing tags require separate
+fixes. Granting access exposes all ImageStreams covered by `system:image-puller`
+in the control-plane namespace to that tenant; use it only for images intended
+for Project workloads.

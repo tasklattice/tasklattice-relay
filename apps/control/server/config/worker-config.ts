@@ -59,6 +59,12 @@ const workerConfigSchema = z
       .object({ timeoutMs: z.number().int().positive().default(600000) })
       .strict()
       .prefault({}),
+    openshift: z.object({
+      enabled: z.boolean().default(false),
+      imageSourceNamespace: z.string().max(63).regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/).optional(),
+    }).strict().refine((value) => !value.enabled || !!value.imageSourceNamespace, {
+      message: "OpenShift image pulling requires imageSourceNamespace",
+    }).prefault({}),
     project_openshell: openShellConfig.prefault({}),
     project_runtime_bridge: runtimeConfig.prefault({}),
     expert_agent_runtime: runtimeConfig.prefault({}),

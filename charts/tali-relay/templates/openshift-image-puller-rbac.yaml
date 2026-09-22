@@ -1,0 +1,41 @@
+{{- if and .Values.openshift.enabled .Values.control.worker.enabled .Values.projectRuntimeNamespaces.enabled }}
+{{- $name := include "tali.componentName" (dict "root" . "component" "project-image-puller") }}
+# Worker creates per-Project bindings here, where the ImageStreams live.
+# Binding a ClusterRole requires bind authorization even when RoleBinding
+# create/patch permissions already exist. Do not grant cluster-wide bind.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tali.componentLabels" (dict "root" . "component" "control-worker") | nindent 4 }}
+  annotations:
+    {{- include "tali.resourceAnnotations" (dict "root" . "wave" "foundation") | nindent 4 }}
+rules:
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    resources: ["rolebindings"]
+    verbs: ["get", "create", "patch"]
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    resources: ["clusterroles"]
+    resourceNames: ["system:image-puller"]
+    verbs: ["bind"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tali.componentLabels" (dict "root" . "component" "control-worker") | nindent 4 }}
+  annotations:
+    {{- include "tali.resourceAnnotations" (dict "root" . "wave" "foundation") | nindent 4 }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "tali.controlWorkerServiceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $name }}
+{{- end }}

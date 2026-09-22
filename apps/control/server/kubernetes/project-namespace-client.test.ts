@@ -32,6 +32,7 @@ function client(input?: {
     readNamespace: input?.readNamespace ?? vi.fn(async () => namespace("project-a")),
   };
   const objects = {
+    read: vi.fn(async () => { throw apiError(404, "not found"); }),
     patch: input?.patch ?? vi.fn(async () => namespace("project-a")),
   };
   return {
@@ -52,6 +53,25 @@ const input = {
 
 describe("KubernetesProjectNamespaceClient", () => {
   afterEach(() => vi.unstubAllEnvs());
+
+  it("grants image pulling immediately after namespace creation on OpenShift", async () => {
+    getWorkerConfig().openshift = { enabled: true, imageSourceNamespace: "tali" };
+    const fake = client({ readNamespace: vi.fn().mockRejectedValue(apiError(404, "not found")) });
+    await fake.client.reconcile(input);
+    expect(fake.core.createNamespace.mock.invocationCallOrder[0]).toBeLessThan(fake.objects.patch.mock.invocationCallOrder[0]!);
+    expect(fake.objects.patch).toHaveBeenCalledWith(expect.objectContaining({
+      kind: "RoleBinding",
+      metadata: expect.objectContaining({ namespace: "tali" }),
+      subjects: [{ apiGroup: "rbac.authorization.k8s.io", kind: "Group", name: `system:serviceaccounts:${input.namespace}` }],
+    }), undefined, undefined, "tali-project-image-puller", false, PatchStrategy.ServerSideApply);
+  });
+
+  it("reconciles image pulling for existing Projects and propagates authorization failure", async () => {
+    getWorkerConfig().openshift = { enabled: true, imageSourceNamespace: "tali" };
+    const fake = client({ patch: vi.fn().mockResolvedValueOnce(namespace("project-a")).mockRejectedValueOnce(apiError(403, "forbidden")) });
+    await expect(fake.client.reconcile(input)).rejects.toThrow("OpenShift image pull authorization failed");
+    expect(fake.objects.patch).toHaveBeenCalledTimes(2);
+  });
 
   it("records the originating release so dev cleanup can distinguish Relay installations", async () => {
     getWorkerConfig().resource_ownership.controlRelease = "relay-dev";

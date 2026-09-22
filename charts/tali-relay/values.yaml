@@ -21,6 +21,9 @@ global:
 # OpenShift-specific resources and security behavior are opt-in so regular
 # Kubernetes installations retain their existing UID/GID settings.
 openshift:
+  # Also enables Worker-managed system:image-puller RoleBindings in the Relay
+  # namespace for each Project's ServiceAccount group, before runtime install.
+  # Image URLs and imagePullSecrets are not changed by this authorization.
   enabled: false
   anyuidScc:
     # Static Control Plane pods use their image-defined

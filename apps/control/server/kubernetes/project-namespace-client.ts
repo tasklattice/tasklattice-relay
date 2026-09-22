@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { getWorkerConfig } from "../config/worker-config";
 import { projectArgoAnnotations } from "./project-resource-ownership";
+import { reconcileProjectImagePuller } from "./project-image-puller";
 import {
   CoreV1Api,
   KubeConfig,
@@ -30,7 +31,7 @@ type NamespaceCoreApi = Pick<
   "createNamespace" | "deleteNamespace" | "readNamespace"
 >;
 
-type NamespaceObjectApi = Pick<KubernetesObjectApi, "patch">;
+type NamespaceObjectApi = Pick<KubernetesObjectApi, "patch" | "read">;
 
 interface KubernetesErrorLike {
   body?: unknown;
@@ -164,13 +165,17 @@ export class KubernetesProjectNamespaceClient
     const desired = projectNamespaceResource(input);
     let existing = await this.readNamespace(input.namespace);
     if (!existing) {
+      let created: V1Namespace | undefined;
       try {
-        await this.core.createNamespace({ body: desired });
-        return;
+        created = await this.core.createNamespace({ body: desired });
       } catch (error) {
         if (kubernetesStatusCode(error) !== 409) {
           throw reconciliationError("creation", error);
         }
+      }
+      if (created) {
+        await reconcileProjectImagePuller(this.objects, created, input.projectId);
+        return;
       }
 
       // Another actor created the same name after our read. Never adopt it
@@ -196,6 +201,8 @@ export class KubernetesProjectNamespaceClient
     } catch (error) {
       throw reconciliationError("server-side apply", error);
     }
+    // Initialization calls this before any Gateway hooks or runtime Pods.
+    await reconcileProjectImagePuller(this.objects, existing, input.projectId);
   }
 
   async deleteAndWait(
