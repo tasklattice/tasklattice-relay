@@ -341,6 +341,10 @@ export const testModules = [
       "apps/runner/src/project-service-proxy.ts",
       "apps/runner/src/runtime-target*",
       "charts/tali-relay/**",
+      "scripts/control-plane-release.mjs",
+      "scripts/package-control-plane-chart.sh",
+      "scripts/testing/control-plane-release.test.mjs",
+      "scripts/testing/openshift-image-puller-rbac.test.mjs",
     ],
     controlTestPatterns: [
       "apps/control/server/kubernetes/project-namespace-client.test.ts",
@@ -348,7 +352,13 @@ export const testModules = [
       "apps/control/server/projects/project-runtime-target-service.test.ts",
     ],
     pythonTests: [],
-    nodeTests: ["scripts/testing/project-openshell-owner.test.mjs", "scripts/testing/delete-local.test.mjs", "scripts/testing/create-kind-ci.test.mjs"],
+    nodeTests: [
+      "scripts/testing/project-openshell-owner.test.mjs",
+      "scripts/testing/delete-local.test.mjs",
+      "scripts/testing/create-kind-ci.test.mjs",
+      "scripts/testing/control-plane-release.test.mjs",
+      "scripts/testing/openshift-image-puller-rbac.test.mjs",
+    ],
     runnerTestPatterns: ["apps/runner/src/runtime-target.test.ts"],
   },
   {
