@@ -8,7 +8,6 @@ TaskLattice Relay publishes **seven first-party images**:
 | --- | --- | --- | --- |
 | `tali-control` | `infra/docker/Dockerfile`, target `control` | Web UI, REST/WebSocket API, and PostgreSQL control data | amd64, arm64 |
 | `tali-openshell-runner` | `infra/docker/Dockerfile`, target `runner` | Invokes OpenShell to create, observe, connect to, and destroy Sandboxes | amd64, arm64 |
-| `tali-litellm` | `infra/docker/Dockerfile.litellm` | Model gateway, virtual keys, and cost attribution | amd64, arm64 |
 | `demo-test` | `infra/docker/Dockerfile`, target `demo-test` | Multi-mode MCP and managed A2A example runtime | amd64, arm64 |
 | `tali-nemoclaw-sandbox` | `scripts/build-nemoclaw-sandbox.sh` (`openclaw`) + `Dockerfile.nemoclaw-openclaw` | Dynamic Sandbox for the OpenClaw Agent | amd64, arm64 |
 | `tali-nemoclaw-hermes-sandbox` | The same script (`hermes`) + `Dockerfile.nemoclaw-hermes` | Dynamic Sandbox for the Hermes Agent | amd64, arm64 |
@@ -25,9 +24,14 @@ created, but the runner already retains their released image references.
 ## Build Relationships
 
 `control` and `runner` share the Node 22 dependency and TypeScript compilation
-stages. The runner also downloads the selected OpenShell CLI release. LiteLLM uses a
-version-tagged database variant and runs UI initialization and Prisma generation in
-advance so that its runtime container can remain non-root.
+stages. The runner also downloads the selected OpenShell CLI release.
+
+The LiteLLM gateway image `ghcr.io/tasklattice/tali-litellm` is not built by Relay.
+It is published by [tasklattice-litellm-guard](https://github.com/tasklattice/tasklattice-litellm-guard),
+which owns the TaskLattice Guard Guardrail Provider, under tags
+`<litellm-version>-guard.<n>`. The chart pins `images.litellm.tag` (currently
+`1.87.0-guard.1`); Relay releases neither rebuild nor re-tag it. To adopt a new Provider
+or LiteLLM release, change that pin and `scripts/deploy-local.sh` together.
 
 All three Agent images are built from a selected NemoClaw release tag and then passed through
 their respective thin, repository-owned wrapper layers to produce the final

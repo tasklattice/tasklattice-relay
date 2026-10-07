@@ -24,7 +24,6 @@ env:
   NEMOCLAW_VERSION: "v0.0.123"
   AGENT_SANDBOX_VERSION: "v1.0.2"
   AGENT_SANDBOX_CHART_VERSION: "0.1.0"
-  LITELLM_IMAGE: "litellm/litellm-database:v1.87.0"
 
 jobs:
   validate:
@@ -107,16 +106,6 @@ jobs:
             target: expert-agent-runtime
             architecture: arm64
             runner: ubuntu-24.04-arm
-          - image: tali-litellm
-            dockerfile: infra/docker/Dockerfile.litellm
-            target: ""
-            architecture: amd64
-            runner: ubuntu-24.04
-          - image: tali-litellm
-            dockerfile: infra/docker/Dockerfile.litellm
-            target: ""
-            architecture: arm64
-            runner: ubuntu-24.04-arm
           - image: demo-test
             dockerfile: infra/docker/Dockerfile
             target: demo-test
@@ -176,7 +165,6 @@ jobs:
           cache-to: type=gha,mode=max,scope=${{ matrix.image }}-${{ matrix.architecture }}
           build-args: |
             OPENSHELL_VERSION=${{ env.OPENSHELL_VERSION }}
-            LITELLM_IMAGE=${{ env.LITELLM_IMAGE }}
           provenance: mode=max
           sbom: true
 
@@ -192,7 +180,6 @@ jobs:
           - tali-control
           - tali-openshell-runner
           - tali-expert-agent-runtime
-          - tali-litellm
           - demo-test
     steps:
       - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
@@ -345,7 +332,6 @@ jobs:
             "${registry}/tali-control:${version}"
             "${registry}/tali-openshell-runner:${version}"
             "${registry}/tali-expert-agent-runtime:${version}"
-            "${registry}/tali-litellm:${version}"
             "${registry}/demo-test:${version}"
             "${registry}/tali-nemoclaw-sandbox:${version}"
             "${registry}/tali-nemoclaw-hermes-sandbox:${version}"
@@ -356,6 +342,7 @@ jobs:
           # images that OpenShell launches dynamically from its configuration.
           # Keycloak is optional but belongs in an air-gap transfer inventory.
           runtime_dependency_images=(
+            "${registry}/tali-litellm:1.87.0-guard.1"
             "docker.io/pgvector/pgvector:0.8.6-pg17"
             "ghcr.io/docling-project/docling-serve-cpu:v1.29.0"
             "ghcr.io/vectorize-io/hindsight-api:0.9.2-slim@sha256:7635a15739361dbdf221ba796ad25a813f876144fe113022eea8e26cb6ee75e7"

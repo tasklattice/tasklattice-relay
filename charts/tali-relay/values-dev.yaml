@@ -14,9 +14,6 @@ images:
   expertAgentRuntime:
     tag: dev
     pullPolicy: IfNotPresent
-  litellm:
-    tag: dev
-    pullPolicy: IfNotPresent
   exampleMcp:
     tag: dev
     pullPolicy: IfNotPresent

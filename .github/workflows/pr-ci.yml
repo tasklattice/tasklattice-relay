@@ -29,7 +29,6 @@ jobs:
       runner: ${{ steps.filter.outputs.runner }}
       expert_runtime: ${{ steps.filter.outputs.expert_runtime }}
       example_mcp: ${{ steps.filter.outputs.example_mcp }}
-      litellm: ${{ steps.filter.outputs.litellm }}
       helm: ${{ steps.filter.outputs.helm }}
       core_images: ${{ steps.filter.outputs.core_images }}
       test_modules_any: ${{ steps.modules.outputs.any }}
@@ -87,11 +86,6 @@ jobs:
               - 'apps/example-mcp-server/**'
               - 'packages/contracts/**'
               - 'apps/expert-agent-runtime/**'
-            litellm:
-              - '.dockerignore'
-              - '.github/workflows/pr-ci.yml'
-              - 'infra/docker/Dockerfile.litellm'
-              - 'infra/litellm/**'
             helm:
               - '.github/actions/setup-node-workspace/**'
               - '.github/workflows/pr-ci.yml'
@@ -272,25 +266,6 @@ jobs:
       - name: Build example MCP server
         run: npm run build --workspace @tali/example-mcp-server
 
-  litellm:
-    name: LiteLLM overlay
-    needs: changes
-    if: needs.changes.outputs.litellm == 'true'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 25
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
-      - name: Build and verify LiteLLM overlay
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
-        with:
-          context: .
-          file: infra/docker/Dockerfile.litellm
-          target: tasklattice-litellm-builder
-          push: false
-          cache-from: type=gha,scope=pr-litellm-builder
-          cache-to: type=gha,mode=max,scope=pr-litellm-builder
-
   helm:
     name: Helm
     needs: changes
@@ -368,7 +343,6 @@ jobs:
       - module_tests
       - test_matrix
       - example_mcp
-      - litellm
       - helm
       - core_images
     runs-on: ubuntu-24.04
@@ -385,7 +359,6 @@ jobs:
           MODULE_TESTS_RESULT: ${{ needs.module_tests.result }}
           TEST_MATRIX_RESULT: ${{ needs.test_matrix.result }}
           EXAMPLE_MCP_RESULT: ${{ needs.example_mcp.result }}
-          LITELLM_RESULT: ${{ needs.litellm.result }}
           HELM_RESULT: ${{ needs.helm.result }}
           CORE_IMAGES_RESULT: ${{ needs.core_images.result }}
         run: |
@@ -400,7 +373,6 @@ jobs:
             MODULE_TESTS \
             TEST_MATRIX \
             EXAMPLE_MCP \
-            LITELLM \
             HELM \
             CORE_IMAGES
           do

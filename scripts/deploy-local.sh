@@ -118,7 +118,7 @@ images=(
   "$image_registry/tali-control:$image_tag"
   "$image_registry/tali-openshell-runner:$image_tag"
   "$image_registry/tali-expert-agent-runtime:$image_tag"
-  "$image_registry/tali-litellm:$image_tag"
+  "$image_registry/tali-litellm:1.87.0-guard.1"
   "$image_registry/demo-test:$image_tag"
   "$image_registry/tali-nemoclaw-hermes-sandbox:$image_tag"
 )

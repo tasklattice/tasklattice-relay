@@ -12,7 +12,6 @@ export const releaseImages = {
   control: { image: "tali-control", target: "control" },
   runner: { image: "tali-openshell-runner", target: "runner" },
   expertAgentRuntime: { image: "tali-expert-agent-runtime", target: "expert-agent-runtime" },
-  litellm: { image: "tali-litellm", target: "", dockerfile: "infra/docker/Dockerfile.litellm" },
   exampleMcp: { image: "demo-test", target: "demo-test" },
   openclawSandbox: { image: "tali-nemoclaw-sandbox", agent: "openclaw" },
   hermesSandbox: { image: "tali-nemoclaw-hermes-sandbox", agent: "hermes" },

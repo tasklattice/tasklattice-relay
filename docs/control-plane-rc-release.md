@@ -15,16 +15,18 @@ git push origin v0.2.8-rc.2
 
 ## No stable-release dependency
 
-RC1 builds all eight first-party images for amd64 and arm64:
+RC1 builds all seven first-party images for amd64 and arm64:
 
 - tali-control (Control, Worker, runtime bridge)
 - tali-openshell-runner
 - tali-expert-agent-runtime
-- tali-litellm
 - demo-test
 - tali-nemoclaw-sandbox
 - tali-nemoclaw-hermes-sandbox
 - tali-nemoclaw-deepagents-sandbox
+
+The LiteLLM gateway is not part of the RC: the chart keeps its pinned
+`tali-litellm:1.87.0-guard.1` from tasklattice-litellm-guard.
 
 Every image and the Relay Chart uses the current RC version, for example
 `0.2.8-rc.1`. Neither `0.2.7` nor a not-yet-published stable `0.2.8` is required.
@@ -51,7 +53,7 @@ plan → validate
   merges architecture manifests or copies the previous digest, then uploads a
   receipt tied to this tag and commit. The job name shows `build` or `reuse`.
 - **Chart publication** requires successful manifest jobs in both groups and
-  checks all eight receipts before pushing the Chart and saving release assets.
+  checks all seven receipts before pushing the Chart and saving release assets.
 - **GitHub Release** only consumes verified assets after Chart publication; it
   has no registry write permission.
 
@@ -67,7 +69,7 @@ per-image setup/publish steps; it does not merge the visible Core/Sandbox stages
 The planner queries all published GitHub prereleases and selects the highest
 lower RC number in the same series. A failed workflow without a completed GitHub
 Release is not a predecessor. The previous `release-manifest.json` records source
-commit, all eight image digests, and build/reuse provenance. Its source SHA must
+commit, all seven image digests, and build/reuse provenance. Its source SHA must
 match its tag and be an ancestor of the new commit.
 
 If no predecessor, no compatible manifest, or divergent history exists, perform
@@ -83,7 +85,7 @@ The planner compares Git paths (including deletions and both sides of renames):
 | Runner | Control + Runner |
 | Expert Runtime | Control + Expert Runtime + demo-test |
 | Example MCP/A2A | Control + demo-test |
-| Contracts, lockfiles, Dockerfiles, workflows, scripts, unknown paths | All eight |
+| Contracts, lockfiles, Dockerfiles, workflows, scripts, unknown paths | All seven |
 
 Control is always rebuilt because its embedded Chart has the new RC version.
 The rules intentionally prefer extra rebuilds over missing a shared dependency.

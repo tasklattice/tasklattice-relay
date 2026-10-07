@@ -28,7 +28,6 @@ changes the tag to the permanent `dev` value:
 ```text
 ghcr.io/tasklattice/tali-control:dev
 ghcr.io/tasklattice/tali-openshell-runner:dev
-ghcr.io/tasklattice/tali-litellm:dev
 ghcr.io/tasklattice/demo-test:dev
 ghcr.io/tasklattice/tali-nemoclaw-sandbox:dev
 ghcr.io/tasklattice/tali-nemoclaw-hermes-sandbox:dev
@@ -107,7 +106,7 @@ Confirm the resulting images:
 ```sh
 docker image inspect ghcr.io/tasklattice/tali-control:dev
 docker image inspect ghcr.io/tasklattice/tali-openshell-runner:dev
-docker image inspect ghcr.io/tasklattice/tali-litellm:dev
+docker image inspect ghcr.io/tasklattice/tali-litellm:1.87.0-guard.1  # pulled; published by tasklattice-litellm-guard
 docker image inspect ghcr.io/tasklattice/tali-nemoclaw-sandbox:dev
 docker image inspect ghcr.io/tasklattice/tali-nemoclaw-hermes-sandbox:dev
 docker image inspect ghcr.io/tasklattice/tali-nemoclaw-deepagents-sandbox:dev

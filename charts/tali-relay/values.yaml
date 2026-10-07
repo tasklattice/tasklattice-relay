@@ -61,8 +61,12 @@ images:
     tag: ""
     pullPolicy: IfNotPresent
   litellm:
+    # Published by github.com/tasklattice/tasklattice-litellm-guard, not built
+    # by Relay. Pinned to an exact <litellm>-guard.<n> tag; Relay releases do
+    # not re-tag it. The TaskLattice Guard provider and its protocol belong to
+    # that repository.
     repository: tali-litellm
-    tag: ""
+    tag: "1.87.0-guard.1"
     pullPolicy: IfNotPresent
   exampleMcp:
     repository: demo-test
