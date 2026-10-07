@@ -40,7 +40,7 @@
     "images:build:dev:control": "npm run helm:package:control && npm run helm:package:worker && docker build --pull -f infra/docker/Dockerfile --target control -t ghcr.io/tasklattice/tali-control:dev .",
     "images:build:dev:runner": "docker build --pull --no-cache-filter openshell-cli -f infra/docker/Dockerfile --target runner -t ghcr.io/tasklattice/tali-openshell-runner:dev .",
     "images:build:dev:expert-agent-runtime": "docker build --pull -f infra/docker/Dockerfile --target expert-agent-runtime -t ghcr.io/tasklattice/tali-expert-agent-runtime:dev .",
-    "images:build:dev:litellm": "docker pull ghcr.io/tasklattice/tali-litellm:1.87.0-guard.1",
+    "images:build:dev:litellm": "docker pull ghcr.io/tasklattice/tali-litellm:1.87.0-guard.2",
     "images:build:dev:demo-test": "docker build --pull -f infra/docker/Dockerfile --target demo-test -t ghcr.io/tasklattice/demo-test:dev .",
     "images:build:dev:example-mcp": "npm run images:build:dev:demo-test",
     "images:build:dev:sandbox:openclaw": "NEMOCLAW_BUILD_OUTPUT=local NEMOCLAW_AGENT_PLATFORM=openclaw NEMOCLAW_IMAGE=ghcr.io/tasklattice/tali-nemoclaw-sandbox:dev bash scripts/build-nemoclaw-sandbox.sh",

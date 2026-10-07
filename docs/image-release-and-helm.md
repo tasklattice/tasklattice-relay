@@ -30,7 +30,7 @@ The LiteLLM gateway image `ghcr.io/tasklattice/tali-litellm` is not built by Rel
 It is published by [tasklattice-litellm-guard](https://github.com/tasklattice/tasklattice-litellm-guard),
 which owns the TaskLattice Guard Guardrail Provider, under tags
 `<litellm-version>-guard.<n>`. The chart pins `images.litellm.tag` (currently
-`1.87.0-guard.1`); Relay releases neither rebuild nor re-tag it. To adopt a new Provider
+`1.87.0-guard.2`); Relay releases neither rebuild nor re-tag it. To adopt a new Provider
 or LiteLLM release, change that pin and `scripts/deploy-local.sh` together.
 
 All three Agent images are built from a selected NemoClaw release tag and then passed through

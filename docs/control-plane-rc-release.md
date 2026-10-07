@@ -26,7 +26,7 @@ RC1 builds all seven first-party images for amd64 and arm64:
 - tali-nemoclaw-deepagents-sandbox
 
 The LiteLLM gateway is not part of the RC: the chart keeps its pinned
-`tali-litellm:1.87.0-guard.1` from tasklattice-litellm-guard.
+`tali-litellm:1.87.0-guard.2` from tasklattice-litellm-guard.
 
 Every image and the Relay Chart uses the current RC version, for example
 `0.2.8-rc.1`. Neither `0.2.7` nor a not-yet-published stable `0.2.8` is required.
