@@ -342,7 +342,7 @@ jobs:
           # images that OpenShell launches dynamically from its configuration.
           # Keycloak is optional but belongs in an air-gap transfer inventory.
           runtime_dependency_images=(
-            "${registry}/tali-litellm:1.87.0-guard.2"
+            "${registry}/tali-litellm:1.87.0-guard.3"
             "docker.io/pgvector/pgvector:0.8.6-pg17"
             "ghcr.io/docling-project/docling-serve-cpu:v1.29.0"
             "ghcr.io/vectorize-io/hindsight-api:0.9.2-slim@sha256:7635a15739361dbdf221ba796ad25a813f876144fe113022eea8e26cb6ee75e7"

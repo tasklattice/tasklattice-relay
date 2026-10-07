@@ -152,7 +152,7 @@ resolves to that exact value.
 | ------------------------ | --------------------------------------------------------------- | -------------------------------------------------- |
 | TaskLattice Relay control      | `ghcr.io/tasklattice/tali-control:<release>`                   | UI, REST/WebSocket API, and PostgreSQL control data |
 | Runtime runner           | `ghcr.io/tasklattice/tali-openshell-runner:<release>`          | OpenShell sandbox lifecycle and terminal relay     |
-| LiteLLM                  | `ghcr.io/tasklattice/tali-litellm:1.87.0-guard.2`             | Model gateway, virtual keys, and spend attribution; published by [tasklattice-litellm-guard](https://github.com/tasklattice/tasklattice-litellm-guard) at a pinned tag |
+| LiteLLM                  | `ghcr.io/tasklattice/tali-litellm:1.87.0-guard.3`             | Model gateway, virtual keys, and spend attribution; published by [tasklattice-litellm-guard](https://github.com/tasklattice/tasklattice-litellm-guard) at a pinned tag |
 | Demo test runtime        | `ghcr.io/tasklattice/demo-test:<release>`                       | Multi-mode MCP and managed A2A example runtime      |
 | OpenClaw sandbox         | `ghcr.io/tasklattice/tali-nemoclaw-sandbox:<release>`          | OpenClaw Agent sandbox                             |
 | Hermes sandbox           | `ghcr.io/tasklattice/tali-nemoclaw-hermes-sandbox:<release>`   | Default Supervisor sandbox                         |
