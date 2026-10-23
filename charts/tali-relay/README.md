@@ -76,9 +76,21 @@ helm upgrade --install tali-relay \
   --timeout 30m
 ```
 
-Defaults preserve the repository's trusted local-cluster setup and use
-`admin/password`. Before shared or internet-facing use, provide a private values
-file that changes every `secrets.*` value and configures OpenShell TLS/OIDC.
+The pre-install/pre-upgrade credential Job generates random credentials and stores
+them in Kubernetes Secrets. Helm values and rendered manifests contain no initial
+credential values. Repeated initialization preserves credentials. See
+[credential initialization](../../docs/helm-credential-bootstrap.md) for retrieval,
+external Secret contracts and the OCP bootstrap-image prerequisite.
+
+Before publishing, run `npm run test:chart-credentials` and
+`npm run helm:validate:credentials`. Packaging checks the exact `.tgz`, including
+nested dependencies and every bundled values profile; both release workflows
+check the artifact again before `helm push`. Fixed password values, password
+environment values, encoded Secret contents and credentials in connection URLs
+fail the check. Required field names and Secret references remain supported.
+Diagnostics report locations without printing credential values. This check
+does not replace review of arbitrary executable initialization code.
+
 If the Agent Sandbox controller already exists cluster-wide, set
 `agentSandbox.enabled=false`. For private GHCR packages, create a registry
 pull Secret and add its `{name: ...}` reference to `global.imagePullSecrets`,
@@ -271,7 +283,8 @@ The Worker chart packaging step applies the small OpenShell overlay in
 upstream that patch when refreshing the dependency so the hook can run before
 the namespace `LimitRange` exists on a first installation.
 
-Each component owns a Secret. Set an external name independently under
+The Job derives each component configuration Secret from one retained credential
+store. Worker configuration remains a Helm-rendered Secret. Set external names under
 `secrets.existingSecrets`:
 
 | Component key | Default Secret suffix | Required keys |
@@ -283,10 +296,12 @@ Each component owns a Secret. Set an external name independently under
 | `litellm` | `litellm-config` | `litellm-config.yaml`, `database-url`, `litellm-master-key`, `litellm-ui-username`, `litellm-ui-password`, `litellm-salt-key` |
 | `hindsight` | `hindsight-config` | `hindsight-config.json` |
 | `metrics` | `metrics-config` | `metrics-token` |
-| `keycloak` | `keycloak-config` | Chart-managed development credentials |
+| `keycloak` | `keycloak-config` | `keycloak-admin-password`, `keycloak-client-secret`, `keycloak-test-user-password` |
+| `exampleMcp` | `example-mcp-auth` | `username`, `password`, `auth-value` |
 
-Names are prefixed with the release fullname. There is no combined release
-Secret. External credentials referenced by multiple services must agree; for
+Names are prefixed with the release fullname. `<fullname>-credentials` is only
+read by the bootstrap Job; applications mount their component-specific Secrets.
+External credentials referenced by multiple services must agree; for
 example Control's Runner token must match `runner.json`, and the metrics token
 in `control.toml` must match the monitoring Secret. Bump
 `global.rolloutRevision` when changing externally managed Secret contents.
@@ -337,7 +352,8 @@ helm template tali-relay ./tali-relay \
   > tali-openshift.yaml
 ```
 
-`values-airgap.yaml` mirrors every image family independently: TaskLattice Relay
+`values-airgap.yaml` sets `openshift.runtimeImages.enabled=false` to keep direct
+external-registry pulls, and mirrors every image family independently: TaskLattice Relay
 images through `global.imageRegistry`, PostgreSQL and Keycloak through
 `images.*`, Agent Sandbox through `agentSandbox.image`, and the OpenShell
 gateway, supervisor, and default sandbox through their respective `openshell`
@@ -500,8 +516,8 @@ Enable Prometheus Operator integration with
 `monitoring.serviceMonitor.enabled=true` and actionable Memory alerts with
 `monitoring.prometheusRule.enabled=true`. This scrapes authenticated Relay and
 Control Worker metrics plus Hindsight's private `/metrics` endpoint. Set an
-independent random `secrets.metricsToken` (or `metrics-token` in
-`secrets.existingSecrets.metrics`). Hindsight Bank ID labels remain disabled and async
+independent generated `metricsToken` from the credential store (or a coordinated
+`metrics-token` in `secrets.existingSecrets.metrics`). Hindsight Bank ID labels remain disabled and async
 backlog metrics are enabled. The complete backup, restore, alert-response,
 upgrade, troubleshooting, and uninstall procedure is in
 [`docs/durable-memory-operations.md`](../../docs/durable-memory-operations.md).
@@ -613,32 +629,16 @@ Set `CONTROL_DEVELOPMENT_PROJECTS_ENABLED=false` to skip these development
 fixtures, or point `CONTROL_DEVELOPMENT_PROJECTS_FILE` at a compatible JSON
 list to exercise another Project/SLA layout.
 
-The development credentials are:
-
-| Purpose | Username | Password |
-| --- | --- | --- |
-| Local Relay administration | `admin` | `password` |
-| LiteLLM administration | `admin` | `password` |
-| Keycloak administration | `admin` | `password` |
-| TaskLattice Relay Project Administrator | `alice` | `password` |
-| Relay development administrator (all development Project roles) | `adm` | `password` |
-| Relay SSO authorization test administrator (all development Project roles) | `sso-admin` | `password` |
-| Relay Department Administrator (`dep1` only) | `department-admin` | `password` |
-| Relay Project Administrator | `project-admin` | `password` |
-| Relay Agent Developer | `developer` | `password` |
-| Relay Reviewer | `reviewer` | `password` |
-| Relay End User (`ROLE_USER`) | `end-user` | `password` |
-| Relay Auditor | `auditor` | `password` |
-
-Override `secrets.keycloakAdminPassword`,
-`secrets.keycloakClientSecret`, and `secrets.keycloakTestUserPassword` when
-needed. Test user profile fields can be replaced through
-`keycloak.testUsers`.
+Development usernames remain `admin` for Relay, LiteLLM and Keycloak, and the
+configured test usernames for SSO. Their initial credentials are generated separately:
+`initialPlatformAdministratorPassword`, `litellmUiPassword`, `keycloakAdminPassword`
+and `keycloakTestUserPassword` in `<fullname>-credentials`. They have no fixed default.
+Local deployment helpers read the generated Relay administrator credential unless
+`CONTROL_LOCAL_ADMIN_PASSWORD` is explicitly supplied. Test user profile fields can
+be changed through `keycloak.testUsers`; inline credentials are rejected.
 
 This mode runs Keycloak with `start-dev` and ephemeral storage. Realm changes
-are lost when its pod is replaced. It intentionally cannot be combined with
-`secrets.existingSecrets.keycloak`, because the Chart must generate matching Keycloak
-credentials. For a manual Helm installation, configure its issuer and Client
+are lost when its pod is replaced. An external `secrets.existingSecrets.keycloak` must provide the documented keys. For a manual Helm installation, configure its issuer and Client
 credentials in **Platform Setting -> Security & SSO**, keep the Group claim as
 `groups`, and add the exact test bindings represented by these Group paths:
 
@@ -655,7 +655,7 @@ credentials in **Platform Setting -> Security & SSO**, keep the Group claim as
 `adm` and `sso-admin` are both Platform Administrators, `dep1` Department
 Administrators, and members of every configured development Project role so the
 complete authorization surface can be exercised during development.
-All SSO profiles use `secrets.keycloakTestUserPassword`. The remaining users isolate one
+All SSO profiles use the generated `keycloakTestUserPassword` from the credential store. The remaining users isolate one
 administrative scope or Project role each. A
 successful SSO sign-in
 materializes the corresponding externally managed Project membership and shows
@@ -674,10 +674,9 @@ HTTP Basic authentication, and is available to LiteLLM at:
 http://tali-relay-example-mcp:3000/mcp
 ```
 
-The test credentials are `Username` / `Password`. LiteLLM accepts the Basic
-credential as `username:password` and encodes it when creating the HTTP
-Authorization header, so the Chart creates `tali-relay-example-mcp-auth` with
-an `auth-value` containing `Username:Password`. Register it with:
+The test username defaults to `Username`; the initial credential is generated in
+`tali-relay-example-mcp-auth`. Its `auth-value` contains the combined Basic credential.
+Register it with:
 
 ```text
 auth type: basic
@@ -700,8 +699,8 @@ metadata.
 Register the endpoint as a custom HTTP MCP Server in a Project. TaskLattice Relay
 then asks LiteLLM to discover the tools and stores the resulting names,
 descriptions, input schemas, and discovery status in the Project database.
-This component uses fixed test credentials and must not be enabled in
-production.
+This component uses credentials generated by the initialization Job. It is a
+development test service and must not be enabled in production.
 
 ## Shared database
 
@@ -735,3 +734,70 @@ Project and Agent Garden resource creation/removal run as durable Worker jobs.
 Control has read-only cluster diagnostics permissions. See
 [asynchronous resource lifecycle](../../docs/project-resource-lifecycle.md) for
 status, retries and deployment requirements.
+
+
+### Shared OpenShift images for dynamic tenants
+
+The OCP profile (`values-openshift.yaml`) explicitly enables
+`openshift.runtimeImages.enabled=true`. The base Chart defaults to `false`, so
+upgrading an existing deployment with only `openshift.enabled=true` preserves its
+original image URLs. Opt in after importing all runtime images.
+Every Chart-managed tenant image is resolved as
+`<registry>/<source-namespace>/<last repository component>:<original tag>`
+(or the original digest). The registry defaults to
+`image-registry.openshift-image-registry.svc:5000`; the source defaults to the
+Relay release namespace. This covers Gateway/certgen, Supervisor, default Sandbox,
+OpenClaw/Hermes/DeepAgents Sandboxes, runtime bridge and expert runtime. Worker
+preflight and Runner creation use the same resolved platform Sandbox images.
+
+```yaml
+openshift:
+  enabled: true
+  imageSourceNamespace: "" # reuse the control-plane release namespace
+  imageRegistryHost: ""   # internal registry service; or your route host[:port]
+  runtimeImages:
+    enabled: true
+```
+
+Import/mirror the corresponding images **before** upgrading. With the default
+repositories, the required ImageStream names and version sources are:
+
+| Tenant image | ImageStream name | Tag source |
+| --- | --- | --- |
+| Gateway and certgen | `gateway` | `openshell.image.tag` |
+| Supervisor | `supervisor` | `openshell.supervisor.image.tag` |
+| Default Sandbox | `sandbox-base` | tag/digest in `openshell.server.sandboxImage` |
+| OpenClaw | `tali-nemoclaw-sandbox` | `images.openclawSandbox.tag` |
+| Hermes | `tali-nemoclaw-hermes-sandbox` | `images.hermesSandbox.tag` |
+| DeepAgents | `tali-nemoclaw-deepagents-sandbox` | `images.deepagentsSandbox.tag` |
+| Runtime bridge | `tali-control` | `images.control.tag` |
+| Expert runtime | `tali-expert-agent-runtime` | `images.expertAgentRuntime.tag` |
+
+Empty `images.*.tag` values use Chart `appVersion`. Existing custom repository
+basenames are preserved: `mirror/team/openshell-gateway` maps to
+`<registry>/<source-namespace>/openshell-gateway`, not `gateway`. Preserve unique
+basenames when mirroring images from different upstream paths. The Chart rejects
+invalid ImageStream names/tags and different upstream references that collapse onto
+the same target tag. Put Gateway/Supervisor versions in their `tag` fields, not
+inside `repository`. The Chart does not
+create/import ImageStreams or change control-plane Pod/bootstrap image URLs.
+ImageStream updates do not automatically restart existing Agent instances.
+
+For an existing OCP deployment that has not mirrored every runtime image, set
+`openshift.runtimeImages.enabled=false` to retain explicit mixed-registry URLs.
+Missing settings in reused old values also preserve the original URLs. Applying
+the new OCP profile explicitly enables migration; keep a final override of `false`
+until images are ready. Apply the external-registry `values-airgap.yaml` **after**
+`values-openshift.yaml`, as shown in the offline installation example. Ordinary Kubernetes (`openshift.enabled=false`) preserves all
+original image URLs regardless of the runtimeImages setting.
+
+Unified mode requires Chart-managed Worker and Runner configuration Secrets;
+rendering fails when either `secrets.existingSecrets.worker` or `.runner` is set,
+preventing a partial migration. For externally managed configurations, keep
+`runtimeImages.enabled=false`, update both configurations together (including Worker
+`sandboxImages` and Runner `openshell.sandbox.images`), and roll out both services.
+Per-instance `sandboxImage` overrides remain explicit and are not rewritten. Worker grants each Project SA group pull access in the source and waits
+for tenant-local pull credentials, bounded by `openshift.imagePullReadyTimeoutMs`
+(default 120000). Deploy the updated Worker image and chart together; the image
+bundles the certgen existing-SA patch. See
+[cross-namespace pulling and upgrade acceptance](../../docs/openshell-install-troubleshooting.md#openshift-cross-namespace-imagestream-pulling).

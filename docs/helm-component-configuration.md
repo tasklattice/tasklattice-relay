@@ -43,8 +43,9 @@ the file and take effect after a rollout.
 Control and Worker retain only process/bootstrap environment (`TALI_CONFIG`, `TALI_WORKER_CONFIG` for Worker,
 `PORT`, Kubernetes discovery, CA path and cache locations). The old business
 environment overrides and `control.extraEnv` / `control.worker.extraEnv` are
-removed. The old administrator password alias is rejected. Use
-`secrets.initialPlatformAdministratorPassword`.
+removed. Inline credentials in values are rejected. A reentrant bootstrap Job
+generates and retains the credential store, then renders component files. See
+[credential initialization](helm-credential-bootstrap.md).
 
 Changes to generated Control or Hindsight config roll the respective consumers.
 The Hindsight migration Job name includes its configuration/launcher checksum,

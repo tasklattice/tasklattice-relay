@@ -19,12 +19,51 @@
 {{- if or (hasKey .Values.control "extraEnv") (hasKey .Values.control.worker "extraEnv") -}}
 {{- fail "control.extraEnv and control.worker.extraEnv were removed; configure control.toml / worker.toml instead" -}}
 {{- end -}}
-{{- if hasKey .Values.secrets "initialSuperAdminPassword" -}}
-{{- fail "secrets.initialSuperAdminPassword was removed; use secrets.initialPlatformAdministratorPassword" -}}
-{{- end -}}
 {{- if hasKey .Values.secrets "existingSecret" -}}
 {{- fail "secrets.existingSecret was removed; use secrets.existingSecrets per component" -}}
 {{- end -}}
+{{- range $key, $_ := .Values.secrets -}}
+{{- if ne $key "existingSecrets" -}}
+{{- fail "Inline secrets settings were removed; use credentialBootstrap or existing Secrets" -}}
+{{- end -}}
+{{- end -}}
+{{- if hasKey .Values.exampleMcp.auth "password" -}}
+{{- fail "Inline example MCP credentials were removed; use the initialized or existing Secret" -}}
+{{- end -}}
+{{- range .Values.keycloak.testUsers -}}
+{{- if hasKey . "password" -}}
+{{- fail "Inline Keycloak user credentials were removed; use the initialized or existing Secret" -}}
+{{- end -}}
+{{- end -}}
 {{- if hasKey .Values.runner "extraEnv" -}}
 {{- fail "runner.extraEnv was removed; configure runner.json instead" -}}
+{{- end -}}
+{{- if eq (include "tali.runtimeImagesEnabled" .) "true" -}}
+{{- if or .Values.secrets.existingSecrets.worker .Values.secrets.existingSecrets.runner -}}
+{{- fail "Unified OCP runtime images require Chart-managed Worker and Runner configuration Secrets; remove their existingSecrets overrides, or set openshift.runtimeImages.enabled=false and synchronize both external configurations manually" -}}
+{{- end -}}
+{{/* Two unrelated upstream images must not silently collapse onto the same tag.
+     Identical digest references can safely share content across repositories. */}}
+{{- $references := list
+  (printf "%s:%s" .Values.openshell.image.repository .Values.openshell.image.tag)
+  (printf "%s:%s" .Values.openshell.supervisor.image.repository .Values.openshell.supervisor.image.tag)
+  .Values.openshell.server.sandboxImage
+  (include "tali.image" (dict "root" . "image" .Values.images.openclawSandbox))
+  (include "tali.image" (dict "root" . "image" .Values.images.hermesSandbox))
+  (include "tali.image" (dict "root" . "image" .Values.images.deepagentsSandbox))
+  (include "tali.image" (dict "root" . "image" .Values.images.control))
+  (include "tali.image" (dict "root" . "image" .Values.images.expertAgentRuntime)) -}}
+{{- $sources := dict -}}
+{{- range $reference := $references -}}
+{{- $resolved := include "tali.runtimeImageReference" (dict "root" $ "reference" $reference) -}}
+{{- if not (contains "@" $resolved) -}}
+{{- if not (contains ":" (last (splitList "/" $resolved))) -}}{{- $resolved = printf "%s:latest" $resolved -}}{{- end -}}
+{{- $original := $reference -}}
+{{- if not (contains ":" (last (splitList "/" $original))) -}}{{- $original = printf "%s:latest" $original -}}{{- end -}}
+{{- if and (hasKey $sources $resolved) (ne (index $sources $resolved) $original) -}}
+{{- fail (printf "Tenant image mapping collision: %s and %s resolve to %s; use distinct mirrored repository names" (index $sources $resolved) $original $resolved) -}}
+{{- end -}}
+{{- $_ := set $sources $resolved $original -}}
+{{- end -}}
+{{- end -}}
 {{- end -}}

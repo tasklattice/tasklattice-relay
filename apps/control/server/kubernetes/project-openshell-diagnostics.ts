@@ -13,6 +13,7 @@ export type GatewayDiagnosticReader = (namespace: string) => Promise<GatewayDiag
 
 // Only allowlisted status fields: never serialize specs, Secrets, env, logs or
 // free-form API messages (which can contain credentials supplied by workloads).
+// Classify messages instead of persisting raw registry responses.
 export const readGatewayDiagnostics: GatewayDiagnosticReader = async (namespace) => {
   const config = new KubeConfig();
   config.loadFromDefault();
@@ -32,10 +33,15 @@ export const readGatewayDiagnostics: GatewayDiagnosticReader = async (namespace)
     core.listNamespacedPod({ namespace, limit: 100 }, options).then(({ items }) => items.map((pod) => ({
       ...identity("Pod", pod.metadata), details: {
         owners: pod.metadata?.ownerReferences?.map(({ kind, name, uid }) => ({ kind, name, uid })),
+        serviceAccount: pod.spec?.serviceAccountName ?? "default",
+        imagePullSecrets: pod.spec?.imagePullSecrets?.map((s) => s.name),
+        images: [...pod.spec?.initContainers ?? [], ...pod.spec?.containers ?? []]
+          .map((c) => ({ name: c.name, image: c.image })),
         node: pod.spec?.nodeName, phase: pod.status?.phase, conditions: conditions(pod.status?.conditions),
         containers: [...pod.status?.initContainerStatuses ?? [], ...pod.status?.containerStatuses ?? []].map((c) => ({
           name: c.name, ready: c.ready, restarts: c.restartCount,
           waitingReason: c.state?.waiting?.reason,
+          pullFailure: imagePullFailure(c.state?.waiting?.message),
           terminatedReason: c.state?.terminated?.reason, exitCode: c.state?.terminated?.exitCode,
           previousReason: c.lastState?.terminated?.reason, previousExitCode: c.lastState?.terminated?.exitCode,
         })),
@@ -56,6 +62,7 @@ export const readGatewayDiagnostics: GatewayDiagnosticReader = async (namespace)
     }))),
     core.listNamespacedEvent({ namespace, limit: 100, fieldSelector: "type=Warning" }, options).then(({ items }) => items.map((event) => ({
       ...identity("Event", event.metadata), details: { resource: event.involvedObject, reason: event.reason,
+        pullFailure: imagePullFailure(event.message),
         count: event.count, firstTimestamp: event.firstTimestamp, lastTimestamp: event.lastTimestamp },
     }))),
   ]);
@@ -107,4 +114,22 @@ export function startGatewayDiagnostics(namespace: string, attemptId: string, re
       return snapshot;
     }) };
   };
+}
+
+export function imagePullFailure(message?: string): string | undefined {
+  if (!message) return undefined;
+  if (/FailedToRetrieveImagePullSecret|unable to retrieve.*pull secret/i.test(message)) return "pull-secret-unavailable";
+  if (/x509|certificate.*(unknown|expired|invalid)/i.test(message)) return "registry-certificate-error";
+  if (/unauthorized|authentication required|no basic auth credentials|401/i.test(message)) return "registry-authentication-failed";
+  if (/denied|forbidden|403/i.test(message)) return "registry-access-denied";
+  if (/manifest unknown|name unknown|not found|404/i.test(message)) return "image-or-tag-not-found";
+  if (/timeout|no such host|connection refused|network is unreachable/i.test(message)) return "registry-network-error";
+  return undefined;
+}
+
+export async function imagePullFailureSummary(namespace: string, workloadName: string): Promise<string> {
+  try {
+    const snapshots = await readGatewayDiagnostics(namespace);
+    return JSON.stringify(snapshots.filter((s) => s.kind === "Pod" && s.name?.startsWith(`${workloadName}-`))).slice(0, 2400);
+  } catch { return "Pod diagnostics unavailable"; }
 }

@@ -150,6 +150,7 @@ function fetchProvider(
 ): Promise<Response> {
   const request: ProviderFetchInit = {
     ...init,
+    redirect: "error",
     ...(draft.skipTlsVerify && new URL(url).protocol === "https:"
       ? { dispatcher: insecureProviderDispatcher }
       : {}),

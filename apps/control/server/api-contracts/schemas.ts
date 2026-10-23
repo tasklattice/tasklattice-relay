@@ -354,9 +354,9 @@ export const projectOverviewQuerySchema = z.object({
   timezone: z.string().min(1).max(80).default("UTC"),
 }).meta({ id: "ProjectOverviewQuery" });
 
-const costGroupBySchema = z.enum(["instance", "model_endpoint", "provider_account", "virtual_key"]);
+const costGroupBySchema = z.enum(["work", "task", "instance", "model_endpoint", "provider_account", "virtual_key"]);
 const costFilterKeySchema = z.enum([
-  "instance", "model_endpoint", "provider", "provider_account", "virtual_key", "project",
+  "work", "task", "instance", "model_endpoint", "provider", "provider_account", "virtual_key", "project",
 ]);
 const costFiltersSchema = z.partialRecord(
   costFilterKeySchema,

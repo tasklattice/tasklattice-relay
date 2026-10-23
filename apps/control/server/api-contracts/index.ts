@@ -6,6 +6,7 @@ import { inferenceContracts } from "./inference.contracts";
 import { instanceContracts } from "./instances.contracts";
 import { memoryContracts } from "./memory.contracts";
 import { platformContracts } from "./platform.contracts";
+import { workContracts } from "./works.contracts";
 
 export const apiContracts: readonly RouteContract[] = Object.freeze([
   ...identityContracts,
@@ -15,6 +16,7 @@ export const apiContracts: readonly RouteContract[] = Object.freeze([
   ...instanceContracts,
   ...memoryContracts,
   ...platformContracts,
+  ...workContracts,
 ]);
 
 const contractIndex = new Map(

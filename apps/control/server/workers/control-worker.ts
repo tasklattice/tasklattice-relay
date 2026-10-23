@@ -1,3 +1,4 @@
+import { startWorkWorker } from "../works/work-worker";
 import { reportWorkerRuntime } from "./worker-runtime-report";
 import { getWorkerConfig } from "../config/worker-config";
 import { randomUUID } from "node:crypto";
@@ -48,9 +49,11 @@ jobs.boss.on("warning", (warning) => {
   logger.log("warn", "queue.warning", { warning });
 });
 
+let stopWorkWorker: (() => void) | undefined;
 let reportTimer: ReturnType<typeof setInterval> | undefined;
 try {
   await jobs.start();
+  stopWorkWorker = startWorkWorker();
   const tasks = new ControlWorkerTasks({ db: database, jobs, logger });
   const registrations = await tasks.register();
   await jobs.scheduleMaintenance();
@@ -71,6 +74,7 @@ try {
   process.exitCode = 1;
   logger.log("error", "worker.failed", serializeError(error));
 } finally {
+  stopWorkWorker?.();
   if (reportTimer) clearInterval(reportTimer);
   healthState.stopping = true;
   healthState.queueReady = false;

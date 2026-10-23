@@ -1,6 +1,7 @@
 export { ControlledOffboardingEngine } from "./engines/controlled-offboarding-engine.js";
 export { DeterministicCustomerSupportEngine } from "./engines/deterministic-customer-support-engine.js";
 export { GitHubWeeklyCommitEngine } from "./engines/github-weekly-commit-engine.js";
+export { WorkTextEngine } from "./engines/work-text-engine.js";
 export { runLangGraphSupportDemo } from "./demos/support-escalation-demo.js";
 export {
   evaluateExpertAgentCase,

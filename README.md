@@ -19,6 +19,11 @@ OpenTelemetry collector or persistent trace store.
 Control Plane runtime settings use a single TOML file; see
 [Control Plane configuration](docs/control-configuration.md).
 
+The local end-user collaboration preview adds **Project → Work → Task**,
+persistent group chat and deliverables, and an empty personal Project on first
+entry. See [Work collaboration MVP](docs/work-collaboration-mvp.md) for startup,
+acceptance evidence, and the current model-only runtime limitations.
+
 ```text
 Browser (TanStack Start + shadcn/ui)
                   |

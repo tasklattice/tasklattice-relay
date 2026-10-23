@@ -20,6 +20,7 @@ import { ExpertAgentA2aExecutor, expertAgentCard } from "./a2a-executor.js";
 import { DeterministicCustomerSupportEngine } from "./engines/deterministic-customer-support-engine.js";
 import { ControlledOffboardingEngine } from "./engines/controlled-offboarding-engine.js";
 import { GitHubWeeklyCommitEngine } from "./engines/github-weekly-commit-engine.js";
+import { WorkTextEngine } from "./engines/work-text-engine.js";
 import { ExpertAgentRuntime } from "./expert-agent-runtime.js";
 import { ProjectRuntimeBridgeResourceClient } from "./project-runtime-bridge-client.js";
 
@@ -126,6 +127,7 @@ export function startExpertAgentServer(): void {
     logger: (record) => console.log(JSON.stringify(record)),
     engines: [
       new GitHubWeeklyCommitEngine(),
+      new WorkTextEngine(),
       new DeterministicCustomerSupportEngine(),
       new ControlledOffboardingEngine(),
     ],

@@ -1,3 +1,5 @@
+import { validateWorkerImageSources } from "../kubernetes/project-image-pull-readiness";
+import { getWorkerConfig } from "../config/worker-config";
 import { randomUUID } from "node:crypto";
 import { ProjectQuotaService } from "../quotas/project-quota-service";
 import { ProjectStore } from "./project-store";
@@ -183,19 +185,23 @@ export class ProjectRuntimeTargetService implements ProjectRuntimeNamespaceProvi
       }
       await stillCurrent();
       if (runtime.enabled) {
+        validateWorkerImageSources();
         await namespaces.reconcile({
           namespace: target.namespace,
           projectId: project.id,
           projectName: project.name,
         });
         await stillCurrent();
+        const imagePullFence = getWorkerConfig().openshift.enabled ? { assertCurrent: stillCurrent } : {};
         await gateways.reconcile({
+          ...imagePullFence,
           namespace: target.namespace,
           projectId: project.id,
           projectName: project.name,
         });
         await stillCurrent();
         await bridges.reconcile({
+          ...imagePullFence,
           namespace: target.namespace,
           projectId: project.id,
           projectName: project.name,

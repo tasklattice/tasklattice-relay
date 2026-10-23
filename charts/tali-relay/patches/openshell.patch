@@ -11,7 +11,39 @@ diff --git a/openshell/Chart.yaml b/openshell/Chart.yaml
 diff --git a/openshell/templates/certgen.yaml b/openshell/templates/certgen.yaml
 --- a/openshell/templates/certgen.yaml
 +++ b/openshell/templates/certgen.yaml
-@@ -65,7 +65,7 @@ metadata:
+@@ -4,10 +4,13 @@
+ {{- if or .Values.pkiInitJob.enabled .Values.certManager.enabled }}
+ {{- $hookName := printf "%s-certgen" (include "openshell.fullname" .) }}
+ {{- $ns := .Release.Namespace }}
++{{- $sa := .Values.pkiInitJob.serviceAccount | default dict }}
++{{- $saName := $sa.name | default $hookName }}
++{{- if or (not (hasKey $sa "create")) $sa.create }}
+ apiVersion: v1
+ kind: ServiceAccount
+ metadata:
+-  name: {{ $hookName }}
++  name: {{ $saName }}
+   namespace: {{ $ns }}
+   labels:
+     {{- include "openshell.labels" . | nindent 4 }}
+@@ -16,6 +19,7 @@
+     helm.sh/hook-weight: "-30"
+     helm.sh/hook-delete-policy: before-hook-creation
+ ---
++{{- end }}
+ apiVersion: rbac.authorization.k8s.io/v1
+ kind: Role
+ metadata:
+@@ -49,7 +53,7 @@
+   name: {{ $hookName }}
+ subjects:
+   - kind: ServiceAccount
+-    name: {{ $hookName }}
++    name: {{ $saName }}
+     namespace: {{ $ns }}
+ ---
+ apiVersion: batch/v1
+@@ -65,7 +69,7 @@
      helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
  spec:
    backoffLimit: 3
@@ -20,7 +52,18 @@ diff --git a/openshell/templates/certgen.yaml b/openshell/templates/certgen.yaml
    ttlSecondsAfterFinished: 300
    template:
      metadata:
-@@ -82,6 +82,8 @@ spec:
+@@ -73,8 +77,8 @@
+         {{- include "openshell.selectorLabels" . | nindent 8 }}
+     spec:
+       restartPolicy: OnFailure
+-      serviceAccountName: {{ $hookName }}
+-      {{- with .Values.imagePullSecrets }}
++      serviceAccountName: {{ $saName }}
++      {{- with (.Values.pkiInitJob.imagePullSecrets | default .Values.imagePullSecrets) }}
+       imagePullSecrets:
+         {{- toYaml . | nindent 8 }}
+       {{- end }}
+@@ -82,6 +86,8 @@
          - name: certgen
            image: {{ include "openshell.image" . | quote }}
            imagePullPolicy: {{ .Values.image.pullPolicy }}

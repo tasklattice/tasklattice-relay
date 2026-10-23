@@ -4,6 +4,11 @@
 # are managed separately by the platform in each Project Namespace.
 openshift:
   enabled: true
+  # Tenant Gateway/certgen, Supervisor, default/platform Sandboxes, runtime bridge
+  # and expert runtime share ImageStreams in this release namespace by default.
+  # Import their existing image names/tags first; see the chart README.
+  runtimeImages:
+    enabled: true
   anyuidScc:
     createRoleBinding: true
   routes:

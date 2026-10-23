@@ -1,3 +1,4 @@
+import { WorkPage } from "@/features/works/work-page";
 import { ProjectRuntimeStatus } from "@/components/project/project-runtime-status";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -46,6 +47,8 @@ function detectedTimezone(): string {
 }
 
 function ProjectHome() {
+  const { currentProject } = useProject();
+  if (currentProject?.activeRole === "user") return <WorkPage />;
   return <><ProjectRuntimeStatus /><ProjectHomeContent /></>;
 }
 

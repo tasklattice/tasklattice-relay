@@ -5,6 +5,7 @@ import { mkdtempSync, writeFileSync, mkdirSync, chmodSync, rmSync } from "node:f
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { parseAllDocuments } from "yaml";
+import { materializeBootstrapSecrets } from "./helm-bootstrap-fixture.mjs";
 
 const directory = mkdtempSync(resolve(tmpdir(), "relay-component-config-"));
 chmodSync(directory, 0o755);
@@ -20,9 +21,9 @@ try {
     "-out", `${directory}/ca.crt`, "-subj", "/CN=localhost", "-days", "1", "-addext", "subjectAltName=DNS:localhost"], { stdio: "ignore" });
   chmodSync(`${directory}/server.key`, 0o644); // ephemeral test-only key, deleted below
   const { readFileSync } = await import("node:fs");
-  const manifests = parseAllDocuments(run("helm", ["template", "config-test", "charts/tali-relay",
+  const manifests = materializeBootstrapSecrets(parseAllDocuments(run("helm", ["template", "config-test", "charts/tali-relay",
     "--kube-version", "1.29.0", "--set", "fullnameOverride=config-test", "--set-string", `litellm.caCertificateBase64=${readFileSync(`${directory}/ca.crt`).toString("base64")}`]))
-    .map((document) => document.toJSON());
+    .map((document) => document.toJSON()));
   const workload = (component) => manifests.find((object) => object.kind === "Deployment"
     && object.metadata?.labels?.["app.kubernetes.io/component"] === component).spec.template.spec;
   const secret = Object.assign({}, ...manifests.filter((object) => object.kind === "Secret").map((object) => object.stringData ?? {}));

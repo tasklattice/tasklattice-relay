@@ -15,6 +15,8 @@ export interface ProjectNamespaceInput {
   namespace: string;
   projectId: string;
   projectName: string;
+  /** Worker lease/deletion fence used while waiting for image credentials. */
+  assertCurrent?: () => Promise<void>;
 }
 
 export interface ProjectNamespaceClient {

@@ -7,7 +7,6 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { useNavigate } from "@tanstack/react-router";
 import { authClient } from "@/lib/auth-client";
 
 export interface AuthConfig {
@@ -55,7 +54,6 @@ async function loadUser(): Promise<AuthUser> {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const navigate = useNavigate();
   const [config, setConfig] = useState<AuthConfig | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -113,8 +111,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       window.location.assign(providerLogoutUrl);
       return;
     }
-    await navigate({ to: "/login" });
-  }, [navigate]);
+    // A document navigation clears per-account query caches and prevents the
+    // outgoing Project route from rendering without its provider on logout.
+    window.location.assign("/login");
+  }, []);
 
   const value = useMemo(
     () => ({ config, error, loading, logout, user }),

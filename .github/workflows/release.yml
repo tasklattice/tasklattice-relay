@@ -43,11 +43,15 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
       - run: npm ci
+      - name: Audit production and build dependencies
+        run: npm audit --audit-level=high
+      - run: npm run test:release:control
       - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
         with:
           version: ${{ env.HELM_VERSION }}
       - run: npm run helm:dependencies
       - run: npm test
+      - run: npm run test:postgres
       - run: npm run typecheck
       - run: helm lint charts/tali-relay
       - run: npm run helm:validate:resources
@@ -55,6 +59,8 @@ jobs:
       - run: npm run helm:validate:dev-defaults
       - run: npm run helm:validate:openshift
       - run: npm run helm:validate:airgap
+      - run: npm run test:chart-credentials
+      - run: npm run helm:validate:credentials
       - run: helm template tali-relay charts/tali-relay --namespace tali --kube-version 1.29.0 > /dev/null
       - name: Render embedded Keycloak test mode
         run: >-
@@ -128,6 +134,8 @@ jobs:
         if: matrix.image == 'tali-control'
         with:
           version: ${{ env.HELM_VERSION }}
+      - uses: ./.github/actions/setup-node-workspace
+        if: matrix.image == 'tali-control'
       - name: Package Relay and Worker charts for the shared image
         if: matrix.image == 'tali-control'
         shell: bash
@@ -307,6 +315,7 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: ./.github/actions/setup-node-workspace
       - name: Package and publish Helm chart
         shell: bash
         run: |
@@ -317,6 +326,7 @@ jobs:
           TALI_IMAGE_REGISTRY="${registry}" \
             bash scripts/package-control-plane-chart.sh "${version}"
           cp dist/control-plane-chart/tali-relay.tgz "dist/tali-relay-${version}.tgz"
+          node scripts/validate-chart-credentials.mjs "dist/tali-relay-${version}.tgz"
           helm push "dist/tali-relay-${version}.tgz" "oci://${registry}/charts"
       - name: Create and validate offline image inventory
         shell: bash

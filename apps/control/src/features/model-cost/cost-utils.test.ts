@@ -36,6 +36,8 @@ describe("model cost aggregation helpers", () => {
 
   it("selects values using the active group-by dimension", () => {
     const values = {
+      work: "work-1",
+      task: "work-1/R-1",
       instance: "research",
       model_endpoint: "gpt-5",
       provider_account: "openai-prod",

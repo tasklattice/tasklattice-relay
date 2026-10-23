@@ -1,4 +1,5 @@
 import { defineMiddleware } from "nitro";
+import { z } from "zod";
 import type { ResourceRelation } from "@tali/contracts";
 import { requireAuth, unauthorizedResponse } from "../auth/auth";
 import { prisma } from "../db/prisma";
@@ -95,7 +96,7 @@ async function ownership(
     };
   }
   if (resolver === "EXPERT_AGENT") {
-    const relation = resourceId
+    const relation = resourceId && z.uuid().safeParse(resourceId).success
       ? await prisma().expertAgentMemberRecord.findFirst({
           where: {
             projectId: scopedProjectId,
@@ -120,7 +121,7 @@ async function ownership(
       : undefined;
     if (row) return { ownedByActor: row.ownerUserId === actorId };
 
-    const relation = resourceId
+    const relation = resourceId && z.uuid().safeParse(resourceId).success
       ? await prisma().expertAgentMemberRecord.findFirst({
           where: {
             projectId: scopedProjectId,

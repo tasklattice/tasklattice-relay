@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool, type Client as PgClient } from "pg";
+import workCostMigration from "../../prisma/migrations/20261012110000_work_cost_attribution/migration.sql?raw";
 import migration from "../../prisma/migrations/20260919000000_initial_control_plane/migration.sql?raw";
 import { developmentResourceCatalog } from "../catalog/development-resource-catalog";
 import { PrismaClient } from "../generated/prisma/client";
@@ -86,6 +87,7 @@ export function createTestPrisma(): PrismaClient {
   const partialIndexes = testMigration.match(/^CREATE (?:UNIQUE )?INDEX[^;]+ WHERE [^;]+;/gm) ?? [];
   memory.public.none(testMigration.replace(/^CREATE (?:UNIQUE )?INDEX[^;]+ WHERE [^;]+;/gm, ""));
   memory.public.none(partialIndexes.join("\n"));
+  memory.public.none(workCostMigration);
   memory.public.none("UPDATE tasklattice.projects SET name = 'admin' WHERE id = 'individual';");
   for (const skill of developmentResourceCatalog.skills) {
     const payload = JSON.stringify(skill).replaceAll("'", "''");

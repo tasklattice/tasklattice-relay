@@ -1,3 +1,4 @@
+import { ensurePersonalProject } from "../projects/personal-project";
 import type {
   BuiltinProjectRoleId,
   BuiltinRoleId,
@@ -53,6 +54,7 @@ const projectRoleDescriptions: Record<ProjectMembershipRole, string> = {
 
 function projectRoleTarget(projectId: string, role: ProjectMembershipRole): string {
   const projectRoot = `/${encodeURIComponent(projectId)}`;
+  if (role === "user") return `${projectRoot}/works`;
   return role === "admin" || role === "developer"
     ? projectRoot
     : `${projectRoot}/instances`;
@@ -87,10 +89,14 @@ export class AccessContextService {
 
   private async options(auth: PlatformPrincipal): Promise<AccessContextOption[]> {
     await ensureBuiltinRoleCatalog(this.db);
-    const [departments, projects] = await Promise.all([
-      new DepartmentService(this.db).list(auth),
-      new ProjectService(this.db).list(auth),
-    ]);
+    const projectService = new ProjectService(this.db);
+    // list accepts pending invitations before considering a personal fallback.
+    let projects = await projectService.list(auth);
+    if (!projects.length) {
+      await ensurePersonalProject(this.db, auth);
+      projects = await projectService.list(auth);
+    }
+    const departments = await new DepartmentService(this.db).list(auth);
     const options: AccessContextOption[] = [];
 
     if (auth.user.systemRole === "platform_administrator") {

@@ -70,13 +70,15 @@ type ResolvedUsdCost = {
 };
 
 const groupLabels: Record<CostGroupBy, string> = {
+  work: "No Work attribution",
+  task: "No Task attribution",
   instance: "Unmapped Instance",
   model_endpoint: "Unmapped model endpoint",
   provider_account: "Unmapped Provider Account",
   virtual_key: "Unmapped virtual key",
 };
 const filterKeys: CostFilterKey[] = [
-  "instance", "model_endpoint", "provider", "provider_account",
+  "work", "task", "instance", "model_endpoint", "provider", "provider_account",
   "virtual_key", "project",
 ];
 
@@ -107,7 +109,7 @@ function safeMetadata(value: unknown, depth = 0): unknown {
   return output;
 }
 
-function tokenIdentifier(value: string | undefined): string | undefined {
+export function tokenIdentifier(value: string | undefined): string | undefined {
   if (!value) return undefined;
   return value.startsWith("sha256:") ? value : `sha256:${hash(value)}`;
 }
@@ -207,6 +209,13 @@ function percent(current: number, previous: number): number | undefined {
 }
 
 function factDimension(fact: ModelUsageFact, groupBy: CostGroupBy) {
+  if (groupBy === "work") return { id: fact.workId ?? "unmapped-work", name: fact.workName ?? fact.workId ?? groupLabels.work, detail: fact.workId ?? "" };
+  if (groupBy === "task") return {
+    // R-1 is only unique inside its Work.
+    id: fact.workId ? `${fact.workId}/${fact.taskId ?? "__planning__"}` : "unmapped-task",
+    name: fact.taskId ? `${fact.taskName ?? fact.taskId}` : fact.workId ? "Work planning" : groupLabels.task,
+    detail: [fact.workName ?? fact.workId, fact.taskId].filter(Boolean).join(" · "),
+  };
   if (groupBy === "instance") return {
     id: fact.instanceId ?? "unmapped-instance",
     name: fact.instanceName ?? groupLabels.instance,
@@ -230,6 +239,7 @@ function factDimension(fact: ModelUsageFact, groupBy: CostGroupBy) {
 }
 
 function filterValue(fact: ModelUsageFact, key: CostFilterKey): string {
+  if (key === "work" || key === "task") return factDimension(fact, key).id;
   if (key === "instance") return fact.instanceId ?? "unmapped-instance";
   if (key === "model_endpoint") return fact.modelEndpointId ?? "unmapped-model-endpoint";
   if (key === "provider") return fact.provider;
@@ -468,7 +478,7 @@ export class CostService {
     const virtualKeyAlias = attribution?.virtualKeyAlias ?? log.virtual_key_alias ??
       (virtualKeyId ? `Virtual key ••••${virtualKeyId.slice(-4)}` : undefined);
     const sourceHash = hash(JSON.stringify(log));
-    const correlation = await this.runCorrelation(attribution?.instanceId, timestamp);
+    const correlation = attribution?.workRunId ? undefined : await this.runCorrelation(attribution?.instanceId, timestamp);
     return {
       eventId: `litellm:${requestId}`,
       requestId,
@@ -481,6 +491,11 @@ export class CostService {
       // missing Instance mapping is a data-quality problem, not permission to
       // assign the record to a fabricated/default Project.
       projectId: this.store.projectId,
+      ...(attribution?.workId ? { workId: attribution.workId } : {}),
+      ...(attribution?.workName ? { workName: attribution.workName } : {}),
+      ...(attribution?.taskId ? { taskId: attribution.taskId } : {}),
+      ...(attribution?.taskName ? { taskName: attribution.taskName } : {}),
+      ...(attribution?.workRunId ? { workRunId: attribution.workRunId } : {}),
       ...(attribution?.instanceId ? { instanceId: attribution.instanceId, instanceName: attribution.instanceName } : {}),
       ...(endpoint ? { modelEndpointId: endpoint.modelEndpointId, modelEndpointName: endpoint.modelEndpointName } : {}),
       ...(endpoint?.providerAccountId ?? attribution?.providerAccountId ? {
@@ -646,6 +661,7 @@ export class CostService {
   private filterOptions(facts: ModelUsageFact[]): Record<CostFilterKey, CostFilterOption[]> {
     const maps = Object.fromEntries(filterKeys.map((key) => [key, new Map<string, string>()])) as Record<CostFilterKey, Map<string, string>>;
     for (const fact of facts) {
+      for (const key of ["work", "task"] as const) maps[key].set(filterValue(fact, key), factDimension(fact, key).name);
       maps.instance.set(filterValue(fact, "instance"), fact.instanceName ?? groupLabels.instance);
       maps.model_endpoint.set(filterValue(fact, "model_endpoint"), fact.modelEndpointName ?? groupLabels.model_endpoint);
       maps.provider.set(fact.provider, fact.provider);
@@ -690,7 +706,7 @@ export class CostService {
       completionTokens: current.reduce((sum, fact) => sum + fact.completionTokens, 0),
       requests: current.length,
       unknownCostRequests: current.filter((fact) => fact.costStatus === "unknown").length,
-      uncorrelatedRunRequests: current.filter((fact) => fact.instanceId && !fact.runId).length,
+      uncorrelatedRunRequests: current.filter((fact) => fact.instanceId && !fact.runId && !fact.workRunId).length,
       ...(highestCostInstance ? { highestCostInstance } : {}),
       ...(highestCostModel ? { highestCostModel } : {}),
       comparison: {
@@ -705,7 +721,7 @@ export class CostService {
     const map = new Map<string, ModelUsageDailyRow>();
     for (const fact of facts) {
       const usageDate = dateInTimezone(fact.requestStartTime, query.timezone);
-      for (const groupType of ["instance", "model_endpoint", "provider_account", "virtual_key"] as CostGroupBy[]) {
+      for (const groupType of ["work", "task", "instance", "model_endpoint", "provider_account", "virtual_key"] as CostGroupBy[]) {
         const dimension = factDimension(fact, groupType);
         const key = `${usageDate}|${groupType}|${dimension.id}`;
         const current = map.get(key) ?? {
@@ -829,6 +845,8 @@ export class CostService {
       currency: "USD",
       ...(highestSpendDay?.spendUsd ? { highestSpendDay } : {}),
       averageDailySpendUsd: spend / Math.max(1, perDay.length),
+      activeWorks: new Set(current.flatMap(fact => fact.workId ? [fact.workId] : [])).size,
+      activeTasks: new Set(current.flatMap(fact => fact.workId && fact.taskId ? [`${fact.workId}/${fact.taskId}`] : [])).size,
       activeInstances: new Set(current.map((fact) => fact.instanceId).filter(Boolean)).size,
       activeModelEndpoints: new Set(current.map((fact) => fact.modelEndpointId).filter(Boolean)).size,
       activeProviderAccounts: new Set(current.map((fact) => fact.providerAccountId).filter(Boolean)).size,
@@ -949,7 +967,7 @@ export class CostService {
       negativeSpendRequests: current.filter((fact) => (fact.totalCostUsd ?? 0) < 0).length,
       unknownCostRequests: current.filter((fact) => fact.costStatus === "unknown").length,
       duplicateRequests: await this.analytics().countDuplicateRequests(),
-      uncorrelatedRunRequests: current.filter((fact) => fact.instanceId && !fact.runId).length,
+      uncorrelatedRunRequests: current.filter((fact) => fact.instanceId && !fact.runId && !fact.workRunId).length,
       lateArrivingRequests: checkpoint.lateArrivingRecords,
       ...(checkpoint.lastSyncAt ? { lastSyncAt: checkpoint.lastSyncAt } : {}),
       ...(checkpoint.syncLagSeconds !== undefined ? { syncLagSeconds: checkpoint.syncLagSeconds } : {}),

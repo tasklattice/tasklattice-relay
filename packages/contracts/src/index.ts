@@ -2696,12 +2696,16 @@ export interface DepartmentInferenceResourceAssignmentView {
 }
 
 export type CostGroupBy =
+  | "work"
+  | "task"
   | "instance"
   | "model_endpoint"
   | "provider_account"
   | "virtual_key";
 
 export type CostFilterKey =
+  | "work"
+  | "task"
   | "instance"
   | "model_endpoint"
   | "provider"
@@ -2846,6 +2850,8 @@ export interface ModelCostInsightsResponse {
   currency: "USD";
   highestSpendDay?: { date: string; spendUsd: number };
   averageDailySpendUsd: number;
+  activeWorks: number;
+  activeTasks: number;
   activeInstances: number;
   activeModelEndpoints: number;
   activeProviderAccounts: number;
@@ -3404,3 +3410,6 @@ export function parseTerminalClientMessage(
     return { type: "invalid-control" };
   return { type: "resize", cols, rows };
 }
+
+export * from "./works.js";
+export * from "./personal-onboarding.js";

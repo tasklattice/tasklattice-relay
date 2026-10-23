@@ -8,6 +8,16 @@ import { parse } from "yaml";
 import { parseControlReleaseTag, pinControlReleaseValues, releaseImages, affectedImages, makePlan, selectPreviousRelease, releaseMatrices, assembleReleaseManifest } from "../control-plane-release.mjs";
 const registry = "ghcr.io/tasklattice";
 const sha = "a".repeat(40);
+test("Prisma CLI, generated client runtime and PostgreSQL adapter stay on one exact version", () => {
+  const manifest = JSON.parse(readFileSync("apps/control/package.json", "utf8"));
+  const lock = JSON.parse(readFileSync("package-lock.json", "utf8"));
+  const version = manifest.dependencies.prisma;
+  assert.match(version, /^\d+\.\d+\.\d+$/, "pin Prisma packages together to prevent partial audit upgrades");
+  for (const name of ["prisma", "@prisma/client", "@prisma/adapter-pg"]) {
+    assert.equal(manifest.dependencies[name], version, name);
+    assert.equal(lock.packages[`node_modules/${name}`].version, version, name);
+  }
+});
 function previous() {
   const plan = makePlan("v0.2.8-rc.1", registry, sha, [], undefined);
   plan.images.forEach(i => { i.digest = `sha256:${"b".repeat(64)}`; });
@@ -177,6 +187,14 @@ test("RC stages separate validation, grouped builds, manifests, chart and GitHub
   assert(full.on.push.tags.includes("!v*.*.*-rc.*"));
   assert.deepEqual(rc.on.push.tags, ["v*.*.*-rc.*"]);
   const jobs = rc.jobs;
+  for (const workflow of [full, rc]) {
+    assert(workflow.jobs.validate.steps.some(step => step.run === "npm audit --audit-level=high"),
+      "release must audit build dependencies as well as production dependencies");
+    assert(workflow.jobs.validate.steps.some(step => /(?:npm run test:release:control|node --test scripts\/testing\/control-plane-release.test.mjs)/.test(step.run ?? "")),
+      "release must check dependency compatibility invariants");
+    assert(workflow.jobs.validate.steps.some(step => step.run?.includes("npm run test:postgres")),
+      "release validation must execute integration tests against disposable PostgreSQL");
+  }
   assert.deepEqual(Object.keys(jobs), ["plan", "validate", "build-core-platforms", "build-sandbox-platforms", "publish-core-manifests", "publish-sandbox-manifests", "publish-chart", "github-release"]);
   assert.equal(jobs.validate.needs, "plan");
   for (const group of ["core", "sandbox"]) {

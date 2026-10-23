@@ -75,7 +75,9 @@ function breakdownItem(item: ModelCostBreakdownItem): CostBreakdownItem {
 }
 
 function insightRows(response: ModelCostInsightsResponse, params: CostQueryParams): CostInsight[] {
-  const group = params.groupBy === "instance"
+  const group = params.groupBy === "work" ? ["Active Works", response.activeWorks]
+    : params.groupBy === "task" ? ["Active Tasks", response.activeTasks]
+    : params.groupBy === "instance"
     ? ["Active Instances", response.activeInstances]
     : params.groupBy === "model_endpoint"
       ? ["Active model endpoints", response.activeModelEndpoints]

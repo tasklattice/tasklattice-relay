@@ -101,6 +101,12 @@ export function projectRouteAdmissionPolicy(
       skipBecauseCapabilityToken: true,
     };
   }
+  if (tail[0] === "works" && ((tail.length === 1 && ["GET", "POST"].includes(method)) || (tail.length === 2 && method === "GET") || (tail.length === 3 && ((tail[2] === "commands" && method === "POST") || (tail[2] === "events" && method === "GET"))))) {
+    return policy("PROJECT", [requirement("CAP_PROJECT_VIEW", "Work")]);
+  }
+  if (tail[0] === "personal-onboarding" && ((tail.length === 1 && method === "GET") || (tail.length === 2 && ["connect", "prepare"].includes(tail[1]!) && method === "POST"))) {
+    return policy("PROJECT", [requirement("CAP_PROJECT_VIEW", "PersonalOnboarding")]);
+  }
   if (!tail.length) {
     if (method === "PATCH") return policy("PROJECT", [requirement("CAP_PROJECT_SETTINGS_UPDATE", "Project")]);
     if (method === "DELETE") return policy("PROJECT", [requirement("CAP_PROJECT_DELETE", "Project")]);

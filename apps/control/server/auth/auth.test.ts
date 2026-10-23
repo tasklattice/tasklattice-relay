@@ -177,6 +177,8 @@ describe("Better Auth platform authentication", () => {
     const config = developmentControlConfig();
     config.server.public_urls = ["http://tali.local"];
     config.auth.local.initial_platform_administrator_password = "different-password-value";
+    config.auth.local.initial_platform_administrator_username = "replacement-admin";
+    config.auth.local.initial_platform_administrator_email = "replacement@example.test";
     setControlConfigForTests(config);
     await ensureInitialPlatformAdministrator();
 
@@ -184,6 +186,39 @@ describe("Better Auth platform authentication", () => {
       where: { id: first.id },
     });
     expect(second.password).toBe(first.password);
+    expect(await db.user.findUniqueOrThrow({ where: { id: "local-admin" } })).toMatchObject({ username: "admin" });
+  });
+
+  it("adopts the configured identity for an uninitialized migration placeholder", async () => {
+    const original = await db.user.findUniqueOrThrow({ where: { id: "local-admin" } });
+    try {
+      await db.authAccount.deleteMany({ where: { userId: original.id } });
+      await db.user.update({ where: { id: original.id }, data: {
+        username: "admin", email: "admin@tasklattice.local", displayName: "Local Administrator", emailVerified: false,
+      } });
+      const config = developmentControlConfig();
+      config.server.public_urls = ["http://tali.local"];
+      config.auth.local.initial_platform_administrator_username = "configured-admin";
+      config.auth.local.initial_platform_administrator_email = "configured@example.test";
+      config.auth.local.initial_platform_administrator_password = "configured-test-secret";
+      setControlConfigForTests(config);
+      resetBetterAuthForTests();
+      await ensureInitialPlatformAdministrator();
+      expect(await db.user.findUniqueOrThrow({ where: { id: original.id } })).toMatchObject({
+        username: "configured-admin", email: "configured@example.test", emailVerified: true,
+      });
+      const request = new Request("http://tali.local/api/auth/sign-in/username", {
+        method: "POST", headers: { "content-type": "application/json", origin: "http://tali.local" },
+        body: JSON.stringify({ username: "configured-admin", password: "configured-test-secret" }),
+      });
+      expect((await (await auth(request)).handler(request)).status).toBe(200);
+    } finally {
+      await db.authSession.deleteMany();
+      await db.authAccount.deleteMany({ where: { userId: original.id } });
+      await db.user.update({ where: { id: original.id }, data: {
+        username: original.username, email: original.email, displayName: original.displayName, emailVerified: original.emailVerified,
+      } });
+    }
   });
 
   it("publishes enabled login methods without exposing Better Auth secrets", async () => {

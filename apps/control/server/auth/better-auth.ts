@@ -247,6 +247,20 @@ export async function ensureInitialPlatformAdministrator(): Promise<void> {
   });
   if (existingCredential) return;
 
+  // The initial SQL migration contains an uninitialized local-admin placeholder.
+  // Adopt configured identity only for that placeholder, before issuing its first
+  // credential. Existing deployments and manually renamed users stay untouched.
+  await prisma().user.updateMany({
+    where: {
+      id: administrator.id,
+      username: "admin",
+      email: "admin@tasklattice.local",
+      displayName: "Local Administrator",
+      emailVerified: false,
+    },
+    data: { username, email, emailVerified: true, displayName: "Platform Administrator" },
+  });
+
   await prisma().authAccount.create({
     data: {
       id: randomUUID(),

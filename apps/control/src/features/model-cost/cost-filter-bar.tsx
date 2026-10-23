@@ -10,6 +10,7 @@ import { MultiSelectCombobox } from "@/components/ui/multi-select-combobox";
 import { costFilterLabels } from "./cost-utils";
 
 const filterKeys: CostFilterKey[] = [
+  "work", "task",
   "instance",
   "model_endpoint",
   "provider",

@@ -1,3 +1,4 @@
+import { developmentWorkerConfig, setWorkerConfigForTests } from "../config/worker-config";
 import { generateProjectId, OPENSHELL_ROUTABLE_NAME_MAX_LENGTH, PROJECT_RUNTIME_NAMESPACE_PREFIX } from "./project-runtime-identity";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
@@ -66,6 +67,7 @@ function bridgeClient() {
 
 afterEach(() => {
   setControlConfigForTests(undefined);
+  setWorkerConfigForTests();
 });
 
 describe("ProjectRuntimeTargetService", () => {
@@ -362,4 +364,22 @@ describe("projectNamespaceResource", () => {
   it("uses a stable label fallback for non-Latin Project names", () => {
     expect(projectNameLabel("客户支持")).toMatch(/^project-[a-f0-9]{12}$/);
   });
+});
+
+
+it("rejects an internal source mismatch before installing any tenant workloads", async () => {
+  setControlConfigForTests(enabledConfig());
+  const config = developmentWorkerConfig();
+  config.openshift = { enabled: true, imageSourceNamespace: "authorized" };
+  config.project_runtime_bridge = { ...config.project_runtime_bridge, enabled: true,
+    image: "image-registry.openshift-image-registry.svc:5000/wrong/control:v1" };
+  setWorkerConfigForTests(config);
+  const db = createTestPrisma(); const projectId = generateProjectId();
+  await db.project.create({ data: { id: projectId, name: "Images", departmentId: "dep1", createdBy: "local-admin" } });
+  const namespaces = namespaceClient(); const gateways = gatewayClient(); const bridges = bridgeClient();
+  await expect(new ProjectRuntimeTargetService(db, namespaces.client, gateways.client, bridges.client)
+    .ensureProjectNamespace(projectId)).rejects.toThrow("image source mismatch");
+  expect(namespaces.reconcile).not.toHaveBeenCalled();
+  expect(gateways.reconcile).not.toHaveBeenCalled();
+  expect(bridges.reconcile).not.toHaveBeenCalled();
 });

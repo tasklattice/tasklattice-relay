@@ -3,6 +3,12 @@ import type { PrismaClient } from "../generated/prisma/client";
 import type { Prisma } from "../generated/prisma/client";
 
 export interface CostAttributionMapping {
+  workId?: string;
+  workName?: string;
+  taskId?: string;
+  taskName?: string;
+  workRunId?: string;
+
   id: string;
   projectId: string;
   instanceId: string;
@@ -38,6 +44,12 @@ export interface ModelEndpointCostMapping {
 export type CostStatus = "known" | "unknown";
 
 export interface ModelUsageFact {
+  workId?: string;
+  workName?: string;
+  taskId?: string;
+  taskName?: string;
+  workRunId?: string;
+
   eventId: string;
   requestId: string;
   requestStartTime: string;
@@ -157,6 +169,11 @@ export class CostAnalyticsStore {
       create: defined({
         projectId: this.projectId,
         id: mapping.id,
+        workId: mapping.workId,
+        workName: mapping.workName,
+        taskId: mapping.taskId,
+        taskName: mapping.taskName,
+        workRunId: mapping.workRunId,
         instanceId: mapping.instanceId,
         instanceName: mapping.instanceName,
         liteLLMVirtualKeyId: mapping.liteLLMVirtualKeyId,
@@ -221,22 +238,33 @@ export class CostAnalyticsStore {
       input.virtualKeyId ? { liteLLMVirtualKeyId: input.virtualKeyId } : undefined,
       input.hashedToken ? { hashedToken: input.hashedToken } : undefined,
       input.userId ? { liteLLMUserId: input.userId } : undefined,
-      input.teamId ? { liteLLMTeamId: input.teamId } : undefined,
+      // A Team identifies a Project, never one of its concurrently active instances.
     ].filter((item): item is NonNullable<typeof item> => Boolean(item));
     if (!candidates.length) return undefined;
-    const row = await this.db.costAttributionMappingRecord.findFirst({
+    const rows = await this.db.costAttributionMappingRecord.findMany({
       where: {
         projectId: this.projectId,
+        ...(!input.virtualKeyId && !input.hashedToken ? { workRunId: null } : {}),
         validFrom: { lte: at },
         OR: [{ validTo: null }, { validTo: { gt: at } }],
+        ...(input.teamId ? { liteLLMTeamId: input.teamId } : {}),
         AND: [{ OR: candidates }],
       },
       orderBy: { validFrom: "desc" },
+      take: 2,
     });
-    if (!row) return undefined;
+    // Ambiguous identities are a data-quality issue, never permission to guess.
+    if (rows.length !== 1) return undefined;
+    const row = rows[0]!;
     return {
       id: row.id,
       projectId: row.projectId,
+      ...(row.workId ? { workId: row.workId } : {}),
+      ...(row.workName ? { workName: row.workName } : {}),
+      ...(row.taskId ? { taskId: row.taskId } : {}),
+      ...(row.taskName ? { taskName: row.taskName } : {}),
+      ...(row.workRunId ? { workRunId: row.workRunId } : {}),
+
       instanceId: row.instanceId,
       instanceName: row.instanceName,
       ...(row.liteLLMVirtualKeyId ? { liteLLMVirtualKeyId: row.liteLLMVirtualKeyId } : {}),
@@ -309,6 +337,11 @@ export class CostAnalyticsStore {
           responseEndTime: fact.responseEndTime,
           usageDate: new Date(`${fact.usageDate}T00:00:00.000Z`),
           usageHour: fact.usageHour,
+          workId: fact.workId,
+          workName: fact.workName,
+          taskId: fact.taskId,
+          taskName: fact.taskName,
+          workRunId: fact.workRunId,
           instanceId: fact.instanceId,
           instanceName: fact.instanceName,
           modelEndpointId: fact.modelEndpointId,
@@ -366,7 +399,33 @@ export class CostAnalyticsStore {
         error !== null &&
         "code" in error &&
         error.code === "P2002"
-      ) return false;
+      ) {
+        // A rolling upgrade or a delayed ledger can leave an existing request
+        // without Work dimensions. Enrich only from the exact persisted key
+        // mapping; never replace money, tokens, request identity or known scope.
+        if (fact.workId && fact.workRunId && fact.virtualKeyId && fact.instanceId) {
+          const enriched = await this.db.modelUsageFactRecord.updateMany({
+            where: {
+              projectId: this.projectId, requestId: fact.requestId,
+              virtualKeyId: fact.virtualKeyId, workId: null, workRunId: null, taskId: null,
+              OR: [{ instanceId: null }, { instanceId: fact.instanceId }],
+            },
+            data: {
+              workId: fact.workId, workName: fact.workName ?? null,
+              taskId: fact.taskId ?? null, taskName: fact.taskName ?? null,
+              workRunId: fact.workRunId,
+              instanceId: fact.instanceId, instanceName: fact.instanceName ?? null,
+            },
+          });
+          if (enriched.count) await this.recordObservation({
+            observationId: `work-attribution:${fact.requestId}:${fact.workRunId}`,
+            requestId: fact.requestId, observedAt: new Date().toISOString(),
+            reason: "work_attribution_enriched",
+            payload: {workId: fact.workId, taskId: fact.taskId ?? null, workRunId: fact.workRunId, instanceId: fact.instanceId},
+          });
+        }
+        return false;
+      }
       throw error;
     }
   }
@@ -415,6 +474,12 @@ export class CostAnalyticsStore {
       usageDate: iso(row.usageDate).slice(0, 10),
       usageHour: row.usageHour,
       projectId: row.projectId,
+      ...(row.workId ? { workId: row.workId } : {}),
+      ...(row.workName ? { workName: row.workName } : {}),
+      ...(row.taskId ? { taskId: row.taskId } : {}),
+      ...(row.taskName ? { taskName: row.taskName } : {}),
+      ...(row.workRunId ? { workRunId: row.workRunId } : {}),
+
       ...(row.instanceId ? { instanceId: row.instanceId } : {}),
       ...(row.instanceName ? { instanceName: row.instanceName } : {}),
       ...(row.modelEndpointId ? { modelEndpointId: row.modelEndpointId } : {}),
@@ -533,6 +598,7 @@ export class CostAnalyticsStore {
       usageDate: iso(row.usageDate).slice(0, 10),
       timezone: row.timezone,
       projectId: row.projectId,
+
       groupType: row.groupType as CostGroupBy,
       groupId: row.groupId,
       groupName: row.groupName,

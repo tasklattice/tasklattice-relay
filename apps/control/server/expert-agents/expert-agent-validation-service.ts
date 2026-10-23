@@ -13,6 +13,7 @@ import {
   DeterministicCustomerSupportEngine,
   ExpertAgentRuntime,
   GitHubWeeklyCommitEngine,
+  WorkTextEngine,
   runExpertAgentEvaluationSuite,
   type ExpertAgentEvaluationObservation,
   type ExpertAgentExecutionResult,
@@ -306,6 +307,7 @@ export class ExpertAgentTestService {
         resources: recorded.client,
         engines: [
           new GitHubWeeklyCommitEngine(),
+              new WorkTextEngine(),
           new DeterministicCustomerSupportEngine(),
           new ControlledOffboardingEngine(),
         ],
@@ -487,7 +489,7 @@ export class ExpertAgentTestService {
       },
       {
         id: "runtime-engine-supported",
-        passed: engineType === "GITHUB_WEEKLY_COMMIT_SUMMARIZER"
+        passed: engineType === "WORK_TEXT" || engineType === "GITHUB_WEEKLY_COMMIT_SUMMARIZER"
           || engineType === "DETERMINISTIC_CUSTOMER_SUPPORT"
           || engineType === "CONTROLLED_OFFBOARDING_KNOWLEDGE",
         message: "The version-pinned Expert Agent runtime supports this engine.",
@@ -629,6 +631,7 @@ export class ExpertAgentTestService {
             resources: recorded.client,
             engines: [
               new GitHubWeeklyCommitEngine(),
+              new WorkTextEngine(),
               new DeterministicCustomerSupportEngine(),
               new ControlledOffboardingEngine(),
             ],
@@ -918,6 +921,15 @@ export class ExpertAgentTestService {
   }
 
   private async functionalAssertions(snapshot: ExpertAgentVersionSnapshot): Promise<Assertion[]> {
+    if (snapshot.execution.mode === "AGENTIC" && snapshot.execution.configuration.engineType === "WORK_TEXT") {
+      const routing = await new ModelRoutingResolver(this.store as ProjectStore).resolve(snapshot.execution.modelRoutingId);
+      return [
+        { id: "work-routing", passed: routing.status === "READY", message: "Work model routing resolves to a validated model." },
+        { id: "work-role", passed: ["coordinator", "expert"].includes(String(snapshot.execution.configuration.workRole)), message: "Work role is pinned in the published version." },
+        { id: "work-model-only", passed: snapshot.resources.every((r) => r.kind === "MODEL_ROUTING") && snapshot.execution.maxSteps === 1, message: "Work template has one model step and no external tools." },
+        { id: "work-live-evaluation", passed: Boolean(snapshot.acceptance.suites?.some((s) => s.required)), message: "Work requires an executable live model evaluation before publication." },
+      ];
+    }
     if (snapshot.execution.mode === "AGENTIC"
       && snapshot.execution.configuration.engineType === "GITHUB_WEEKLY_COMMIT_SUMMARIZER") {
       const configuration = snapshot.execution.configuration;

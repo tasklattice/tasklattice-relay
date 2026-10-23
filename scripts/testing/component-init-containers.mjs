@@ -6,6 +6,7 @@ import { chmodSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:f
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parseAllDocuments } from "yaml";
+import { materializeBootstrapSecrets } from "./helm-bootstrap-fixture.mjs";
 
 const run = (command, args, options = {}) => execFileSync(command, args,
   { encoding: "utf8", timeout: 300000, ...options });
@@ -14,11 +15,14 @@ chmodSync(directory, 0o755);
 const name = `relay-init-${process.pid}`;
 try {
   const password = "test-'\\${UNCHANGED}-pass +";
-  writeFileSync(join(directory, "values.json"), JSON.stringify({ secrets: {
-    hindsightDatabasePassword: password, postgresPassword: password,
-  } }));
-  const objects = parseAllDocuments(run("helm", ["template", "init-test", "charts/tali-relay",
-    "--kube-version", "1.29.0", "-f", join(directory, "values.json")])).map((doc) => doc.toJSON());
+  const objects = materializeBootstrapSecrets(parseAllDocuments(run("helm", ["template", "init-test", "charts/tali-relay",
+    "--kube-version", "1.29.0"])).map((doc) => doc.toJSON()), data => {
+      data.postgresPassword = data.hindsightDatabasePassword = password;
+      for (const key of ["databaseUrl", "adminUrl", "hindsightDatabaseUrl"]) {
+        const url = new URL(data[key]); url.password = password; data[key] = url.toString();
+      }
+      return data;
+    });
   const pod = (component) => objects.find((o) => o.spec?.template
     && o.metadata?.labels?.["app.kubernetes.io/component"] === component).spec.template.spec;
   const migration = pod("hindsight-migration");

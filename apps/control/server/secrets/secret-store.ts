@@ -1,5 +1,6 @@
 import { kubernetesResourceName } from "@tali/contracts/resource-identity";
 import { readFile } from "node:fs/promises";
+import { DatabaseSecretStore } from "./database-secret-store";
 
 export interface SecretStore {
   referenceFor(projectId: string, resourceId: string): string;
@@ -173,7 +174,13 @@ export class KubernetesSecretStore implements SecretStore {
 }
 
 export function createSecretStore(): SecretStore {
-  return process.env.KUBERNETES_SERVICE_HOST
+  const primary = process.env.KUBERNETES_SERVICE_HOST
     ? new KubernetesSecretStore()
     : new DevelopmentSecretStore();
+  return {
+    referenceFor: (projectId, resourceId) => primary.referenceFor(projectId, resourceId),
+    put: (projectId, resourceId, secret) => primary.put(projectId, resourceId, secret),
+    get: (reference) => reference.startsWith("db://") ? new DatabaseSecretStore().get(reference) : primary.get(reference),
+    delete: (reference) => reference.startsWith("db://") ? new DatabaseSecretStore().delete(reference) : primary.delete(reference),
+  };
 }

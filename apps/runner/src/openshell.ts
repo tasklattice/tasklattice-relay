@@ -50,10 +50,25 @@ export interface ProvisioningObserver {
 export const taliLiteLlmProviderProfileId = "tali-litellm";
 export const taliRuntimeBridgeProviderProfileId = "tali-runtime-bridge";
 
+function telemetryProviderEndpoint(value: string) {
+  const endpoint = new URL(value);
+  if (endpoint.protocol !== "http:" && endpoint.protocol !== "https:") {
+    throw new Error("The Run telemetry endpoint must use HTTP or HTTPS.");
+  }
+  return {
+    host: endpoint.hostname,
+    port: Number(endpoint.port || (endpoint.protocol === "https:" ? 443 : 80)),
+    protocol: "rest", access: "full", enforcement: "enforce",
+    ...(endpoint.hostname.endsWith(`.${kubernetesServiceDnsSuffix}`)
+      ? { allowed_ips: openShellKubernetesServiceCidrs() } : {}),
+  };
+}
+
 export function taliLiteLlmProviderProfile(
   inferenceEndpoint: string,
   routingId = taliLiteLlmProviderProfileId,
   resourceVersion?: number,
+  telemetryEndpoint?: string,
 ): string {
   const endpoint = new URL(inferenceEndpoint);
   if (endpoint.protocol !== "http:" && endpoint.protocol !== "https:")
@@ -113,6 +128,7 @@ export function taliLiteLlmProviderProfile(
             ? { allowed_ips: openShellKubernetesServiceCidrs() }
             : {}),
         },
+        ...(telemetryEndpoint ? [telemetryProviderEndpoint(telemetryEndpoint)] : []),
       ],
       binaries: [
         "/usr/local/bin/node",
@@ -425,6 +441,7 @@ export function openShellLiteLlmProfileApplyArguments(
 async function ensureLiteLlmProviderProfile(
   inferenceEndpoint: string,
   target?: OpenShellTarget,
+  telemetryEndpoint?: string,
 ): Promise<void> {
   const temporaryDirectory = await mkdtemp(
     join(tmpdir(), "tali-openshell-profile-"),
@@ -437,7 +454,7 @@ async function ensureLiteLlmProviderProfile(
     );
     let resourceVersion: number | undefined;
     const desiredProfile = parse(
-      taliLiteLlmProviderProfile(inferenceEndpoint),
+      taliLiteLlmProviderProfile(inferenceEndpoint, taliLiteLlmProviderProfileId, undefined, telemetryEndpoint),
     ) as unknown;
     if (existing.exitCode === 0) {
       const exported = parse(existing.stdout) as unknown;
@@ -460,6 +477,7 @@ async function ensureLiteLlmProviderProfile(
         inferenceEndpoint,
         taliLiteLlmProviderProfileId,
         resourceVersion,
+        telemetryEndpoint,
       ),
       { mode: 0o600 },
     );
@@ -491,7 +509,7 @@ async function ensureLiteLlmProviderProfile(
     if (applied.exitCode !== 0 && existing.exitCode !== 0) {
       // A concurrent Instance may have imported the shared profile after the
       // export probe. Re-enter once so its resource_version is preserved.
-      await ensureLiteLlmProviderProfile(inferenceEndpoint, target);
+      await ensureLiteLlmProviderProfile(inferenceEndpoint, target, telemetryEndpoint);
       return;
     }
     if (applied.exitCode !== 0)
@@ -807,36 +825,9 @@ export function composeOpenShellInferencePolicy(
   // and bypass credential resolution, so remove only TaskLattice Relay's old entry.
   delete networkPolicies.tali_inference_gateway;
   delete networkPolicies.tali_project_runtime_bridge;
-  if (
-    telemetryEndpoint
-    && getAgentPlatformDefinition(agentPlatform).capabilities.embeddedRunTelemetry
-  ) {
-    const endpoint = new URL(telemetryEndpoint);
-    if (endpoint.protocol !== "http:" && endpoint.protocol !== "https:") {
-      throw new Error("The Run telemetry endpoint must use HTTP or HTTPS.");
-    }
-    const port = endpoint.port
-      ? Number(endpoint.port)
-      : endpoint.protocol === "https:"
-        ? 443
-        : 80;
-    const isKubernetesService =
-      endpoint.hostname === kubernetesServiceDnsSuffix
-      || endpoint.hostname.endsWith(`.${kubernetesServiceDnsSuffix}`);
-    networkPolicies.tali_run_telemetry = {
-      name: "tali-run-telemetry",
-      endpoints: [{
-        host: endpoint.hostname,
-        port,
-        protocol: "rest",
-        enforcement: "enforce",
-        access: "full",
-        ...(isKubernetesService ? { allowed_ips: openShellKubernetesServiceCidrs() } : {}),
-      }],
-      binaries: getAgentPlatformRuntime(agentPlatform).inferenceBinaries
-        .map((path) => ({ path })),
-    };
-  }
+  // Telemetry uses a Provider-managed credential too. A direct rule would
+  // match before the Provider rule and forward the unresolved placeholder.
+  delete networkPolicies.tali_run_telemetry;
   if (projectRuntimeBridgeUrl) new URL(projectRuntimeBridgeUrl);
   if (Object.keys(networkPolicies).length > 0)
     document.network_policies = networkPolicies;
@@ -1389,7 +1380,7 @@ async function ensureInstanceProvider(
   target?: OpenShellTarget,
 ): Promise<void> {
   await ensureProviderPolicyCompositionEnabled(target);
-  await ensureLiteLlmProviderProfile(input.inferenceEndpoint, target);
+  await ensureLiteLlmProviderProfile(input.inferenceEndpoint, target, input.runTelemetry.endpoint);
   const providerName = openShellProviderName(input.name);
   const existing = await runCommand(
     openShellBinary(),

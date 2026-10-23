@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 import { parseAllDocuments } from "yaml";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { getRunnerConfig, setRunnerConfigForTests } from "./runner-config.js";
+import { materializeBootstrapSecrets } from "../../../scripts/testing/helm-bootstrap-fixture.mjs";
 
 const directory = mkdtempSync(resolve(tmpdir(), "runner-config-"));
 afterEach(() => { setRunnerConfigForTests(); vi.unstubAllEnvs(); });
@@ -26,11 +27,12 @@ describe("Runner file contract", () => {
   it("consumes the Helm file and ignores old business env overrides", () => {
     const output = execFileSync("helm", ["template", "runner-test", "../../charts/tali-relay",
       "--kube-version", "1.29.0", "-f", "../../charts/tali-relay/values-dev.yaml"], { encoding: "utf8" });
-    const objects = parseAllDocuments(output).map((doc) => doc.toJSON());
+    const objects = materializeBootstrapSecrets(parseAllDocuments(output).map((doc) => doc.toJSON()));
     const secret = objects.find((o) => o.stringData?.["runner.json"]);
     vi.stubEnv("NEMOCLAW_RUNNER_TOKEN", "ignored");
     vi.stubEnv("OPENSHELL_SANDBOX_CPU", "99");
-    const config = load(JSON.parse(secret.stringData["runner.json"]));
+    expect(secret?.stringData?.["runner.json"]).toBeTruthy();
+    const config = load(JSON.parse(secret!.stringData!["runner.json"]!));
     expect(config.server.token).not.toBe("ignored");
     expect(config.openshell.sandbox.cpu).toBe("1");
     expect(config.openshell.startTimeoutMs).toBe(600000);

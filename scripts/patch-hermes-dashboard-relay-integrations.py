@@ -61,6 +61,24 @@ def _normalized_relay_integrations(gateway: dict) -> dict:
             "gateway config is missing Relay telemetry"
         )
     normalized = {"toolsets": list(toolsets), "plugins": enabled}
+    servers = gateway.get("mcp_servers", {})
+    if not isinstance(servers, dict):
+        raise InvalidDashboardSeedDocumentError("gateway MCP configuration must be an object")
+    if "tali" in servers:
+        server = servers["tali"]
+        model = gateway.get("model", {})
+        origin = urllib.parse.urlparse(str(model.get("base_url", "")))
+        target = urllib.parse.urlparse(str(server.get("url", ""))) if isinstance(server, dict) else None
+        if (
+            target is None or origin.scheme not in {"http", "https"}
+            or (target.scheme, target.netloc) != (origin.scheme, origin.netloc)
+            or target.path != "/mcp/" or target.query or target.fragment
+            or set(server) != {"url", "headers"}
+            or server["headers"] != {"Authorization": "Bearer " + str(model.get("api_key", ""))}
+            or not str(model.get("api_key", "")).startswith("openshell:resolve:env:")
+        ):
+            raise InvalidDashboardSeedDocumentError("gateway MCP boundary is invalid")
+        normalized["mcp_servers"] = {"tali": deepcopy(server)}
 
     for registry_name, (expected_path, required_toolset, required_plugin) in _RELAY_REGISTRIES.items():
         registry = gateway.get(registry_name)
@@ -177,6 +195,11 @@ MERGE_REPLACEMENT = '''    if relay_memory is None:
             value for value in existing_disabled if value not in _RELAY_PLUGINS
         ]
     dashboard["plugins"] = dashboard_plugins
+    # Only mirror the scoped Relay gateway, never arbitrary gateway-side servers.
+    dashboard_mcp = dict(dashboard.get("mcp_servers", {}))
+    dashboard_mcp.pop("tali", None)
+    dashboard_mcp.update(relay_integrations.get("mcp_servers", {}))
+    dashboard["mcp_servers"] = dashboard_mcp
     for registry_name in _RELAY_REGISTRIES:
         if registry_name in relay_integrations:
             dashboard[registry_name] = relay_integrations[registry_name]

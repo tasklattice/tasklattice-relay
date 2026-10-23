@@ -162,6 +162,16 @@ describe("HelmProjectOpenShellGatewayClient", () => {
       service: { type: "ClusterIP" },
     });
     expect(commands[1]?.stdin).not.toContain("postgresql://");
+    expect(values).not.toHaveProperty("serviceAccount");
+    expect(values).not.toHaveProperty("sandboxServiceAccount");
+    expect(values.pkiInitJob).not.toHaveProperty("serviceAccount");
+    expect(values.pkiInitJob).not.toHaveProperty("imagePullSecrets");
+    const rendered = execFileSync("helm", ["template", "openshell", "../../.helm-dependencies/openshell",
+      "--namespace", target.namespace, "--values", "-"], {input:commands[1]!.stdin!,encoding:"utf8"});
+    const resources = parseAllDocuments(rendered).map(d => d.toJSON()).filter(Boolean);
+    const certgenSA = resources.find(r => r.kind === "ServiceAccount" && r.metadata.name.endsWith("-certgen"));
+    expect(certgenSA.metadata.annotations["helm.sh/hook"]).toBe("pre-install,pre-upgrade");
+    expect(resources.find(r => r.kind === "Job").spec.template.spec.imagePullSecrets).toEqual(configuration.imagePullSecrets);
     expect(commands[1]?.args.filter((arg) => arg === "3")).toHaveLength(1);
   });
 
@@ -318,5 +328,72 @@ describe("HelmProjectOpenShellGatewayClient", () => {
     await expect(client.reconcile(target)).rejects.toThrow(
       "release failed readiness",
     );
+  });
+});
+
+describe("OpenShift prepared ServiceAccount migration", () => {
+  it("waits before upgrade, uses distinct credentials, and retains legacy SAs for existing Sandboxes", async () => {
+    const prepare = vi.fn(async () => ({gatewaySecrets:[{name:"gateway-token"}],certgenSecrets:[{name:"certgen-token"}],sandboxSecrets:[{name:"sandbox-token"},{name:"external"}]}));
+    const run=vi.fn(async (input:CommandInput)=>input.args[0]==="status"
+      ? {exitCode:1,stderr:"release: not found",stdout:""}:{exitCode:0,stderr:"",stdout:""});
+    await new HelmProjectOpenShellGatewayClient(configuration,run,undefined,undefined,database,undefined,prepare).reconcile(target);
+    expect(prepare.mock.invocationCallOrder[0]).toBeLessThan(run.mock.invocationCallOrder[1]!);
+    const values=run.mock.calls.find(([input])=>input.args[0]==="upgrade")![0].stdin!;
+    const rendered=execFileSync("helm",["template","openshell","../../.helm-dependencies/openshell","--namespace",target.namespace,"--values","-"],{input:values,encoding:"utf8"});
+    const objects=parseAllDocuments(rendered).map(d=>d.toJSON()).filter(Boolean);
+    const job=objects.find(r=>r.kind==="Job");
+    expect(job.spec.template.spec.serviceAccountName).toBe(`openshell-${target.namespace}-certgen`);
+    expect(job.spec.template.spec.imagePullSecrets).toEqual([{name:"certgen-token"}]);
+    const certBinding=objects.find(r=>r.kind==="RoleBinding"&&r.metadata.name.endsWith("-certgen"));
+    expect(certBinding.subjects[0].name).toBe(`openshell-${target.namespace}-certgen`);
+    const pod=objects.find(r=>r.kind==="Deployment").spec.template.spec;
+    expect(pod.serviceAccountName).toBe(`openshell-${target.namespace}`);
+    expect(pod.imagePullSecrets).toEqual([{name:"gateway-token"}]);
+    const sas=objects.filter(r=>r.kind==="ServiceAccount").map(r=>r.metadata.name);
+    expect(sas).toEqual(expect.arrayContaining([`openshell-${target.namespace}`,`openshell-${target.namespace}-sandbox`]));
+    expect(sas.some((name:string)=>name.endsWith("-certgen"))).toBe(false);
+    const configs=objects.filter(r=>r.kind==="ConfigMap").flatMap(r=>Object.values(r.data??{})).join("\n");
+    expect(configs).toContain(`"openshell-${target.namespace}-sandbox"`);
+    expect(configs).toContain('"sandbox-token", "external"');
+  });
+  it("does not start upgrade or database provisioning when credentials are unavailable",async()=>{
+    const run=vi.fn(async (_input: CommandInput) => ({exitCode:1,stderr:"release: not found",stdout:""}));
+    const prepare=vi.fn(async()=>{throw new Error("pull Secret missing");});
+    await expect(new HelmProjectOpenShellGatewayClient(configuration,run,undefined,undefined,database,undefined,prepare).reconcile(target)).rejects.toThrow("pull Secret missing");
+    expect(run.mock.calls.map(([input]) => input.args[0])).toEqual(["status"]);
+    expect(database.reconcile).not.toHaveBeenCalled();
+  });
+  it.each(["pending-install", "pending-upgrade"])("prepares current SA credentials after recovering %s", async (state) => {
+    let generation = "old";
+    const run = vi.fn(async (input: CommandInput) => {
+      if (input.args[0] === "status") return {exitCode:0,stderr:"",stdout:JSON.stringify({info:{status:state}})};
+      if (input.args[0] === "history") return {exitCode:0,stderr:"",stdout:JSON.stringify(
+        state === "pending-install" ? [{revision:1,status:state}] : [{revision:1,status:"deployed"},{revision:2,status:state}],
+      )};
+      if (["uninstall", "rollback"].includes(input.args[0]!)) generation = "recovered";
+      return {exitCode:0,stderr:"",stdout:""};
+    });
+    const prepare = vi.fn(async () => ({
+      gatewaySecrets:[{name:`${generation}-gateway`}],
+      certgenSecrets:[{name:`${generation}-certgen`}],
+      sandboxSecrets:[{name:`${generation}-sandbox`}],
+    }));
+    await new HelmProjectOpenShellGatewayClient(configuration,run,undefined,undefined,database,undefined,prepare).reconcile(target);
+    const upgrade = run.mock.calls.find(([input]) => input.args[0] === "upgrade")![0];
+    const values = parse(upgrade.stdin!);
+    expect(values.imagePullSecrets).toEqual([{name:"recovered-gateway"}]);
+    expect(values.pkiInitJob.imagePullSecrets).toEqual([{name:"recovered-certgen"}]);
+    expect(values.server.sandboxImagePullSecrets).toEqual([{name:"recovered-sandbox"}]);
+    expect(run.mock.calls.map(([input]) => input.args[0])).toEqual([
+      "status", "history", state === "pending-install" ? "uninstall" : "rollback", "upgrade",
+    ]);
+  });
+  it("checks cancellation before attempting release recovery", async () => {
+    const run = vi.fn();
+    const prepare = vi.fn();
+    await expect(new HelmProjectOpenShellGatewayClient(configuration,run,undefined,undefined,database,undefined,prepare)
+      .reconcile({...target,assertCurrent:async()=>{throw new Error("lease lost");}})).rejects.toThrow("lease lost");
+    expect(run).not.toHaveBeenCalled();
+    expect(prepare).not.toHaveBeenCalled();
   });
 });

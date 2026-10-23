@@ -34,6 +34,7 @@ const openShellConfig = z
     supervisorImageTag: z.string().default(""),
     supervisorImagePullPolicy: pullPolicy.default("IfNotPresent"),
     sandboxImage: z.string().default(""),
+    sandboxImages: z.array(z.string().min(1)).optional(),
     sandboxImagePullPolicy: pullPolicy.default("IfNotPresent"),
     sandboxImagePullSecrets: pullSecrets.default([]),
     workspaceDefaultStorageSize: z.string().default("1Gi"),
@@ -61,6 +62,8 @@ const workerConfigSchema = z
       .prefault({}),
     openshift: z.object({
       enabled: z.boolean().default(false),
+      imagePullReadyTimeoutMs: z.number().int().positive().max(600000).optional(),
+      imageRegistryHost: z.string().regex(/^[a-zA-Z0-9.-]+(?::[0-9]+)?$/).optional(),
       imageSourceNamespace: z.string().max(63).regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/).optional(),
     }).strict().refine((value) => !value.enabled || !!value.imageSourceNamespace, {
       message: "OpenShift image pulling requires imageSourceNamespace",

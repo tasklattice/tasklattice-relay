@@ -487,6 +487,7 @@ model AuthVerification {
 }
 
 model Project {
+  works WorkRecord[]
   resourceOperations ResourceOperationRecord[]
   id                                  String    @id
   name                                String
@@ -541,6 +542,8 @@ model Project {
   instanceLifecycleOperations  InstanceLifecycleOperation[]
   instanceLifecycleEvents      InstanceLifecycleEvent[]
   expertAgents                 ExpertAgentRecord[]
+  personalOnboarding           PersonalOnboardingRecord?
+  managedSecrets               ManagedSecretRecord[]
 
   @@unique([departmentId, name], map: "projects_department_name_key")
   @@index([departmentId, createdAt])
@@ -1618,6 +1621,11 @@ model AgentSpecializationRecord {
 }
 
 model CostAttributionMappingRecord {
+  workId String? @map("work_id")
+  workName String? @map("work_name")
+  taskId String? @map("task_id")
+  taskName String? @map("task_name")
+  workRunId String? @map("work_run_id")
   projectId           String    @map("project_id")
   id                  String
   instanceId          String    @map("instance_id")
@@ -1668,6 +1676,11 @@ model ModelEndpointMappingRecord {
 }
 
 model ModelUsageFactRecord {
+  workId String? @map("work_id")
+  workName String? @map("work_name")
+  taskId String? @map("task_id")
+  taskName String? @map("task_name")
+  workRunId String? @map("work_run_id")
   projectId                String    @map("project_id")
   eventId                  String    @map("event_id")
   requestId                String    @map("request_id")
@@ -1730,6 +1743,8 @@ model ModelUsageFactRecord {
   @@unique([projectId, requestId])
   @@index([projectId, requestStartTime], map: "model_usage_fact_time_idx")
   @@index([projectId, runId, requestStartTime], map: "model_usage_fact_run_time_idx")
+  @@index([projectId, workId, taskId, requestStartTime], map: "model_usage_fact_work_task_time_idx")
+  @@index([projectId, workRunId], map: "model_usage_fact_work_run_idx")
   @@map("model_usage_fact")
   @@schema("tasklattice")
 }
@@ -1832,5 +1847,108 @@ model ResourceOperationRecord {
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   @@index([projectId, status], map: "resource_operations_project_status_idx")
   @@map("resource_operations")
+  @@schema("tasklattice")
+}
+
+// Work is the collaboration aggregate. Its durable run rows are the transactional outbox.
+model WorkRecord {
+  projectId String @map("project_id")
+  id String @db.Uuid
+  creationKey String @map("creation_key")
+  createdBy String @map("created_by")
+  revision Int @default(0)
+  state Json
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  messages WorkMessageRecord[]
+  events WorkEventRecord[]
+  executions WorkRunRecord[]
+  @@id([projectId, id])
+  @@unique([projectId, createdBy, creationKey])
+  @@map("works")
+  @@schema("tasklattice")
+}
+model WorkMessageRecord {
+  projectId String @map("project_id")
+  workId String @map("work_id") @db.Uuid
+  id String @db.Uuid
+  kind String
+  userId String? @map("user_id")
+  instanceId String? @map("instance_id")
+  name String
+  text String
+  source String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  work WorkRecord @relation(fields: [projectId, workId], references: [projectId, id], onDelete: Cascade)
+  @@id([projectId, workId, id])
+  @@index([projectId, workId, createdAt])
+  @@map("work_messages")
+  @@schema("tasklattice")
+}
+model WorkEventRecord {
+  projectId String @map("project_id")
+  workId String @map("work_id") @db.Uuid
+  sequence Int
+  commandKey String @map("command_key")
+  commandHash String @map("command_hash")
+  type String
+  summary String
+  actorId String @map("actor_id")
+  details Json
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  work WorkRecord @relation(fields: [projectId, workId], references: [projectId, id], onDelete: Cascade)
+  @@id([projectId, workId, sequence])
+  @@unique([projectId, workId, commandKey])
+  @@map("work_events")
+  @@schema("tasklattice")
+}
+model PersonalOnboardingRecord {
+  projectId String @id @map("project_id")
+  revision Int @default(0)
+  status String @default("EMPTY")
+  state Json @default("{}")
+  operationId String? @map("operation_id")
+  leaseUntil DateTime? @map("lease_until") @db.Timestamptz(6)
+  error String?
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  @@map("personal_onboarding")
+  @@schema("tasklattice")
+}
+
+model ManagedSecretRecord {
+  projectId String @map("project_id")
+  resourceId String @map("resource_id")
+  ciphertext String
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  @@id([projectId, resourceId])
+  @@map("managed_secrets")
+  @@schema("tasklattice")
+}
+
+model WorkRunRecord {
+  id String @id @db.Uuid
+  projectId String @map("project_id")
+  workId String @map("work_id") @db.Uuid
+  taskId String? @map("task_id")
+  instanceId String @map("instance_id")
+  requestedBy String @map("requested_by")
+  kind String
+  status String @default("queued")
+  reason String?
+  input Json
+  approvedHash String @map("approved_hash")
+  approvalExpiresAt DateTime @map("approval_expires_at") @db.Timestamptz(6)
+  planRevision Int @map("plan_revision")
+  fence Int @default(0)
+  leaseUntil DateTime? @map("lease_until") @db.Timestamptz(6)
+  startedAt DateTime? @map("started_at") @db.Timestamptz(6)
+  finishedAt DateTime? @map("finished_at") @db.Timestamptz(6)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  work WorkRecord @relation(fields: [projectId, workId], references: [projectId, id], onDelete: Cascade)
+  @@index([status, createdAt])
+  @@map("work_runs")
   @@schema("tasklattice")
 }

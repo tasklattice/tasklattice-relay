@@ -1,20 +1,6 @@
 {{- if .Values.exampleMcp.enabled }}
 {{- $component := "example-mcp" -}}
 {{- $name := include "tali.componentName" (dict "root" . "component" $component) -}}
-apiVersion: v1
-kind: Secret
-metadata:
-  name: {{ $name }}-auth
-  labels:
-    {{- include "tali.componentLabels" (dict "root" . "component" $component) | nindent 4 }}
-  annotations:
-    {{- include "tali.resourceAnnotations" (dict "root" . "wave" "foundation") | nindent 4 }}
-type: Opaque
-stringData:
-  username: {{ required "exampleMcp.auth.username is required" .Values.exampleMcp.auth.username | quote }}
-  password: {{ required "exampleMcp.auth.password is required" .Values.exampleMcp.auth.password | quote }}
-  auth-value: {{ printf "%s:%s" .Values.exampleMcp.auth.username .Values.exampleMcp.auth.password | quote }}
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -33,7 +19,7 @@ spec:
       labels:
         {{- include "tali.selectorLabels" (dict "root" . "component" $component) | nindent 8 }}
       annotations:
-        checksum/auth-secret: {{ printf "%s:%s" .Values.exampleMcp.auth.username .Values.exampleMcp.auth.password | sha256sum }}
+        checksum/auth-secret: {{ printf "%s:%s" .Values.exampleMcp.auth.username .Values.secrets.existingSecrets.exampleMcp | sha256sum }}
         {{- with .Values.global.rolloutRevision }}
         tali.ai/rollout-revision: {{ . | quote }}
         {{- end }}
@@ -68,12 +54,12 @@ spec:
             - name: BASIC_AUTH_USERNAME
               valueFrom:
                 secretKeyRef:
-                  name: {{ $name }}-auth
+                  name: {{ include "tali.exampleMcpSecretName" . }}
                   key: username
             - name: BASIC_AUTH_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ $name }}-auth
+                  name: {{ include "tali.exampleMcpSecretName" . }}
                   key: password
             {{- with .Values.exampleMcp.githubTokenSecret.name }}
             - name: GITHUB_TOKEN

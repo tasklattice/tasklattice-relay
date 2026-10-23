@@ -15,7 +15,7 @@ Hindsight remains a cluster-internal service.
 | `monitoring.serviceMonitor.enabled` | Relay, Control Worker, and Hindsight scrapes | Enable only when the Prometheus Operator CRDs exist |
 | `monitoring.networkPolicy.*Selector` | Prometheus namespace/Pod ingress identity | Match the actual Prometheus installation before enabling scraping |
 | `monitoring.prometheusRule.enabled` | Actionable Memory alerts | Enable with ServiceMonitor and route the warning/critical severities |
-| `secrets.metricsToken` / `metrics-token` | Bearer token for Relay metrics | Generate independently and rotate as a Secret; never reuse the Hindsight root key |
+| credential-store `metricsToken` / component `metrics-token` | Bearer token for Relay metrics | Generate independently and rotate as a Secret; never reuse the Hindsight root key |
 
 An explicit Project allowlist takes precedence over the environment default.
 Disabling the flag removes Memory navigation and rejects new Project Memory API

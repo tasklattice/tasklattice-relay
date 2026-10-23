@@ -1,3 +1,4 @@
+import { prepareRuntimeImagePull } from "./project-image-pull-readiness";
 import { getWorkerConfig } from "../config/worker-config";
 import {
   AppsV1Api,
@@ -274,7 +275,8 @@ implements ExpertAgentRuntimeClient {
     }
     const name = expertAgentRuntimeResourceName(input.instanceId);
     const owner = await readProjectNamespaceOwner(input.namespace, input.projectId);
-    for (const resource of expertAgentRuntimeResources(input, this.configuration)) {
+    const imagePullSecrets = await prepareRuntimeImagePull(input, this.configuration.image, this.configuration.imagePullSecrets);
+    for (const resource of expertAgentRuntimeResources(input, { ...this.configuration, imagePullSecrets })) {
       await this.objects.patch(
         withNamespaceOwner(resource, owner),
         undefined,

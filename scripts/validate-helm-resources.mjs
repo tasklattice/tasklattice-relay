@@ -6,6 +6,7 @@ import { parseAllDocuments, parse as parseYaml } from "yaml";
 import { parse as parseToml } from "smol-toml";
 import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
+import { materializeBootstrapSecrets } from "./testing/helm-bootstrap-fixture.mjs";
 
 function releaseSecret(collection) { return Object.assign({}, ...collection.filter((o) => o.kind === "Secret").map((o) => o.stringData ?? {})); }
 function workerConfig(collection) { return parseToml(releaseSecret(collection)["worker.toml"]).worker; }
@@ -143,14 +144,14 @@ function renderNamedChart(name, namespace, extraArguments = []) {
 }
 
 function parseObjects(rendered) {
-  return parseAllDocuments(rendered, { uniqueKeys: false })
+  return materializeBootstrapSecrets(parseAllDocuments(rendered, { uniqueKeys: false })
     .map((document) => {
       if (document.errors.length > 0) {
         throw document.errors[0];
       }
       return document.toJS();
     })
-    .filter((object) => object && typeof object === "object");
+    .filter((object) => object && typeof object === "object"));
 }
 
 const rendered = renderChart([
@@ -358,14 +359,6 @@ for (const [kind, name, wave] of [
   ["ClusterRoleBinding", controlWorkerClusterRoleName, "10"],
   ["Role", `${releaseName}-control-managed-secrets`, "10"],
   ["RoleBinding", `${releaseName}-control-managed-secrets`, "10"],
-    ["Secret", `${releaseName}-control-config`, "10"],
-  ["Secret", `${releaseName}-runner-config`, "10"],
-  ["Secret", `${releaseName}-postgresql-config`, "10"],
-  ["Secret", `${releaseName}-litellm-config`, "10"],
-  ["Secret", `${releaseName}-hindsight-config`, "10"],
-  ["Secret", `${releaseName}-metrics-config`, "10"],
-  ["Secret", `${releaseName}-keycloak-config`, "10"],
-  ["Secret", `${releaseName}-example-mcp-auth`, "10"],
   ["ConfigMap", `${releaseName}-keycloak-realm`, "10"],
   ["Service", `${releaseName}-postgresql`, "10"],
   ["Service", `${releaseName}-litellm`, "10"],

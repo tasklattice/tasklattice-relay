@@ -216,6 +216,16 @@ afterEach(async () => {
 });
 
 describe("Project Capability admission middleware", () => {
+  it("does not query UUID Expert Agent relations for a deleted Kubernetes Instance ID", async () => {
+    const query = vi.spyOn(database.expertAgentMemberRecord, "findFirst");
+    const request = authorizedRequest(users.admin,
+      "/api/v1/projects/individual/instances/ti-missinginstance");
+    const result = await (await middleware())({ context: {}, req: request });
+    expect(result).toBeUndefined();
+    expect(query).not.toHaveBeenCalled();
+    expect(isProjectAdmissionComplete(request)).toBe(true);
+  });
+
   it("proves OWNER from the database and marks an admitted request", async () => {
     const request = authorizedRequest(
       users.developer,

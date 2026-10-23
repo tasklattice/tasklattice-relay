@@ -134,6 +134,9 @@ describe("business API contracts", () => {
         properties: Record<string, unknown>;
       }>;
     };
+    for (const [id, schema] of Object.entries(document.components.schemas)) {
+      expect(schema, id).not.toHaveProperty("$ref", `#/components/schemas/${id}`);
+    }
     const existingAgent = onboardSchema.oneOf.find((variant) =>
       JSON.stringify(variant.properties.sourceType).includes("existing-agent")
     );

@@ -430,6 +430,10 @@ export function AppShell() {
 
   const activeSidebarOpen = fullBleedRoute ? nestedSidebarOpen : sidebarOpen;
 
+  const workRoute = /^\/[^/]+\/works\/?$/.test(pathname)
+    || (currentProject?.activeRole === "user" && pathname.replace(/\/$/, "") === `/${currentProject.id}`);
+  if (workRoute) return <ToastProvider><TooltipProvider><SidebarProvider><Outlet /></SidebarProvider></TooltipProvider><ToastViewport /></ToastProvider>;
+
   return (
     <ToastProvider duration={3_000} swipeDirection="right">
       <TooltipProvider delayDuration={250}>

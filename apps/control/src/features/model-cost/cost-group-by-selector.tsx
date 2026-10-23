@@ -3,6 +3,8 @@ import { Box, Boxes, KeyRound, SlidersHorizontal, type LucideIcon } from "lucide
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const options: Array<{ value: CostGroupBy; label: string; icon: LucideIcon }> = [
+  { value: "work", label: "Work", icon: Box },
+  { value: "task", label: "Task", icon: Boxes },
   { value: "instance", label: "Instance", icon: Boxes },
   { value: "model_endpoint", label: "Model endpoint", icon: SlidersHorizontal },
   { value: "provider_account", label: "Provider", icon: Box },

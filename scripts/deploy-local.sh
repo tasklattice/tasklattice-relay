@@ -267,6 +267,7 @@ kubectl --context "$kube_context" --namespace "$namespace" \
 case "${CONTROL_DEVELOPMENT_PROJECTS_ENABLED:-true}" in
   true)
     CONTROL_PUBLIC_URL="$control_public_url" \
+      KUBE_CONTEXT="$kube_context" HELM_NAMESPACE="$namespace" HELM_RELEASE_NAME="$release_name" \
       bash "$repository_root/scripts/configure-dev-projects.sh"
     ;;
   false)

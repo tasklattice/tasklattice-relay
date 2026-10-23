@@ -34,8 +34,8 @@ import {
 import { usePlatformTimezone } from "@/hooks/use-platform-timezone";
 
 const groupSearch = z.preprocess(
-  (value) => typeof value === "string" && ["instance", "model_endpoint", "provider_account", "virtual_key"].includes(value) ? value : undefined,
-  z.enum(["instance", "model_endpoint", "provider_account", "virtual_key"]).optional(),
+  (value) => typeof value === "string" && ["work", "task", "instance", "model_endpoint", "provider_account", "virtual_key"].includes(value) ? value : undefined,
+  z.enum(["work", "task", "instance", "model_endpoint", "provider_account", "virtual_key"]).optional(),
 );
 const rangeSearch = z.preprocess(
   (value) => typeof value === "string" && ["7d", "30d", "90d", "current_month", "previous_month", "custom"].includes(value) ? value : undefined,
@@ -171,6 +171,11 @@ function ModelCostPage() {
     setFilters({ ...filters, [groupBy]: [item.id] });
   const selectedRankingId = filters[groupBy]?.length === 1 ? filters[groupBy]?.[0] : undefined;
   const handleRowClick = (item: CostBreakdownItem) => {
+    if (groupBy === "work" || groupBy === "task") {
+      if (item.id.startsWith("unmapped-")) return;
+      void navigate({ to: "/$projectId/works", params: { projectId }, search: { work: item.id.split("/")[0]! } });
+      return;
+    }
     if (groupBy === "instance") {
       void navigate({ to: "/$projectId/instances/$instanceId", params: { projectId, instanceId: item.id } });
       return;
@@ -193,9 +198,9 @@ function ModelCostPage() {
       <header className="pb-1">
         <h1 className="font-display text-2xl font-semibold leading-tight tracking-[-0.02em]">Model cost</h1>
         <p className="mt-1 max-w-3xl text-[13px] leading-5 text-muted-foreground">
-          LiteLLM spend is attributed to the dedicated virtual keys created for each Instance.
+          Gateway usage is attributed to Work, Task and Agent instances through dedicated virtual keys.
           <br className="hidden sm:block" />
-          Analyze spend by grouping it across different dimensions.
+          Planning belongs to Work; execution belongs to its Task. Gateway costs may differ from provider invoices.
         </p>
       </header>
 

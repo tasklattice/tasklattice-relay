@@ -48,6 +48,8 @@ const formatLastActive = (value: string | undefined) => {
 const lastActive: Column = { id: "lastActive", label: "Last active", value: (item) => item.lastActive ?? "", render: (item) => formatLastActive(item.lastActive) };
 
 const columns: Record<CostGroupBy, Column[]> = {
+  work: [baseName("Work"), spend, inputTokens, outputTokens, totalTokens, requests, average, lastActive],
+  task: [baseName("Task"), spend, inputTokens, outputTokens, totalTokens, requests, average, lastActive],
   instance: [baseName("Instance"), spend, inputTokens, outputTokens, totalTokens, requests, average, lastActive],
   model_endpoint: [
     baseName("Model endpoint"),

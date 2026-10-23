@@ -72,6 +72,26 @@ test("runs every module for shared contracts and test infrastructure", () => {
   );
 });
 
+test("Work changes select lifecycle coverage and the cross-component golden path", () => {
+  for (const path of [
+    "apps/control/server/works/work-worker.ts",
+    "apps/control/server/routes/api/v1/projects/[projectId]/works/index.ts",
+    "apps/control/src/features/works/work-page.tsx",
+    "apps/control/src/routes/$projectId/works.tsx",
+  ]) {
+    assert.ok(sourceOwnerModuleIds(path).includes("agent-lifecycle"), path);
+    const selected = selectTestModuleIds([path]);
+    assert.ok(selected.includes("agent-lifecycle"), path);
+    assert.ok(selected.includes(GOLDEN_PATH_MODULE_ID), path);
+  }
+  const lifecycle = testModules.find(({ id }) => id === "agent-lifecycle");
+  for (const name of ["work-domain", "work-routing", "work.postgres"]) {
+    assert.ok(matchesAny(`apps/control/server/works/${name}.test.ts`, lifecycle.controlTestPatterns));
+  }
+  const access = testModules.find(({ id }) => id === "access");
+  assert.ok(matchesAny("apps/control/server/works/work-routing.test.ts", access.controlTestPatterns));
+});
+
 test("fails safe for an unmapped Control path", () => {
   const selected = selectTestModuleIds([
     "apps/control/server/new-component/new-service.ts",

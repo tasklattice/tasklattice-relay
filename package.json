@@ -63,6 +63,8 @@
     "helm:validate:openshift": "node scripts/validate-helm-openshift.mjs && node --test scripts/testing/openshift-image-puller-rbac.test.mjs",
     "test:release:control": "node --test scripts/testing/control-plane-release.test.mjs",
     "helm:validate:airgap": "node scripts/validate-helm-airgap.mjs",
+    "helm:validate:credentials": "node scripts/validate-chart-credentials.mjs",
+    "test:chart-credentials": "node --test scripts/testing/chart-credentials.test.mjs scripts/testing/credential-bootstrap.test.mjs",
     "test:integration:keycloak": "node scripts/testing/integration-keycloak.mjs",
     "test:integration:memory": "node scripts/test-hindsight-integration.mjs",
     "test:integration:vector-database": "node scripts/testing/integration-docling-vector.mjs",
@@ -79,6 +81,8 @@
     "pretest:matrix:summary": "npm run build:shared",
     "pretest:integration:a2a": "npm run build:shared",
     "test:openshell-database:postgres": "node scripts/testing/integration-openshell-database.mjs",
+    "test:work:postgres": "npm run build:shared && npm run db:generate --workspace @tali/control && node scripts/testing/integration-work-postgres.mjs",
+    "test:postgres": "npm run build:shared && npm run db:generate --workspace @tali/control && node scripts/testing/integration-work-postgres.mjs --all",
     "test:project-initialization:postgres": "node scripts/testing/integration-project-initialization.mjs",
     "test:component-init:containers": "node scripts/testing/component-init-containers.mjs",
     "test:component-config:containers": "node scripts/testing/component-config-containers.mjs"
@@ -91,8 +95,8 @@
   },
   "overrides": {
     "@hono/node-server": "2.0.12",
-    "brace-expansion": "5.0.8",
-    "fast-uri": "3.1.4",
+    "brace-expansion": "5.0.12",
+    "fast-uri": "3.1.9",
     "find-my-way": "9.7.0",
     "valibot": "1.4.2"
   }

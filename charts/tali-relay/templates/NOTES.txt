@@ -28,11 +28,17 @@ Example MCP endpoint for Project registration:
   http://{{ include "tali.componentName" (dict "root" . "component" "example-mcp") }}:{{ .Values.exampleMcp.service.port }}/mcp
 Basic authentication:
   Username: {{ .Values.exampleMcp.auth.username }}
-  Password: {{ .Values.exampleMcp.auth.password }}
 LiteLLM auth-value Secret reference:
-  k8s://{{ .Release.Namespace }}/{{ include "tali.componentName" (dict "root" . "component" "example-mcp") }}-auth#auth-value
+  k8s://{{ .Release.Namespace }}/{{ include "tali.exampleMcpSecretName" . }}#auth-value
 {{- end }}
 
-The default human login credentials are admin/password and the default OpenShell endpoint is
-plaintext and unauthenticated. Change secrets.* and configure trusted ingress,
-TLS, and authentication before exposing this deployment outside a local cluster.
+{{- if not .Values.secrets.existingSecrets.control }}
+Initial credentials are retained in the credential store:
+  {{ include "tali.credentialSecretName" . }}
+Retrieve the initial administrator credential with an authorized local terminal:
+  kubectl -n {{ .Release.Namespace }} get secret {{ include "tali.credentialSecretName" . }} -o jsonpath='{.data.initialPlatformAdministratorPassword}' | base64 --decode
+Repeated installs/upgrades reuse credentials; the Job never resets application accounts.
+{{- else }}
+Control uses the external configuration Secret {{ .Values.secrets.existingSecrets.control }}.
+Retrieve administrator access through the operator managing that configuration.
+{{- end }}

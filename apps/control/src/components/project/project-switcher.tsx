@@ -21,6 +21,13 @@ import { useProjectPermissions } from "@/hooks/use-project-permissions";
 import { defaultLanguage, normalizeLanguage } from "@/i18n/config";
 import { cn } from "@/lib/utils";
 
+// A personal container uses an opaque unique database name; show a human label.
+function departmentLabel(department: { id: string; name: string }, language: string) {
+  return department.id.startsWith("personal-")
+    ? language.startsWith("zh") ? "个人资源" : "Personal"
+    : department.name;
+}
+
 export function ProjectSwitcher({
   collapsed = false,
   onProjectSettingsOpen,
@@ -95,7 +102,7 @@ export function ProjectSwitcher({
       .map((group) => ({
         ...group,
         projects: group.projects.filter((project) =>
-          `${project.name} ${project.department.name}`
+          `${project.name} ${departmentLabel(project.department, language)}`
             .toLocaleLowerCase(language)
             .includes(normalizedQuery),
         ),
@@ -148,7 +155,7 @@ export function ProjectSwitcher({
           aria-label={
             currentProject
               ? t("projectSwitcher.currentProject", {
-                  projectName: `${currentProject.department.name}/${currentProject.name}`,
+                  projectName: `${departmentLabel(currentProject.department, language)}/${currentProject.name}`,
                 })
               : t("projectSwitcher.noProject")
           }
@@ -184,7 +191,7 @@ export function ProjectSwitcher({
                 </span>
                 {currentProject ? (
                   <span className="block truncate text-[11px] leading-4 text-sidebar-foreground/55">
-                    {currentProject.department.name}
+                    {departmentLabel(currentProject.department, language)}
                   </span>
                 ) : null}
               </span>
@@ -245,7 +252,7 @@ export function ProjectSwitcher({
                     id={`project-group-${group.department.id}`}
                     className="min-w-0 flex-1 truncate font-medium"
                   >
-                    {group.department.name}
+                    {departmentLabel(group.department, language)}
                   </h3>
                   <span className="font-mono text-[10px] tabular-nums">
                     {t("projectSwitcher.projectCount", {

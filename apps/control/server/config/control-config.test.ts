@@ -20,6 +20,7 @@ import { DoclingClient } from "../catalog/docling-client";
 import { AgentGardenService } from "../agent-garden/agent-garden-service";
 import { AgentGardenStore } from "../agent-garden/agent-garden-store";
 import { createTestStore } from "../test/store";
+import { materializeBootstrapSecrets } from "../../../../scripts/testing/helm-bootstrap-fixture.mjs";
 
 const temporary = mkdtempSync(resolve(tmpdir(), "relay-config-"));
 afterEach(() => {
@@ -64,7 +65,7 @@ describe("component configuration contract", () => {
   });
 
   it("loads the actual Helm file with typed provisioning resources and shared Worker settings", () => {
-    const manifests = parseAllDocuments(
+    const rendered = parseAllDocuments(
       execFileSync(
         "helm",
         [
@@ -93,16 +94,18 @@ describe("component configuration contract", () => {
         { encoding: "utf8" },
       ),
     ).map((doc) => doc.toJSON());
+    const manifests = materializeBootstrapSecrets(rendered);
     const secret = manifests.find(
       (object) => object.stringData?.["control.toml"],
     );
     vi.stubEnv("TALI_BOOTSTRAP_INTERNAL_URL", "http://ignored-old-env");
-    const config = load(secret.stringData["control.toml"]);
+    expect(secret?.stringData?.["control.toml"]).toBeTruthy();
+    const config = load(secret!.stringData!["control.toml"]!);
     expect(config).not.toHaveProperty("worker");
     const workerSecret = manifests.find(
       (object) => object.stringData?.["worker.toml"],
     );
-    const worker = loadWorker(workerSecret.stringData["worker.toml"]);
+    const worker = loadWorker(workerSecret!.stringData!["worker.toml"]!);
     expect(worker.project_runtime_bridge).not.toHaveProperty("storageSize");
     expect(worker.project_runtime_bridge).not.toHaveProperty("storageClass");
     expect(worker.healthPort).toBe(9191);
@@ -124,7 +127,7 @@ describe("component configuration contract", () => {
       "http://config-test-control.config-ns.svc.cluster.local:38080",
     );
     for (const name of ["control", "control-worker"]) {
-      const workload = manifests.find(
+      const workload = rendered.find(
         (object) =>
           object.kind === "Deployment" &&
           object.metadata.labels["app.kubernetes.io/component"] === name,

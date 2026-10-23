@@ -222,3 +222,24 @@ describe("capability admission evaluator", () => {
     });
   });
 });
+
+describe("personal billing read access", () => {
+  it("allows only an active personal owner to read costs, without quota-edit grants", async () => {
+    const { createHash } = await import("node:crypto");
+    const userId = "billing-personal-owner";
+    const depId = `personal-${createHash("sha256").update(userId).digest("hex").slice(0,24)}`;
+    await database.user.create({data:{id:userId,email:"billing@example.invalid",displayName:"Billing test"}});
+    await database.department.create({data:{id:depId,name:"Personal",createdBy:userId}});
+    await database.project.create({data:{id:"billing-personal",name:"Personal",departmentId:depId,createdBy:userId}});
+    await database.projectMember.create({data:{projectId:"billing-personal",userId,role:"user"}});
+    const service = new ProjectAdmissionService(database);
+    const request = new Request("http://local/api/v1/projects/billing-personal/costs/summary");
+    expect(await service.authorize(request,userId,"CAP_COST_VIEW",{resourceType:"Cost"},"user")).toMatchObject({decision:"ALLOW",policyId:"personal-owner:cost-read"});
+    await expect(service.authorize(new Request("http://local/api/v1/projects/billing-personal/quota",{method:"PUT"}),userId,"CAP_PROJECT_QUOTA_UPDATE",{resourceType:"ProjectQuota"},"user")).rejects.toBeInstanceOf(CapabilityAdmissionError);
+    await database.project.update({where:{id:"billing-personal"},data:{departmentId:"dep1"}});
+    await expect(service.authorize(request,userId,"CAP_COST_VIEW",{resourceType:"Cost"},"user")).rejects.toBeInstanceOf(CapabilityAdmissionError);
+    await database.project.update({where:{id:"billing-personal"},data:{departmentId:depId}});
+    await database.projectMember.update({where:{projectId_userId:{projectId:"billing-personal",userId}},data:{manualAccess:false,externalAccessActive:false}});
+    await expect(service.authorize(request,userId,"CAP_COST_VIEW",{resourceType:"Cost"},"user")).rejects.toBeInstanceOf(CapabilityAdmissionError);
+  });
+});

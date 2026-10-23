@@ -96,11 +96,15 @@ jobs:
               - 'scripts/prepare-agent-sandbox-chart.sh'
               - 'scripts/package-worker-charts.sh'
               - 'scripts/package-control-plane-chart.sh'
+              - 'scripts/validate-chart-credentials.mjs'
+              - 'scripts/testing/chart-credentials.test.mjs'
               - 'scripts/validate-helm-*.mjs'
               - 'scripts/validate-development-defaults.mjs'
             core_images:
               - 'scripts/package-worker-charts.sh'
               - 'scripts/package-control-plane-chart.sh'
+              - 'scripts/validate-chart-credentials.mjs'
+              - 'scripts/testing/chart-credentials.test.mjs'
               - 'scripts/prepare-agent-sandbox-chart.sh'
               - 'scripts/prepare-helm-dependencies.sh'
               - 'charts/tali-relay/**'
@@ -292,6 +296,10 @@ jobs:
         run: npm run helm:validate:openshift
       - name: Validate air-gapped configuration
         run: npm run helm:validate:airgap
+      - name: Reject fixed Chart credentials
+        run: |
+          npm run test:chart-credentials
+          npm run helm:validate:credentials
       - name: Render default chart
         run: helm template tali-relay charts/tali-relay --namespace tali --kube-version 1.29.0 > /dev/null
 
@@ -316,6 +324,8 @@ jobs:
         if: matrix.target == 'control'
         with:
           version: v3.18.4
+      - uses: ./.github/actions/setup-node-workspace
+        if: matrix.target == 'control'
       - name: Package Relay and Worker charts for the shared image
         if: matrix.target == 'control'
         run: |

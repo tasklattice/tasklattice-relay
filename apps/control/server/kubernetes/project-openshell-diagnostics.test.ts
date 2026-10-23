@@ -51,3 +51,17 @@ describe("OpenShell install diagnostics", () => {
     expect(result.stderr).toContain("Helm command timed out after 500ms");
   });
 });
+
+describe("image pull error classification", () => {
+  it.each([
+    ["unauthorized: bearer SUPER-SECRET", "registry-authentication-failed"],
+    ["denied: password=SUPER-SECRET", "registry-access-denied"],
+    ["manifest unknown", "image-or-tag-not-found"],
+    ["x509: certificate signed by unknown authority", "registry-certificate-error"],
+    ["dial tcp: no such host", "registry-network-error"],
+    ["unrecognized secret=SUPER-SECRET", undefined],
+  ])("classifies without retaining raw response: %s", async (message, expected) => {
+    const { imagePullFailure } = await import("./project-openshell-diagnostics");
+    expect(imagePullFailure(message)).toBe(expected);
+  });
+});

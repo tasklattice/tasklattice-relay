@@ -75,6 +75,14 @@ rules:
     resources: ["networkpolicies"]
     verbs: ["get", "create", "patch", "delete"]
   {{- end }}
+  {{- if and .Values.openshift.enabled .Values.projectRuntimeNamespaces.enabled }}
+  - apiGroups: [""]
+    resources: ["serviceaccounts"]
+    verbs: ["get", "create"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get"]
+  {{- end }}
   {{- if .Values.projectOpenShell.enabled }}
   {{- include "tali.projectOpenShellControllerRules" . | nindent 2 }}
   {{- end }}

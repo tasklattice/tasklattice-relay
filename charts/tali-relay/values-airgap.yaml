@@ -1,6 +1,13 @@
 # Example disconnected-registry overrides. Replace registry.airgap.example.com
 # and the Secret name with values from the target environment. Use this file
 # together with values-openshift.yaml for OpenShift.
+# This profile pulls directly from an external disconnected registry. To reuse
+# imported OCP ImageStreams instead, enable this and configure imageSourceNamespace
+# / imageRegistryHost after importing every tenant image into that source.
+openshift:
+  runtimeImages:
+    enabled: false
+
 global:
   imageRegistry: registry.airgap.example.com/tali
   imagePullSecrets:

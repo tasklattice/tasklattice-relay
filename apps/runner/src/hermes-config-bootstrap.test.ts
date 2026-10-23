@@ -87,6 +87,35 @@ for memory in ({"provider": "unknown"}, {"memory_enabled": "true"}, []):
     expect(result.status, result.stderr).toBe(0);
   });
 
+  it("mirrors only the scoped LiteLLM MCP gateway into the Dashboard", () => {
+    const patch = resolve(import.meta.dirname, "../../../scripts/patch-hermes-dashboard-relay-integrations.py");
+    const program = `
+import importlib.util, sys, urllib.parse
+from copy import deepcopy
+spec = importlib.util.spec_from_file_location("bootstrap", sys.argv[1])
+bootstrap = importlib.util.module_from_spec(spec); spec.loader.exec_module(bootstrap)
+spec = importlib.util.spec_from_file_location("patch", sys.argv[2])
+patch = importlib.util.module_from_spec(spec); spec.loader.exec_module(patch)
+scope = {"InvalidDashboardSeedDocumentError": ValueError, "urllib": __import__("urllib"), "deepcopy": deepcopy}
+source = patch.FUNCTION_REPLACEMENT
+exec(source[source.index("_RELAY_TOOLSETS ="):source.index("def _set_policy_value")], scope)
+normalize = scope["_normalized_relay_integrations"]
+credential = "openshell:resolve:env:v123456_OPENAI_API_KEY"
+config = {"model": {"base_url": "http://litellm.test:4000/v1", "api_key": credential},
+          "plugins": {"enabled": ["tali-run-telemetry"]}}
+bootstrap.configure_gateway_mcp(config, config["model"]["base_url"], credential)
+assert config["mcp_servers"]["tali"]["url"] == "http://litellm.test:4000/mcp/"
+assert normalize(config)["mcp_servers"] == config["mcp_servers"]
+for bad in ({"url": "http://other.test/mcp/"}, {"headers": {"Authorization": "Bearer raw-secret"}}):
+    changed = deepcopy(config); changed["mcp_servers"]["tali"].update(bad)
+    try: normalize(changed)
+    except ValueError: pass
+    else: raise AssertionError("cross-origin or unmanaged MCP credential accepted")
+`;
+    const result = spawnSync("python3", ["-c", program, bootstrap, patch], { encoding: "utf8" });
+    expect(result.status, result.stderr).toBe(0);
+  });
+
   it("enables the bundled Run telemetry plugin", () => {
     const program = `
 import importlib.util

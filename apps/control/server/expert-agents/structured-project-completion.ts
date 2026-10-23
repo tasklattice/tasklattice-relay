@@ -5,6 +5,7 @@ interface ChatMessage {
 
 interface StructuredProjectCompletionInput {
   baseUrl: string;
+  allowFormatFallback?: boolean;
   fetchImplementation?: typeof fetch;
   maxTokens: number;
   messages: ChatMessage[];
@@ -93,7 +94,7 @@ export async function structuredProjectCompletion(
 ): Promise<unknown> {
   let response = await send(input, true);
   let bodyText = await response.text();
-  if (!response.ok && responseFormatUnsupported(response.status, bodyText)) {
+  if (input.allowFormatFallback !== false && !response.ok && responseFormatUnsupported(response.status, bodyText)) {
     response = await send(input, false);
     bodyText = await response.text();
   }

@@ -1,3 +1,5 @@
+import { imagePullFailureSummary } from "./project-openshell-diagnostics";
+import { prepareRuntimeImagePull } from "./project-image-pull-readiness";
 import { getWorkerConfig } from "../config/worker-config";
 import {
   AppsV1Api,
@@ -251,7 +253,8 @@ export class KubernetesProjectRuntimeBridgeClient
       throw new Error("Control internal URL is required for Project Runtime Bridge reconciliation.");
     }
     const owner = await readProjectNamespaceOwner(input.namespace, input.projectId);
-    for (const resource of projectRuntimeBridgeResources(input, this.configuration)) {
+    const imagePullSecrets = await prepareRuntimeImagePull(input, this.configuration.image, this.configuration.imagePullSecrets);
+    for (const resource of projectRuntimeBridgeResources(input, { ...this.configuration, imagePullSecrets })) {
       await this.objects.patch(
         withNamespaceOwner(resource, owner),
         undefined,
@@ -275,7 +278,7 @@ export class KubernetesProjectRuntimeBridgeClient
       ) return;
       if (Date.now() >= deadline) {
         throw new Error(
-          `Project Runtime Bridge did not become ready within ${timeoutMs}ms.`,
+          `Project Runtime Bridge did not become ready within ${timeoutMs}ms. ${await imagePullFailureSummary(input.namespace, PROJECT_RUNTIME_BRIDGE_NAME)}`,
         );
       }
       await new Promise((resolve) => setTimeout(resolve, 1_000));

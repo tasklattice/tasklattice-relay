@@ -58,6 +58,51 @@ app.kubernetes.io/component: {{ .component }}
 {{- end -}}
 {{- end }}
 
+{{- define "tali.runtimeImagesEnabled" -}}
+{{- $settings := default (dict) .Values.openshift.runtimeImages -}}
+{{- $enabled := false -}}
+{{- if hasKey $settings "enabled" -}}
+{{- if not (kindIs "bool" $settings.enabled) -}}
+{{- fail "openshift.runtimeImages.enabled must be a boolean" -}}
+{{- end -}}
+{{- $enabled = $settings.enabled -}}
+{{- end -}}
+{{- and .Values.openshift.enabled $enabled -}}
+{{- end }}
+
+{{/* Resolve every tenant image through the same source. Keep the final repository
+     component and its tag/digest; ImageStream repositories cannot contain slashes.
+     Control-plane Pod images deliberately continue to use tali.image. */}}
+{{- define "tali.runtimeImageReference" -}}
+{{- if eq (include "tali.runtimeImagesEnabled" .root) "true" -}}
+{{- $host := default "image-registry.openshift-image-registry.svc:5000" .root.Values.openshift.imageRegistryHost -}}
+{{- if not (regexMatch "^[a-zA-Z0-9][a-zA-Z0-9.-]*(:[0-9]+)?$" $host) -}}
+{{- fail "openshift.imageRegistryHost must be a registry host[:port], without scheme or path" -}}
+{{- end -}}
+{{- $leaf := last (splitList "/" .reference) -}}
+{{- $name := regexFind "^[^:@]+" $leaf -}}
+{{- if or (gt (len $name) 253) (not (regexMatch "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$" $name)) -}}
+{{- fail (printf "Invalid ImageStream name in tenant image %s; use a lowercase DNS repository name" .reference) -}}
+{{- end -}}
+{{- if .repositoryOnly -}}
+{{- if ne $leaf $name -}}
+{{- fail (printf "Tenant image repository %s must not include a tag or digest; use its tag setting" .reference) -}}
+{{- end -}}
+{{- else -}}
+{{- if not (regexMatch "^[^:@]+(:[a-zA-Z0-9_][a-zA-Z0-9_.-]{0,127})?(@[a-zA-Z][a-zA-Z0-9_+.-]*:[a-fA-F0-9]{32,})?$" $leaf) -}}
+{{- fail (printf "Invalid tag/digest in tenant image %s" .reference) -}}
+{{- end -}}
+{{- end -}}
+{{- printf "%s/%s/%s" $host (include "tali.imageSourceNamespace" .root) $leaf -}}
+{{- else -}}
+{{- .reference -}}
+{{- end -}}
+{{- end }}
+
+{{- define "tali.runtimeImage" -}}
+{{- include "tali.runtimeImageReference" (dict "root" .root "reference" (include "tali.image" .)) -}}
+{{- end }}
+
 {{- define "tali.secretName" -}}
 {{- default (include "tali.componentName" (dict "root" .root "component" (printf "%s-config" .component))) (index .root.Values.secrets.existingSecrets .component) -}}
 {{- end }}
@@ -82,12 +127,10 @@ app.kubernetes.io/component: {{ .component }}
 {{- include "tali.componentName" (dict "root" . "component" "control-worker") -}}
 {{- end }}
 
+{{- define "tali.credential" -}}__TALI_CREDENTIAL_{{ . }}__{{- end -}}
+
 {{- define "tali.databaseUrl" -}}
-{{- if .Values.secrets.databaseUrl -}}
-{{- .Values.secrets.databaseUrl -}}
-{{- else -}}
-{{- printf "postgresql://litellm:%s@%s.%s.svc.cluster.local:5432/litellm" (urlquery .Values.secrets.postgresPassword | replace "+" "%20") (include "tali.componentName" (dict "root" . "component" "postgresql")) .Release.Namespace -}}
-{{- end -}}
+{{- include "tali.credential" "databaseUrl" -}}
 {{- end }}
 
 {{- define "tali.hindsightServiceName" -}}
@@ -119,7 +162,7 @@ app.kubernetes.io/component: {{ .component }}
 {{- end }}
 
 {{- define "tali.hindsightDatabaseUrl" -}}
-{{- printf "postgresql://%s:%s@%s:5432/%s" (include "tali.hindsightDatabaseUser" .) (urlquery .Values.secrets.hindsightDatabasePassword | replace "+" "%20") (include "tali.componentName" (dict "root" . "component" "postgresql")) (include "tali.hindsightDatabaseName" .) -}}
+{{- include "tali.credential" "hindsightDatabaseUrl" -}}
 {{- end }}
 
 {{- define "tali.hindsightUrl" -}}
@@ -156,7 +199,7 @@ app.kubernetes.io/component: {{ .component }}
 - name: HINDSIGHT_API_TENANT_EXTENSION
   value: hindsight_api.extensions.builtin.tenant:ApiKeyTenantExtension
 - name: HINDSIGHT_API_TENANT_API_KEY
-  value: {{ .Values.secrets.hindsightApiKey | quote }}
+  value: {{ (include "tali.credential" "hindsightApiKey") | quote }}
 - name: HINDSIGHT_API_MCP_ENABLED
   value: "false"
 - name: HINDSIGHT_API_LLM_TRACE_ENABLED
@@ -178,7 +221,7 @@ app.kubernetes.io/component: {{ .component }}
 - name: HINDSIGHT_API_LLM_MODEL
   value: {{ .Values.hindsight.models.llm | quote }}
 - name: HINDSIGHT_API_LLM_API_KEY
-  value: {{ .Values.secrets.hindsightRouterToken | quote }}
+  value: {{ (include "tali.credential" "hindsightRouterToken") | quote }}
 - name: HINDSIGHT_API_LLM_SEND_BANK_AS_USER
   value: "true"
 - name: HINDSIGHT_API_EMBEDDINGS_PROVIDER
@@ -189,7 +232,7 @@ app.kubernetes.io/component: {{ .component }}
 - name: HINDSIGHT_API_EMBEDDINGS_OPENAI_MODEL
   value: {{ .Values.hindsight.models.embedding | quote }}
 - name: HINDSIGHT_API_EMBEDDINGS_OPENAI_API_KEY
-  value: {{ .Values.secrets.hindsightRouterToken | quote }}
+  value: {{ (include "tali.credential" "hindsightRouterToken") | quote }}
 - name: HINDSIGHT_API_EMBEDDINGS_OPENAI_DIMENSIONS
   value: {{ .Values.hindsight.models.embeddingDimensions | quote }}
 {{- else if eq .Values.hindsight.models.embeddingProvider "litellm" }}
@@ -198,7 +241,7 @@ app.kubernetes.io/component: {{ .component }}
 - name: HINDSIGHT_API_EMBEDDINGS_LITELLM_MODEL
   value: {{ .Values.hindsight.models.embedding | quote }}
 - name: HINDSIGHT_API_EMBEDDINGS_LITELLM_API_KEY
-  value: {{ .Values.secrets.hindsightRouterToken | quote }}
+  value: {{ (include "tali.credential" "hindsightRouterToken") | quote }}
 {{- end }}
 - name: HINDSIGHT_API_RERANKER_PROVIDER
   value: {{ .Values.hindsight.models.rerankerProvider | quote }}
@@ -208,7 +251,7 @@ app.kubernetes.io/component: {{ .component }}
 - name: HINDSIGHT_API_RERANKER_LITELLM_MODEL
   value: {{ .Values.hindsight.models.reranker | quote }}
 - name: HINDSIGHT_API_RERANKER_LITELLM_API_KEY
-  value: {{ .Values.secrets.hindsightRouterToken | quote }}
+  value: {{ (include "tali.credential" "hindsightRouterToken") | quote }}
 - name: HINDSIGHT_API_RERANKER_SEND_BANK_AS_HEADER
   value: "true"
 {{- end }}
@@ -221,7 +264,7 @@ app.kubernetes.io/component: {{ .component }}
 {{- end -}}
 {{- $api := dict "HINDSIGHT_API_PORT" (.Values.hindsight.service.port | toString) "HINDSIGHT_API_WORKER_ENABLED" (not .Values.hindsight.worker.enabled | toString) -}}
 {{- $worker := dict "HINDSIGHT_API_WORKER_HTTP_PORT" (.Values.hindsight.worker.service.port | toString) "HINDSIGHT_API_DB_MAX_PARALLEL_WORKERS_PER_GATHER" "0" -}}
-{{- $router := dict "host" "0.0.0.0" "port" .Values.hindsight.router.port "controlBaseUrl" (printf "http://%s.%s.svc.cluster.local:%v" (include "tali.componentName" (dict "root" . "component" "control")) .Release.Namespace .Values.control.service.port) "controlToken" .Values.secrets.hindsightRouterToken "routerToken" .Values.secrets.hindsightRouterToken "embeddingDimensions" .Values.hindsight.models.embeddingDimensions -}}
+{{- $router := dict "host" "0.0.0.0" "port" .Values.hindsight.router.port "controlBaseUrl" (printf "http://%s.%s.svc.cluster.local:%v" (include "tali.componentName" (dict "root" . "component" "control")) .Release.Namespace .Values.control.service.port) "controlToken" (include "tali.credential" "hindsightRouterToken") "routerToken" (include "tali.credential" "hindsightRouterToken") "embeddingDimensions" .Values.hindsight.models.embeddingDimensions -}}
 {{- dict "common" $common "api" $api "worker" $worker "router" $router "migration" (dict "schema" (include "tali.hindsightDatabaseSchema" .) "embeddingDimensions" .Values.hindsight.models.embeddingDimensions) | toPrettyJson -}}
 {{- end }}
 
@@ -304,34 +347,34 @@ internal_url = {{ printf "http://%s.%s.svc.cluster.local:%v" (include "tali.comp
 url = {{ include "tali.databaseUrl" . | toJson }}
 
 [auth]
-secret = {{ required "secrets.authSecret is required" .Values.secrets.authSecret | toJson }}
+secret = {{ (include "tali.credential" "authSecret") | toJson }}
 
 [auth.local]
 initial_platform_administrator_username = {{ required "auth.local.username is required" .Values.auth.local.username | toJson }}
 initial_platform_administrator_email = {{ required "auth.local.email is required" .Values.auth.local.email | toJson }}
-initial_platform_administrator_password = {{ required "secrets.initialPlatformAdministratorPassword is required" .Values.secrets.initialPlatformAdministratorPassword | toJson }}
+initial_platform_administrator_password = {{ (include "tali.credential" "initialPlatformAdministratorPassword") | toJson }}
 
 [runner]
 url = {{ printf "http://%s:9090" (include "tali.componentName" (dict "root" . "component" "runner")) | toJson }}
-token = {{ .Values.secrets.runnerToken | toJson }}
+token = {{ (include "tali.credential" "runnerToken") | toJson }}
 
 [litellm]
 url = {{ printf "http://%s.%s.svc.cluster.local:4000" (include "tali.componentName" (dict "root" . "component" "litellm")) .Release.Namespace | toJson }}
-master_key = {{ .Values.secrets.litellmMasterKey | toJson }}
+master_key = {{ (include "tali.credential" "litellmMasterKey") | toJson }}
 
 [runtime_namespaces]
 enabled = {{ .Values.projectRuntimeNamespaces.enabled }}
 cluster_id = {{ .Values.projectRuntimeNamespaces.clusterId | toJson }}
 
 [metrics]
-token = {{ .Values.secrets.metricsToken | toJson }}
+token = {{ (include "tali.credential" "metricsToken") | toJson }}
 
 [memory]
 enabled = {{ and .Values.features.durableMemory.enabled .Values.hindsight.enabled }}
 projectAllowlist = {{ .Values.features.durableMemory.projectAllowlist | toJson }}
 baseUrl = {{ include "tali.hindsightUrl" . | toJson }}
-apiKey = {{ .Values.secrets.hindsightApiKey | toJson }}
-routerToken = {{ .Values.secrets.hindsightRouterToken | toJson }}
+apiKey = {{ (include "tali.credential" "hindsightApiKey") | toJson }}
+routerToken = {{ (include "tali.credential" "hindsightRouterToken") | toJson }}
 embeddingDimensions = {{ .Values.hindsight.models.embeddingDimensions }}
 recallTimeoutMs = {{ .Values.hindsight.runtimeRecallTimeoutMs }}
 
@@ -355,7 +398,11 @@ installationId = {{ .Values.projectRuntimeNamespaces.argocd.installationId | toJ
 
 [worker.openshift]
 enabled = {{ .Values.openshift.enabled }}
-imageSourceNamespace = {{ .Release.Namespace | toJson }}
+imageSourceNamespace = {{ include "tali.imageSourceNamespace" . | toJson }}
+imagePullReadyTimeoutMs = {{ .Values.openshift.imagePullReadyTimeoutMs | default 120000 }}
+{{- with .Values.openshift.imageRegistryHost }}
+imageRegistryHost = {{ . | toJson }}
+{{- end }}
 
 [worker.project_openshell]
 enabled = {{ .Values.projectOpenShell.enabled }}
@@ -366,17 +413,18 @@ helmTimeoutSeconds = {{ .Values.projectOpenShell.helmTimeoutSeconds }}
 helmProcessTimeoutSeconds = {{ .Values.projectOpenShell.helmProcessTimeoutSeconds }}
 releaseName = {{ .Values.projectOpenShell.releaseName | toJson }}
 serviceNamePrefix = {{ .Values.projectOpenShell.serviceNamePrefix | toJson }}
-gatewayImageRepository = {{ .Values.openshell.image.repository | toJson }}
+gatewayImageRepository = {{ include "tali.runtimeImageReference" (dict "root" . "reference" .Values.openshell.image.repository "repositoryOnly" true) | toJson }}
 gatewayImageTag = {{ .Values.openshell.image.tag | toJson }}
 gatewayResources = {{ include "tali.tomlValue" .Values.openshell.resources }}
 gatewayPodSecurityContext = {{ include "tali.tomlValue" .Values.openshell.podSecurityContext }}
 gatewaySecurityContext = {{ include "tali.tomlValue" .Values.openshell.securityContext }}
 imagePullSecrets = {{ include "tali.tomlValue" .Values.openshell.imagePullSecrets }}
 imagePullPolicy = {{ .Values.openshell.image.pullPolicy | toJson }}
-supervisorImageRepository = {{ .Values.openshell.supervisor.image.repository | toJson }}
+supervisorImageRepository = {{ include "tali.runtimeImageReference" (dict "root" . "reference" .Values.openshell.supervisor.image.repository "repositoryOnly" true) | toJson }}
 supervisorImageTag = {{ .Values.openshell.supervisor.image.tag | toJson }}
 supervisorImagePullPolicy = {{ .Values.openshell.supervisor.image.pullPolicy | toJson }}
-sandboxImage = {{ .Values.openshell.server.sandboxImage | toJson }}
+sandboxImage = {{ include "tali.runtimeImageReference" (dict "root" . "reference" .Values.openshell.server.sandboxImage) | toJson }}
+sandboxImages = {{ list (include "tali.runtimeImage" (dict "root" . "image" .Values.images.openclawSandbox)) (include "tali.runtimeImage" (dict "root" . "image" .Values.images.hermesSandbox)) (include "tali.runtimeImage" (dict "root" . "image" .Values.images.deepagentsSandbox)) | toJson }}
 sandboxImagePullPolicy = {{ .Values.openshell.server.sandboxImagePullPolicy | toJson }}
 sandboxImagePullSecrets = {{ include "tali.tomlValue" .Values.openshell.server.sandboxImagePullSecrets }}
 workspaceDefaultStorageSize = {{ .Values.projectOpenShell.workspace.storageSize | toJson }}
@@ -386,7 +434,7 @@ workspaceStorageClass = {{ . | toJson }}
 
 [worker.project_runtime_bridge]
 enabled = {{ and .Values.projectRuntimeNamespaces.enabled .Values.projectRuntimeBridge.enabled }}
-image = {{ include "tali.image" (dict "root" . "image" .Values.images.control) | toJson }}
+image = {{ include "tali.runtimeImage" (dict "root" . "image" .Values.images.control) | toJson }}
 imagePullPolicy = {{ .Values.images.control.pullPolicy | toJson }}
 revision = {{ default .Chart.AppVersion .Values.global.rolloutRevision | toJson }}
 imagePullSecrets = {{ include "tali.tomlValue" .Values.global.imagePullSecrets }}
@@ -394,7 +442,7 @@ resources = {{ include "tali.tomlValue" .Values.projectRuntimeBridge.resources }
 
 [worker.expert_agent_runtime]
 enabled = {{ and .Values.projectRuntimeNamespaces.enabled .Values.projectRuntimeBridge.enabled .Values.expertAgentRuntime.enabled }}
-image = {{ include "tali.image" (dict "root" . "image" .Values.images.expertAgentRuntime) | toJson }}
+image = {{ include "tali.runtimeImage" (dict "root" . "image" .Values.images.expertAgentRuntime) | toJson }}
 imagePullPolicy = {{ .Values.images.expertAgentRuntime.pullPolicy | toJson }}
 revision = {{ default .Chart.AppVersion .Values.global.rolloutRevision | toJson }}
 imagePullSecrets = {{ include "tali.tomlValue" .Values.global.imagePullSecrets }}
@@ -452,7 +500,7 @@ resources = {{ include "tali.tomlValue" .Values.expertAgentRuntime.resources }}
 {{- if .Values.secrets.existingSecrets.postgresql -}}
 {{- printf "existing:%s" .Values.secrets.existingSecrets.postgresql | sha256sum -}}
 {{- else -}}
-{{- printf "%s:%s" .Values.secrets.existingSecrets.postgresql .Values.secrets.postgresPassword | sha256sum -}}
+{{- printf "%s:%s" .Values.secrets.existingSecrets.postgresql (include "tali.credential" "postgresPassword") | sha256sum -}}
 {{- end -}}
 {{- end }}
 
@@ -460,12 +508,12 @@ resources = {{ include "tali.tomlValue" .Values.expertAgentRuntime.resources }}
 {{- if .Values.secrets.existingSecrets.litellm -}}
 {{- printf "existing:%s" .Values.secrets.existingSecrets.litellm | sha256sum -}}
 {{- else -}}
-{{- printf "%s:%s:%s:%s:%s:%s" .Values.secrets.existingSecrets.litellm .Values.secrets.litellmMasterKey (include "tali.databaseUrl" .) .Values.secrets.litellmUiUsername .Values.secrets.litellmUiPassword .Values.secrets.litellmSaltKey | sha256sum -}}
+{{- printf "%s:%s:%s:%s:%s:%s" .Values.secrets.existingSecrets.litellm (include "tali.credential" "litellmMasterKey") (include "tali.databaseUrl" .) .Values.litellmAdministration.username (include "tali.credential" "litellmUiPassword") (include "tali.credential" "litellmSaltKey") | sha256sum -}}
 {{- end -}}
 {{- end }}
 
 {{- define "tali.keycloakSecretChecksum" -}}
-{{- printf "%s:%s:%s:%s" .Values.secrets.existingSecrets.keycloak .Values.secrets.keycloakAdminPassword .Values.secrets.keycloakClientSecret .Values.secrets.keycloakTestUserPassword | sha256sum -}}
+{{- printf "%s:%s:%s:%s" .Values.secrets.existingSecrets.keycloak (include "tali.credential" "keycloakAdminPassword") (include "tali.credential" "keycloakClientSecret") (include "tali.credential" "keycloakTestUserPassword") | sha256sum -}}
 {{- end }}
 
 {{- define "tali.doclingConfig" -}}
@@ -478,10 +526,18 @@ max_sync_wait: {{ .Values.docling.maxSyncWaitSeconds }}
 {{- end }}
 
 {{- define "tali.runnerConfig" -}}
-{{- $server := dict "host" "0.0.0.0" "port" 9090 "token" (required "secrets.runnerToken is required" .Values.secrets.runnerToken) "mode" "openshell-kubernetes" "shutdownTimeoutMs" 540000 -}}
-{{- $sandbox := dict "cpu" (.Values.runner.sandbox.cpu | toString) "memory" .Values.runner.sandbox.memory "images" (dict "openclaw" (include "tali.image" (dict "root" . "image" .Values.images.openclawSandbox)) "hermes" (include "tali.image" (dict "root" . "image" .Values.images.hermesSandbox)) "deepagents" (include "tali.image" (dict "root" . "image" .Values.images.deepagentsSandbox))) -}}
+{{- $server := dict "host" "0.0.0.0" "port" 9090 "token" ((include "tali.credential" "runnerToken")) "mode" "openshell-kubernetes" "shutdownTimeoutMs" 540000 -}}
+{{- $sandbox := dict "cpu" (.Values.runner.sandbox.cpu | toString) "memory" .Values.runner.sandbox.memory "images" (dict "openclaw" (include "tali.runtimeImage" (dict "root" . "image" .Values.images.openclawSandbox)) "hermes" (include "tali.runtimeImage" (dict "root" . "image" .Values.images.hermesSandbox)) "deepagents" (include "tali.runtimeImage" (dict "root" . "image" .Values.images.deepagentsSandbox))) -}}
 {{- with .Values.runner.sandbox.cpuRequest -}}{{- $_ := set $sandbox "cpuRequest" (. | toString) -}}{{- end -}}
 {{- $proxy := dict "enabled" (and .Values.runner.projectTargetRouting.enabled .Values.runner.projectTargetRouting.serviceProxy.enabled) "port" .Values.runner.projectTargetRouting.serviceProxy.port "host" "0.0.0.0" -}}
 {{- $runtime := dict "startTimeoutMs" .Values.runner.startTimeoutMs "projectTargetRouting" .Values.runner.projectTargetRouting.enabled "gatewayEndpointTemplate" .Values.runner.projectTargetRouting.gatewayEndpointTemplate "serviceBaseUrl" .Values.runner.serviceBaseUrl "serviceProxy" $proxy "nemoclawVersion" .Values.projectOpenShell.nemoclawVersion "kubernetesServiceCidrs" (splitList "," .Values.runner.kubernetesServiceCidrs) "sandbox" $sandbox -}}
 {{- dict "schemaVersion" 1 "server" $server "openshell" $runtime | toPrettyJson -}}
 {{- end }}
+
+{{- define "tali.imageSourceNamespace" -}}
+{{- $source := default .Release.Namespace .Values.openshift.imageSourceNamespace -}}
+{{- if or (gt (len $source) 63) (not (regexMatch "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$" $source)) -}}
+{{- fail "openshift.imageSourceNamespace must be a valid namespace" -}}
+{{- end -}}
+{{- $source -}}
+{{- end -}}

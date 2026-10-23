@@ -1,3 +1,4 @@
+import { prepareGatewayImagePull, projectPullServiceAccounts } from "./project-image-pull-readiness";
 import { getWorkerConfig } from "../config/worker-config";
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
@@ -95,6 +96,7 @@ export interface ProjectOpenShellGatewayConfiguration {
   imagePullPolicy: string;
   releaseName: string;
   sandboxImage: string;
+  sandboxImages?: string[] | undefined;
   sandboxImagePullSecrets: Array<{ name: string }>;
   sandboxImagePullPolicy: string;
   serviceNamePrefix: string;
@@ -125,13 +127,19 @@ export class HelmProjectOpenShellGatewayClient
     private readonly reconcileOwnership = reconcileGatewayOwnership,
     private readonly database: ProjectOpenShellDatabase = new PostgresProjectOpenShellDatabase(),
     private readonly diagnostics: GatewayDiagnosticReader = readGatewayDiagnostics,
+    private readonly preparePull = prepareGatewayImagePull,
   ) {}
 
   async reconcile(input: ProjectNamespaceInput): Promise<void> {
     if (!this.configuration.enabled) return;
     projectRuntimeNamespaceSchema.parse(input.namespace);
     const owner = await this.readOwner(input.namespace, input.projectId);
+    await input.assertCurrent?.();
+    // Recovery can uninstall an interrupted first release, deleting its SAs and
+    // their generated pull Secrets. Prepare credentials only after it finishes.
     await this.recoverInterruptedRelease(input.namespace);
+    const pull = await this.preparePull(input, this.configuration);
+    await input.assertCurrent?.();
     const database = await this.database.reconcile(input, owner);
     const serviceName = dnsLabel(
       `${this.configuration.serviceNamePrefix}${input.namespace}`,
@@ -139,14 +147,24 @@ export class HelmProjectOpenShellGatewayClient
     );
     const values = stringify({
       fullnameOverride: serviceName,
-      pkiInitJob: { activeDeadlineSeconds: this.configuration.certgenActiveDeadlineSeconds ?? 300 },
+      ...(pull ? {
+        serviceAccount: { create: true, name: projectPullServiceAccounts(serviceName).gateway },
+        sandboxServiceAccount: { create: true, name: projectPullServiceAccounts(serviceName).sandbox },
+      } : {}),
+      pkiInitJob: {
+        activeDeadlineSeconds: this.configuration.certgenActiveDeadlineSeconds ?? 300,
+        ...(pull ? {
+          serviceAccount: { create: false, name: projectPullServiceAccounts(serviceName).certgen },
+          imagePullSecrets: pull.certgenSecrets,
+        } : {}),
+      },
       workload: { kind: "deployment" },
       image: {
         pullPolicy: this.configuration.imagePullPolicy,
         repository: this.configuration.gatewayImageRepository,
         tag: this.configuration.gatewayImageTag,
       },
-      imagePullSecrets: this.configuration.imagePullSecrets,
+      imagePullSecrets: pull?.gatewaySecrets ?? this.configuration.imagePullSecrets,
       podSecurityContext: this.configuration.gatewayPodSecurityContext ?? {},
       securityContext: this.configuration.gatewaySecurityContext ?? {},
       networkPolicy: { enabled: true },
@@ -164,7 +182,7 @@ export class HelmProjectOpenShellGatewayClient
         sandboxImage: this.configuration.sandboxImage,
         sandboxImagePullPolicy: this.configuration.sandboxImagePullPolicy,
         sandboxImagePullSecrets:
-          this.configuration.sandboxImagePullSecrets,
+          pull?.sandboxSecrets ?? this.configuration.sandboxImagePullSecrets,
         sandboxJwt: { gatewayId: input.namespace },
         sandboxNamespace: input.namespace,
         telemetryEnabled: false,

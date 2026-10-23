@@ -181,7 +181,7 @@ function encodeCredential(draft: ProviderConnectionDraft): string {
 }
 
 function isManagedCredentialReference(value: string): boolean {
-  return /^(?:k8s|memory):\/\//.test(value);
+  return /^(?:k8s|memory|db):\/\//.test(value);
 }
 
 function decodeCredential(account: ProviderAccount, rawCredential: string): ProviderConnectionDraft {

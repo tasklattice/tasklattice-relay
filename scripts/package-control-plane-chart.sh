@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-required_commands=(cp helm sed)
+required_commands=(cp helm sed node tar)
 for command_name in "${required_commands[@]}"; do
   if ! command -v "$command_name" >/dev/null 2>&1; then
     echo "Required command is not installed: $command_name" >&2
@@ -70,6 +70,8 @@ helm package "$work_dir/tali-relay" \
   --version "$version" \
   --app-version "$version" \
   --destination "$work_dir/packaged" >/dev/null
+# Inspect the exact archive before it can become an image or release artifact.
+node "$repository_root/scripts/validate-chart-credentials.mjs" "$work_dir/packaged/tali-relay-${version}.tgz"
 cp "$work_dir/packaged/tali-relay-${version}.tgz" "$output_root/tali-relay.tgz"
 
 echo "Packaged complete TaskLattice Relay Helm chart at $output_root/tali-relay.tgz"

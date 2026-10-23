@@ -34,6 +34,8 @@ const tagDescriptions: Record<string, string> = {
   "Runtime policies": "Sandbox execution constraints used by runtime Instances.",
   Traces: "Project runtime trace inspection.",
   Authorization: "Project Capability and built-in role definitions.",
+  Works: "Project-scoped collaboration, revisioned commands, and durable Agent execution events.",
+  "Personal onboarding": "Personal Project provider connection and Agent preparation.",
 };
 
 function schemaId(schema: ZodType): string | undefined {
@@ -54,6 +56,15 @@ function jsonSchema(
     unrepresentable: "any",
   }) as JsonSchema;
   delete converted.$schema;
+  // Zod can put a named root in $defs and return only a reference to it.
+  // Materialize that definition before lifting $defs into OpenAPI components;
+  // otherwise the existing component wins and becomes a reference to itself.
+  const definitions = converted.$defs as Record<string, JsonSchema> | undefined;
+  if (id && converted.$ref === `#/$defs/${id}` && definitions?.[id]) {
+    delete converted.$ref;
+    Object.assign(converted, definitions[id]);
+    delete definitions[id];
+  }
   return converted;
 }
 

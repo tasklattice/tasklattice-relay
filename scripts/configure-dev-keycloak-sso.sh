@@ -9,7 +9,7 @@ release_name="${HELM_RELEASE_NAME:-tali-relay}"
 repository_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 projects_file="${CONTROL_DEVELOPMENT_PROJECTS_FILE:-$repository_root/config/development-projects.json}"
 
-for command_name in curl jq kubectl; do
+for command_name in curl jq kubectl node; do
   if ! command -v "$command_name" >/dev/null 2>&1; then
     echo "Required command is not installed: $command_name" >&2
     exit 1
@@ -157,6 +157,9 @@ projects="$({
   ' <<<"$organization_response"
 })"
 
+KEYCLOAK_CREDENTIAL_SECRET="$secret_name" KEYCLOAK_DEPARTMENT_ID="$department_id" \
+  HELM_NAMESPACE="$namespace" node "$repository_root/scripts/lib/dev-keycloak-groups.mjs" <<<"$projects"
+
 desired_bindings="$({
   jq --null-input \
     --arg department_id "$department_id" \
@@ -195,7 +198,7 @@ desired_bindings="$({
           | $project_roles[]
           | {
               enabled: true,
-              group: ("/tali/d/" + $department_id + "/p/" + $project.groupName + "/r/" + .),
+              group: ("/tali/d/" + $department_id + "/p/" + $project.id + "/r/" + .),
               scope: "PROJECT",
               departmentId: $department_id,
               projectId: $project.id,

@@ -351,9 +351,12 @@ describe("OpenShell Kubernetes command contract", () => {
       "http://tali-control.tali.svc.cluster.local:38080/api/internal/run-events",
     );
 
-    expect(policy).toContain("tali_run_telemetry:");
-    expect(policy).toContain("host: tali-control.tali.svc.cluster.local");
-    expect(policy).toContain("path: /opt/hermes/.venv/bin/python3");
+    expect(policy).not.toContain("tali_run_telemetry:");
+    const profile = taliLiteLlmProviderProfile("https://inference.example.com/v1", undefined, undefined,
+      "http://tali-control.tali.svc.cluster.local:38080/api/internal/run-events");
+    expect(profile).toContain("host: tali-control.tali.svc.cluster.local");
+    expect(profile).toContain("/opt/hermes/.venv/bin/python3");
+    expect(profile).toContain("run_telemetry_token");
     expect(policy).not.toContain("/usr/bin/curl");
   });
 
@@ -391,10 +394,13 @@ describe("OpenShell Kubernetes command contract", () => {
       "http://tali-control.tali.svc.cluster.local:38080/api/internal/run-events",
     );
 
-    expect(policy).toContain("tali_run_telemetry:");
-    expect(policy).toContain("host: tali-control.tali.svc.cluster.local");
-    expect(policy).toContain("port: 38080");
-    expect(policy).toContain("path: /usr/local/bin/node");
+    expect(policy).not.toContain("tali_run_telemetry:");
+    const profile = taliLiteLlmProviderProfile("http://tali-litellm:4000/v1", undefined, undefined,
+      "http://tali-control.tali.svc.cluster.local:38080/api/internal/run-events");
+    expect(profile).toContain("host: tali-control.tali.svc.cluster.local");
+    expect(profile).toContain("port: 38080");
+    expect(profile).toContain("/usr/local/bin/node");
+    expect(profile).not.toContain("/usr/bin/curl");
     expect(policy).not.toContain("/usr/bin/curl");
   });
 

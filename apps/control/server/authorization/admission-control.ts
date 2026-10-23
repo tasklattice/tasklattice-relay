@@ -5,6 +5,7 @@ import type {
   ProjectCapability,
   ResourceRelation,
 } from "@tali/contracts";
+import { ownsPersonalProject } from "../projects/personal-project-access";
 import { prisma } from "../db/prisma";
 import type { PrismaClient } from "../generated/prisma/client";
 import { appendAdmissionEvidence, type AdmissionEvidence } from "./authorization-context";
@@ -195,13 +196,23 @@ export class ProjectAdmissionService {
       ? activeBuiltinRoleIds(membership, preferredRole)
       : [];
     const roleDefinitions = await new RoleCatalogService(this.db).roles(roleIds);
-    const evidence = evaluateAdmission({
+    let evidence = evaluateAdmission({
       actorId,
       capability,
       projectId,
       roleIds,
       ...requirement,
     }, roleDefinitions);
+    // Personal owners can inspect their own bill without receiving enterprise
+    // administrator/developer grants. Enterprise Projects keep normal RBAC.
+    if (evidence.decision === "DENY" && roleIds.length > 0
+      && request.method === "GET"
+      && /^\/api\/v1\/projects\/[^/]+\/costs\/[^/]+$/.test(new URL(request.url).pathname)
+      && ["CAP_COST_VIEW", "CAP_USAGE_DATA_QUALITY_VIEW"].includes(capability)
+      && await ownsPersonalProject(this.db, projectId, actorId)) {
+      evidence = { ...evidence, decision: "ALLOW", policyId: "personal-owner:cost-read",
+        reason: "The active personal Project owner may read their own usage and cost." };
+    }
     appendAdmissionEvidence(request, evidence);
     if (evidence.decision !== "ALLOW") {
       throw new CapabilityAdmissionError(evidence);

@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   RelayClient,
   cookieHeader,
+  dashboardResize,
   eventToolNames,
   hermesSessionToken,
   hermesTuiReady,
@@ -46,6 +47,9 @@ test("requires the Instance Routing and LiteLLM spend fact to identify the selec
       if (path === "/models") {
         return { data: [{ id: "deployment-1", modelId: "deepseek-chat", litellmModelName: "relay/deepseek-chat" }] };
       }
+      const query = new URL(path, "http://test").searchParams;
+      const filters = JSON.parse(query.get("filters"));
+      assert.deepEqual(filters.model_endpoint, ["deployment-1", "model-routing:routing-1"]);
       return { items: [{ id: "agent-1", detail: "deepseek-chat", requests: 1 }] };
     },
   });
@@ -77,6 +81,7 @@ test("waits for a non-empty Hermes tool catalog and submits one terminal line", 
 
 test("uses the Runner resize protocol and waits for OpenClaw idle", () => {
   assert.equal(terminalResize(120, 40), "\u0000TALI_RESIZE:120:40");
+  assert.equal(dashboardResize(120, 40), "\u001b[RESIZE:120;40]");
   assert.equal(inferenceTuiReady("starting up", "openclaw"), false);
   assert.equal(
     inferenceTuiReady("gateway connected | idle", "openclaw"),

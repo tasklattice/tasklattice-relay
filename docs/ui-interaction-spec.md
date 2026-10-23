@@ -137,6 +137,17 @@ and loading, zero-data, unavailable, stale, and error states. Preserve filters
 when moving into related details. Shared category meanings keep the same color
 role in both modes; use mode-specific contrast values, not screenshot colors.
 
+### 2.4 End-user Work profile (2026-10-12)
+
+The user-approved Work collaboration reference introduces a scoped warm-neutral
+and purple profile on `/$projectId/works` and the end-user home only. Its tokens
+live in `features/works/work.css`; Admin and Agent Developer keep the existing
+blue family profile. Both modes retain named controls, visible focus, readable
+contrast, and independent desktop scrolling. The Work navigation contains
+Project selection and Work groups; technical capabilities appear in disclosed
+member details. This explicit user-directed profile supersedes the shared blue
+accent only on that surface. Dialogs inherit the standard accessible primitives.
+
 ## 3. Source of truth and precedence
 
 When rules conflict, apply this order:

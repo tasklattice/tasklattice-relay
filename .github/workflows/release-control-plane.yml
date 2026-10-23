@@ -98,6 +98,8 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
       - run: npm ci
+      - name: Audit production and build dependencies
+        run: npm audit --audit-level=high
       - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
         with:
           version: ${{ env.HELM_VERSION }}
@@ -110,7 +112,9 @@ jobs:
           bash scripts/package-worker-charts.sh
           npm run test:modules:config
           node --test scripts/testing/control-plane-release.test.mjs
+          npm run test:chart-credentials
           npm test
+          npm run test:postgres
           npm run typecheck
           npm run helm:validate:openshift
           npm run helm:validate:airgap
@@ -274,15 +278,17 @@ jobs:
           pattern: rc-image-receipt-*
           path: dist/image-receipts
           merge-multiple: true
-      - name: Verify all eight image publication receipts
+      - name: Verify all seven image publication receipts
         run: node scripts/control-plane-release.mjs assemble-manifest "$GITHUB_REF_NAME" dist/control-release/plan.json
       - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
         with:
           version: ${{ env.HELM_VERSION }}
+      - run: npm ci
       - name: Publish Helm chart
         run: |
           asset="dist/control-release/tali-relay-$VERSION.tgz"
           cp dist/control-plane-chart/tali-relay.tgz "$asset"
+          node scripts/validate-chart-credentials.mjs "$asset"
           printf '%s' "$GH_TOKEN" | helm registry login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
           helm push "$asset" "oci://$REGISTRY/charts"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -318,7 +324,7 @@ jobs:
             echo "# Relay $SERIES RC$RC"
             echo
             echo "Source commit: $GITHUB_SHA"
-            echo "All eight first-party images are published as $VERSION (amd64 + arm64)."
+            echo "All seven first-party images are published as $VERSION (amd64 + arm64)."
             echo "See release-manifest.json for per-image build/reuse decisions, source tags and digests."
             echo "No latest or stable image tags were updated."
             echo

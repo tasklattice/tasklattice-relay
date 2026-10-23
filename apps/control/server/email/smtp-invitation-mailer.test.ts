@@ -1,4 +1,5 @@
 import { createServer, type Server } from "node:net";
+import { randomUUID } from "node:crypto";
 import { afterEach, describe, expect, it } from "vitest";
 import type { PlatformEmailRuntimeSettings } from "../platform/platform-settings-service";
 import { SmtpInvitationMailer } from "./smtp-invitation-mailer";
@@ -17,9 +18,10 @@ afterEach(async () => {
 });
 
 describe("SmtpInvitationMailer", () => {
-  it("delivers an invitation through a real SMTP conversation", async () => {
+  it.each([false, true])("delivers an invitation through real SMTP (authentication: %s)", async (authenticated) => {
     const messages: string[] = [];
-    const server = createSmtpServer(messages);
+    const credentials = authenticated ? { username: "relay:sender", password: randomUUID() } : undefined;
+    const server = createSmtpServer(messages, credentials);
     servers.push(server);
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
     const address = server.address();
@@ -31,9 +33,9 @@ describe("SmtpInvitationMailer", () => {
       host: "127.0.0.1",
       port: address.port,
       secure: false,
-      username: "",
-      password: "",
-      passwordConfigured: false,
+      username: credentials?.username ?? "",
+      password: credentials?.password ?? "",
+      passwordConfigured: authenticated,
       fromAddress: "invites@tali.test",
       fromName: "TaskLattice Relay",
       replyTo: "operator@tali.test",
@@ -78,12 +80,13 @@ describe("SmtpInvitationMailer", () => {
   });
 });
 
-function createSmtpServer(messages: string[]): Server {
+function createSmtpServer(messages: string[], credentials?: { username: string; password: string }): Server {
   return createServer((socket) => {
     socket.setEncoding("utf8");
     socket.write("220 localhost TaskLattice Relay test SMTP\r\n");
     let buffer = "";
     let receivingData = false;
+    let authenticated = !credentials;
 
     socket.on("data", (chunk) => {
       buffer += chunk;
@@ -104,7 +107,13 @@ function createSmtpServer(messages: string[]): Server {
         buffer = buffer.slice(lineEnd + 2);
         const command = line.split(" ", 1)[0]?.toUpperCase();
         if (command === "EHLO" || command === "HELO") {
-          socket.write("250-localhost\r\n250 SIZE 1048576\r\n");
+          socket.write(`250-localhost\r\n${credentials ? "250-AUTH PLAIN\r\n" : ""}250 SIZE 1048576\r\n`);
+        } else if (command === "AUTH" && credentials) {
+          authenticated = line.startsWith("AUTH PLAIN ") && Buffer.from(line.slice(11), "base64").toString()
+            === `\0${credentials.username}\0${credentials.password}`;
+          socket.write(authenticated ? "235 2.7.0 authenticated\r\n" : "535 5.7.8 invalid credentials\r\n");
+        } else if (!authenticated) {
+          socket.write("530 5.7.0 authentication required\r\n");
         } else if (command === "MAIL" || command === "RCPT" || command === "RSET") {
           socket.write("250 2.1.0 accepted\r\n");
         } else if (command === "DATA") {

@@ -37,29 +37,33 @@ dev_control_api_request() {
 
 dev_control_login() {
   local username="${CONTROL_LOCAL_ADMIN_USERNAME:-admin}"
-  local configured_password="${CONTROL_LOCAL_ADMIN_PASSWORD:-password}"
+  local configured_password="${CONTROL_LOCAL_ADMIN_PASSWORD:-}"
+  if [[ -z "$configured_password" ]]; then
+    local bootstrap_namespace="${HELM_NAMESPACE:-tali}"
+    local bootstrap_release="${HELM_RELEASE_NAME:-tali-relay}"
+    local kube_args=(-n "$bootstrap_namespace")
+    [[ -z "${KUBE_CONTEXT:-}" ]] || kube_args+=(--context "$KUBE_CONTEXT")
+    if ! configured_password="$(kubectl "${kube_args[@]}" get secrets \
+      -l "app.kubernetes.io/instance=$bootstrap_release,app.kubernetes.io/managed-by=tali-relay-bootstrap" -o json \
+      | jq -er '[.items[] | .data.initialPlatformAdministratorPassword // empty] | if length==1 then .[0] else error("expected one bootstrap credential store") end' \
+      | base64 --decode)" || [[ -z "$configured_password" ]]; then
+      echo "Cannot read the generated administrator credential. Set CONTROL_LOCAL_ADMIN_PASSWORD for external/custom accounts." >&2
+      return 1
+    fi
+  fi
   local password_candidates=("$configured_password")
   local response=""
-
-  # The bootstrap credential is intentionally create-only. Let an existing
-  # local cluster created before the password default changed complete one
-  # non-destructive upgrade, while fresh installs and documented defaults use
-  # only `password`. An explicitly supplied password never falls back.
-  if [[ -z "${CONTROL_LOCAL_ADMIN_PASSWORD+x}" && "$configured_password" != "admin" ]]; then
-    password_candidates+=("admin")
-  fi
 
   local candidate
   for candidate in "${password_candidates[@]}"; do
     local login_payload
     login_payload="$({
-      jq --null-input \
+      printf '%s' "$candidate" | jq --raw-input --slurp \
         --arg username "$username" \
-        --arg password "$candidate" \
-        '{username: $username, password: $password}'
+        '{username: $username, password: .}'
     })"
     if response="$(
-      curl \
+      printf '%s' "$login_payload" | curl \
         --silent \
         --show-error \
         --fail-with-body \
@@ -69,12 +73,9 @@ dev_control_login() {
         --header "origin: $control_origin" \
         --header "content-type: application/json" \
         --request POST \
-        --data "$login_payload" \
+        --data-binary @- \
         "$control_origin/api/auth/sign-in/username"
     )"; then
-      if [[ "$candidate" != "$configured_password" ]]; then
-        echo "Using the legacy local development password for this existing database; new installations use password." >&2
-      fi
       return 0
     fi
   done

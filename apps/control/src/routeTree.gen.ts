@@ -22,6 +22,7 @@ import { Route as ProjectIdRuntimeRouteImport } from './routes/$projectId/runtim
 import { Route as ProjectIdRuntimePoliciesRouteImport } from './routes/$projectId/runtime-policies'
 import { Route as ProjectIdSkillsRouteImport } from './routes/$projectId/skills'
 import { Route as ProjectIdTracesRouteImport } from './routes/$projectId/traces'
+import { Route as ProjectIdWorksRouteImport } from './routes/$projectId/works'
 import { Route as DepartmentsDepartmentIdRouteImport } from './routes/departments/$departmentId'
 import { Route as PlatformSettingsRouteImport } from './routes/platform/settings'
 import { Route as ProjectIdAccessPoliciesIndexRouteImport } from './routes/$projectId/access-policies/index'
@@ -106,6 +107,11 @@ const ProjectIdSkillsRoute = ProjectIdSkillsRouteImport.update({
 const ProjectIdTracesRoute = ProjectIdTracesRouteImport.update({
   id: '/$projectId/traces',
   path: '/$projectId/traces',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProjectIdWorksRoute = ProjectIdWorksRouteImport.update({
+  id: '/$projectId/works',
+  path: '/$projectId/works',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DepartmentsDepartmentIdRoute = DepartmentsDepartmentIdRouteImport.update({
@@ -225,6 +231,7 @@ export interface FileRoutesByFullPath {
   '/$projectId/runtime-policies': typeof ProjectIdRuntimePoliciesRoute
   '/$projectId/skills': typeof ProjectIdSkillsRoute
   '/$projectId/traces': typeof ProjectIdTracesRoute
+  '/$projectId/works': typeof ProjectIdWorksRoute
   '/departments/$departmentId': typeof DepartmentsDepartmentIdRoute
   '/platform/settings': typeof PlatformSettingsRoute
   '/$projectId/': typeof ProjectIdIndexRoute
@@ -259,6 +266,7 @@ export interface FileRoutesByTo {
   '/$projectId/runtime-policies': typeof ProjectIdRuntimePoliciesRoute
   '/$projectId/skills': typeof ProjectIdSkillsRoute
   '/$projectId/traces': typeof ProjectIdTracesRoute
+  '/$projectId/works': typeof ProjectIdWorksRoute
   '/departments/$departmentId': typeof DepartmentsDepartmentIdRoute
   '/platform/settings': typeof PlatformSettingsRoute
   '/$projectId': typeof ProjectIdIndexRoute
@@ -294,6 +302,7 @@ export interface FileRoutesById {
   '/$projectId/runtime-policies': typeof ProjectIdRuntimePoliciesRoute
   '/$projectId/skills': typeof ProjectIdSkillsRoute
   '/$projectId/traces': typeof ProjectIdTracesRoute
+  '/$projectId/works': typeof ProjectIdWorksRoute
   '/departments/$departmentId': typeof DepartmentsDepartmentIdRoute
   '/platform/settings': typeof PlatformSettingsRoute
   '/$projectId/': typeof ProjectIdIndexRoute
@@ -330,6 +339,7 @@ export interface FileRouteTypes {
     | '/$projectId/runtime-policies'
     | '/$projectId/skills'
     | '/$projectId/traces'
+    | '/$projectId/works'
     | '/departments/$departmentId'
     | '/platform/settings'
     | '/$projectId/'
@@ -364,6 +374,7 @@ export interface FileRouteTypes {
     | '/$projectId/runtime-policies'
     | '/$projectId/skills'
     | '/$projectId/traces'
+    | '/$projectId/works'
     | '/departments/$departmentId'
     | '/platform/settings'
     | '/$projectId'
@@ -398,6 +409,7 @@ export interface FileRouteTypes {
     | '/$projectId/runtime-policies'
     | '/$projectId/skills'
     | '/$projectId/traces'
+    | '/$projectId/works'
     | '/departments/$departmentId'
     | '/platform/settings'
     | '/$projectId/'
@@ -433,6 +445,7 @@ export interface RootRouteChildren {
   ProjectIdRuntimePoliciesRoute: typeof ProjectIdRuntimePoliciesRoute
   ProjectIdSkillsRoute: typeof ProjectIdSkillsRoute
   ProjectIdTracesRoute: typeof ProjectIdTracesRoute
+  ProjectIdWorksRoute: typeof ProjectIdWorksRoute
   DepartmentsDepartmentIdRoute: typeof DepartmentsDepartmentIdRoute
   PlatformSettingsRoute: typeof PlatformSettingsRoute
   ProjectIdIndexRoute: typeof ProjectIdIndexRoute
@@ -546,6 +559,13 @@ declare module '@tanstack/react-router' {
       path: '/$projectId/traces'
       fullPath: '/$projectId/traces'
       preLoaderRoute: typeof ProjectIdTracesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/$projectId/works': {
+      id: '/$projectId/works'
+      path: '/$projectId/works'
+      fullPath: '/$projectId/works'
+      preLoaderRoute: typeof ProjectIdWorksRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/departments/$departmentId': {
@@ -697,6 +717,7 @@ const rootRouteChildren: RootRouteChildren = {
   ProjectIdRuntimePoliciesRoute: ProjectIdRuntimePoliciesRoute,
   ProjectIdSkillsRoute: ProjectIdSkillsRoute,
   ProjectIdTracesRoute: ProjectIdTracesRoute,
+  ProjectIdWorksRoute: ProjectIdWorksRoute,
   DepartmentsDepartmentIdRoute: DepartmentsDepartmentIdRoute,
   PlatformSettingsRoute: PlatformSettingsRoute,
   ProjectIdIndexRoute: ProjectIdIndexRoute,

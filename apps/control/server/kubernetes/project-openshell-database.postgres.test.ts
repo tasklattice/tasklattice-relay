@@ -45,6 +45,7 @@ describe.skipIf(!databaseUrl)("Project Gateway databases on PostgreSQL", () => {
     await admin.query("CREATE ROLE provisioner LOGIN CREATEDB CREATEROLE PASSWORD 'integration-only'");
     const url = new URL(databaseUrl!);
     url.username = "provisioner";
+    url.password = "integration-only";
     provisioner = new PostgresProjectOpenShellDatabase(() => url.toString(), () => secrets);
   });
   beforeEach(async () => {

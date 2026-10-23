@@ -54,6 +54,10 @@ export function terminalPrompt(prompt) {
   return String(prompt).replace(/\s*\r?\n\s*/g, " ").trim();
 }
 
+export function dashboardResize(cols, rows) {
+  return `\u001b[RESIZE:${cols};${rows}]`;
+}
+
 export function terminalResize(cols, rows) {
   return `\u0000TALI_RESIZE:${cols}:${rows}`;
 }
@@ -280,7 +284,7 @@ export async function runHermesDashboardTurn({
     terminalOutput += raw.toString();
   });
   await waitForOpen(ptySocket, "Hermes PTY", Math.min(timeoutMs, 15_000));
-  ptySocket.send(terminalResize(120, 40));
+  ptySocket.send(dashboardResize(120, 40));
   await eventually(
     () => hermesTuiReady(terminalOutput),
     {
@@ -503,7 +507,12 @@ export async function waitForInstanceModelAttribution({
       start_time: start,
       end_time: end,
       timezone: "UTC",
-      filters: JSON.stringify({ instance: [instance.id] }),
+      filters: JSON.stringify({
+        instance: [instance.id],
+        // MCP discovery and tool calls share the Instance virtual key. They
+        // are not evidence that the assigned LLM actually ran.
+        model_endpoint: [deployment.id, `model-routing:${routing.id}`],
+      }),
       group_by: "instance",
       page: "1",
       page_size: "25",

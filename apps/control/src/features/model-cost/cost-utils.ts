@@ -14,6 +14,8 @@ export type CostRange =
   | "custom";
 
 export const costGroupLabels: Record<CostGroupBy, string> = {
+  work: "Work",
+  task: "Task",
   instance: "Instance",
   model_endpoint: "model endpoint",
   provider_account: "Provider",
@@ -21,6 +23,8 @@ export const costGroupLabels: Record<CostGroupBy, string> = {
 };
 
 export const costFilterLabels: Record<CostFilterKey, string> = {
+  work: "Work",
+  task: "Task",
   instance: "Instance",
   model_endpoint: "Model endpoint",
   provider: "Provider",

@@ -303,3 +303,52 @@ describe("CostService", () => {
     });
   });
 });
+
+describe("Work billing attribution", () => {
+  it("keeps same-named Tasks separate, planning at Work level, and replays exactly once", async () => {
+    const store = createTestStore();
+    await configureTeam(store);
+    const at = "2026-06-02T10:00:00.000Z";
+    for (const [key, workId, taskId] of [["plan", "work-a", undefined], ["a", "work-a", "R-1"], ["b", "work-b", "R-1"]] as const) {
+      await store.costAnalytics().saveAttribution({
+        id: key, projectId: store.projectId, workId, workName: workId,
+        ...(taskId ? { taskId, taskName: "Same title" } : {}), workRunId: `run-${key}`,
+        instanceId: "shared-instance", instanceName: "Expert", hashedToken: hashedKey(key),
+        virtualKeyAlias: key, liteLLMTeamId: "team-project", validFrom: "2026-06-01T00:00:00Z",
+        createdAt: at, updatedAt: at,
+      });
+    }
+    const logs = [log("plan", at, "plan", 0.1), log("a", at, "a", 0.2), log("b", at, "b", 0.3)];
+    const service = new CostService(store, client(logs));
+    await service.sync("2026-06-01T00:00:00.000Z", "2026-06-03T23:59:59.999Z");
+    await service.sync("2026-06-01T00:00:00.000Z", "2026-06-03T23:59:59.999Z");
+    const facts = await store.costAnalytics().listFacts(query);
+    expect(facts).toHaveLength(3);
+    expect(facts.find(f=>f.requestId==="a")).toMatchObject({workId:"work-a",taskId:"R-1",workRunId:"run-a",totalCostUsd:0.2});
+    expect(facts.find(f => f.requestId === "plan")).toMatchObject({workId:"work-a",workRunId:"run-plan",instanceId:"shared-instance"});
+    expect(facts.find(f => f.requestId === "plan")?.taskId).toBeUndefined();
+    expect(facts.every(f => !f.runId)).toBe(true); // WorkRun is not ExpertAgentRun.
+    const tasks = await service.breakdown({...query,groupBy:"task",page:1,pageSize:20,sort:"requests",direction:"desc",search:""});
+    expect(tasks.items.map(x=>x.id).sort()).toEqual(["work-a/R-1","work-a/__planning__","work-b/R-1"]);
+    const scoped = await service.summary({...query,filters:{work:["work-a"],task:["work-a/R-1"]}});
+    expect(scoped.requests).toBe(1);
+    expect(scoped.totalSpendUsd).toBeCloseTo(0.2);
+    expect((await service.summary(query)).totalSpendUsd).toBeCloseTo(0.6);
+    const wrongProject = new ProjectStore("other-project", store.database());
+    expect(await wrongProject.costAnalytics().findAttribution({hashedToken:hashedKey("a"),at})).toBeUndefined();
+    expect(await store.costAnalytics().findAttribution({teamId:"team-project",at})).toBeUndefined();
+    expect((await service.dataQuality(query)).uncorrelatedRunRequests).toBe(0);
+  });
+
+  it("does not trust chat-controlled metadata or assign an unmatched key to a Work", async () => {
+    const store = createTestStore();
+    await configureTeam(store);
+    const record = {...log("unmapped", "2026-06-02T10:00:00Z", "unknown-key", undefined),metadata:{tali_work_id:"forged",tali_task_id:"R-1",tali_instance_id:"forged"}};
+    const service = new CostService(store, client([record]));
+    await service.sync("2026-06-01T00:00:00.000Z", "2026-06-03T23:59:59.999Z");
+    const [fact] = await store.costAnalytics().listFacts(query);
+    expect(fact?.workId).toBeUndefined();
+    expect(fact?.instanceId).toBeUndefined();
+    expect(fact?.costStatus).toBe("unknown");
+  });
+});

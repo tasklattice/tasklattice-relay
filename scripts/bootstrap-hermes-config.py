@@ -186,6 +186,23 @@ def openshell_model_credential() -> str:
     return credential
 
 
+def configure_gateway_mcp(document: dict, endpoint: str, credential: str) -> None:
+    """Use the same scoped LiteLLM virtual credential for its MCP gateway."""
+    parsed = urllib.parse.urlparse(endpoint)
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname or parsed.username or parsed.password:
+        raise RuntimeError("Hermes MCP requires a valid inference gateway URL")
+    servers = document.get("mcp_servers", {})
+    if not isinstance(servers, dict):
+        raise RuntimeError("Hermes MCP configuration must be an object")
+    document["mcp_servers"] = {
+        **servers,
+        "tali": {
+            "url": urllib.parse.urlunparse((parsed.scheme, parsed.netloc, "/mcp/", "", "", "")),
+            "headers": {"Authorization": f"Bearer {credential}"},
+        },
+    }
+
+
 def configure_a2a(
     validated: dict,
     registry_url_value: str,
@@ -428,6 +445,7 @@ def main() -> None:
     for route in credential_routes:
         route["api_key"] = managed_credential
     validated = document
+    configure_gateway_mcp(validated, args.endpoint, managed_credential)
     enable_run_telemetry(validated)
     if bool(args.a2a_registry_url) != bool(args.a2a_registry_token):
         raise RuntimeError("Hermes A2A registry URL and token must be configured together")
@@ -521,12 +539,11 @@ def main() -> None:
     try:
         atomic_write(config, updated_config, config_mode)
         atomic_write(env, updated_env, env_mode)
-        if mcp_digest(config, args.mcp_digest_builder, args.runtime_config_guard) != anchored_mcp:
-            raise RuntimeError("Inference routing unexpectedly changed Hermes MCP configuration")
+        updated_mcp = mcp_digest(config, args.mcp_digest_builder, args.runtime_config_guard)
         updated_anchor = (
             f"{digest(updated_config)}  {config}\n"
             f"{digest(updated_env)}  {env}\n"
-            f"# nemoclaw-hermes-mcp-state-v1 intended={anchored_mcp} applied={anchored_mcp}\n"
+            f"# nemoclaw-hermes-mcp-state-v1 intended={updated_mcp} applied={updated_mcp}\n"
         ).encode("utf-8")
         atomic_write(hash_file, updated_anchor, anchor_mode)
     except BaseException:
