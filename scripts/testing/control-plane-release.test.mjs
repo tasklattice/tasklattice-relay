@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { parse } from "yaml";
-import { parseControlReleaseTag, pinControlReleaseValues, releaseImages, affectedImages, makePlan, selectPreviousRelease, releaseMatrices, assembleReleaseManifest } from "../control-plane-release.mjs";
+import { parseControlReleaseTag, pinControlReleaseValues, releaseImages, affectedImages, makePlan, selectPreviousRelease, releaseMatrices, assembleReleaseManifest, releaseImageOutputs } from "../control-plane-release.mjs";
 const registry = "ghcr.io/tasklattice";
 const sha = "a".repeat(40);
 test("Prisma CLI, generated client runtime and PostgreSQL adapter stay on one exact version", () => {
@@ -150,6 +150,20 @@ test("release manifest requires seven matching publication receipts", () => {
   ]) assert.throws(() => assembleReleaseManifest(plan, invalid));
 });
 
+test("copyable image lists include reused tags and distinguish rebuilt images", () => {
+  const manifest = previous();
+  manifest.images.forEach((image, index) => { image.action = index ? "reuse" : "build"; });
+  const { files, summary } = releaseImageOutputs(manifest);
+  assert.deepEqual(files["images.txt"].trim().split("\n"), manifest.images.map(image => image.reference));
+  assert.equal(files["updated-images.txt"], `${manifest.images[0].reference}\n`);
+  assert.deepEqual(files["images-by-digest.txt"].trim().split("\n"), manifest.images.map(image => `${registry}/${image.image}@${image.digest}`));
+  assert(summary.includes(`\x60\x60\x60text\n${files["images.txt"]}\x60\x60\x60`));
+  assert(summary.includes(`| ${manifest.images[1].reference} | reuse |`));
+  manifest.images.forEach(image => { image.action = "build"; });
+  const full = releaseImageOutputs(manifest).files;
+  assert.equal(full["updated-images.txt"], full["images.txt"]);
+});
+
 test("per-image publication writes isolated receipts and assembly requires every image", () => {
   const directory = mkdtempSync(join(tmpdir(), "relay-rc-publication-"));
   const script = resolve("scripts/control-plane-release.mjs");
@@ -160,7 +174,7 @@ test("per-image publication writes isolated receipts and assembly requires every
   writeFileSync(join(directory, "docker"), '#!/bin/sh\nprintf "%s\\n" "$*" >> "$CALL_LOG"\ncase "$*" in *inspect*) printf "%s" "$TEST_DIGEST" ;; esac\n', { mode: 0o755 });
   const invoke = (command, key) => spawnSync(process.execPath, [script, command, plan.tag, "plan.json", ...(key ? [key] : [])], {
     cwd: directory, encoding: "utf8", env: { ...process.env, PATH: `${directory}:${process.env.PATH}`,
-      CALL_LOG: join(directory, "calls.log"), TEST_DIGEST: digest },
+      CALL_LOG: join(directory, "calls.log"), TEST_DIGEST: digest, GITHUB_STEP_SUMMARY: join(directory, "summary.md") },
   });
   try {
     assert.notEqual(invoke("assemble-manifest").status, 0);
@@ -174,6 +188,10 @@ test("per-image publication writes isolated receipts and assembly requires every
     assert.equal(invoke("assemble-manifest").status, 0);
     const manifest = JSON.parse(readFileSync(join(directory, "dist/control-release/release-manifest.json"), "utf8"));
     assert.equal(manifest.images.length, 7);
+    for (const [name, contents] of Object.entries(releaseImageOutputs(manifest).files)) {
+      assert.equal(readFileSync(join(directory, "dist/control-release", name), "utf8"), contents);
+    }
+    assert.equal(readFileSync(join(directory, "summary.md"), "utf8"), releaseImageOutputs(manifest).summary);
     const calls = readFileSync(join(directory, "calls.log"), "utf8");
     assert(calls.includes(`${registry}/tali-control:0.2.8-rc.2-amd64 ${registry}/tali-control:0.2.8-rc.2-arm64`));
     assert(calls.includes(`--tag ${registry}/tali-openshell-runner:0.2.8-rc.2 ${registry}/tali-openshell-runner@${digest}`));
@@ -218,6 +236,13 @@ test("RC stages separate validation, grouped builds, manifests, chart and GitHub
   assert(jobs["publish-chart"].if.includes("needs.publish-sandbox-manifests.result == 'success'"));
   assert.deepEqual(jobs["github-release"].needs, ["plan", "publish-chart"]);
   assert(jobs["github-release"].if.includes("needs.publish-chart.result == 'success'"));
+  const upload = jobs["publish-chart"].steps.find(step => step.with?.name === "rc-release-assets");
+  const releaseCommand = jobs["github-release"].steps.find(step => step.run?.includes("gh release create")).run;
+  for (const name of ["images.txt", "updated-images.txt", "images-by-digest.txt"]) {
+    assert(upload.with.path.includes(`dist/control-release/${name}`));
+    assert(releaseCommand.includes(`dist/control-release/${name}`));
+  }
+  assert(releaseCommand.includes("cat dist/control-release/images.txt"));
   assert.equal(jobs["publish-chart"].permissions.contents, "read");
   assert.deepEqual(jobs["github-release"].permissions, { contents: "write" });
   const composite = parse(readFileSync(".github/actions/publish-rc-image/action.yml", "utf8"));

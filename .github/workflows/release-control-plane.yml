@@ -299,6 +299,9 @@ jobs:
           path: |
             dist/control-release/tali-relay-*.tgz
             dist/control-release/release-manifest.json
+            dist/control-release/images.txt
+            dist/control-release/updated-images.txt
+            dist/control-release/images-by-digest.txt
           if-no-files-found: error
 
   github-release:
@@ -336,7 +339,16 @@ jobs:
             echo
             echo "Remove stale images.*.tag overrides from your values to use this RC."
             echo "Select this prerelease explicitly with --version."
+            echo
+            echo '## Published images (amd64 + arm64)'
+            echo
+            echo '```text'
+            cat dist/control-release/images.txt
+            echo '```'
+            echo
+            echo 'Download images.txt for all image tags, updated-images.txt for rebuilt images only, or images-by-digest.txt for immutable references. Each file contains one image per line.'
           } > dist/control-release/RELEASE.md
           gh release create "$GITHUB_REF_NAME" "dist/control-release/tali-relay-$VERSION.tgz" dist/control-release/release-manifest.json dist/control-release/RELEASE.md \
+            dist/control-release/images.txt dist/control-release/updated-images.txt dist/control-release/images-by-digest.txt \
             --verify-tag --prerelease --latest=false \
             --title "Relay $SERIES RC$RC" --notes-file dist/control-release/RELEASE.md

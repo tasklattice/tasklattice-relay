@@ -92,6 +92,22 @@ export function assembleReleaseManifest(plan, receipts) {
     return { ...image, digest: receipt.digest };
   }) };
 }
+export function releaseImageOutputs(manifest) {
+  const lines = images => images.length ? `${images.join("\n")}\n` : "";
+  const files = {
+    "images.txt": lines(manifest.images.map(image => image.reference)),
+    "updated-images.txt": lines(manifest.images.filter(image => image.action === "build").map(image => image.reference)),
+    "images-by-digest.txt": lines(manifest.images.map(image => `${image.reference.replace(/:[^/:]+$/, "")}@${image.digest}`)),
+  };
+  const summary = `## Published images — ${manifest.tag}\n\n`
+    + "Complete versioned image list (amd64 + arm64), one reference per line:\n\n```text\n"
+    + files["images.txt"] + "```\n\n"
+    + "| Image | Action |\n|---|---|\n"
+    + manifest.images.map(image => `| ${image.reference} | ${image.action} |`).join("\n")
+    + "\n\nRelease attachments: `images.txt` (all images), `updated-images.txt` (rebuilt images only), "
+    + "`images-by-digest.txt` (all images pinned by digest), and `release-manifest.json` (build/reuse metadata).\n";
+  return { files, summary };
+}
 export function selectPreviousRelease(tag, releases) {
   const release = parseControlReleaseTag(tag);
   if (release.rc === "1") return undefined;
@@ -163,6 +179,9 @@ async function cli() {
       const manifest = assembleReleaseManifest(plan, receipts);
       mkdirSync("dist/control-release", { recursive: true });
       writeFileSync("dist/control-release/release-manifest.json", JSON.stringify(manifest, null, 2));
+      const { files, summary } = releaseImageOutputs(manifest);
+      for (const [name, contents] of Object.entries(files)) writeFileSync(`dist/control-release/${name}`, contents);
+      if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, summary);
     }
   } else throw new Error(`Unknown command: ${command}`);
 }
