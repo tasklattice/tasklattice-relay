@@ -113,6 +113,33 @@ upgrade UAT Instances.
 - Temporary test Gateways, Runner, model fixture, Sandboxes, and PVCs were cleaned
   up. The independent v1.0.2 Controller remains available locally.
 
+## mcporter dependency overlay — 2026-10-23
+
+Fresh OpenClaw builds of the pinned NemoClaw release failed its own npm audit
+gate after new security advisories affected the bundled mcporter dependency
+graph. Relay now supplies a reviewed manifest and lockfile from
+`infra/npm/mcporter-runtime/`, applied before the upstream Docker build by
+`scripts/patch-nemoclaw-mcporter-runtime.mjs`.
+
+The overlay retains mcporter 0.7.3 and changes only seven transitive packages:
+MCP SDK 1.32.0, fast-uri 3.1.9, proxy-addr 2.0.8, @hono/node-server 2.0.12,
+Hono 4.13.11, ip-address 10.7.4 and qs 6.16.0. OpenClaw, NemoClaw and OpenShell
+versions remain unchanged. The patch checks the original v0.0.123 file hashes,
+is reentrant, and rejects unknown upstream files before writing either file.
+Upstream archive integrity checks, locked installation, runtime smoke tests
+and audit thresholds remain enabled; no audit exceptions are added.
+
+Both release workflows run `npm run test:mcporter` to install the isolated graph,
+audit it, and invoke a real local MCP HTTP tool through the mcporter CLI. The
+patched graph passed with zero npm audit findings and also passed NemoClaw's
+original reviewed audit script. The highest-severity fixes include
+[MCP session isolation](https://github.com/advisories/GHSA-22jm-h49p-29qw),
+[MCP validation exhaustion](https://github.com/advisories/GHSA-46jr-4wx8-v453),
+[MCP OAuth credential routing](https://github.com/advisories/GHSA-6qxp-vccf-f47h),
+[fast-uri authority parsing](https://github.com/advisories/GHSA-58mr-gqgx-xq4g),
+[fast-uri serialization](https://github.com/advisories/GHSA-qw65-cvwx-89v3), and
+[proxy-addr trust checks](https://github.com/advisories/GHSA-jqcg-44mw-7w3h).
+
 ## Upstream references
 
 - [NemoClaw v0.0.123 release](https://github.com/NVIDIA/NemoClaw/releases/tag/v0.0.123)

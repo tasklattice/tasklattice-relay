@@ -190,6 +190,8 @@ test("RC stages separate validation, grouped builds, manifests, chart and GitHub
   for (const workflow of [full, rc]) {
     assert(workflow.jobs.validate.steps.some(step => step.run === "npm audit --audit-level=high"),
       "release must audit build dependencies as well as production dependencies");
+    assert(workflow.jobs.validate.steps.some(step => step.run === "npm run test:mcporter"),
+      "release must audit the separate OpenClaw MCP dependency graph and exercise its real transport");
     assert(workflow.jobs.validate.steps.some(step => /(?:npm run test:release:control|node --test scripts\/testing\/control-plane-release.test.mjs)/.test(step.run ?? "")),
       "release must check dependency compatibility invariants");
     assert(workflow.jobs.validate.steps.some(step => step.run?.includes("npm run test:postgres")),

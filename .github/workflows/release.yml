@@ -45,6 +45,8 @@ jobs:
       - run: npm ci
       - name: Audit production and build dependencies
         run: npm audit --audit-level=high
+      - name: Audit and smoke test OpenClaw MCP runtime
+        run: npm run test:mcporter
       - run: npm run test:release:control
       - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
         with:

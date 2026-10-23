@@ -85,7 +85,8 @@
     "test:postgres": "npm run build:shared && npm run db:generate --workspace @tali/control && node scripts/testing/integration-work-postgres.mjs --all",
     "test:project-initialization:postgres": "node scripts/testing/integration-project-initialization.mjs",
     "test:component-init:containers": "node scripts/testing/component-init-containers.mjs",
-    "test:component-config:containers": "node scripts/testing/component-config-containers.mjs"
+    "test:component-config:containers": "node scripts/testing/component-config-containers.mjs",
+    "test:mcporter": "npm ci --prefix infra/npm/mcporter-runtime --ignore-scripts --omit=dev --no-audit --no-fund && npm audit --prefix infra/npm/mcporter-runtime --audit-level=high && node scripts/testing/mcporter-runtime-smoke.mjs"
   },
   "devDependencies": {
     "yaml": "^2.8.1"
