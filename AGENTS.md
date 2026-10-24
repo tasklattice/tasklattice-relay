@@ -11,3 +11,4 @@ Relay is a desktop Web application. This applies to the entire project.
   readable layouts when desktop windows are resized.
 - Follow `docs/ui-interaction-spec.md` for shared light/dark themes, Tali / Guard
   family styling, component states, and desktop acceptance criteria.
+- Avoid unnecessary secondary labels and descriptions. Let the layout do the explaining.
