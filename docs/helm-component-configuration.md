@@ -34,9 +34,12 @@ they are not fields supported by Docling Serve's YAML settings class.
 
 ## Configuration ownership
 
-`server.internal_url`, `[runner]`, `[litellm]` and `[runtime_namespaces]` provide
-initial values for missing Platform database fields. Saved Platform Settings
-remain authoritative and are never overwritten by a restart. SSO and SMTP
+Helm owns `server.internal_url` through `server.internal_url_managed=true`, so
+Service address/port changes take effect after rollout even when an older URL
+was bootstrapped into Platform Settings. Without that flag, manual installations
+retain the saved Control URL override. `[runner]`, `[litellm]` and
+`[runtime_namespaces]` provide initial values for missing Platform database fields;
+their saved values remain authoritative across restarts. SSO and SMTP
 remain database-owned. All other deployment sections are read directly from
 the file and take effect after a rollout.
 

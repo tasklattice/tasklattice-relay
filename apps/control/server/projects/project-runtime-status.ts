@@ -86,7 +86,8 @@ export class ProjectRuntimeStatusService {
           leaseExpiresAt: null,
         },
       });
-      // A retry may coalesce with the durable job that already owns this Project.
+      // Wake an existing queued job in this transaction, or insert one when
+      // absent. Running jobs and live Worker leases are never replaced.
       await this.jobs!.enqueueProjectRuntimeReconcile(
         projectId,
         reinitialize ? "manual" : "retry",

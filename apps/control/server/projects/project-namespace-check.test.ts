@@ -17,8 +17,12 @@ describe("Project Namespace live check", () => {
     await db.projectRuntimeTarget.create({ data: {
       projectId: "individual", namespace, clusterId: config.runtime_namespaces.cluster_id, status: "ready",
     } });
+    await db.platformSettingsRecord.create({ data: { id: "platform", workerRuntime: {
+      reportedAt: new Date().toISOString(), workerId: "worker", ready: true, kubernetesAccess: true, projectTargetRouting: false,
+      projectIsolation: { controlUrl: config.server.internal_url!, resources: [] },
+    } } });
     observed = {
-      metadata: { name: namespace, annotations: { "tali.io/project-id": "individual", "tali.io/project-name": "admin" }, labels: {
+      metadata: { name: namespace, uid: "namespace-uid", annotations: { "tali.io/project-id": "individual", "tali.io/project-name": "admin" }, labels: {
         "app.kubernetes.io/managed-by": "tali", "app.kubernetes.io/part-of": "tali",
         "tali.io/runtime-target": "true", "tali.io/project-name": "admin",
       } }, status: { phase: "Active" },
@@ -30,7 +34,7 @@ describe("Project Namespace live check", () => {
     const read = vi.fn(async () => observed);
     const result = await new ProjectNamespaceCheckService(db, read).check("individual");
     expect(result.healthy).toBe(true);
-    expect(result.checks).toHaveLength(6);
+    expect(result.checks).toHaveLength(7);
     expect(read).toHaveBeenCalledWith(namespace);
   });
   it.each([404, 403, 500])("reports Kubernetes %s even when the database says ready", async (code) => {
@@ -42,9 +46,23 @@ describe("Project Namespace live check", () => {
   });
   it("rejects another Project's Namespace ownership", async () => {
     observed.metadata!.annotations!["tali.io/project-id"] = "another-project";
-    const result = await new ProjectNamespaceCheckService(db, async () => observed).check("individual");
+    const readResource = vi.fn();
+    const result = await new ProjectNamespaceCheckService(db, async () => observed, readResource).check("individual");
     expect(result.healthy).toBe(false);
     expect(result.checks.find((check) => check.id === "owner")?.status).toBe("failed");
+    expect(readResource).not.toHaveBeenCalled();
+  });
+  it.each(["missing", "stale", "unready", "render-failed"])("does not report healthy with a %s Worker inventory", async mode => {
+    const report = { reportedAt: new Date(mode === "stale" ? 0 : Date.now()).toISOString(), workerId: "worker", ready: mode !== "unready",
+      kubernetesAccess: true, projectTargetRouting: true,
+      ...(mode !== "missing" ? { projectIsolation: { controlUrl: "http://control.default.svc.cluster.local", resources: [],
+        ...(mode === "render-failed" ? { unavailable: "Worker could not build the deployed isolation inventory." } : {}) } } : {}) };
+    await db.platformSettingsRecord.update({ where: { id: "platform" }, data: { workerRuntime: report } });
+    const readResource = vi.fn();
+    const result = await new ProjectNamespaceCheckService(db, async () => observed, readResource).check("individual");
+    expect(result.healthy).toBe(false);
+    expect(result.checks.at(-1)).toMatchObject({ id: "isolation-inventory", status: "unavailable" });
+    expect(readResource).not.toHaveBeenCalled();
   });
   it("reports terminating Namespaces and missing management metadata", async () => {
     observed.metadata!.deletionTimestamp = new Date();

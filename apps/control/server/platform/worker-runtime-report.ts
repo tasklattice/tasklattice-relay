@@ -1,10 +1,12 @@
 import { z } from "zod";
+import { projectIsolationInventorySchema } from "../projects/project-isolation-inventory";
 const schema = z.object({
   reportedAt: z.string().datetime(),
   workerId: z.string(),
   ready: z.boolean(),
   projectTargetRouting: z.boolean(),
   kubernetesAccess: z.boolean(),
+  projectIsolation: projectIsolationInventorySchema.optional(),
   sandbox: z
     .object({
       gatewayImage: z.string(),

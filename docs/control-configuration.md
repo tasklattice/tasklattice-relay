@@ -104,9 +104,15 @@ full in-cluster HTTP Service name
 restricted to Control Pods in that Namespace rather than to an arbitrary host
 sharing the same port.
 
-On a new Helm installation, `[runner]`, `[litellm]`, `[runtime_namespaces]`
-and `server.internal_url` seed missing Platform runtime fields. Once saved,
-the database is canonical: changing these file values and restarting does not
+Helm sets `server.internal_url_managed=true`: `server.internal_url` follows the
+deployed Control Service and takes precedence over an old database value. The
+Infrastructure view displays it read-only. Change its Helm Values and roll out
+Control/Worker, then reinitialize existing Projects to apply the new Bridge URL
+and policy immediately. Manual installations without this flag retain the saved
+Platform Control URL override.
+
+`[runner]`, `[litellm]` and `[runtime_namespaces]` seed missing Platform runtime
+fields. Once saved, their database values remain canonical; restarting does not
 overwrite an administrator's settings. OpenShell gateway topology remains
 deployment-owned and read-only in Platform Setting.
 

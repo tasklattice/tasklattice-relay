@@ -2,22 +2,14 @@ import { type KubernetesObjectApi, PatchStrategy, type V1Namespace } from "@kube
 import { getWorkerConfig } from "../config/worker-config";
 import { namespaceOwner } from "./project-resource-ownership";
 
-/** Equivalent to oc policy add-role-to-group system:image-puller
- * system:serviceaccounts:<tenant> -n <image-source>, with one GC-owned binding
- * per Project Namespace incarnation. No credentials are copied or generated.
- */
-export async function reconcileProjectImagePuller(
-  objects: Pick<KubernetesObjectApi, "read" | "patch">,
-  namespace: V1Namespace,
-  projectId: string,
-): Promise<void> {
+export function projectImagePullerBinding(namespace: V1Namespace, projectId: string) {
   const config = getWorkerConfig().openshift;
-  if (!config.enabled) return;
+  if (!config.enabled) return undefined;
   const source = config.imageSourceNamespace;
   if (!source) throw new Error("OpenShift image pulling requires imageSourceNamespace.");
   const owner = namespaceOwner(namespace, projectId);
   const name = `tali-image-puller-${owner.name}-${owner.uid}`;
-  const desired = {
+  return {
     apiVersion: "rbac.authorization.k8s.io/v1",
     kind: "RoleBinding",
     metadata: {
@@ -31,6 +23,21 @@ export async function reconcileProjectImagePuller(
     roleRef: { apiGroup: "rbac.authorization.k8s.io", kind: "ClusterRole", name: "system:image-puller" },
     subjects: [{ apiGroup: "rbac.authorization.k8s.io", kind: "Group", name: `system:serviceaccounts:${owner.name}` }],
   };
+}
+
+/** Equivalent to oc policy add-role-to-group system:image-puller
+ * system:serviceaccounts:<tenant> -n <image-source>, with one GC-owned binding
+ * per Project Namespace incarnation. No credentials are copied or generated.
+ */
+export async function reconcileProjectImagePuller(
+  objects: Pick<KubernetesObjectApi, "read" | "patch">,
+  namespace: V1Namespace,
+  projectId: string,
+): Promise<void> {
+  const desired = projectImagePullerBinding(namespace, projectId);
+  if (!desired) return;
+  const owner = namespaceOwner(namespace, projectId);
+  const { name, namespace: source } = desired.metadata;
   try {
     try {
       const existing = await objects.read(desired);

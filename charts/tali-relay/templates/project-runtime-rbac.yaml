@@ -22,6 +22,17 @@ rules:
   - apiGroups: ["apps"]
     resources: ["deployments"]
     verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["configmaps", "serviceaccounts"]
+    verbs: ["get"]
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["networkpolicies"]
+    verbs: ["get"]
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    resources: ["roles", "rolebindings", "clusterroles", "clusterrolebindings"]
+    verbs: ["get"]
+  # Secret reads are granted inside each owned Project Namespace by Worker.
+  # No access to Control/Worker configuration Secrets is granted here.
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -64,7 +75,7 @@ rules:
   - apiGroups: [""]
     resources: ["namespaces"]
     verbs: ["get", "create", "patch", "delete"]
-  {{- if and .Values.projectRuntimeNamespaces.enabled .Values.expertAgentRuntime.enabled }}
+  {{- if .Values.projectRuntimeNamespaces.enabled }}
   - apiGroups: [""]
     resources: ["configmaps", "secrets", "services"]
     verbs: ["get", "create", "patch", "delete"]
@@ -74,6 +85,9 @@ rules:
   - apiGroups: ["networking.k8s.io"]
     resources: ["networkpolicies"]
     verbs: ["get", "create", "patch", "delete"]
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    resources: ["roles", "rolebindings"]
+    verbs: ["get", "create", "patch"]
   {{- end }}
   {{- if and .Values.openshift.enabled .Values.projectRuntimeNamespaces.enabled }}
   {{- if eq (include "tali.manageTenantScc" .) "true" }}

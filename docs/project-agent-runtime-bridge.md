@@ -89,6 +89,15 @@ The Bridge has no PVC; discovery and capability requests are backed by Control.
 
 ## Health checks and Control connectivity
 
+At startup, the `project-runtime-bridge.started` JSON log includes the effective
+listening `host`/`port`, `projectId`, `controlUrl`, parsed `controlHost` and
+`controlPort`, `bridgeUrl`, and `projectTokenConfigured`. The Control port is
+derived from the configured URL, including the HTTP/HTTPS default when omitted.
+`bridgeUrl` is `null` when `TALI_PROJECT_RUNTIME_BRIDGE_URL` is unset and URLs
+are derived from each incoming request. URL credentials, query strings and
+fragments are omitted from logs; the Project token itself is never logged.
+View this event with `kubectl -n <project-namespace> logs deployment/tali-agent-runtime-bridge`.
+
 `GET /readyz` is the readiness check. It requests
 `TALI_CONTROL_INTERNAL_URL/api/health` without credentials and requires HTTP 2xx
 with JSON `ok: true`. DNS/connection failures, a two-second timeout (including
@@ -116,11 +125,22 @@ tenants too; tenant Deployments are managed by the Worker, not directly by Helm.
 
 ### Investigating cross-namespace timeouts on OCP
 
-The generated Bridge NetworkPolicy permits DNS on UDP/TCP 53 and TCP to Control
-Pods with `app.kubernetes.io/component=control` in the namespace parsed from
-`TALI_CONTROL_INTERNAL_URL`. It allows both the Service port (for example 38080)
-and Control's Pod port 8080. Namespace and Pod selectors are intentionally in
-the same peer entry, so both must match.
+The generated Bridge NetworkPolicy permits DNS on UDP/TCP 53 and TCP to the
+Pods selected by the exact Control Service in `TALI_CONTROL_INTERNAL_URL`.
+Worker reads that Service on every reconciliation and copies its complete
+selector, including the Helm release and application labels. It allows the
+configured Service port and its `targetPort` (the chart uses the named Pod port
+`http`, currently 8080). Namespace and Pod selectors share one peer, so both
+must match. Missing Services, selectors, or matching TCP ports fail reconciliation
+before any Bridge resource is changed.
+
+Helm sets `server.internal_url_managed=true`; its rendered Control address is
+authoritative even if the database retains an older bootstrap URL. Changing
+`control.service.port`, the Service name, or release namespace updates the
+effective URL after the Control/Worker rollout. Reinitialize Project or periodic
+Worker reconciliation then updates both the Bridge Deployment and NetworkPolicy.
+There is no fixed Control Pod IP. Manual installations that omit the managed flag
+retain Platform Settings overrides.
 
 With `openshift.enabled=true`, DNS egress also permits UDP/TCP **5353**.
 Earlier versions allowed only 53, missing OCP's DNS backend port after Service

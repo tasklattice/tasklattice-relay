@@ -3,18 +3,9 @@ import { getWorkerConfig } from "../config/worker-config";
 import { projectPullServiceAccounts } from "./project-image-pull-readiness";
 import { namespaceOwner } from "./project-resource-ownership";
 
-/** Authorize the actual tenant identities before Gateway hooks or runtime Pods.
- * Keep the bindings independent of the tenant Helm release: recovery may uninstall
- * that release, but must not remove the permissions needed to reinstall it.
- */
-export async function reconcileProjectScc(
-  objects: Pick<KubernetesObjectApi, "read" | "patch">,
-  namespace: V1Namespace,
-  projectId: string,
-  assertCurrent?: () => Promise<void>,
-): Promise<void> {
+export function projectSccBindings(namespace: V1Namespace, projectId: string) {
   const config = getWorkerConfig();
-  if (!config.openshift.enabled || config.openshift.manageTenantScc === false) return;
+  if (!config.openshift.enabled || config.openshift.manageTenantScc === false) return [];
   const owner = namespaceOwner(namespace, projectId);
   const grants = new Map<string, string[]>();
   const anyuid: string[] = [];
@@ -28,7 +19,7 @@ export async function reconcileProjectScc(
   if (config.project_runtime_bridge.enabled || config.expert_agent_runtime.enabled) anyuid.push("default");
   if (anyuid.length) grants.set("anyuid", anyuid);
 
-  const desired = [...grants].map(([scc, accounts]) => ({
+  return [...grants].map(([scc, accounts]) => ({
     apiVersion: "rbac.authorization.k8s.io/v1", kind: "RoleBinding",
     metadata: {
       name: `tali-project-scc-${scc}`, namespace: owner.name,
@@ -39,6 +30,21 @@ export async function reconcileProjectScc(
     roleRef: { apiGroup: "rbac.authorization.k8s.io", kind: "ClusterRole", name: `system:openshift:scc:${scc}` },
     subjects: accounts.map(name => ({ kind: "ServiceAccount", name, namespace: owner.name })),
   }));
+}
+
+/** Authorize the actual tenant identities before Gateway hooks or runtime Pods.
+ * Keep the bindings independent of the tenant Helm release: recovery may uninstall
+ * that release, but must not remove the permissions needed to reinstall it.
+ */
+export async function reconcileProjectScc(
+  objects: Pick<KubernetesObjectApi, "read" | "patch">,
+  namespace: V1Namespace,
+  projectId: string,
+  assertCurrent?: () => Promise<void>,
+): Promise<void> {
+  const desired = projectSccBindings(namespace, projectId);
+  if (!desired.length) return;
+  const owner = namespaceOwner(namespace, projectId);
   // Check all existing identities before applying any grant. Never adopt an
   // operator-owned binding or delete/recreate an immutable roleRef.
   for (const binding of desired) {

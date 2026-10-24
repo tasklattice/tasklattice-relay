@@ -362,6 +362,7 @@ schema_version = 1
 public_urls = {{ .Values.control.publicUrls | toJson }}
 trust_proxy_headers = {{ .Values.control.trustProxyHeaders }}
 internal_url = {{ printf "http://%s.%s.svc.cluster.local:%v" (include "tali.componentName" (dict "root" . "component" "control")) .Release.Namespace .Values.control.service.port | toJson }}
+internal_url_managed = true
 
 [database]
 url = {{ include "tali.databaseUrl" . | toJson }}
@@ -417,6 +418,7 @@ apiKey = {{ .Values.control.worker.docling.apiKey | toJson }}
 [worker.resource_ownership]
 controlRelease = {{ .Release.Name | toJson }}
 controlNamespace = {{ .Release.Namespace | toJson }}
+controlServiceAccount = {{ include "tali.serviceAccountName" . | toJson }}
 enabled = {{ .Values.projectRuntimeNamespaces.resourceOwnership }}
 sourceTrackingId = {{ .Values.projectRuntimeNamespaces.argocd.sourceTrackingId | toJson }}
 installationId = {{ .Values.projectRuntimeNamespaces.argocd.installationId | toJson }}

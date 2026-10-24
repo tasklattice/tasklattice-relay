@@ -480,6 +480,7 @@ export type UpdatePlatformInfrastructureSettingsInput = z.infer<
 
 export interface PlatformInfrastructureSettingsView {
   controlInternalUrl: string;
+  controlInternalUrlManaged?: boolean;
   runner: {
     url: string;
     tokenConfigured: boolean;

@@ -82,6 +82,27 @@ describe("PlatformSettingsService", () => {
     })).rejects.toThrow("in-cluster HTTP Service FQDN");
   });
 
+  it("exposes the current Values-owned Control URL and rejects old UI drafts after a deployment change", async () => {
+    const config = getControlConfig();
+    config.server.internal_url_managed = true;
+    config.server.internal_url = "http://control.ns.svc.cluster.local:80";
+    const db = createTestPrisma();
+    const oldUrl = "http://control.ns.svc.cluster.local:38180";
+    await db.platformSettingsRecord.create({ data: { id: "platform", controlInternalUrl: oldUrl } });
+    const service = new PlatformSettingsService(db);
+    expect(await service.getInfrastructure()).toMatchObject({
+      controlInternalUrl: config.server.internal_url, controlInternalUrlManaged: true,
+    });
+    const draft = { controlInternalUrl: oldUrl,
+      runner: { url: "http://runner.internal", token: { action: "replace" as const, value: "synthetic-runner" } },
+      litellm: { url: "http://litellm.internal", masterKey: { action: "replace" as const, value: "synthetic-litellm" } },
+      runtimeNamespaces: { enabled: true, clusterId: "in-cluster" } };
+    await expect(service.validateInfrastructure(draft)).rejects.toThrow("managed by the deployment");
+    await expect(service.updateInfrastructure({ ...draft, validationToken: "previous-deployment-validation" }, "admin"))
+      .rejects.toThrow("managed by the deployment");
+    await db.$disconnect();
+  });
+
   it("validates runtime connections before saving encrypted infrastructure settings", async () => {
     const db = createTestPrisma();
     const runtimeFetch = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {

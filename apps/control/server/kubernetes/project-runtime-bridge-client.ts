@@ -9,6 +9,7 @@ import {
   PatchStrategy,
   type KubernetesObject,
   type V1Deployment,
+  type V1NetworkPolicy,
   type V1Secret,
   type V1Service,
 } from "@kubernetes/client-node";
@@ -18,7 +19,6 @@ import type { ProjectNamespaceInput } from "./project-namespace-client";
 
 const FIELD_MANAGER = "tali-control-project-runtime-bridge";
 export const PROJECT_RUNTIME_BRIDGE_NAME = "tali-agent-runtime-bridge";
-const CONTROL_CONTAINER_PORT = 8080;
 
 export interface ProjectRuntimeBridgeInput extends ProjectNamespaceInput {
   controlUrl: string;
@@ -38,7 +38,7 @@ interface ProjectRuntimeBridgeConfiguration {
   resources: Record<string, unknown>;
 }
 
-type RuntimeBridgeObjectApi = Pick<KubernetesObjectApi, "patch">;
+type RuntimeBridgeObjectApi = Pick<KubernetesObjectApi, "patch" | "read">;
 type RuntimeBridgeAppsApi = Pick<AppsV1Api, "readNamespacedDeployment">;
 
 function labels(): Record<string, string> {
@@ -59,6 +59,7 @@ function annotations(input: ProjectNamespaceInput): Record<string, string> {
 }
 
 export function controlNetworkTarget(controlUrl: string): {
+  serviceName: string;
   namespace: string;
   port: number;
 } {
@@ -78,17 +79,36 @@ export function controlNetworkTarget(controlUrl: string): {
     );
   }
   return {
+    serviceName: host[0],
     namespace: host[1],
     port: url.port ? Number(url.port) : 80,
+  };
+}
+
+export function controlServiceEgress(controlUrl: string, service: V1Service) {
+  const target = controlNetworkTarget(controlUrl);
+  const selector = service.spec?.selector;
+  const port = service.spec?.ports?.find((port) => port.port === target.port && (port.protocol ?? "TCP") === "TCP");
+  if (service.metadata?.name !== target.serviceName || service.metadata.namespace !== target.namespace
+    || service.metadata.deletionTimestamp || service.spec?.type === "ExternalName"
+    || !selector || !Object.keys(selector).length || !port) {
+    throw new Error("Control Service must match the configured URL, have a Pod selector and expose its TCP port.");
+  }
+  return {
+    to: [{
+      namespaceSelector: { matchLabels: { "kubernetes.io/metadata.name": target.namespace } },
+      podSelector: { matchLabels: { ...selector } },
+    }],
+    ports: [...new Set([port.port, port.targetPort ?? port.port])].map((port) => ({ port, protocol: "TCP" })),
   };
 }
 
 export function projectRuntimeBridgeResources(
   input: ProjectRuntimeBridgeInput,
   configuration: Omit<ProjectRuntimeBridgeConfiguration, "enabled">,
+  controlService: V1Service,
 ): KubernetesObject[] {
-  const control = controlNetworkTarget(input.controlUrl);
-  const controlPorts = [...new Set([control.port, CONTROL_CONTAINER_PORT])];
+  const controlEgress = controlServiceEgress(input.controlUrl, controlService);
   const metadata = {
     name: PROJECT_RUNTIME_BRIDGE_NAME,
     namespace: input.namespace,
@@ -191,7 +211,7 @@ export function projectRuntimeBridgeResources(
       },
     },
   };
-  const networkPolicy: KubernetesObject & { spec: Record<string, unknown> } = {
+  const networkPolicy: V1NetworkPolicy = {
     apiVersion: "networking.k8s.io/v1",
     kind: "NetworkPolicy",
     metadata,
@@ -200,31 +220,17 @@ export function projectRuntimeBridgeResources(
         matchLabels: { "app.kubernetes.io/name": PROJECT_RUNTIME_BRIDGE_NAME },
       },
       policyTypes: ["Ingress", "Egress"],
-      ingress: [{ from: [{ podSelector: {} }], ports: [{ port: 8080, protocol: "TCP" }] }],
+      ingress: [{ _from: [{ podSelector: {} }], ports: [{ port: 8080, protocol: "TCP" }] }],
       egress: [
         { ports: runtimeDnsEgressPorts() },
-        {
-          to: [{
-            namespaceSelector: {
-              matchLabels: {
-                "kubernetes.io/metadata.name": control.namespace,
-              },
-            },
-            podSelector: {
-              matchLabels: {
-                "app.kubernetes.io/component": "control",
-              },
-            },
-          }],
-          ports: controlPorts.map((port) => ({ port, protocol: "TCP" })),
-        },
+        controlEgress,
       ],
     },
   };
   // Existing Expert Agent policies are not reapplied by Project initialization.
   // An additive DNS policy fixes their OCP lookups without restarting runtimes
   // or rewriting their per-Agent business traffic rules.
-  const dnsPolicy: KubernetesObject & { spec: Record<string, unknown> } = {
+  const dnsPolicy: V1NetworkPolicy = {
     apiVersion: "networking.k8s.io/v1",
     kind: "NetworkPolicy",
     metadata: { ...metadata, name: "tali-runtime-dns" },
@@ -278,8 +284,14 @@ export class KubernetesProjectRuntimeBridgeClient
       throw new Error("Control internal URL is required for Project Runtime Bridge reconciliation.");
     }
     const owner = await readProjectNamespaceOwner(input.namespace, input.projectId);
+    const target = controlNetworkTarget(input.controlUrl);
+    const controlService = await this.objects.read<V1Service>({
+      apiVersion: "v1", kind: "Service", metadata: { name: target.serviceName, namespace: target.namespace },
+    });
+    // Fail closed before mutating tenant resources if the configured Service is invalid.
+    controlServiceEgress(input.controlUrl, controlService);
     const imagePullSecrets = await prepareRuntimeImagePull(input, this.configuration.image, this.configuration.imagePullSecrets);
-    for (const resource of projectRuntimeBridgeResources(input, { ...this.configuration, imagePullSecrets })) {
+    for (const resource of projectRuntimeBridgeResources(input, { ...this.configuration, imagePullSecrets }, controlService)) {
       await this.objects.patch(
         withNamespaceOwner(resource, owner),
         undefined,

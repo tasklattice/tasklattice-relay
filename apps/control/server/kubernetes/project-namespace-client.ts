@@ -3,6 +3,7 @@ import { getWorkerConfig } from "../config/worker-config";
 import { projectArgoAnnotations } from "./project-resource-ownership";
 import { reconcileProjectImagePuller } from "./project-image-puller";
 import { reconcileProjectScc } from "./project-scc";
+import { reconcileProjectIsolationReader } from "./project-isolation-reader";
 import {
   CoreV1Api,
   KubeConfig,
@@ -177,6 +178,7 @@ export class KubernetesProjectNamespaceClient
         }
       }
       if (created) {
+        await reconcileProjectIsolationReader(this.objects, created, input.projectId);
         await reconcileProjectImagePuller(this.objects, created, input.projectId);
         await reconcileProjectScc(this.objects, created, input.projectId, input.assertCurrent);
         return;
@@ -206,6 +208,7 @@ export class KubernetesProjectNamespaceClient
       throw reconciliationError("server-side apply", error);
     }
     // Initialization calls this before any Gateway hooks or runtime Pods.
+    await reconcileProjectIsolationReader(this.objects, existing, input.projectId);
     await reconcileProjectImagePuller(this.objects, existing, input.projectId);
     await reconcileProjectScc(this.objects, existing, input.projectId, input.assertCurrent);
   }

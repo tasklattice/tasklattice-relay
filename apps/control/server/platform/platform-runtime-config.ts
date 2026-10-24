@@ -14,6 +14,16 @@ export interface PlatformRuntimeConfiguration {
   localAuthenticationEnabled: boolean;
 }
 
+/** Helm owns its Service address; legacy/manual installations retain DB overrides. */
+export function effectiveControlInternalUrl(saved?: string | null): string {
+  const server = getControlConfig().server;
+  if (server.internal_url_managed) {
+    if (!server.internal_url) throw new Error("Deployment-managed Control requires server.internal_url.");
+    return server.internal_url;
+  }
+  return saved || server.internal_url || "";
+}
+
 export function deploymentBootstrapRuntimeConfiguration(): PlatformRuntimeConfiguration {
   const config = getControlConfig();
   return {
@@ -113,7 +123,7 @@ export async function loadPlatformRuntimeConfiguration(
   ]);
   const config = getControlConfig();
   return {
-    controlInternalUrl: settings?.controlInternalUrl || bootstrap.controlInternalUrl,
+    controlInternalUrl: effectiveControlInternalUrl(settings?.controlInternalUrl),
     runner: {
       url: settings?.runnerUrl || bootstrap.runner.url,
       token: settings?.runnerTokenEncrypted

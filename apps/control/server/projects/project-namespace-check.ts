@@ -1,10 +1,34 @@
-import { CoreV1Api, KubeConfig, createConfiguration, type V1Namespace } from "@kubernetes/client-node";
+import { CoreV1Api, KubeConfig, KubernetesObjectApi, createConfiguration, type Configuration, type V1Namespace } from "@kubernetes/client-node";
 import type { ProjectNamespaceCheck } from "@tali/contracts";
 import { prisma } from "../db/prisma";
 import type { PrismaClient } from "../generated/prisma/client";
 import { loadPlatformRuntimeConfiguration } from "../platform/platform-runtime-config";
 import { projectNameLabel } from "../kubernetes/project-namespace-client";
 import { projectRuntimeNamespace } from "./project-runtime-identity";
+import { readWorkerRuntime } from "../platform/worker-runtime-report";
+import { checkProjectIsolation, type ProjectResourceReader } from "./project-isolation-check";
+
+function resourceReader(): ProjectResourceReader {
+  let api: KubernetesObjectApi | undefined;
+  const signal = AbortSignal.timeout(15_000);
+  class DiagnosticObjectApi extends KubernetesObjectApi {
+    constructor(config: Configuration) {
+      super({ ...config, middleware: [...config.middleware, ...createConfiguration({ promiseMiddleware: [{
+        pre: async context => { context.setSignal(signal); return context; }, post: async context => context,
+      }] }).middleware] });
+    }
+  }
+  return async (resource) => {
+    if (!api) {
+      if (!process.env.KUBERNETES_SERVICE_HOST) throw new Error("Kubernetes API is unavailable.");
+      const kube = new KubeConfig();
+      kube.loadFromCluster();
+      api = kube.makeApiClient(DiagnosticObjectApi);
+    }
+    if (!resource.metadata?.name) throw new Error("Isolation resource has no name.");
+    return api.read({ ...resource, metadata: { ...resource.metadata, name: resource.metadata.name } });
+  };
+}
 
 async function readNamespace(name: string): Promise<V1Namespace> {
   if (!process.env.KUBERNETES_SERVICE_HOST) {
@@ -21,11 +45,12 @@ async function readNamespace(name: string): Promise<V1Namespace> {
   });
 }
 
-/** Observes the live Namespace. Never creates resources or changes recorded readiness. */
+/** Observes Project isolation resources. Never mutates resources or recorded readiness. */
 export class ProjectNamespaceCheckService {
   constructor(
     private readonly db: PrismaClient = prisma(),
     private readonly read: (name: string) => Promise<V1Namespace> = readNamespace,
+    private readonly readResource?: ProjectResourceReader,
   ) {}
 
   async check(projectId: string): Promise<ProjectNamespaceCheck> {
@@ -34,7 +59,8 @@ export class ProjectNamespaceCheckService {
       select: { name: true, deletedAt: true, runtimeTarget: true },
     });
     if (!project || project.deletedAt) throw new Error("Project not found or being deleted.");
-    const runtime = (await loadPlatformRuntimeConfiguration(this.db)).runtimeNamespaces;
+    const configuration = await loadPlatformRuntimeConfiguration(this.db);
+    const runtime = configuration.runtimeNamespaces;
     const namespace = projectRuntimeNamespace(projectId);
     const checks: ProjectNamespaceCheck["checks"] = [];
     const add = (id: string, label: string, passed: boolean, message: string) => {
@@ -89,6 +115,21 @@ export class ProjectNamespaceCheckService {
     add("metadata", "Relay metadata", metadataMatches, metadataMatches
       ? "Project name and Relay management labels match."
       : "Project name or Relay management labels differ. Reinitialization can repair metadata on an owned Namespace.");
+    if (owner !== projectId || !active || observed.metadata?.name !== namespace) return result();
+    const settings = await this.db.platformSettingsRecord.findUnique({ where: { id: "platform" } });
+    const worker = readWorkerRuntime(settings?.workerRuntime);
+    const inventory = worker?.projectIsolation;
+    if (!worker?.ready || !inventory || inventory.unavailable || !observed.metadata?.uid) {
+      checks.push({ id: "isolation-inventory", label: "Project isolation inventory", status: "unavailable",
+        message: inventory?.unavailable ?? "A ready Worker must report the current isolation inventory. Upgrade or restore the Worker, then check again." });
+      return result();
+    }
+    add("isolation-configuration", "Deployed isolation configuration", inventory.controlUrl === configuration.controlInternalUrl,
+      inventory.controlUrl === configuration.controlInternalUrl ? "Control and Worker use the same current deployment address."
+        : "Control and Worker configuration differ. Finish the deployment rollout and check again.");
+    checks.push(...await checkProjectIsolation({ namespace, projectId, projectName: project.name,
+      uid: observed.metadata.uid, controlUrl: configuration.controlInternalUrl, runnerToken: configuration.runner.token },
+    inventory, this.readResource ?? resourceReader()));
     return result();
   }
 }

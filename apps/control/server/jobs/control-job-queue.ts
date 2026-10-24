@@ -159,12 +159,30 @@ export class PgBossControlJobQueue implements ControlJobPublisher {
     transaction?: Prisma.TransactionClient,
   ): Promise<string | undefined> {
     await this.start();
+    if (reason === "manual" || reason === "retry") {
+      // Upsert edits only created/retry jobs, preserving their ID and retry
+      // history. The exclusive queue prevents insertion beside an active job.
+      // Use the Project transaction so its generation and the wake-up commit
+      // together; pg-boss emits NOTIFY when startAfter becomes runnable.
+      const result = await this.boss.upsert(
+        CONTROL_JOB_QUEUES.projectRuntimeReconcile,
+        { projectId, reason } satisfies ProjectRuntimeReconcileJobPayload,
+        {
+          group: { id: projectId },
+          priority: 50,
+          singletonKey: projectId,
+          startAfter: 0,
+          ...(transaction ? { db: fromPrisma(transaction) } : {}),
+        },
+      );
+      return result.jobs[0];
+    }
     const id = await this.boss.send(
       CONTROL_JOB_QUEUES.projectRuntimeReconcile,
       { projectId, reason } satisfies ProjectRuntimeReconcileJobPayload,
       {
         group: { id: projectId },
-        priority: reason === "created" || reason === "retry" ? 50 : 10,
+        priority: reason === "created" ? 50 : 10,
         singletonKey: projectId,
         ...(transaction ? { db: fromPrisma(transaction) } : {}),
       },

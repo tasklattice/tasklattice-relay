@@ -855,6 +855,12 @@ const runtimeControlRole = requireObject(
 );
 assert(runtimeControlRole.rules.every((rule) => rule.verbs.every((verb) => ["get", "list", "watch"].includes(verb))), "Control must have read-only Kubernetes access");
 assert(!runtimeControlRole.rules.some((rule) => rule.resources.includes("secrets")), "Control must not read Worker Secrets");
+for (const resource of ["configmaps", "serviceaccounts", "networkpolicies", "roles", "rolebindings", "clusterroles", "clusterrolebindings"]) {
+  assert(runtimeControlRole.rules.some((rule) => rule.resources.includes(resource) && rule.verbs.includes("get")),
+    `Control must be able to check Project isolation ${resource}`);
+}
+assert(workerConfig(defaults).resource_ownership.controlServiceAccount === requireComponentObject(defaults, "Deployment", "control").spec.template.spec.serviceAccountName,
+  "Worker must grant Project diagnostic access to the configured Control ServiceAccount");
 assert(!controlConfig(defaults).worker, "Control must not contain Worker configuration");
 const apiPod = requireComponentObject(defaults, "Deployment", "control").spec.template.spec;
 assert(!apiPod.volumes.some((v) => v.name === "worker-config"), "Worker config must not be mounted in Control");
@@ -913,6 +919,11 @@ if (
       apiGroups: ["networking.k8s.io"],
       resources: ["networkpolicies"],
       verbs: ["get", "create", "patch", "delete"],
+    },
+    {
+      apiGroups: ["rbac.authorization.k8s.io"],
+      resources: ["roles", "rolebindings"],
+      verbs: ["get", "create", "patch"],
     },
     ...gatewayInstallerRules,
   ])

@@ -14,6 +14,47 @@ and login on the existing PostgreSQL server, publishes the Project database
 Secret, and installs OpenShell as a Deployment without a Gateway data PVC.
 
 Read progress using `GET /api/v1/projects/{projectId}/initialization`.
+
+### Check Namespace and Reinitialize Project
+
+`GET /api/v1/projects/{projectId}/initialization/check` is a read-only live check
+of Project isolation infrastructure. A recent ready Worker publishes a non-secret
+desired inventory built from the same Bridge/RBAC generators and packaged Gateway
+chart used for initialization. Control compares live resources with that inventory:
+
+- Namespace mapping, ownership, phase and management metadata;
+- Gateway and Bridge Deployments, current readiness, Services and configuration;
+- complete NetworkPolicy rules, including the current Control Service selector
+  and port/targetPort, Sandbox SSH isolation, and OCP DNS rules;
+- ServiceAccounts, namespaced and cluster RBAC, required Secret keys and workload
+  references, Project Bridge identity and Gateway database identity;
+- OCP image-source RoleBinding, tenant SCC grants and image-pull Secret references.
+
+The chart inventory includes all durable Gateway resources; completed certgen Jobs
+are transient, while their accounts, grants and output Secrets are checked.
+Agent Pods, Sandbox instances, workspace PVCs and business resources are excluded.
+These checks verify Kubernetes configuration and infrastructure readiness, not an
+exhaustive CNI traffic probe or authenticated Agent business operation.
+Missing/drifted resources fail individually; denied API reads, old/missing Worker
+reports and unavailable inventory are reported as unavailable, never healthy.
+No Secret values are returned. Control gains `get` on Secrets only inside each
+owned tenant Namespace via `tali-project-isolation-reader`; its cluster role cannot
+read the Control/Worker configuration Secrets.
+
+`POST /api/v1/projects/{projectId}/initialization/reconcile` queues a new generation,
+including for a ready Project. Worker reapplies the Namespace, diagnostic RBAC,
+OCP grants, Gateway chart and database credentials, Bridge resources and policies.
+Manual Reinitialize/Retry wakes an existing queued or backoff-delayed task
+immediately, retaining its ID and retry history. A task is inserted only when
+none is queued or running. The Project state change and queue wake-up commit
+together. Requests during a live initialization lease return HTTP 409 without
+changing that generation, lease, or running task. Periodic reconciliation keeps
+its normal backoff.
+After a Helm upgrade, reinitialize existing Projects to install the diagnostic
+Role/RoleBinding and update the Bridge immediately; periodic reconciliation also
+repairs eligible Projects. The UI rechecks when that generation completes. Namespace
+and diagnostic RBAC ownership conflicts require operator attention; reconciliation
+refuses to adopt those resources from another Project.
 States are `pending`, `reconciling`, `retry`, `ready`, `failed`, and `deleting`.
 Initialization failures retain the Project and its error. Automatic retries use
 the durable queue; after retry exhaustion a Project Administrator can request

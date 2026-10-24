@@ -51,7 +51,7 @@ export function ProjectInitializationSettings({ project }: { project: Project })
         <div className="min-w-0 flex-1 basis-80">
           <h2 id="project-initialization-title" className="text-lg font-semibold">Project initialization</h2>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            Check the live tenant Namespace and repair Project infrastructure through the background Worker.
+            Check Project isolation resources and repair missing or outdated infrastructure through the background Worker.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -76,7 +76,7 @@ export function ProjectInitializationSettings({ project }: { project: Project })
         <CollapsibleTrigger asChild>
           <Button variant="ghost" className="h-auto min-h-11 w-full justify-between gap-4 whitespace-normal px-4 py-3 text-left text-foreground">
             <span className="min-w-0 space-y-1">
-              <span className="block text-sm font-semibold" role="status">{runtime.isError ? "Initialization status unavailable" : runtime.data?.lastError ? "Initialization needs attention" : check.isFetching ? "Checking Kubernetes…" : check.isError ? "Namespace check unavailable" : check.data ? check.data.healthy ? "Namespace verified" : "Namespace needs attention" : "Namespace not yet checked"}</span>
+              <span className="block text-sm font-semibold" role="status">{runtime.isError ? "Initialization status unavailable" : runtime.data?.lastError ? "Initialization needs attention" : check.isFetching ? "Checking Kubernetes…" : check.isError ? "Namespace check unavailable" : check.data ? check.data.healthy ? "Project isolation verified" : "Project isolation needs attention" : "Namespace not yet checked"}</span>
               {check.data ? <span className="block text-xs font-normal text-muted-foreground">Last checked {new Date(check.data.checkedAt).toLocaleString()}</span> : null}
             </span>
             <span className="flex shrink-0 items-center gap-2 text-xs font-medium text-muted-foreground">
@@ -100,8 +100,8 @@ export function ProjectInitializationSettings({ project }: { project: Project })
               </div>
             </li>)}
           </ul>
-        </> : <p className="text-sm text-muted-foreground">The check reads Kubernetes directly and verifies Namespace mapping, ownership, phase, and Relay metadata.</p>}
-        <p className="text-xs text-muted-foreground">Namespace verification does not certify that every Agent or Gateway Pod is healthy.</p>
+        </> : <p className="text-sm text-muted-foreground">The check reads Kubernetes directly and verifies Namespace ownership, Gateway and Bridge configuration and readiness, network policies, service accounts, permissions, and required infrastructure credentials.</p>}
+        <p className="text-xs text-muted-foreground">This check covers Project isolation infrastructure. Agent workloads and business resources are outside its scope.</p>
         </CollapsibleContent>
       </Collapsible>
 
@@ -117,7 +117,7 @@ export function ProjectInitializationSettings({ project }: { project: Project })
               <div><dt className="text-muted-foreground">Project ID</dt><dd className="mt-1 break-all font-mono text-xs">{project.id}</dd></div>
               <div><dt className="text-muted-foreground">Recorded initialization</dt><dd className="mt-1">{recordedStatus}</dd></div>
             </dl>
-            <p className="text-sm leading-6 text-muted-foreground">Worker will create a missing Namespace and reconcile its OpenShell Gateway and runtime bridge using the deployed configuration. Existing resources are updated in place; Pods may roll out if their configuration changes.</p>
+            <p className="text-sm leading-6 text-muted-foreground">Worker will create a missing Namespace and reconcile its Gateway, runtime bridge, network policies, service accounts, and Project permissions using the deployed configuration. Existing resources are updated in place; Pods may roll out if their configuration changes.</p>
             <p className="text-sm leading-6 text-muted-foreground">This action does not delete the Namespace or reset Project data. Data already removed outside Relay is not restored.</p>
             {submitted ? <div role="status" className="rounded-md border bg-muted/30 p-4 text-sm">
               <p className="font-medium">{finished ? "Initialization completed" : status === "failed" ? "Initialization failed" : "Initialization queued"}</p>

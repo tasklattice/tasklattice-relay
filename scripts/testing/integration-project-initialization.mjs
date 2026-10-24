@@ -19,7 +19,10 @@ try {
   }
   const port = run("docker", ["port", name, "5432/tcp"]).trim().split(":").at(-1);
   const url = `postgresql://postgres:integration-only@127.0.0.1:${port}/tali`;
-  process.stdout.write(run("npx", ["vitest", "run", "--config", "vitest.config.ts", "server/projects/project-initialization.postgres.test.ts"],
+  // Suites share the database's built-in role catalog bootstrap. Keep files
+  // serial; concurrency within each regression test remains intentional.
+  process.stdout.write(run("npx", ["vitest", "run", "--config", "vitest.config.ts", "--no-file-parallelism",
+    "server/projects/project-initialization.postgres.test.ts", "server/projects/project-reinitialize.postgres.test.ts"],
     { cwd: "apps/control", env: { ...process.env, ASYNC_PROJECT_DATABASE_URL: url } }));
 } finally {
   try { run("docker", ["rm", "-f", name], { stdio: "ignore" }); } catch { /* absent */ }

@@ -11,6 +11,8 @@ import {
   KubernetesProjectRuntimeBridgeClient,
   PROJECT_RUNTIME_BRIDGE_NAME,
   projectRuntimeBridgeResources,
+  controlNetworkTarget,
+  controlServiceEgress,
 } from "./project-runtime-bridge-client";
 
 const input = {
@@ -20,6 +22,14 @@ const input = {
   controlUrl: "http://tali-control.tali.svc.cluster.local:38080",
   token: "project-scoped-token",
 };
+
+function serviceFor(controlUrl = input.controlUrl): V1Service {
+  const target = controlNetworkTarget(controlUrl);
+  return { apiVersion: "v1", kind: "Service",
+    metadata: { name: target.serviceName, namespace: target.namespace },
+    spec: { selector: { "app.kubernetes.io/component": "control", "app.kubernetes.io/instance": "relay", "app.kubernetes.io/name": "custom-relay" },
+      ports: [{ port: target.port, targetPort: 8080 }] } };
+}
 
 const configuration = {
   image: "ghcr.io/tasklattice/tali-control:dev",
@@ -39,7 +49,7 @@ describe("Project Runtime Bridge resources", () => {
     const config = developmentWorkerConfig();
     config.openshift.enabled = true;
     setWorkerConfigForTests(config);
-    const resources = projectRuntimeBridgeResources(input, configuration);
+    const resources = projectRuntimeBridgeResources(input, configuration, serviceFor());
     const dns = resources.find((r) => r.metadata?.name === "tali-runtime-dns") as V1NetworkPolicy;
     expect(dns.metadata?.namespace).toBe(input.namespace);
     expect(dns.spec).toEqual({
@@ -55,11 +65,11 @@ describe("Project Runtime Bridge resources", () => {
       ] }],
     });
     // Re-entry emits the same stable object; no per-Agent resource is modified.
-    expect(projectRuntimeBridgeResources(input, configuration)).toEqual(resources);
+    expect(projectRuntimeBridgeResources(input, configuration, serviceFor())).toEqual(resources);
     expect(resources.filter((r) => r.kind === "Deployment")).toHaveLength(1);
     config.openshift.enabled = false;
     setWorkerConfigForTests(config);
-    expect(projectRuntimeBridgeResources(input, configuration)
+    expect(projectRuntimeBridgeResources(input, configuration, serviceFor())
       .some((r) => r.metadata?.name === "tali-runtime-dns")).toBe(false);
   });
 
@@ -67,7 +77,7 @@ describe("Project Runtime Bridge resources", () => {
     const config = developmentWorkerConfig();
     config.openshift.enabled = openshift;
     setWorkerConfigForTests(config);
-    const policy = projectRuntimeBridgeResources(input, configuration)[3] as import("@kubernetes/client-node").V1NetworkPolicy;
+    const policy = projectRuntimeBridgeResources(input, configuration, serviceFor())[3] as import("@kubernetes/client-node").V1NetworkPolicy;
     expect(policy.spec?.egress?.[0]?.ports).toEqual(
       (openshift ? [53, 5353] : [53]).flatMap((port) => [
         { port, protocol: "UDP" }, { port, protocol: "TCP" },
@@ -79,7 +89,7 @@ describe("Project Runtime Bridge resources", () => {
   });
 
   it("creates one isolated stateless proxy service without persistent storage", () => {
-    const resources = projectRuntimeBridgeResources(input, configuration);
+    const resources = projectRuntimeBridgeResources(input, configuration, serviceFor());
     expect(resources.map((resource) => resource.kind)).toEqual([
       "Secret",
       "Service",
@@ -157,7 +167,7 @@ describe("Project Runtime Bridge resources", () => {
           matchLabels: { "kubernetes.io/metadata.name": "tali" },
         },
         podSelector: {
-          matchLabels: { "app.kubernetes.io/component": "control" },
+          matchLabels: serviceFor().spec!.selector,
         },
       }],
       ports: [
@@ -170,7 +180,7 @@ describe("Project Runtime Bridge resources", () => {
   it("rejects a Control endpoint outside the in-cluster Service boundary", () => {
     expect(() => projectRuntimeBridgeResources(
       { ...input, controlUrl: "https://control.example.com" },
-      configuration,
+      configuration, serviceFor(),
     )).toThrow("in-cluster HTTP Service FQDN");
   });
 
@@ -179,7 +189,7 @@ describe("Project Runtime Bridge resources", () => {
     ["http://relay-control.control-plane.svc.cluster.local:8080", [8080]],
     ["http://relay-control.control-plane.svc.cluster.local:38080", [38080, 8080]],
   ])("allows Service and Pod ports in the actual Control namespace: %s", (controlUrl, ports) => {
-    const policy = projectRuntimeBridgeResources({ ...input, controlUrl }, configuration)[3];
+    const policy = projectRuntimeBridgeResources({ ...input, controlUrl }, configuration, serviceFor(controlUrl))[3];
     expect(policy).toMatchObject({
       spec: {
         egress: [
@@ -188,7 +198,7 @@ describe("Project Runtime Bridge resources", () => {
             // Both selectors must match the same peer, not two OR'ed peers.
             to: [{
               namespaceSelector: { matchLabels: { "kubernetes.io/metadata.name": "control-plane" } },
-              podSelector: { matchLabels: { "app.kubernetes.io/component": "control" } },
+              podSelector: { matchLabels: serviceFor().spec!.selector },
             }],
             ports: ports.map((port) => ({ port, protocol: "TCP" })),
           },
@@ -198,7 +208,7 @@ describe("Project Runtime Bridge resources", () => {
   });
 
   it("waits for the applied Deployment generation to become available", async () => {
-    const objects = { patch: vi.fn(async () => ({})) };
+    const objects = { patch: vi.fn(async () => ({})), read: vi.fn(async () => serviceFor()) };
     const apps = {
       readNamespacedDeployment: vi.fn(async () => ({
         metadata: { generation: 3 },
@@ -229,7 +239,7 @@ describe("Project Runtime Bridge resources", () => {
       .mockResolvedValue(owner);
     vi.spyOn(await import("./project-image-pull-readiness"), "prepareRuntimeImagePull")
       .mockResolvedValue(configuration.imagePullSecrets);
-    const objects = { patch: vi.fn(async () => ({})) };
+    const objects = { patch: vi.fn(async () => ({})), read: vi.fn(async () => serviceFor()) };
     const apps = { readNamespacedDeployment: vi.fn(async () => ({
       metadata: { generation: 2 }, status: { observedGeneration: 2, availableReplicas: 1 },
     })) };

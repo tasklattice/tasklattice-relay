@@ -421,10 +421,32 @@ app.use((error: unknown, _request: express.Request, response: express.Response, 
   });
 });
 
+function startupLogUrl(value: string | undefined): string | null {
+  if (value === undefined) return null;
+  try {
+    const url = new URL(value);
+    // URLs can carry credentials; keep only the routing details in logs.
+    url.username = "";
+    url.password = "";
+    url.search = "";
+    url.hash = "";
+    return url.href;
+  } catch {
+    return "[invalid URL]";
+  }
+}
+
 createServer(app).listen(configuration.port, "0.0.0.0", () => {
+  const control = new URL(configuration.controlUrl);
   console.log(JSON.stringify({
     event: "project-runtime-bridge.started",
+    host: "0.0.0.0",
     port: configuration.port,
     projectId: configuration.projectId,
+    controlUrl: startupLogUrl(configuration.controlUrl),
+    controlHost: control.hostname,
+    controlPort: Number(control.port || (control.protocol === "https:" ? 443 : 80)),
+    bridgeUrl: startupLogUrl(process.env.TALI_PROJECT_RUNTIME_BRIDGE_URL),
+    projectTokenConfigured: Boolean(configuration.projectToken),
   }));
 });

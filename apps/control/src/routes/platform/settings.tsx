@@ -408,9 +408,11 @@ function InfrastructureSettings({ settings }: { settings: PlatformSettingsView }
               type="url"
               className="h-11 font-mono text-xs"
               value={controlInternalUrl}
+              readOnly={current.controlInternalUrlManaged}
               onChange={(event) => change(setControlInternalUrl, event.target.value)}
               placeholder="http://tali-relay-control:38080"
             />
+            {current.controlInternalUrlManaged ? <p className="text-xs text-muted-foreground">Managed by deployment configuration. Update the Control Service through Helm Values.</p> : null}
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">

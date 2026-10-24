@@ -117,6 +117,73 @@ function dnsLabel(value: string, label: string): string {
   return value;
 }
 
+export function projectOpenShellGatewayValues(
+  input: ProjectNamespaceInput,
+  configuration: ProjectOpenShellGatewayConfiguration,
+  database: { secretName: string; checksum: string },
+  pull?: Awaited<ReturnType<typeof prepareGatewayImagePull>>,
+) {
+  const serviceName = dnsLabel(`${configuration.serviceNamePrefix}${input.namespace}`, "Project OpenShell Gateway service name");
+  return {
+    fullnameOverride: serviceName,
+    ...(pull ? {
+      serviceAccount: { create: true, name: projectPullServiceAccounts(serviceName).gateway },
+      sandboxServiceAccount: { create: true, name: projectPullServiceAccounts(serviceName).sandbox },
+    } : {}),
+    pkiInitJob: {
+      activeDeadlineSeconds: configuration.certgenActiveDeadlineSeconds ?? 300,
+      ...(pull ? {
+        serviceAccount: { create: false, name: projectPullServiceAccounts(serviceName).certgen },
+        imagePullSecrets: pull.certgenSecrets,
+      } : {}),
+    },
+    workload: { kind: "deployment" },
+    image: {
+      pullPolicy: configuration.imagePullPolicy,
+      repository: configuration.gatewayImageRepository,
+      tag: configuration.gatewayImageTag,
+    },
+    imagePullSecrets: pull?.gatewaySecrets ?? configuration.imagePullSecrets,
+    podSecurityContext: configuration.gatewayPodSecurityContext ?? {},
+    securityContext: configuration.gatewaySecurityContext ?? {},
+    networkPolicy: { enabled: true },
+    podAnnotations: {
+      "tali.io/project-id": input.projectId,
+      "tali.io/project-name": input.projectName,
+      "checksum/openshell-database": database.checksum,
+    },
+    server: {
+      auth: { allowUnauthenticatedUsers: true },
+      disableTls: true,
+      externalDbSecret: database.secretName,
+      grpcEndpoint:
+        `http://${serviceName}.${input.namespace}.svc.cluster.local:8080`,
+      sandboxImage: configuration.sandboxImage,
+      sandboxImagePullPolicy: configuration.sandboxImagePullPolicy,
+      sandboxImagePullSecrets:
+        pull?.sandboxSecrets ?? configuration.sandboxImagePullSecrets,
+      sandboxJwt: { gatewayId: input.namespace },
+      sandboxNamespace: input.namespace,
+      telemetryEnabled: false,
+      workspaceDefaultStorageSize:
+        configuration.workspaceDefaultStorageSize,
+      ...(configuration.workspaceStorageClass
+        ? { workspaceStorageClass: configuration.workspaceStorageClass }
+        : {}),
+    },
+    resources: configuration.gatewayResources,
+    service: { type: "ClusterIP" },
+    supervisor: {
+      image: {
+        pullPolicy: configuration.supervisorImagePullPolicy,
+        repository: configuration.supervisorImageRepository,
+        tag: configuration.supervisorImageTag,
+      },
+      sideloadMethod: "init-container",
+    },
+  };
+}
+
 export class HelmProjectOpenShellGatewayClient
   implements ProjectOpenShellGatewayClient
 {
@@ -145,64 +212,7 @@ export class HelmProjectOpenShellGatewayClient
       `${this.configuration.serviceNamePrefix}${input.namespace}`,
       "Project OpenShell Gateway service name",
     );
-    const values = stringify({
-      fullnameOverride: serviceName,
-      ...(pull ? {
-        serviceAccount: { create: true, name: projectPullServiceAccounts(serviceName).gateway },
-        sandboxServiceAccount: { create: true, name: projectPullServiceAccounts(serviceName).sandbox },
-      } : {}),
-      pkiInitJob: {
-        activeDeadlineSeconds: this.configuration.certgenActiveDeadlineSeconds ?? 300,
-        ...(pull ? {
-          serviceAccount: { create: false, name: projectPullServiceAccounts(serviceName).certgen },
-          imagePullSecrets: pull.certgenSecrets,
-        } : {}),
-      },
-      workload: { kind: "deployment" },
-      image: {
-        pullPolicy: this.configuration.imagePullPolicy,
-        repository: this.configuration.gatewayImageRepository,
-        tag: this.configuration.gatewayImageTag,
-      },
-      imagePullSecrets: pull?.gatewaySecrets ?? this.configuration.imagePullSecrets,
-      podSecurityContext: this.configuration.gatewayPodSecurityContext ?? {},
-      securityContext: this.configuration.gatewaySecurityContext ?? {},
-      networkPolicy: { enabled: true },
-      podAnnotations: {
-        "tali.io/project-id": input.projectId,
-        "tali.io/project-name": input.projectName,
-        "checksum/openshell-database": database.checksum,
-      },
-      server: {
-        auth: { allowUnauthenticatedUsers: true },
-        disableTls: true,
-        externalDbSecret: database.secretName,
-        grpcEndpoint:
-          `http://${serviceName}.${input.namespace}.svc.cluster.local:8080`,
-        sandboxImage: this.configuration.sandboxImage,
-        sandboxImagePullPolicy: this.configuration.sandboxImagePullPolicy,
-        sandboxImagePullSecrets:
-          pull?.sandboxSecrets ?? this.configuration.sandboxImagePullSecrets,
-        sandboxJwt: { gatewayId: input.namespace },
-        sandboxNamespace: input.namespace,
-        telemetryEnabled: false,
-        workspaceDefaultStorageSize:
-          this.configuration.workspaceDefaultStorageSize,
-        ...(this.configuration.workspaceStorageClass
-          ? { workspaceStorageClass: this.configuration.workspaceStorageClass }
-          : {}),
-      },
-      resources: this.configuration.gatewayResources,
-      service: { type: "ClusterIP" },
-      supervisor: {
-        image: {
-          pullPolicy: this.configuration.supervisorImagePullPolicy,
-          repository: this.configuration.supervisorImageRepository,
-          tag: this.configuration.supervisorImageTag,
-        },
-        sideloadMethod: "init-container",
-      },
-    });
+    const values = stringify(projectOpenShellGatewayValues(input, this.configuration, database, pull));
     const attemptId = randomUUID();
     const stopDiagnostics = startGatewayDiagnostics(input.namespace, attemptId, this.diagnostics, `${serviceName}-certgen`);
     let result: CommandOutput;

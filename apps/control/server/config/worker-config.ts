@@ -77,6 +77,7 @@ const workerConfigSchema = z
       .object({
         controlRelease: z.string().default(""),
         controlNamespace: z.string().default(""),
+        controlServiceAccount: z.string().default(""),
         enabled: z.boolean().default(false),
         sourceTrackingId: z.string().default(""),
         installationId: z.string().default(""),

@@ -145,7 +145,7 @@ export const identityContracts = defineContracts([
   }),
   projectRoute({
     method: "get", path: "/initialization/check", operationId: "checkProjectNamespace",
-    summary: "Check the live Project Namespace and ownership", tags: ["Projects"],
+    summary: "Check live Project isolation infrastructure and ownership", tags: ["Projects"],
     responses: { 200: response("Namespace check", projectNamespaceCheckSchema) },
   }),
   projectRoute({

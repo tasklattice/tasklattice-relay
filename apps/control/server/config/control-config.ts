@@ -59,6 +59,7 @@ const controlConfigSchema = z
         public_urls: z.array(publicOriginSchema).min(1),
         trust_proxy_headers: z.boolean().default(false),
         internal_url: z.string().url().optional(),
+        internal_url_managed: z.boolean().default(false),
       })
       .strict(),
     database: z.object({

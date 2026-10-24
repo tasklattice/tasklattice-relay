@@ -38,7 +38,7 @@ import {
   assertPlatformSettingsValidation,
   issuePlatformSettingsValidation,
 } from "./platform-settings-validation";
-import { deploymentBootstrapRuntimeConfiguration } from "./platform-runtime-config";
+import { deploymentBootstrapRuntimeConfiguration, effectiveControlInternalUrl } from "./platform-runtime-config";
 import { requireWorkerRuntime, readWorkerRuntime } from "./worker-runtime-report";
 import { controlNetworkTarget } from "../kubernetes/project-runtime-bridge-client";
 
@@ -253,6 +253,7 @@ export class PlatformSettingsService {
   async validateInfrastructure(
     input: ValidatePlatformInfrastructureSettingsInput,
   ): Promise<PlatformInfrastructureValidationView> {
+    this.assertControlUrlOwnership(input.controlInternalUrl);
     if (!input.runtimeNamespaces.enabled && readWorkerRuntime((await this.stored())?.workerRuntime)?.projectTargetRouting) {
       throw new Error("Runtime Namespaces cannot be disabled while Project target routing is enabled by the Worker.");
     }
@@ -688,7 +689,8 @@ export class PlatformSettingsService {
     const bootstrap = deploymentBootstrapRuntimeConfiguration();
     return {
       controlInternalUrl:
-        settings?.controlInternalUrl ?? bootstrap.controlInternalUrl,
+        effectiveControlInternalUrl(settings?.controlInternalUrl),
+      ...(getControlConfig().server.internal_url_managed ? { controlInternalUrlManaged: true } : {}),
       runner: {
         url: settings?.runnerUrl ?? bootstrap.runner.url,
         tokenConfigured: Boolean(
@@ -718,6 +720,7 @@ export class PlatformSettingsService {
     runnerToken: string,
     litellmMasterKey: string,
   ): unknown {
+    this.assertControlUrlOwnership(input.controlInternalUrl);
     return {
       controlInternalUrl: input.controlInternalUrl.replace(/\/+$/, ""),
       runner: {
@@ -730,6 +733,13 @@ export class PlatformSettingsService {
       },
       runtimeNamespaces: input.runtimeNamespaces,
     };
+  }
+
+  private assertControlUrlOwnership(url: string): void {
+    if (getControlConfig().server.internal_url_managed
+      && new URL(url).href !== new URL(effectiveControlInternalUrl()).href) {
+      throw new Error("Control internal URL is managed by the deployment. Update Helm Values, then reload Platform Settings.");
+    }
   }
 
   private securityValidationPayload(
