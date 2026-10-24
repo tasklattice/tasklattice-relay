@@ -190,7 +190,7 @@ describe("PlatformSettingsService", () => {
 
   it("rejects quota configuration at the Platform scope", () => {
     const result = updatePlatformSettingsSchema.safeParse({
-      runtimeImages: { openclaw: null, hermes: null, deepagents: null },
+      runtimeImages: { openclaw: null, hermes: null, deepagents: null, pi: null },
       sandbox: { cpu: null, memory: null },
       runtimePolicy: { namespaceDeletionTimeoutSeconds: 120 },
       enabledProviderKinds: providerKinds,
@@ -212,6 +212,7 @@ describe("PlatformSettingsService", () => {
         openclaw: "registry.example/openclaw:release",
         hermes: "registry.example/hermes:release",
         deepagents: "registry.example/deepagents:release",
+        pi: "registry.example/pi:release",
       },
       sandbox: {
         provider: "openshell",
@@ -229,11 +230,12 @@ describe("PlatformSettingsService", () => {
       },
     });
     expect(initial).toMatchObject({
-      runtimeImages: { openclaw: null, hermes: null, deepagents: null },
+      runtimeImages: { openclaw: null, hermes: null, deepagents: null, pi: null },
       effectiveRuntimeImages: {
         openclaw: "registry.example/openclaw:release",
         hermes: "registry.example/hermes:release",
         deepagents: "registry.example/deepagents:release",
+        pi: "registry.example/pi:release",
       },
       runtimeStatus: { available: true, mode: "openshell-kubernetes" },
       sandbox: { cpu: null, memory: null },
@@ -268,6 +270,7 @@ describe("PlatformSettingsService", () => {
         openclaw: "registry.example/openclaw@sha256:abc123",
         hermes: null,
         deepagents: "registry.example/deepagents@sha256:def456",
+        pi: null,
       },
       sandbox: { cpu: "1.5", memory: "4Gi" },
       runtimePolicy: { namespaceDeletionTimeoutSeconds: 45 },
@@ -279,6 +282,7 @@ describe("PlatformSettingsService", () => {
         openclaw: "registry.example/openclaw:release",
         hermes: "registry.example/hermes:release",
         deepagents: "registry.example/deepagents:release",
+        pi: "registry.example/pi:release",
       },
       sandbox: {
         provider: "openshell",
@@ -295,6 +299,7 @@ describe("PlatformSettingsService", () => {
         openclaw: "registry.example/openclaw@sha256:abc123",
         hermes: "registry.example/hermes:release",
         deepagents: "registry.example/deepagents@sha256:def456",
+        pi: "registry.example/pi:release",
       },
       enabledProviderKinds: ["openai", "anthropic"],
       runtimePolicy: { namespaceDeletionTimeoutSeconds: 45 },
@@ -315,6 +320,7 @@ describe("PlatformSettingsService", () => {
         openclaw: "registry.example/openclaw@sha256:abc123",
         hermes: null,
         deepagents: "registry.example/deepagents@sha256:def456",
+        pi: null,
       },
     });
     await expect(service.sandboxProvisioningOverrides())

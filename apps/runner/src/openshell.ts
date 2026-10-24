@@ -976,7 +976,7 @@ export function openShellNemoClawProbeArguments(
     "--name",
     name,
     "--",
-    "/bin/sh",
+    runtime.healthProbeShell ?? "/bin/sh",
     "-lc",
     runtime.healthProbe(nemoClawGatewayPort),
   ], target);

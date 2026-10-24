@@ -190,6 +190,7 @@ function mcpStatusTone(
 }
 
 export function ToolboxStep({
+  nativeToolsOnly = false,
   canManageProject,
   customSystemPrompt,
   embeddingModelReady,
@@ -211,6 +212,7 @@ export function ToolboxStep({
   specializations,
   systemPrompt,
 }: {
+  nativeToolsOnly?: boolean;
   canManageProject: boolean;
   customSystemPrompt: string;
   embeddingModelReady: boolean;
@@ -302,7 +304,7 @@ export function ToolboxStep({
               {specialization.description}
             </p>
             <p className="text-xs font-medium text-link">
-              {selectedSkillIds.length} Skills · {selectedMcpServerIds.length} MCP Servers · {selectedKnowledgeSourceIds.length} Vector Databases
+              {nativeToolsOnly ? "Native tools: read, write, edit and bash" : `${selectedSkillIds.length} Skills · ${selectedMcpServerIds.length} MCP Servers · ${selectedKnowledgeSourceIds.length} Vector Databases`}
             </p>
           </div>
 
@@ -352,7 +354,16 @@ export function ToolboxStep({
         </CardContent>
       </Card>
 
-      <Card>
+      {nativeToolsOnly ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Native Pi tools</CardTitle>
+            <CardDescription>
+              Read and edit files, run commands, and resume conversations in the Instance workspace.
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      ) : <Card>
         <CardHeader className="border-b">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
@@ -456,7 +467,7 @@ export function ToolboxStep({
             }
           />
         </CardContent>
-      </Card>
+      </Card>}
 
       {specialization.id !== "custom" ? (
         <SystemPromptViewer
@@ -517,12 +528,12 @@ function MemoryCapabilityRow({
             <PopoverContent align="start" className="w-[min(90vw,22rem)] p-4">
               <h4 className="text-sm font-semibold">Memory tips</h4>
               <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                {usesDurable
+                {!supportsNative ? "Pi keeps its native sessions in this Instance workspace." : usesDurable
                   ? "Economy uses the Project's managed low-cost Memory defaults. A new Memory is prepared automatically unless you select an existing one."
                   : "Native Memory stores text inside this Supervisor's Sandbox and does not require an embedding model."}
               </p>
               <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                {usesDurable
+                {!supportsNative ? "Resume a conversation from the terminal. Project Memory is not enabled for this Agent." : usesDurable
                   ? "Durable Memory remains available after Instance deletion and can be attached to another supported Instance."
                   : "Native Memory is deleted with the Instance and cannot be attached to a replacement Agent."}
               </p>

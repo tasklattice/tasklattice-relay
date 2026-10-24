@@ -38,6 +38,13 @@ describe("Durable Memory selection for Agent creation", () => {
     },
   );
 
+  it("does not send Memory configuration for Pi", () => {
+    expect(instanceMemoryInput("pi", true, "old-memory")).toEqual({});
+    expect(instanceMemoryInput("pi", false, nativeMemorySelection)).toEqual({});
+    expect(supportsNativeMemoryPlatform("pi")).toBe(false);
+    expect(supportsDurableMemoryPlatform("pi")).toBe(false);
+  });
+
   it("keeps explicitly selected Durable Memory separate from Native Memory", () => {
     expect(instanceMemoryInput("hermes", true, "memory-a"))
       .toEqual({ durableMemoryId: "memory-a" });

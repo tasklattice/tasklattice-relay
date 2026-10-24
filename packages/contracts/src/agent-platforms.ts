@@ -1,4 +1,4 @@
-export const agentPlatformIds = ["hermes", "openclaw", "deepagents"] as const;
+export const agentPlatformIds = ["hermes", "openclaw", "deepagents", "pi"] as const;
 
 export type AgentPlatformId = (typeof agentPlatformIds)[number];
 
@@ -107,6 +107,31 @@ export const agentPlatforms = [
       category: "Developer Tools",
       tags: ["Coding", "Repository", "Terminal"],
       specializationId: "devops-engineer",
+    },
+  },
+  {
+    id: "pi",
+    name: "Pi",
+    description: "Extensible terminal coding Agent with native session recovery.",
+    terminalLabel: "Pi TUI",
+    endpointLabel: "No Web UI",
+    interactionSurface: "terminal",
+    isDefault: false,
+    sandboxImage: "ghcr.io/tasklattice/tali-nemoclaw-pi-sandbox:dev",
+    capabilities: {
+      interactive: true,
+      canDelegate: false,
+      acceptsDelegation: false,
+      embeddedRunTelemetry: false,
+      memory: "none",
+    },
+    catalog: {
+      id: "pi-coding-agent",
+      name: "Pi Coding Agent",
+      description: "A terminal coding Agent with persistent sessions and native file tools.",
+      category: "Developer Tools",
+      tags: ["Coding", "Repository", "Terminal"],
+      specializationId: null,
     },
   },
 ] as const satisfies readonly AgentPlatformDefinition[];

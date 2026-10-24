@@ -393,9 +393,9 @@ export function CreateInstanceSheet({
         runtime: "openshell",
         systemPrompt: currentSystemPrompt,
         specializationId,
-        skillIds: selectedIds(selectedSkills),
-        mcpServerIds: selectedIds(selectedMcps),
-        knowledgeSourceIds: embeddingModelReady
+        skillIds: value.agentPlatform === "pi" ? [] : selectedIds(selectedSkills),
+        mcpServerIds: value.agentPlatform === "pi" ? [] : selectedIds(selectedMcps),
+        knowledgeSourceIds: value.agentPlatform !== "pi" && embeddingModelReady
           ? selectedIds(selectedKnowledgeSources)
           : [],
         ...instanceMemoryInput(value.agentPlatform, durableMemoryAvailable, durableMemoryId),
@@ -1080,6 +1080,16 @@ export function CreateInstanceSheet({
                       persistDraftSnapshot(values);
                     }}
                     onAgentPlatformChange={(value) => {
+                      if (value === "pi") {
+                        setSelectedSkills([]);
+                        setSelectedMcps([]);
+                        setSelectedKnowledgeSources([]);
+                        setSpecializationId("custom");
+                        setCustomSystemPrompt(currentSystemPrompt);
+                        setSkillsTouched(true);
+                        setMcpsTouched(true);
+                        setKnowledgeSourcesTouched(true);
+                      }
                       const values = {
                         ...draftFormValues,
                         agentPlatform: value,
@@ -1096,9 +1106,10 @@ export function CreateInstanceSheet({
 
             {step === 1 ? (
               <ToolboxStep
+                nativeToolsOnly={draftFormValues.agentPlatform === "pi"}
                 canManageProject={permissions.canManageProject}
                 specialization={specialization}
-                specializations={specializations}
+                specializations={draftFormValues.agentPlatform === "pi" ? specializations.filter((item) => item.id === "custom") : specializations}
                 skills={skills}
                 mcpServers={mcpServers}
                 knowledgeSources={knowledgeSources}

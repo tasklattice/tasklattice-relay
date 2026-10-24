@@ -41,6 +41,7 @@ export interface AgentPlatformRuntime {
     durableMemoryEnabled?: boolean,
   ) => string;
   healthProbe: (dashboardPort: string) => string;
+  healthProbeShell?: "/bin/bash";
   startupLogs: readonly string[];
 }
 
@@ -389,6 +390,17 @@ exec /usr/local/bin/nemoclaw-start
 `;
 };
 
+const piBootstrapScript: AgentPlatformRuntime["bootstrapScript"] = (
+  _origin, _port, endpoint, model,
+) => {
+  const payload = Buffer.from(JSON.stringify({ endpoint, model }), "utf8").toString("base64");
+  return `#!/usr/bin/env bash
+set -euo pipefail
+/usr/local/bin/tali-pi configure '${payload}'
+exec /usr/local/bin/nemoclaw-start
+`;
+};
+
 const agentPlatformRuntimeRegistry = {
   openclaw: {
     id: "openclaw",
@@ -457,6 +469,19 @@ const agentPlatformRuntimeRegistry = {
       "NemoClaw initialized the terminal-oriented Deep Agents runtime.",
       "Deep Agents TUI and headless runtime check: Ready",
     ],
+  },
+  pi: {
+    id: "pi",
+    // Pi's exact RLIMIT check requires Bash's nproc ulimit support.
+    healthProbeShell: "/bin/bash",
+    instructionsPath: "/sandbox/.pi/agent/AGENTS.md",
+    terminalCommand: "exec /usr/local/bin/tali-pi --continue",
+    headlessCommand: "/usr/local/bin/tali-pi --no-approve --print",
+    inferenceBinaries: ["/usr/local/bin/pi", "/usr/local/bin/node", "/usr/local/lib/nemoclaw/pi-runtime/**"],
+    sandboxImage: () => getRunnerConfig().openshell.sandbox.images.pi ?? getAgentPlatformDefinition("pi").sandboxImage,
+    bootstrapScript: piBootstrapScript,
+    healthProbe: () => "test -s /tmp/nemoclaw-proxy-env.sh && /usr/local/bin/tali-pi check && pi --version >/dev/null",
+    startupLogs: ["Pi instructions initialized in the Instance workspace.", "NemoClaw initialized the native Pi terminal runtime.", "Pi configuration and runtime check: Ready"],
   },
 } as const satisfies Record<AgentPlatformId, AgentPlatformRuntime>;
 

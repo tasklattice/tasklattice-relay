@@ -2076,6 +2076,12 @@ export const createInstanceSchema = z.object({
   memory: agentMemoryConfigurationSchema.optional(),
   durableMemoryId: z.string().uuid().optional(),
 }).strict().superRefine((value, context) => {
+  if (value.agentPlatform === "pi") {
+    for (const field of ["skillIds", "mcpServerIds", "knowledgeSourceIds"] as const) {
+      if (value[field]?.length) context.addIssue({ code: "custom", path: [field], message: "Pi currently supports native terminal tools only." });
+    }
+    if (value.durableMemoryId) context.addIssue({ code: "custom", path: ["durableMemoryId"], message: "Pi does not support Project Durable Memory." });
+  }
   if (value.memory && value.durableMemoryId) {
     context.addIssue({
       code: "custom",

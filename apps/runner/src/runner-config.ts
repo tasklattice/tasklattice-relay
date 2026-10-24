@@ -34,6 +34,7 @@ const schema = z.object({
         openclaw: z.string().min(1).optional(),
         hermes: z.string().min(1).optional(),
         deepagents: z.string().min(1).optional(),
+        pi: z.string().min(1).optional(),
       }).strict().prefault({}),
     }).strict().prefault({}),
   }).strict().prefault({}),

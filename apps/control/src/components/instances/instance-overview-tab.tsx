@@ -587,11 +587,11 @@ export function InstanceOverviewTab({
                 </span>
                 <div className="min-w-0 flex-1">
                   <strong className="text-sm">
-                    {terminalFirst ? "Deep Agents TUI" : "Agent workspace"}
+                    {terminalFirst ? platform.terminalLabel : "Agent workspace"}
                   </strong>
                   <p className="mt-1 text-xs leading-5 text-muted-foreground">
                     {terminalFirst
-                      ? "Work interactively with dcode inside the isolated terminal."
+                      ? `Work interactively with ${platform.name} inside the isolated terminal.`
                       : "Give the Agent a task and work with its response."}
                   </p>
                 </div>
@@ -609,7 +609,9 @@ export function InstanceOverviewTab({
                   </strong>
                   <p className="mt-1 text-xs leading-5 text-muted-foreground">
                     {terminalFirst
-                      ? "Run automation with dcode -n and the optional --json contract."
+                      ? platform.id === "pi"
+                        ? "Run one-shot tasks through the native Pi CLI."
+                        : "Run automation with dcode -n and the optional --json contract."
                       : "Inspect or operate the Agent's isolated workspace."}
                   </p>
                 </div>

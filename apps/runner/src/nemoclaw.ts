@@ -157,7 +157,7 @@ export function agentMemoryInstructions(
   memory: RuntimeMemoryConfiguration | undefined,
   agentPlatform: AgentPlatformId = "openclaw",
 ): string {
-  if (!memory) return "";
+  if (!memory || agentPlatform === "pi") return "";
   if (agentPlatform === "deepagents") {
     return [
       "",

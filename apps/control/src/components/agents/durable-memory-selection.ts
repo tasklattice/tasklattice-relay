@@ -15,6 +15,7 @@ export function instanceMemoryInput(
   durableMemoryAvailable: boolean,
   selection: string,
 ) {
+  if (!supportsNativeMemoryPlatform(agentPlatform)) return {};
   if (!durableMemoryAvailable || !supportsDurableMemoryPlatform(agentPlatform)
     || selection === nativeMemorySelection) {
     return { memory: { mode: "native", citations: "auto" } as const };
