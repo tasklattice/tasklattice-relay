@@ -1,0 +1,11 @@
+own version: HTTP 200
+strict document filter: HTTP 200
+other Instance Bank denied: HTTP 403
+Bank query override denied: HTTP 403
+Bank administration denied: HTTP 404
+other coordinator denied: HTTP 403
+own scoped recall: HTTP 200
+other Bank canary absent from own recall
+other Project bridge: denied
+registry.npmjs.org: denied by sandbox network
+pypi.org: denied by sandbox network

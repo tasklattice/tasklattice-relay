@@ -1,0 +1,21 @@
+{
+  "tali-relay-hindsight-api": {
+    "ready": 1,
+    "images": {
+      "api": "ghcr.io/vectorize-io/hindsight-api:1.1.0-slim@sha256:b97af4787f35f0f897cc85299e1c800e265ff98e1d70c900c58a7f9903cb5b7d",
+      "project-router": "ghcr.io/tasklattice/tali-control:dev"
+    }
+  },
+  "tali-relay-control": {
+    "ready": 1,
+    "images": {
+      "control": "ghcr.io/tasklattice/tali-control:dev"
+    }
+  },
+  "tali-relay-runner": {
+    "ready": 1,
+    "images": {
+      "runner": "ghcr.io/tasklattice/tali-openshell-runner:dev"
+    }
+  }
+}

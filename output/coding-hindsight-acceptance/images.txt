@@ -1,0 +1,4 @@
+[ghcr.io/tasklattice/tali-control:dev] sha256:ee1c3c0c8b059ab1620069a5d65ab91bb27222f8af80cb39a4c73082febb713d
+[ghcr.io/tasklattice/tali-openshell-runner:dev] sha256:73daec826059e9a89bb679404be6f29bda373ae9483457609e0a7537fc4e30fd
+[ghcr.io/tasklattice/tali-nemoclaw-deepagents-sandbox:dev] sha256:d0590cdb6d7b57b079c73e49ebad5b94bd51533adff3e9abaa7c53973d3f6043
+[ghcr.io/tasklattice/tali-nemoclaw-pi-sandbox:dev] sha256:16dffe028bc94ac43c6d4c9eb87dff43b9b3c5be37ef8d9b0a344c2f4681d04c

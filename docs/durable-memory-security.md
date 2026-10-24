@@ -41,14 +41,29 @@ The controls are:
   deletion performs the same verified cleanup and keeps a retryable tombstone
   on failure.
 
-Hermes native Hindsight transport is limited to version, retain, recall, reflect
-and async operation status. Bank administration, arbitrary URLs, query strings,
-redirects and cross-Instance aliases are denied. Each call checks the current
+Native Hindsight transport supports version, retain, recall, reflect, operation
+status, document listing and the coding plugin's knowledge-page operations.
+Only bounded document/search query parameters and upstream tag-match modes are
+accepted. Bank administration, arbitrary URLs, redirects and cross-Instance
+aliases are denied. The config probe returns only `store_document_text`; model
+configuration and credentials never leave Control. Each call checks the current
 Project feature gate, embedding availability and active binding; detach/rebind
 revokes the old credential immediately. Requests and responses have byte limits,
 request text is sanitized, and upstream errors are replaced with opaque errors.
 The service root key stays in Control. Native recall formatting and background
 retry behavior belong to the upstream Hermes provider.
+
+Dcode and Pi use the official `hindsight-coding-agents` 0.8.2 bundle installed
+in their image. Runtime installation uses local files, disables package updates
+and accepts only an endpoint-bound OpenShell credential reference. Native mode
+does not load the plugin. Dcode permits one image-owned Hindsight stdio command
+through its native MCP loader; arbitrary MCP configuration remains disabled.
+Its child receives only the required OpenShell proxy/CA settings, with no model
+keys or arbitrary `NODE_OPTIONS`.
+
+The Hindsight 1.1 launcher binds knowledge-page calls using upstream's task-local
+Bank context, including reset after errors. The project router still rejects
+inference without a Bank; it never assigns a default tenant to missing context.
 
 ## Secret and content handling
 

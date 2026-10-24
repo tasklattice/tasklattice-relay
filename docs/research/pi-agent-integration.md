@@ -5,6 +5,11 @@
 实际结果见 [本地验收记录](../../output/pi-agent-acceptance/README.md)。
 下文保留研究时的设计依据和分阶段方案。
 
+后续 Memory 接入：Pi 仍锁定 0.84.1，镜像内加入官方
+`@vectorize-io/hindsight-coding-agents@0.8.2`。创建时启用 Memory 会加载
+原生扩展并自动关联 Skill Hub 的 Hindsight Skill；Native 保留内建行为。
+共享 Hindsight 服务及 Relay SDK 已升级并固定到 1.1.0。
+
 Pi Coding Agent 可以作为 Relay 的第四种 Agent 平台接入，沿用 OpenClaw、Hermes
 和 Deep Agents 的 Project、Instance、OpenShell Sandbox、模型路由及持久卷设计。
 当前 NemoClaw v0.0.138 已包含 Pi 的镜像、启动脚本、配置生成器和策略定义。

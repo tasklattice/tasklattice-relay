@@ -159,7 +159,8 @@ function runtimeConfiguration(resources) {
 
 function assertSharedRuntime(resources, prefix, original) {
   const config = runtimeConfiguration(resources);
-  assert.equal(Object.keys(config.images).length, 9);
+  assert.equal(Object.keys(config.images).length, 10);
+  assert.ok(config.images.pi);
   for (const [component, image] of Object.entries(config.images)) {
     assert.equal(image, `${prefix}/${original.images[component].split("/").at(-1)}`, component);
   }
@@ -320,7 +321,8 @@ test("OCP import plan follows rendered tags/digests without exporting configurat
   const source = asYaml(render(settings));
   const target = asYaml(render([...settings, "openshift.enabled=true", "openshift.runtimeImages.enabled=true"]));
   const plan = imagePlan(source, target);
-  assert.equal(plan.images.length, 9);
+  assert.equal(plan.images.length, 10);
+  assert(plan.images.some(i => i.roles.includes("pi")));
   assert(plan.images.some(i => i.roles.includes("demo") && i.stream === "demo-test"));
   assert.deepEqual(plan.images.find(i => i.roles.includes("gateway")).roles, ["gateway", "certgen"]);
   assert.equal(plan.images.find(i => i.roles.includes("hermes")).tag, "v7");

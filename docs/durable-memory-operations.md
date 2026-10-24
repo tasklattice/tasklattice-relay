@@ -2,8 +2,20 @@
 
 This runbook covers Relay-owned Durable Memory and the bundled self-hosted
 Hindsight provider. The reviewed provider is pinned in `charts/tali-relay` to
-Hindsight `0.9.2-slim` by OCI digest. Relay is the only product access boundary;
+Hindsight `1.1.0-slim` by OCI digest. Relay is the only product access boundary;
 Hindsight remains a cluster-internal service.
+
+The JavaScript client is fixed at 1.1.0 alongside the image. Relay uses the Bank
+config endpoint for existence checks because 1.1 removed the profile endpoint.
+SDK automatic retries are disabled: Relay owns the recall deadline and outbox
+retry schedule. The launcher supplies Bank context for native knowledge-page
+calls; review that adapter when changing the provider version.
+
+Dcode 0.1.71 and Pi 0.84.1 stay at the NemoClaw v0.0.138 versions. Both images
+include the official Hindsight coding plugin 0.8.2. Creating either Agent with
+Memory automatically attaches the bundled Hindsight Skill; Native mode keeps
+the harness's built-in behavior. Package downloads are required only at build
+time, while runtime traffic uses the project's internal bridge and model route.
 
 ## Configuration and gradual rollout
 

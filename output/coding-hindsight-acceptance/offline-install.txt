@@ -1,0 +1,26 @@
+deepagents-code 0.1.71
+deepagents (SDK) 0.7.15
+
+Installed optional dependencies:
+  anthropic     langchain-anthropic            1.7.5
+  google-genai  langchain-google-genai         4.4.0
+  nvidia        aiohttp                        3.14.3
+  nvidia        langchain-nvidia-ai-endpoints  1.4.3
+  openai        langchain-openai               1.6.7
+  openrouter    langchain-openrouter           0.2.9
+[10/24/26 15:18:57] INFO     Proxy detected connected client -     proxy.py:1383
+                             reusing existing session for all
+                             requests. This may cause context
+                             mixing in concurrent scenarios, and
+                             the session's existing settings
+                             apply, so backend results are
+                             validated against their declared
+                             output schema rather than relayed
+                             as-is. Pass a disconnected client to
+                             avoid both.
+Native Hindsight tools: ['hindsight_hindsight_capture_initiative', 'hindsight_hindsight_diagnose', 'hindsight_hindsight_ingest_document', 'hindsight_hindsight_list_knowledge_pages', 'hindsight_hindsight_read_knowledge_page', 'hindsight_hindsight_reflect', 'hindsight_hindsight_search_knowledge_pages', 'hindsight_hindsight_sync_status']
+Native mode: no MCP tools; arbitrary MCP config ignored
+dcode: offline startup passed; no network interface
+0.84.1
+Pi native extension imports without network
+pi: offline startup passed; no network interface

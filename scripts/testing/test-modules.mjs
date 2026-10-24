@@ -182,6 +182,8 @@ export const testModules = [
       "apps/control/src/routes/-memory-routing.test.ts",
       "apps/runner/src/openclaw-durable-memory-plugin*",
       "apps/runner/src/hermes-config-bootstrap*",
+      "scripts/*hindsight*.py",
+      "infra/npm/hindsight-coding-agents/**",
     ],
     controlTestPatterns: [
       "apps/control/server/hindsight-inference/**",
@@ -194,6 +196,8 @@ export const testModules = [
       "apps/control/src/routes/-memory-routing.test.ts",
     ],
     pythonTests: [
+      "scripts/testing/hindsight-coding-runtime.test.py",
+      "scripts/testing/dcode-hindsight-mcp.test.py",
     ],
     nodeTests: [],
     runnerTestPatterns: [
@@ -400,12 +404,15 @@ export const testModules = [
   {
     id: "runtime",
     block: "data-plane",
-    label: "Data / Hermes, OpenClaw and DeepAgents runtimes",
+    label: "Data / Hermes, OpenClaw, DeepAgents and Pi runtimes",
     sourcePatterns: [
       "apps/runner/src/agent-platform.ts",
       "apps/runner/src/index.ts",
       "apps/runner/src/runner-config*",
       "apps/runner/src/nemoclaw*",
+      "apps/runner/src/sandbox-state*",
+      "apps/runner/src/pi-runtime*",
+      "apps/runner/src/hermes-legacy-migration*",
       "infra/docker/Dockerfile.nemoclaw-*",
       "infra/npm/mcporter-runtime/**",
       "scripts/build-nemoclaw-sandbox.sh",
@@ -420,6 +427,9 @@ export const testModules = [
     runnerTestPatterns: [
       "apps/runner/src/nemoclaw*.test.ts",
       "apps/runner/src/runner-config.test.ts",
+      "apps/runner/src/sandbox-state.test.ts",
+      "apps/runner/src/pi-runtime.test.ts",
+      "apps/runner/src/hermes-legacy-migration.test.ts",
     ],
   },
   {
