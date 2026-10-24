@@ -12,4 +12,6 @@ data:
 {{ .Files.Get "files/hindsight-bootstrap.py" | indent 4 }}
   entrypoint.py: |
 {{ .Files.Get "files/hindsight-entrypoint.py" | indent 4 }}
+  runtime.py: |
+{{ .Files.Get "files/hindsight-runtime.py" | indent 4 }}
 {{- end }}

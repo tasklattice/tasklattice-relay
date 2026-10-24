@@ -494,9 +494,9 @@ path, but no Memory is auto-provisioned and the Memory navigation/API surface
 is unavailable. Existing bound runtimes continue through the scoped Memory
 Gateway so a rollout change does not interrupt an in-flight Agent response.
 
-Durable Memory uses Hindsight API `0.9.2-slim`, pinned to the reviewed
+Durable Memory uses Hindsight API `1.1.0-slim`, pinned to the reviewed
 multi-architecture OCI index digest
-`sha256:7635a15739361dbdf221ba796ad25a813f876144fe113022eea8e26cb6ee75e7`.
+`sha256:b97af4787f35f0f897cc85299e1c800e265ff98e1d70c900c58a7f9903cb5b7d`.
 The Service is always `ClusterIP`; only Control and Control Worker are allowed
 to call it. Agent runtimes never receive the Hindsight root API key or choose a
 Bank ID. Product access is mediated by Relay's project-scoped Memory boundary.

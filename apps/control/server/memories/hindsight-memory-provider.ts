@@ -283,6 +283,8 @@ export class HindsightMemoryProvider implements MemoryProvider {
       "User-Agent": "tasklattice-relay-memory/1",
     };
     this.client = new HindsightClient({
+      // Relay owns the recall deadline and durable outbox retry schedule.
+      maxAttempts: 1,
       baseUrl: this.baseUrl,
       apiKey: this.apiKey,
       userAgent: headers["User-Agent"],
@@ -561,7 +563,7 @@ export class HindsightMemoryProvider implements MemoryProvider {
 
   private async bankExists(providerRef: string): Promise<boolean> {
     try {
-      await this.client.getBankProfile(providerRef, { signal: this.signal() });
+      await this.client.getBankConfig(providerRef, { signal: this.signal() });
       return true;
     } catch (error) {
       if (error instanceof HindsightError && error.statusCode === 404) return false;

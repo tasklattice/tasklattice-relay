@@ -15,6 +15,8 @@ if any(not isinstance(value, str) for value in settings.values()):
     raise ValueError("Hindsight settings must contain string values")
 os.environ.update(settings)
 command = ["hindsight-" + role]
+if role in {"api", "worker"}:
+    command = ["/app/api/.venv/bin/python3", "/etc/hindsight-launcher/runtime.py", "hindsight-" + role]
 if role == "migration":
     command = ["hindsight-admin", "run-db-migration", "--schema", config["migration"]["schema"],
                "--embedding-dimension", str(config["migration"]["embeddingDimensions"])]

@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { createServer } from "node:http";
 
-const hindsightImage = "ghcr.io/vectorize-io/hindsight-api:0.9.2-slim@sha256:7635a15739361dbdf221ba796ad25a813f876144fe113022eea8e26cb6ee75e7";
+const hindsightImage = "ghcr.io/vectorize-io/hindsight-api:1.1.0-slim@sha256:b97af4787f35f0f897cc85299e1c800e265ff98e1d70c900c58a7f9903cb5b7d";
 const postgresImage = "pgvector/pgvector:0.8.6-pg17";
 const namePrefix = `tali-hindsight-it-${process.pid}`;
 const networkName = `${namePrefix}-network`;

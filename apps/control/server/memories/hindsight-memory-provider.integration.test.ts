@@ -85,7 +85,7 @@ class HindsightApiFixture {
 
     const url = new URL(request.url ?? "/", this.baseUrl);
     if (request.method === "GET" && url.pathname === "/version") {
-      this.json(response, 200, { api_version: "0.9.2", features: {} });
+      this.json(response, 200, { api_version: "1.1.0", features: {} });
       return;
     }
 
@@ -248,15 +248,14 @@ class HindsightApiFixture {
       return;
     }
 
-    const profileMatch = url.pathname.match(/^\/v1\/default\/banks\/([^/]+)\/profile$/);
-    if (request.method === "GET" && profileMatch) {
-      const exists = this.banks.has(profileMatch[1]!);
+    const configMatch = url.pathname.match(/^\/v1\/default\/banks\/([^/]+)\/config$/);
+    if (request.method === "GET" && configMatch) {
+      const exists = this.banks.has(configMatch[1]!);
       this.json(response, exists ? 200 : 404, exists
         ? {
-            bank_id: profileMatch[1],
-            name: "Relay Memory",
-            mission: "",
-            disposition: { skepticism: 3, literalism: 3, empathy: 3 },
+            bank_id: configMatch[1],
+            config: {},
+            overrides: {},
           }
         : { detail: "not found" });
       return;

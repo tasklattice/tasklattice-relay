@@ -51,6 +51,7 @@ spec:
         {{- include "tali.selectorLabels" (dict "root" . "component" $apiComponent) | nindent 8 }}
       annotations:
         checksum/hindsight-secret: {{ include "tali.hindsightSecretChecksum" . }}
+        checksum/hindsight-launcher: {{ include (print $.Template.BasePath "/hindsight-config.yaml") . | sha256sum }}
     spec:
       serviceAccountName: {{ $serviceAccountName }}
       automountServiceAccountToken: false
@@ -180,6 +181,7 @@ spec:
         {{- include "tali.selectorLabels" (dict "root" . "component" $workerComponent) | nindent 8 }}
       annotations:
         checksum/hindsight-secret: {{ include "tali.hindsightSecretChecksum" . }}
+        checksum/hindsight-launcher: {{ include (print $.Template.BasePath "/hindsight-config.yaml") . | sha256sum }}
     spec:
       serviceAccountName: {{ $serviceAccountName }}
       automountServiceAccountToken: false

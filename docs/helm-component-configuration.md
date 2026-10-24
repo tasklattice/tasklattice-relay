@@ -19,7 +19,7 @@ is generated from values rather than manually duplicating service names.
 | Monitoring | `<release>-metrics-config` Secret | ServiceMonitor bearer token |
 | Keycloak (optional) | `<release>-keycloak-config` Secret | Development identity provider credentials |
 
-Hindsight 0.9.2 uses environment-based upstream settings. The small Python
+Hindsight 1.1.0 uses environment-based upstream settings. The small Python
 launcher reads JSON, selects `api`, `worker`, or `migration`, then uses `exec`
 to start the upstream executable. It does not use shell evaluation or dotenv
 interpolation, so quotes, newlines, dollar signs and backslashes in secrets are

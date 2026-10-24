@@ -435,7 +435,7 @@ function requireComponentObject(collection, kind, component) {
   return object;
 }
 
-const hindsightImage = "ghcr.io/vectorize-io/hindsight-api:0.9.2-slim@sha256:7635a15739361dbdf221ba796ad25a813f876144fe113022eea8e26cb6ee75e7";
+const hindsightImage = "ghcr.io/vectorize-io/hindsight-api:1.1.0-slim@sha256:b97af4787f35f0f897cc85299e1c800e265ff98e1d70c900c58a7f9903cb5b7d";
 const hindsightApi = requireObject("Deployment", `${releaseName}-hindsight-api`);
 const hindsightApiPodSpec = hindsightApi.spec?.template?.spec;
 const hindsightApiContainer = hindsightApiPodSpec?.containers?.find(
@@ -447,7 +447,7 @@ const hindsightRouterContainer = hindsightApiPodSpec?.containers?.find(
 const hindsightFile = hindsightConfig(objects);
 const hindsightEnvValue = (name) => ({ ...hindsightFile.common, ...hindsightFile.api })[name];
 if (hindsightApiContainer?.image !== hindsightImage) {
-  throw new Error("The Hindsight API image must remain pinned to the reviewed 0.9.2 multi-arch digest.");
+  throw new Error("The Hindsight API image must remain pinned to the reviewed 1.1.0 multi-arch digest.");
 }
 if (
   hindsightApiPodSpec?.serviceAccountName !== `${releaseName}-hindsight`

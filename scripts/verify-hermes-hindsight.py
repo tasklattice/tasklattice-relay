@@ -24,7 +24,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         assert self.headers.get('Authorization') == 'Bearer build-probe-token'
         requests.append(('GET', self.path))
-        self.respond({'version': '0.9.2'} if self.path == '/version' else {'status': 'completed', 'operation_id': 'op-test'})
+        self.respond({'version': '1.1.0'} if self.path == '/version' else {'status': 'completed', 'operation_id': 'op-test'})
     def do_POST(self):
         assert self.headers.get('Authorization') == 'Bearer build-probe-token'
         body = json.loads(self.rfile.read(int(self.headers['Content-Length'])))
