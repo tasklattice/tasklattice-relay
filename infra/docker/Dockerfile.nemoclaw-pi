@@ -1,0 +1,28 @@
+ARG BASE_IMAGE=tali-nemoclaw-pi-upstream:local
+FROM ${BASE_IMAGE}
+
+LABEL io.tasklattice.agent.platform="pi"
+ARG OPENSHELL_SANDBOX_UID=1000
+ARG OPENSHELL_SANDBOX_GID=1000
+USER root
+COPY infra/npm/pi-runtime/package.json infra/npm/pi-runtime/package-lock.json /usr/local/lib/nemoclaw/pi-runtime/node_modules/@earendil-works/pi-coding-agent/
+RUN cd /usr/local/lib/nemoclaw/pi-runtime/node_modules/@earendil-works/pi-coding-agent \
+    && rm npm-shrinkwrap.json \
+    && npm --prefix "$PWD" ci --omit=dev --ignore-scripts --no-fund \
+    && npm --prefix "$PWD" audit --omit=dev --audit-level=high \
+    && rm /usr/local/lib/nemoclaw/pi-runtime/package-lock.json \
+    && node --input-type=module -e 'await import("@earendil-works/pi-ai"); await import("@earendil-works/pi-agent-core"); await import("@earendil-works/pi-client")'
+# Pi's find tool must work in offline mode without downloading a binary at launch.
+RUN apt-get update -qq \
+    && apt-get install -y --no-install-recommends 'fd-find=10.2.0-*' \
+    && ln -s /usr/bin/fdfind /usr/local/bin/fd \
+    && fd --version | grep -Fx 'fdfind 10.2.0' \
+    && rm -rf /var/lib/apt/lists/*
+RUN --mount=type=bind,source=scripts/align-openshell-sandbox-identity.sh,target=/tmp/align-sandbox.sh \
+    sh /tmp/align-sandbox.sh
+COPY --chmod=0555 scripts/pi-runtime.py /usr/local/bin/tali-pi
+RUN --mount=type=bind,source=scripts/testing/pi-runtime.test.py,target=/tmp/pi-runtime.test.py \
+    TALI_PI_RUNTIME_PATH=/usr/local/bin/tali-pi python3 /tmp/pi-runtime.test.py \
+    && pi --version | grep -Fx '0.84.1' \
+    && python3 -m py_compile /usr/local/bin/tali-pi
+USER sandbox
