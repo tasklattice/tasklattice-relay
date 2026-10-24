@@ -1,6 +1,6 @@
 FROM alpine:3.22 AS openshell-cli
 ARG TARGETARCH
-ARG OPENSHELL_VERSION=0.0.106
+ARG OPENSHELL_VERSION=0.0.116
 RUN apk add --no-cache ca-certificates curl tar \
     && case "${TARGETARCH}" in \
       amd64) asset="openshell-x86_64-unknown-linux-musl.tar.gz" ;; \

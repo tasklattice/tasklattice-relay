@@ -20,7 +20,7 @@ const schema = z.object({
     workspace: z.string().default("default"),
     serviceBaseUrl: z.string().url().default("http://openshell.localhost:8080"),
     kubernetesServiceCidrs: z.array(z.string().min(1)).default(["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"]),
-    nemoclawVersion: z.string().min(1).default("0.0.123"),
+    nemoclawVersion: z.string().min(1).default("0.0.138"),
     dashboardPort: z.string().default("18789"),
     deletePollIntervalMs: positive.default(500),
     deleteTimeoutMs: positive.default(60000),

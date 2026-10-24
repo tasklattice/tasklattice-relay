@@ -6,7 +6,7 @@ for command_name in helm patch tar; do
 done
 
 repository_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-version="${OPENSHELL_VERSION:-0.0.106}"
+version="${OPENSHELL_VERSION:-0.0.116}"
 chart="$repository_root/.helm-dependencies/openshell"
 output="$repository_root/dist/worker-charts"
 work_dir="$(mktemp -d "${TMPDIR:-/tmp}/tali-worker-charts.XXXXXX")"
@@ -24,6 +24,7 @@ package="$work_dir/packaged/openshell-${version}.tgz"
 
 helm template openshell "$package" \
   --namespace project-worker-chart-validation --kube-version 1.29.0 \
+  --api-versions agents.x-k8s.io/v1beta1/Sandbox \
   --set server.disableTls=true --set supervisor.sideloadMethod=init-container \
   --set pkiInitJob.activeDeadlineSeconds=420 \
   --set-string "supervisor.image.tag=$version" > "$work_dir/rendered.yaml"

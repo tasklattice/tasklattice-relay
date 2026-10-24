@@ -77,7 +77,7 @@ function fixture({ releasePresent = true, failWait = false } = {}) {
         "--uninstalled", "--superseded", "--uninstalling", "--max", "10000", "-o", "json"]);
       return JSON.stringify([
       ...(releasePresent ? [{ name: scope.release, namespace: scope.namespace, chart: "tali-relay-0.1.0" }] : []),
-      { name: "openshell", namespace: first.metadata.name, chart: "openshell-0.0.106" },
+      { name: "openshell", namespace: first.metadata.name, chart: "openshell-0.0.116" },
       { name: "guard", namespace: "tali", chart: "tali-guard-0.1.0" },
       ]);
     }

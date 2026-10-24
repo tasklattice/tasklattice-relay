@@ -4,7 +4,7 @@ Status: experimental local MVP
 
 Pinned versions:
 
-- OpenShell `0.0.106`
+- OpenShell `0.0.116`
 - Agent Sandbox `0.5.1`
 - OpenClaw `2026.7.1`
 - NemoClaw `v0.0.114`
@@ -62,7 +62,7 @@ reconciliation after a Sandbox Pod recreation, and concurrency-safe inference
 profiles.
 
 Relay provisions one Namespace and one official OpenShell Gateway release per
-Project for the pinned 0.0.106 compatibility path. The Gateway's fixed sandbox
+Project for the pinned 0.0.116 compatibility path. The Gateway's fixed sandbox
 Namespace and workspace both equal the Project Namespace, while one central
 Runner routes every lifecycle and interaction operation by its typed Project
 Runtime Target. See [Project Runtime Namespaces](project-runtime-namespaces.md)

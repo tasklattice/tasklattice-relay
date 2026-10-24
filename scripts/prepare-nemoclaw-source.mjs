@@ -88,7 +88,7 @@ export async function prepareNemoClawSource({
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
-  const [destination, version = process.env.NEMOCLAW_VERSION || 'v0.0.123'] = process.argv.slice(2);
+  const [destination, version = process.env.NEMOCLAW_VERSION || 'v0.0.138'] = process.argv.slice(2);
   if (!destination) {
     console.error('Usage: node scripts/prepare-nemoclaw-source.mjs <empty-destination> [release-tag-or-commit]');
     process.exitCode = 2;

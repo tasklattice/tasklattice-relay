@@ -49,14 +49,14 @@ agentSandbox:
 openshell:
   image:
     repository: registry.airgap.example.com/third-party/openshell-gateway
-    tag: 0.0.106
+    tag: 0.0.116
   imagePullSecrets:
     - name: airgap-registry
   supervisor:
     image:
       repository: registry.airgap.example.com/third-party/openshell-supervisor
-      tag: 0.0.106
+      tag: 0.0.116
   server:
-    sandboxImage: registry.airgap.example.com/third-party/nemoclaw-sandbox-base:v0.0.123
+    sandboxImage: registry.airgap.example.com/third-party/nemoclaw-sandbox-base:v0.0.138
     sandboxImagePullSecrets:
       - name: airgap-registry

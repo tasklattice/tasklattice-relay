@@ -20,7 +20,7 @@ const configuration: ProjectOpenShellGatewayConfiguration = {
     requests: { cpu: "100m", memory: "128Mi" },
   },
   gatewayImageRepository: "registry.example/openshell/gateway",
-  gatewayImageTag: "0.0.106",
+  gatewayImageTag: "0.0.116",
   imagePullSecrets: [{ name: "gateway-pull" }],
   imagePullPolicy: "IfNotPresent",
   releaseName: "openshell",
@@ -30,7 +30,7 @@ const configuration: ProjectOpenShellGatewayConfiguration = {
   serviceNamePrefix: "openshell-",
   supervisorImageRepository: "registry.example/openshell/supervisor",
   supervisorImagePullPolicy: "Never",
-  supervisorImageTag: "0.0.106",
+  supervisorImageTag: "0.0.116",
   workspaceDefaultStorageSize: "2Gi",
 };
 
@@ -75,6 +75,7 @@ describe("HelmProjectOpenShellGatewayClient", () => {
     const values = run.mock.calls.find(([input]) => input.args[0] === "upgrade")![0].stdin!;
     const rendered = execFileSync("helm", [
       "template", "openshell", "../../.helm-dependencies/openshell",
+      "--api-versions", "agents.x-k8s.io/v1beta1/Sandbox",
       "--namespace", target.namespace, "--values", "-",
     ], { input: values, encoding: "utf8" });
     const certgen = parseAllDocuments(rendered).map((doc) => doc.toJSON())
@@ -177,6 +178,7 @@ describe("HelmProjectOpenShellGatewayClient", () => {
     expect(values.pkiInitJob).not.toHaveProperty("serviceAccount");
     expect(values.pkiInitJob).not.toHaveProperty("imagePullSecrets");
     const rendered = execFileSync("helm", ["template", "openshell", "../../.helm-dependencies/openshell",
+      "--api-versions", "agents.x-k8s.io/v1beta1/Sandbox",
       "--namespace", target.namespace, "--values", "-"], {input:commands[1]!.stdin!,encoding:"utf8"});
     const resources = parseAllDocuments(rendered).map(d => d.toJSON()).filter(Boolean);
     const certgenSA = resources.find(r => r.kind === "ServiceAccount" && r.metadata.name.endsWith("-certgen"));
@@ -349,7 +351,7 @@ describe("OpenShift prepared ServiceAccount migration", () => {
     await new HelmProjectOpenShellGatewayClient(configuration,run,undefined,undefined,database,undefined,prepare).reconcile(target);
     expect(prepare.mock.invocationCallOrder[0]).toBeLessThan(run.mock.invocationCallOrder[1]!);
     const values=run.mock.calls.find(([input])=>input.args[0]==="upgrade")![0].stdin!;
-    const rendered=execFileSync("helm",["template","openshell","../../.helm-dependencies/openshell","--namespace",target.namespace,"--values","-"],{input:values,encoding:"utf8"});
+    const rendered=execFileSync("helm",["template","openshell","../../.helm-dependencies/openshell","--api-versions","agents.x-k8s.io/v1beta1/Sandbox","--namespace",target.namespace,"--values","-"],{input:values,encoding:"utf8"});
     const objects=parseAllDocuments(rendered).map(d=>d.toJSON()).filter(Boolean);
     const job=objects.find(r=>r.kind==="Job");
     expect(job.spec.template.spec.serviceAccountName).toBe(`openshell-${target.namespace}-certgen`);

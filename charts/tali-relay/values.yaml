@@ -317,7 +317,7 @@ runner:
 # Gateway uses the existing PostgreSQL server with a dedicated database/login
 # per Project and a Deployment (no Gateway data PVC).
 projectOpenShell:
-  nemoclawVersion: 0.0.123
+  nemoclawVersion: 0.0.138
   certgenActiveDeadlineSeconds: 300
   helmTimeoutSeconds: 600
   # Budget for hooks, readiness and atomic rollback; not just one Helm wait.
@@ -540,12 +540,12 @@ openshell:
   imagePullSecrets: []
   image:
     repository: ghcr.io/nvidia/openshell/gateway
-    tag: 0.0.106
+    tag: 0.0.116
     pullPolicy: IfNotPresent
   supervisor:
     image:
       repository: ghcr.io/nvidia/openshell/supervisor
-      tag: 0.0.106
+      tag: 0.0.116
       pullPolicy: IfNotPresent
   resources:
     requests:
@@ -555,8 +555,8 @@ openshell:
       cpu: "1"
       memory: 1Gi
   server:
-    # NemoClaw v0.0.123 declares OpenShell 0.0.106 as its supported runtime.
+    # NemoClaw v0.0.138 declares OpenShell 0.0.116 as its supported runtime.
     # Use the matching versioned NemoClaw base instead of a moving :latest tag.
-    sandboxImage: ghcr.io/nvidia/nemoclaw/sandbox-base:v0.0.123
+    sandboxImage: ghcr.io/nvidia/nemoclaw/sandbox-base:v0.0.138
     sandboxImagePullPolicy: IfNotPresent
     sandboxImagePullSecrets: []

@@ -59,7 +59,7 @@ export const provisioningStages = [
 ] as const;
 
 // Stable Control-to-Runner routing contract. The implementation behind this
-// target can be a dedicated 0.0.106 Gateway today or an operator-managed
+// target can be a dedicated 0.0.116 Gateway today or an operator-managed
 // workspace on a newer OpenShell release without changing Agent APIs.
 export const projectRuntimeNamespaceSchema = z.string().regex(
   /^tp-[a-z2-7]{13}$/,

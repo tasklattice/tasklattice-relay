@@ -11,7 +11,7 @@ controller. OpenShell Gateways are provisioned dynamically in Project Namespaces
 the default control-plane release does not deploy a shared Gateway in `tali`.
 Its Chart, package, and default Helm release name is `tali-relay`; the examples
 use the product-level `tali` Kubernetes namespace.
-The Release Workflow selects OpenShell 0.0.106, NemoClaw v0.0.123, and Agent
+The Release Workflow selects OpenShell 0.0.116, NemoClaw v0.0.138, and Agent
 Sandbox v1.0.2 by explicit upstream tags and does not follow `latest`. Builds
 use the content currently published under those tags. Their upstream source is
 not copied into this repository, while the released TaskLattice Relay archive
@@ -168,7 +168,7 @@ kubectl -n <control-namespace> exec deployment/<release>-control-worker -- \
   node apps/control/.output/tools/project-runtime-reconcile.mjs
 ```
 
-OpenShell 0.0.106 fixes one Kubernetes sandbox Namespace per Gateway. The
+OpenShell 0.0.116 fixes one Kubernetes sandbox Namespace per Gateway. The
 architecture runs one Gateway per Project and one central Runner. Every Agent lifecycle, audit, terminal, and Web UI operation
 carries the stable Project Runtime Target; the Runner derives the trusted
 Gateway Service address as
@@ -416,7 +416,7 @@ the Agent Sandbox controller.
 With `openshift.enabled=true`, Worker prepares SCC grants in each Project
 Namespace before installing Gateway/certgen or starting runtime Pods:
 
-- The pinned OpenShell 0.0.106 Sandbox SA receives `system:openshift:scc:privileged`
+- The pinned OpenShell 0.0.116 Sandbox SA receives `system:openshift:scc:privileged`
   for its supervisor capabilities (including init containers in the same Pod).
 - Gateway and certgen SAs receive `system:openshift:scc:anyuid`; enabled Bridge
   and Expert runtimes currently use the tenant `default` SA, which also receives anyuid.

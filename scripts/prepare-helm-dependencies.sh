@@ -3,7 +3,7 @@ set -euo pipefail
 
 repository_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 chart_root="$repository_root/charts/tali-relay"
-openshell_version="${OPENSHELL_VERSION:-0.0.106}"
+openshell_version="${OPENSHELL_VERSION:-0.0.116}"
 agent_sandbox_version="${AGENT_SANDBOX_VERSION:-v1.0.2}"
 work_dir="$(mktemp -d "${TMPDIR:-/tmp}/tali-helm-dependencies.XXXXXX")"
 trap 'rm -rf "$work_dir"' EXIT

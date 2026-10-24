@@ -14,6 +14,7 @@ function render(input) {
 test("a configured Gateway name also scopes dedicated cluster RBAC", () => {
   const gateway = `gateway-${owner.name}`;
   const raw = execFileSync("helm", ["template", "openshell", ".helm-dependencies/openshell",
+    "--api-versions", "agents.x-k8s.io/v1beta1/Sandbox",
     "--namespace", owner.name, "--set", "workload.kind=deployment",
     "--set", "server.externalDbSecret=openshell-postgresql", "--set", `fullnameOverride=${gateway}`], { encoding: "utf8" });
   const output = execFileSync(process.execPath, [script, JSON.stringify(owner), gateway], { input: raw, encoding: "utf8" });
@@ -22,6 +23,7 @@ test("a configured Gateway name also scopes dedicated cluster RBAC", () => {
 });
 test("the real OpenShell chart gets project parents while Pod templates retain controller ownership", () => {
   const raw = execFileSync("helm", ["template", "openshell", ".helm-dependencies/openshell",
+    "--api-versions", "agents.x-k8s.io/v1beta1/Sandbox",
     "--namespace", owner.name, "--set", "workload.kind=deployment",
     "--set", "server.externalDbSecret=openshell-postgresql", "--set", `fullnameOverride=openshell-${owner.name}`], { encoding: "utf8" });
   const resources = render(raw);

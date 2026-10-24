@@ -171,12 +171,12 @@ successful Project reconciliation updates the Gateway Deployment's Pod template
 and rolls out its Pods. Failed Project initializations still require Retry setup.
 These values affect the `openshell-gateway` container and its Pod only: they do
 not change the certgen Job or the Agent `Sandbox.spec.podTemplate`. In pinned
-OpenShell 0.0.106, the Sandbox driver rejects arbitrary security contexts in
+OpenShell 0.0.116, the Sandbox driver rejects arbitrary security contexts in
 `--driver-config-json`; Gateway settings must not be presented as Sandbox settings.
 
 ### Routing and lifecycle
 
-OpenShell 0.0.106 fixes the Kubernetes sandbox Namespace at the Gateway level.
+OpenShell 0.0.116 fixes the Kubernetes sandbox Namespace at the Gateway level.
 Relay therefore deploys one official OpenShell Gateway release inside every
 Project Namespace while retaining one centralized Runner. The Project
 Namespace is also the OpenShell workspace. Each Agent operation carries a

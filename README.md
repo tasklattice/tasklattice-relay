@@ -50,7 +50,7 @@ TaskLattice Relay OpenShell Runner
 
 - Project-scoped membership, quotas, configuration, and resource ownership.
 - One Kubernetes Namespace and OpenShell Gateway per Project on the pinned
-  OpenShell 0.0.106 compatibility path, routed by one central Runner.
+  OpenShell 0.0.116 compatibility path, routed by one central Runner.
 - Provider registration, model discovery, LiteLLM-backed Model Routings,
   per-Instance virtual keys, spend attribution, and cost views.
 - Direct, many-to-many Instance bindings to reusable Access Policies, with
@@ -164,8 +164,8 @@ resolves to that exact value.
 | Deep Agents sandbox      | `ghcr.io/tasklattice/tali-nemoclaw-deepagents-sandbox:<release>` | Deep Agents Code terminal sandbox                |
 | PostgreSQL + pgvector    | `pgvector/pgvector:0.8.6-pg17`                                  | Control data, LiteLLM data, and knowledge vectors  |
 | Docling Serve            | `ghcr.io/docling-project/docling-serve-cpu:v1.29.0`              | Layout-aware parsing, table extraction, and OCR    |
-| OpenShell gateway        | `ghcr.io/nvidia/openshell/gateway:0.0.106`                      | Policy enforcement, audit, exec, and HTTP routing  |
-| OpenShell supervisor     | `ghcr.io/nvidia/openshell/supervisor:0.0.106`                   | Supervisor injected into Agent sandboxes           |
+| OpenShell gateway        | `ghcr.io/nvidia/openshell/gateway:0.0.116`                      | Policy enforcement, audit, exec, and HTTP routing  |
+| OpenShell supervisor     | `ghcr.io/nvidia/openshell/supervisor:0.0.116`                   | Supervisor injected into Agent sandboxes           |
 | Agent Sandbox controller | `registry.k8s.io/agent-sandbox/agent-sandbox-controller:v1.0.2` | Sandbox CR, Pod, and workspace PVC lifecycle       |
 
 Agent Sandbox v1.0.2 supports an optional bundled controller or an existing

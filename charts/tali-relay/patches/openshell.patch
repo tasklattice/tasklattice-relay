@@ -2,12 +2,12 @@ diff --git a/openshell/Chart.yaml b/openshell/Chart.yaml
 --- a/openshell/Chart.yaml
 +++ b/openshell/Chart.yaml
 @@ -2,5 +2,5 @@ apiVersion: v2
- appVersion: 0.0.106
+ appVersion: 0.0.116
  description: runtime environment for autonomous agents
 -name: helm-chart
 +name: openshell
  type: application
- version: 0.0.106
+ version: 0.0.116
 diff --git a/openshell/templates/certgen.yaml b/openshell/templates/certgen.yaml
 --- a/openshell/templates/certgen.yaml
 +++ b/openshell/templates/certgen.yaml

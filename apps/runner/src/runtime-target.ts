@@ -44,7 +44,7 @@ export function resolveOpenShellTarget(
   }
   return {
     gatewayEndpoint: gatewayUrl.toString().replace(/\/$/, ""),
-    // OpenShell 0.0.106 uses the workspace in physical object and service-route
+    // OpenShell 0.0.116 uses the workspace in physical object and service-route
     // names. Matching it to the Project Namespace gives the shared edge proxy a
     // deterministic, database-free route to the correct Project Gateway.
     workspace: namespace,
