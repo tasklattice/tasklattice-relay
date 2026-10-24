@@ -275,6 +275,7 @@ function SupervisorInstanceDetail({
     if (activeTab !== "terminal") return;
     if (access.terminal.enabled) {
       terminalWasOpen.current = true;
+      setTerminalNotice("");
       return;
     }
     if (agent.status === "READY" && terminalTargets.isPending) return;

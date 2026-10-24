@@ -1395,6 +1395,14 @@ async function createOpenShellNemoClawSandbox(
           flushPendingLine();
           child.kill("SIGTERM");
           resolve(output.split("\n").filter(Boolean).slice(-100));
+        } else {
+          // A detached create stream can outlive a failed main process. Surface
+          // that terminal state instead of waiting for the full startup timeout.
+          const observed = await observeOpenShellSandbox(input.name, target).catch(() => undefined);
+          if (observed && ["error", "failed"].includes(String(observed.phase).toLowerCase())) {
+            child.kill("SIGTERM");
+            finish(new Error(`NemoClaw sandbox startup failed (${observed.phase}). ${output.trim().slice(-4_000)}`));
+          }
         }
       } finally {
         probing = false;
