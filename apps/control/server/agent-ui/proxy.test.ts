@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cleanAgentRequestHeaders, openClawConnectFrame, parseAgentUiPath } from "./proxy";
+import { cleanAgentRequestHeaders, openClawConnectFrame, openClawRequestFrame, parseAgentUiPath } from "./proxy";
 import { agentDocumentPolicy, injectAgentDocument } from "./document";
 
 const id = "11111111-1111-4111-8111-111111111111";
@@ -14,7 +14,7 @@ describe("Agent UI isolation boundary", () => {
     }
   });
   it("does not send Control or forwarding credentials to an Agent", () => {
-    const headers = cleanAgentRequestHeaders(new Headers({ cookie: "tali-relay.session_token=secret", authorization: "Bearer user", host: "attacker", "x-forwarded-host": "metadata", "x-tali-runtime-target": "other-project", "content-type": "application/json" }));
+    const headers = cleanAgentRequestHeaders(new Headers({ cookie: "tali-relay.session_token=secret", authorization: "Bearer user", host: "attacker", "x-forwarded-host": "metadata", "x-forwarded-for": "127.0.0.1", "x-forwarded-prefix": "/forged", "x-tali-runtime-target": "other-project", "content-type": "application/json" }));
     expect([...headers]).toEqual([["content-type", "application/json"]]);
   });
   it("enforces opaque-origin sandboxing even on direct document navigation", () => {
@@ -42,5 +42,17 @@ describe("Agent UI isolation boundary", () => {
     expect(result.params.client).toMatchObject({ id: "gateway-client", mode: "backend" });
     expect(result.params).toMatchObject({ minProtocol: 4, maxProtocol: 4 });
     expect(() => openClawConnectFrame('{"method":"config.set"}', "secret")).toThrow();
+  });
+  it("keeps message subscriptions within the backend identity's capabilities", () => {
+    const frame = { type: "req", id: "subscribe-1", method: "sessions.messages.subscribe",
+      params: { sessionKey: "agent:main:main", includeApprovals: true } };
+    expect(JSON.parse(openClawRequestFrame(JSON.stringify(frame)))).toEqual({
+      ...frame, params: { ...frame.params, includeApprovals: false },
+    });
+    const chat = JSON.stringify({ type: "req", id: "chat-1", method: "chat.send", params: { message: "hello" } });
+    expect(openClawRequestFrame(chat)).toBe(chat);
+    for (const method of ["connect", "device.pair.approve", "node.pair.approve"]) {
+      expect(() => openClawRequestFrame(JSON.stringify({ method }))).toThrow("Credential operation denied");
+    }
   });
 });

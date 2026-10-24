@@ -90,9 +90,11 @@ async function proxyAgentResponse(request: Request, publicBase?: string): Promis
   }
   if (request.headers.get("upgrade")?.toLowerCase() === "websocket") return Object.assign(new Response("WebSocket upgrade required.", { status: 426 }), { crossws: agentWebSocketHooks });
   const outgoing = cleanAgentRequestHeaders(request.headers);
-  outgoing.set("x-forwarded-prefix", route.prefix.replace(/\/$/, ""));
   outgoing.set("origin", record.upstreamOrigin);
   if (record.platform === "hermes") {
+    // Hermes uses this routing hint. OpenClaw does not, and 2026.9 treats
+    // any x-forwarded-* header as a client attribution claim.
+    outgoing.set("x-forwarded-prefix", route.prefix.replace(/\/$/, ""));
     const credentials = hermesCredentials(record);
     outgoing.set("cookie", credentials.cookie);
     outgoing.set("x-hermes-session-token", credentials.token);
@@ -142,6 +144,20 @@ export function openClawConnectFrame(text: string, token: string): string {
     role: "operator", scopes: ["operator.read", "operator.write", "operator.approvals"],
     caps: ["tool-events"], auth: { token },
   } });
+}
+
+export function openClawRequestFrame(text: string): string {
+  const frame = JSON.parse(text);
+  if (frame.method === "connect" || /^device\.|^node\.pair\./.test(frame.method ?? "")) {
+    throw new Error("Credential operation denied.");
+  }
+  if (frame.method === "sessions.messages.subscribe" && frame.params?.includeApprovals) {
+    // 2026.9 requires a paired device for approval-event subscriptions.
+    // Relay authenticates as a backend; retain normal message streaming.
+    frame.params.includeApprovals = false;
+    return JSON.stringify(frame);
+  }
+  return text;
 }
 
 interface Connection { socket: WebSocket; timer: ReturnType<typeof setInterval>; connected: boolean; connectId?: string; platform: string; secret: string; sessionId: string; queue: Array<string | Uint8Array>; queuedBytes: number; }
@@ -216,8 +232,7 @@ const agentWebSocketHooks: Partial<Hooks> = {
           connection.connectId = frame.id;
           connection.socket.send(openClawConnectFrame(text, connection.secret));
         } else {
-          if (frame.method === "connect" || /^device\.|^node\.pair\./.test(frame.method ?? "")) throw new Error("Credential operation denied.");
-          connection.socket.send(text);
+          connection.socket.send(openClawRequestFrame(text));
         }
       } else connection.socket.send(typeof message.rawData === "string" ? message.text() : message.uint8Array());
     } catch { peer.close(4403, "Agent operation denied"); }
