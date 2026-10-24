@@ -1,5 +1,6 @@
 import { imagePullFailureSummary } from "./project-openshell-diagnostics";
 import { prepareRuntimeImagePull } from "./project-image-pull-readiness";
+import { runtimeDnsEgressPorts } from "./runtime-dns-egress";
 import { getWorkerConfig } from "../config/worker-config";
 import {
   AppsV1Api,
@@ -160,9 +161,12 @@ export function projectRuntimeBridgeResources(
             ],
             ports: [{ name: "http", containerPort: 8080 }],
             readinessProbe: {
-              httpGet: { path: "/healthz", port: "http" },
+              httpGet: { path: "/readyz", port: "http" },
               initialDelaySeconds: 1,
               periodSeconds: 3,
+              // Longer than the bounded Control health request (2 seconds).
+              timeoutSeconds: 3,
+              failureThreshold: 1,
             },
             livenessProbe: {
               httpGet: { path: "/healthz", port: "http" },
@@ -198,7 +202,7 @@ export function projectRuntimeBridgeResources(
       policyTypes: ["Ingress", "Egress"],
       ingress: [{ from: [{ podSelector: {} }], ports: [{ port: 8080, protocol: "TCP" }] }],
       egress: [
-        { ports: [{ port: 53, protocol: "UDP" }, { port: 53, protocol: "TCP" }] },
+        { ports: runtimeDnsEgressPorts() },
         {
           to: [{
             namespaceSelector: {
@@ -217,7 +221,28 @@ export function projectRuntimeBridgeResources(
       ],
     },
   };
-  return [secret, service, deployment, networkPolicy];
+  // Existing Expert Agent policies are not reapplied by Project initialization.
+  // An additive DNS policy fixes their OCP lookups without restarting runtimes
+  // or rewriting their per-Agent business traffic rules.
+  const dnsPolicy: KubernetesObject & { spec: Record<string, unknown> } = {
+    apiVersion: "networking.k8s.io/v1",
+    kind: "NetworkPolicy",
+    metadata: { ...metadata, name: "tali-runtime-dns" },
+    spec: {
+      podSelector: {
+        matchLabels: { "app.kubernetes.io/managed-by": "tali" },
+        matchExpressions: [{
+          key: "app.kubernetes.io/name",
+          operator: "In",
+          values: [PROJECT_RUNTIME_BRIDGE_NAME, "tali-expert-agent"],
+        }],
+      },
+      policyTypes: ["Egress"],
+      egress: [{ ports: runtimeDnsEgressPorts() }],
+    },
+  };
+  return [secret, service, deployment, networkPolicy,
+    ...(getWorkerConfig().openshift.enabled ? [dnsPolicy] : [])];
 }
 
 export class KubernetesProjectRuntimeBridgeClient

@@ -1,6 +1,7 @@
 import express from "express";
 import { createServer } from "node:http";
 import { z } from "zod";
+import { registerRuntimeBridgeHealth } from "./project-runtime-bridge-health";
 
 const configuration = z.object({
   controlUrl: z.string().url(),
@@ -157,16 +158,7 @@ function bridgeVectorDatabaseSearchUrl(
   return `${origin}/v1/hermes/vector-databases/${encodeURIComponent(databaseId)}/search?${query}`;
 }
 
-app.get("/healthz", (_request, response) => response.json({
-  ok: true,
-  projectId: configuration.projectId,
-  capabilityKinds: [
-    "A2A_AGENT",
-    "VECTOR_DATABASE",
-    "DURABLE_MEMORY",
-    "EXPERT_AGENT_RESOURCE",
-  ],
-}));
+registerRuntimeBridgeHealth(app, configuration);
 
 for (const resource of [
   { route: "mcp/call", control: "mcp/call" },

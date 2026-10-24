@@ -49,13 +49,7 @@ spec:
         - protocol: TCP
           # NetworkPolicy is enforced after Service DNAT, at Control's Pod port.
           port: 8080
-    - to:
-        - namespaceSelector: {}
-      ports:
-        - protocol: UDP
-          port: 53
-        - protocol: TCP
-          port: 53
+    - {{ include "tali.dnsEgressRule" . | nindent 6 }}
 {{- if .Values.hindsight.worker.enabled }}
 ---
 apiVersion: networking.k8s.io/v1
@@ -99,13 +93,7 @@ spec:
         - protocol: TCP
           # NetworkPolicy is enforced after Service DNAT, at Control's Pod port.
           port: 8080
-    - to:
-        - namespaceSelector: {}
-      ports:
-        - protocol: UDP
-          port: 53
-        - protocol: TCP
-          port: 53
+    - {{ include "tali.dnsEgressRule" . | nindent 6 }}
 {{- end }}
 ---
 apiVersion: networking.k8s.io/v1
@@ -128,11 +116,5 @@ spec:
       ports:
         - protocol: TCP
           port: 5432
-    - to:
-        - namespaceSelector: {}
-      ports:
-        - protocol: UDP
-          port: 53
-        - protocol: TCP
-          port: 53
+    - {{ include "tali.dnsEgressRule" . | nindent 6 }}
 {{- end }}

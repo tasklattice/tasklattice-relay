@@ -82,6 +82,16 @@ describe("HelmProjectOpenShellGatewayClient", () => {
     expect(certgen.spec.activeDeadlineSeconds).toBe(300);
     const deployment = parseAllDocuments(rendered).map((doc) => doc.toJSON())
       .find((object) => object?.kind === "Deployment");
+    const policy = parseAllDocuments(rendered).map((doc) => doc.toJSON())
+      .find((object) => object?.kind === "NetworkPolicy");
+    // This is the other default tenant policy. It neither selects the Bridge
+    // nor isolates egress, so it cannot block Bridge -> Control requests.
+    expect(policy.spec).toMatchObject({
+      podSelector: { matchLabels: { "openshell.ai/managed-by": "openshell" } },
+      policyTypes: ["Ingress"],
+      ingress: [{ ports: [{ port: 2222, protocol: "TCP" }] }],
+    });
+    expect(policy.spec.egress).toBeUndefined();
     expect(deployment.spec.template.spec.securityContext).toEqual({
       fsGroup: 0, fsGroupChangePolicy: "OnRootMismatch",
     });

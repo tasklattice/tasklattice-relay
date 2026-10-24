@@ -12,6 +12,31 @@ function render(settings = [], namespace = "control-images", args = []) {
   { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] })).map(d => d.toJSON()).filter(Boolean);
 }
 const isPuller = (r) => r.metadata?.name?.endsWith("project-image-puller");
+test("all Hindsight DNS policies allow OCP backend ports without changing Kubernetes rules", () => {
+  for (const openshift of [false, true]) {
+    for (const worker of [false, true]) {
+      const resources = render([`openshift.enabled=${openshift}`, "hindsight.enabled=true",
+        "hindsight.networkPolicy.enabled=true", `hindsight.worker.enabled=${worker}`]);
+      const policies = resources.filter(r => r.kind === "NetworkPolicy");
+      assert.deepEqual(policies.map(p => p.metadata.labels["app.kubernetes.io/component"]).sort(),
+        ["hindsight-api", "hindsight-migration", ...(worker ? ["hindsight-worker"] : [])].sort());
+      for (const policy of policies) {
+        const dns = policy.spec.egress.find(rule => rule.ports?.some(p => p.port === 53));
+        assert.deepEqual(dns, {
+          to: [{ namespaceSelector: {}, ...(openshift ? { podSelector: {} } : {}) }],
+          ports: (openshift ? [53, 5353] : [53]).flatMap(port => [
+            { protocol: "UDP", port }, { protocol: "TCP", port },
+          ]),
+        });
+      }
+    }
+  }
+  assert(!render(["openshift.enabled=true", "hindsight.networkPolicy.enabled=false"])
+    .some(r => r.kind === "NetworkPolicy"));
+  assert(!render(["openshift.enabled=true", "hindsight.enabled=false"])
+    .some(r => r.kind === "NetworkPolicy"));
+});
+
 test("OpenShift grants only the Worker scoped image-puller binding authority", () => {
   const resources = render(["openshift.enabled=true"]);
   const role = resources.find(r => isPuller(r) && r.kind === "Role");

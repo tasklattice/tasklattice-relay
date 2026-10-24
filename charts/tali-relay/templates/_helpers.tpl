@@ -38,6 +38,26 @@ app.kubernetes.io/name: {{ include "tali.name" .root }}
 app.kubernetes.io/component: {{ .component }}
 {{- end }}
 
+{{/* OCP DNS Service port 53 is translated to backend port 5353. */}}
+{{- define "tali.dnsEgressRule" -}}
+to:
+  - namespaceSelector: {}
+    {{- if .Values.openshift.enabled }}
+    podSelector: {}
+    {{- end }}
+ports:
+  - protocol: UDP
+    port: 53
+  - protocol: TCP
+    port: 53
+  {{- if .Values.openshift.enabled }}
+  - protocol: UDP
+    port: 5353
+  - protocol: TCP
+    port: 5353
+  {{- end }}
+{{- end }}
+
 {{- define "tali.argocdSyncWave" -}}
 {{- index .root.Values.global.argocd.syncWaves .name -}}
 {{- end }}

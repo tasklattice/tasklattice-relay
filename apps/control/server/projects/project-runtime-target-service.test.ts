@@ -71,6 +71,30 @@ afterEach(() => {
 });
 
 describe("ProjectRuntimeTargetService", () => {
+  it.each([
+    [false, false], [false, true], [true, false], [true, true],
+  ])("keeps an unhealthy Bridge retryable and recovers (OCP=%s, existing=%s)", async (openshift, existing) => {
+    setControlConfigForTests(enabledConfig());
+    const config = developmentWorkerConfig();
+    config.openshift = { enabled: openshift, imageSourceNamespace: "images" };
+    setWorkerConfigForTests(config);
+    const db = createTestPrisma();
+    const namespaces = namespaceClient();
+    const gateways = gatewayClient();
+    const bridge = bridgeClient();
+    const service = new ProjectRuntimeTargetService(db, namespaces.client, gateways.client, bridge.client);
+    if (existing) await service.ensureProjectNamespace("individual");
+
+    bridge.reconcile.mockRejectedValueOnce(new Error("Project Runtime Bridge did not become ready"));
+    await expect(service.ensureProjectNamespace("individual")).rejects.toThrow("did not become ready");
+    expect(await db.projectRuntimeTarget.findUniqueOrThrow({ where: { projectId: "individual" } }))
+      .toMatchObject({ status: "retry", leaseOwner: null, lastError: "Project Runtime Bridge did not become ready" });
+
+    await service.ensureProjectNamespace("individual");
+    expect(await db.projectRuntimeTarget.findUniqueOrThrow({ where: { projectId: "individual" } }))
+      .toMatchObject({ status: "ready", leaseOwner: null, lastError: null });
+  });
+
   it("reconciles existing ready tenants after upgrade and fences authorization before Gateway", async () => {
     setControlConfigForTests(enabledConfig());
     const config = developmentWorkerConfig();

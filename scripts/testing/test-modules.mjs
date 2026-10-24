@@ -427,9 +427,12 @@ export const testModules = [
       "runtime-integrations/**",
       "apps/control/server/runtime-bridge/project-runtime-bridge-auth.ts",
       "apps/control/server/runtime-bridge/project-runtime-bridge-server.ts",
+      "apps/control/server/runtime-bridge/project-runtime-bridge-health*",
       "scripts/bootstrap-hermes-config.py",
     ],
-    controlTestPatterns: [],
+    controlTestPatterns: [
+      "apps/control/server/runtime-bridge/project-runtime-bridge-health.test.ts",
+    ],
     pythonTests: [
       "runtime-integrations/hermes-a2a-plugin/tests/test_client.py",
       "runtime-integrations/hermes-durable-memory-provider/tests/test_provider.py",

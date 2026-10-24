@@ -5,7 +5,8 @@ import type {
   V1Service,
 } from "@kubernetes/client-node";
 import type { ExpertAgentRuntimeEnvelope } from "@tali/contracts";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { developmentWorkerConfig, setWorkerConfigForTests } from "../config/worker-config";
 import {
   KubernetesExpertAgentRuntimeClient,
   expertAgentRuntimeEndpoint,
@@ -46,7 +47,21 @@ const configuration = {
   revision: "runtime-0.1.0",
 };
 
+afterEach(() => setWorkerConfigForTests());
+
 describe("Expert Agent Kubernetes Runtime", () => {
+  it.each([false, true])("allows DNS before resolving the Bridge (OCP=%s)", (openshift) => {
+    const config = developmentWorkerConfig();
+    config.openshift.enabled = openshift;
+    setWorkerConfigForTests(config);
+    const policy = expertAgentRuntimeResources(input, configuration)[4] as import("@kubernetes/client-node").V1NetworkPolicy;
+    expect(policy.spec?.egress?.[0]?.ports).toEqual(
+      (openshift ? [53, 5353] : [53]).flatMap((port) => [
+        { port, protocol: "UDP" }, { port, protocol: "TCP" },
+      ]),
+    );
+  });
+
   it("pins one immutable Version envelope and secret-scoped credentials", () => {
     const resources = expertAgentRuntimeResources(input, configuration);
     expect(resources.map((resource) => resource.kind)).toEqual([

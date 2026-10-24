@@ -1,4 +1,5 @@
 import { prepareRuntimeImagePull } from "./project-image-pull-readiness";
+import { runtimeDnsEgressPorts } from "./runtime-dns-egress";
 import { getWorkerConfig } from "../config/worker-config";
 import {
   AppsV1Api,
@@ -228,7 +229,7 @@ export function expertAgentRuntimeResources(
         ports: [{ port: CONTAINER_PORT, protocol: "TCP" }],
       }],
       egress: [
-        { ports: [{ port: 53, protocol: "UDP" }, { port: 53, protocol: "TCP" }] },
+        { ports: runtimeDnsEgressPorts() },
         {
           to: [{
             podSelector: {
