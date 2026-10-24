@@ -1,0 +1,74 @@
+{
+  "scope": "Pi and Deep Agents icons in Agent Garden only; not a whole-page audit",
+  "date": "2026-10-24",
+  "pageType": "Product Console",
+  "mode": "release_gate",
+  "audience": "Project administrators and Agent developers",
+  "task": "Identify an Agent definition before inspecting or creating an Instance",
+  "finding": "A separate Garden brand map omitted Pi and Deep Agents.",
+  "change": "Garden now reuses the complete platform brand map.",
+  "validation": {
+    "existingTestsPassed": 2,
+    "typecheck": "passed",
+    "productionBuild": "passed",
+    "deployment": "OrbStack Control",
+    "image": "sha256:2b2aea57fe94de5772e788c6c44df3bf22a7856915d3b1fd6ae5909d7542b531",
+    "themes": [
+      "dark",
+      "light"
+    ],
+    "restoredTheme": "system"
+  },
+  "checks": [
+    {
+      "dimension": "Product Intent",
+      "weight": 22,
+      "score": 2,
+      "maxScore": 2,
+      "evidence": "Cards identify Pi and Deep Agents with platform artwork."
+    },
+    {
+      "dimension": "Information Architecture",
+      "weight": 22,
+      "score": 2,
+      "maxScore": 2,
+      "evidence": "Card-to-detail navigation retains the same platform mark."
+    },
+    {
+      "dimension": "System Craft",
+      "weight": 14,
+      "score": 2,
+      "maxScore": 2,
+      "evidence": "Shared asset map; existing size, border and decorative alt behavior retained. No broken images or desktop overflow."
+    },
+    {
+      "dimension": "Trust & Domain Fit",
+      "weight": 18,
+      "score": 2,
+      "maxScore": 2,
+      "evidence": "Pi uses the user-supplied SVG; Deep Agents reuses the project LangGraph artwork."
+    },
+    {
+      "dimension": "Interaction Readiness",
+      "weight": 16,
+      "score": 2,
+      "maxScore": 2,
+      "evidence": "Both detail links work; no browser console errors."
+    },
+    {
+      "dimension": "Visual & Brand Expression",
+      "weight": 8,
+      "score": 2,
+      "maxScore": 2,
+      "evidence": "Light and dark screenshots show both brand images without robot fallbacks."
+    }
+  ],
+  "weightedScore": 10.0,
+  "blockers": [],
+  "screenshots": [
+    "garden-dark.png",
+    "garden-light.png",
+    "pi-detail-dark.png",
+    "deepagents-detail-dark.png"
+  ]
+}

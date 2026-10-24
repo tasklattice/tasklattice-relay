@@ -1,0 +1,7 @@
+Browser tab: 11, Title: "localhost:38080/api/v1/projects/tp-t4y75jk72mc55/instances/ti-3ucmakcf74ybr", URL: "http://localhost:38080/api/v1/projects/tp-t4y75jk72mc55/instances/ti-3ucmakcf74ybr".
+0 AXWebArea localhost:38080/api/v1/projects/tp-t4y75jk72mc55/instances/ti-3ucmakcf74ybr
+	1 text {"type":"urn:tali:problem:capability_denied","title":"Access denied","status":403,"detail":"Access denied: CAP_AGENT_INSTANCE_CONFIG_VIEW is not granted.","code":"capability_denied","authorization":{"decision":"DENY","capability":"CAP_AGENT_INSTANCE_CONFIG_VIEW","reason":"The actor has no Project role binding."}}
+	2 container
+		3 checkbox 0
+
+The focused UI element is 0 AXWebArea localhost:38080/api/v1/projects/tp-t4y75jk72mc55/instances/ti-3ucmakcf74ybr
