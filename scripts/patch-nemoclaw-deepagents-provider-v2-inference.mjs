@@ -68,9 +68,9 @@ const patchedFunction = `def _validated_managed_inference_base_url(value: str, s
     return value
 
 
-def managed_inference_api_key() -> str:
+def _tali_managed_inference_api_key() -> str:
     """Return only an endpoint-bound OpenShell placeholder or the baked sentinel."""
-    # OpenShell 0.0.106 exports the sandbox name (for example i-abc), while
+    # OpenShell 0.0.116 exports the sandbox name (for example i-abc), while
     # newer runtimes may use the legacy boolean marker 1. Presence
     # is the stable boundary; the endpoint-bound placeholder below remains the
     # credential authority and prevents an ambient marker from granting access.
@@ -115,7 +115,7 @@ def ${compatibilityMarker}() -> str | None:
     if not os.environ.get("OPENSHELL_SANDBOX"):
         return None
 
-    managed_inference_api_key()
+    _tali_managed_inference_api_key()
 
     path = Path("/sandbox/.deepagents/config.toml")
     flags = os.O_RDONLY | os.O_CLOEXEC
@@ -236,41 +236,22 @@ if (importMatches !== 1 || functionMatches !== 1) {
   );
 }
 
+// Upstream v0.0.138 owns credential selection too. Preserve its native routes
+// outside Relay; inject only the attached-provider branch on OpenShell.
+const credentialAnchor = `def managed_inference_api_key(base_url: str) -> str:
+    """Select the non-secret credential for the validated image-owned route."""`;
+if (source.split(credentialAnchor).length !== 2) {
+  throw new Error("Refusing to patch NemoClaw: expected one managed credential function.");
+}
+const configPatchSource = await readFile(configPatchTarget, "utf8");
+if (!configPatchSource.includes('"api_key": managed_inference_api_key(base_url),')) {
+  throw new Error("Refusing to patch NemoClaw: expected the upstream DCode credential selector.");
+}
 const patched = source
   .replace(importAnchor, `${importAnchor}\nimport tomllib`)
-  .replace(upstreamFunction, patchedFunction);
-
-const configImportAnchor = `        managed_inference_base_url,
-        managed_reasoning_effort,`;
-const configCredentialAnchor = `        "api_key": "nemoclaw-managed-inference",
-        "base_url": managed_inference_base_url(),`;
-const configPatchSource = await readFile(configPatchTarget, "utf8");
-if (configPatchSource.includes('"api_key": managed_inference_api_key(),')) {
-  throw new Error(
-    "Refusing to patch NemoClaw: the TaskLattice Provider v2 DCode credential compatibility path is already present; review and remove the downstream patch.",
-  );
-}
-const configImportMatches =
-  configPatchSource.split(configImportAnchor).length - 1;
-const configCredentialMatches =
-  configPatchSource.split(configCredentialAnchor).length - 1;
-if (configImportMatches !== 1 || configCredentialMatches !== 1) {
-  throw new Error(
-    `Refusing to patch NemoClaw: expected one DCode config import and credential anchor, found ${configImportMatches} and ${configCredentialMatches}.`,
-  );
-}
-const patchedConfig = configPatchSource
-  .replace(
-    configImportAnchor,
-    `        managed_inference_api_key,\n${configImportAnchor}`,
-  )
-  .replace(
-    configCredentialAnchor,
-    `        "api_key": managed_inference_api_key(),\n        "base_url": managed_inference_base_url(),`,
-  );
-
+  .replace(upstreamFunction, patchedFunction)
+  .replace(credentialAnchor, `${credentialAnchor}
+    if os.environ.get("OPENSHELL_SANDBOX"):
+        return _tali_managed_inference_api_key()`);
 await writeFile(target, patched, "utf8");
-await writeFile(configPatchTarget, patchedConfig, "utf8");
-console.log(
-  "Patched NemoClaw Deep Agents for TaskLattice Provider v2 inference routing.",
-);
+console.log("Patched NemoClaw Deep Agents for TaskLattice Provider v2 inference routing.");

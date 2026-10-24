@@ -5,3 +5,12 @@ FROM ${BASE_IMAGE}
 # upstream managed runtime intact and publishes it through an explicit,
 # independently versioned image boundary for deployment and rollback.
 LABEL io.tasklattice.agent.platform="deepagents"
+
+# The Kubernetes driver resolves workload IDs independently of the OCI account.
+# Align both views so native owner checks and config writes use the same user.
+ARG OPENSHELL_SANDBOX_UID=1000
+ARG OPENSHELL_SANDBOX_GID=1000
+USER root
+RUN --mount=type=bind,source=scripts/align-openshell-sandbox-identity.sh,target=/tmp/align-sandbox.sh \
+    sh /tmp/align-sandbox.sh
+USER sandbox

@@ -54,16 +54,22 @@ const upstreamManagedRuntimeFixture = `import stat
 import sys
 
 ${upstreamManagedInferenceFunction}
+
+def managed_inference_api_key(base_url: str) -> str:
+    """Select the non-secret credential for the validated image-owned route."""
+    return "nemoclaw-managed-inference"
 `;
 const upstreamManagedConfigPatchFixture = `CONFIG_PATCH = r'''
 def _get_provider_kwargs(provider: str, *, model_name: str | None = None):
     from deepagents_code._nemoclaw_managed import (
+        managed_inference_api_key,
         managed_inference_base_url,
         managed_reasoning_effort,
     )
+    base_url = managed_inference_base_url()
     kwargs = {
-        "api_key": "nemoclaw-managed-inference",
-        "base_url": managed_inference_base_url(),
+        "api_key": managed_inference_api_key(base_url),
+        "base_url": base_url,
     }
     return kwargs
 '''
@@ -128,15 +134,15 @@ exit 0
     expect(result.status, result.stderr).toBe(0);
     const commands = (await readFile(log, "utf8")).trim().split("\n");
     const builds = commands.filter((line) => line.startsWith("build "));
-    const upstreamImage = "tali-nemoclaw-openclaw-upstream:0.0.123";
+    const upstreamImage = "tali-nemoclaw-openclaw-upstream:0.0.138";
 
     expect(commands[0]).toBe(
-      "pull ghcr.io/nvidia/nemoclaw/sandbox-base:v0.0.123",
+      "pull ghcr.io/nvidia/nemoclaw/sandbox-base:v0.0.138",
     );
     expect(builds).toHaveLength(2);
     expect(builds[0]).toMatch(/^build --pull --file .*\/Dockerfile /);
     expect(builds[0]).toContain(
-      "--build-arg BASE_IMAGE=ghcr.io/nvidia/nemoclaw/sandbox-base:v0.0.123",
+      "--build-arg BASE_IMAGE=ghcr.io/nvidia/nemoclaw/sandbox-base:v0.0.138",
     );
     expect(builds[0]).toContain(`--tag ${upstreamImage}`);
     expect(builds[1]).toBe(
@@ -302,17 +308,17 @@ exit 0
     expect(result.status, result.stderr).toBe(0);
     const commands = (await readFile(log, "utf8")).trim().split("\n");
     const builds = commands.filter((line) => line.startsWith("build "));
-    const upstreamImage = "tali-nemoclaw-deepagents-upstream:0.0.123";
+    const upstreamImage = "tali-nemoclaw-deepagents-upstream:0.0.138";
 
     expect(commands[0]).toBe(
-      "pull ghcr.io/nvidia/nemoclaw/langchain-deepagents-code-sandbox-base:v0.0.123",
+      "pull ghcr.io/nvidia/nemoclaw/langchain-deepagents-code-sandbox-base:v0.0.138",
     );
     expect(builds).toHaveLength(2);
     expect(builds[0]).toMatch(
       /^build --pull --file .*\/agents\/langchain-deepagents-code\/Dockerfile /,
     );
     expect(builds[0]).toContain(
-      "--build-arg BASE_IMAGE=ghcr.io/nvidia/nemoclaw/langchain-deepagents-code-sandbox-base:v0.0.123",
+      "--build-arg BASE_IMAGE=ghcr.io/nvidia/nemoclaw/langchain-deepagents-code-sandbox-base:v0.0.138",
     );
     expect(builds[0]).toContain(`--tag ${upstreamImage}`);
     expect(builds[1]).toBe(
@@ -339,10 +345,10 @@ describe("NemoClaw Deep Agents Provider v2 inference patch", () => {
     expect(result.status, result.stderr).toBe(0);
     const patched = await readFile(target, "utf8");
     expect(patched).toContain("import tomllib");
-    expect(patched).toContain("def managed_inference_api_key()");
+    expect(patched).toContain("def _tali_managed_inference_api_key()");
     expect(patched).toContain("def _tali_openshell_inference_base_url()");
     expect(patched).toContain('if not os.environ.get("OPENSHELL_SANDBOX")');
-    expect(patched).toContain("OpenShell 0.0.106 exports the sandbox name");
+    expect(patched).toContain("OpenShell 0.0.116 exports the sandbox name");
     expect(patched).toContain(
       '_is_openshell_placeholder_for_name(credential_name, credential)',
     );
@@ -359,7 +365,7 @@ describe("NemoClaw Deep Agents Provider v2 inference patch", () => {
     const patchedConfig = await readFile(configPatch, "utf8");
     expect(patchedConfig).toContain("managed_inference_api_key,");
     expect(patchedConfig).toContain(
-      '"api_key": managed_inference_api_key(),',
+      '"api_key": managed_inference_api_key(base_url),',
     );
 
     const syntax = spawnSync(
@@ -387,7 +393,7 @@ describe("NemoClaw Deep Agents Provider v2 inference patch", () => {
     await writeFile(
       driftedConfig,
       upstreamManagedConfigPatchFixture.replace(
-        '"api_key": "nemoclaw-managed-inference"',
+        '"api_key": managed_inference_api_key(base_url)',
         '"api_key": "upstream-drift"',
       ),
       "utf8",
@@ -412,7 +418,7 @@ describe("NemoClaw Deep Agents Provider v2 inference patch", () => {
     );
     expect(configDriftResult.status).not.toBe(0);
     expect(configDriftResult.stderr).toContain(
-      "expected one DCode config import and credential anchor, found 1 and 0",
+      "expected the upstream DCode credential selector",
     );
 
     expect(

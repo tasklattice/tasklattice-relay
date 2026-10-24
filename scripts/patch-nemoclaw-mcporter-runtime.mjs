@@ -4,12 +4,12 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-// NemoClaw v0.0.123 keeps mcporter 0.7.3 but pins vulnerable transitive
+// NemoClaw v0.0.138 keeps mcporter 0.7.3 but pins vulnerable transitive
 // dependencies. Replace only this graph; retain upstream integrity checks,
 // npm ci, transport smoke tests and the high/critical audit gate.
 const upstreamHashes = {
-  "package.json": "7219fdcce72998c999dc14dd45f9e8ed12ea16822964d1721d434044d6d59edb",
-  "package-lock.json": "720c0e3ec2efcccd2c820ce2a39d733f7bd5bf9d3e6fb95310e7f6cd369db83c",
+  "package.json": "579604eb03415587d3c2d822cc34e7eed689e81d617ef640b0cdea3718acefd1",
+  "package-lock.json": "fb489a01077a2c93cd82bb141f4c491f7a39143a67997fbcce9865e7351a45f7",
 };
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const hash = value => createHash("sha256").update(value).digest("hex");

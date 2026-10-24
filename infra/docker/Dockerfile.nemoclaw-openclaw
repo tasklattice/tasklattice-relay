@@ -6,3 +6,12 @@ FROM ${BASE_IMAGE}
 # script produces BASE_IMAGE from upstream first, then publishes this image.
 COPY --chmod=0555 runtime-integrations/openclaw-run-telemetry /usr/local/lib/tali/openclaw-run-telemetry
 COPY --chmod=0555 runtime-integrations/openclaw-durable-memory /usr/local/lib/tali/openclaw-durable-memory
+
+# The Kubernetes driver resolves workload IDs independently of the OCI account.
+# Align both views so native owner checks and config writes use the same user.
+ARG OPENSHELL_SANDBOX_UID=1000
+ARG OPENSHELL_SANDBOX_GID=1000
+USER root
+RUN --mount=type=bind,source=scripts/align-openshell-sandbox-identity.sh,target=/tmp/align-sandbox.sh \
+    sh /tmp/align-sandbox.sh
+USER sandbox
