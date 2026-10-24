@@ -212,7 +212,22 @@ export const hermesMvpA2aAgentIds = [
 ] as const;
 
 export function demoTestImageReference(): string {
-  return "ghcr.io/tasklattice/demo-test:dev";
+  return getControlConfig().demo_agents.image;
+}
+
+// Deployment configuration is authoritative for built-in container demos,
+// including catalog records seeded before this setting existed. User-registered
+// images and running Instance digests remain untouched.
+export function configuredDemoAgent(agent: AgentGardenEntry): AgentGardenEntry {
+  if (agent.source !== "BUILT_IN"
+    || !hermesMvpA2aAgentIds.some((id) => id === agent.id)
+    || agent.configuration.onboardingSource !== "CONTAINER_IMAGE") return agent;
+  const { imageDigest: _oldDigest, ...configuration } = agent.configuration;
+  return { ...agent, configuration: {
+    ...configuration,
+    imageReference: demoTestImageReference(),
+    imagePullSecretName: "",
+  } };
 }
 
 export function demoAgentEndpoint(id: string): string {

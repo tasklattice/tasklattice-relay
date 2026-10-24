@@ -39,6 +39,9 @@
 {{- fail "runner.extraEnv was removed; configure runner.json instead" -}}
 {{- end -}}
 {{- if eq (include "tali.runtimeImagesEnabled" .) "true" -}}
+{{- if .Values.secrets.existingSecrets.control -}}
+{{- fail "Unified OCP Demo images require Chart-managed Control configuration; remove existingSecrets.control, or disable openshift.runtimeImages.enabled and configure demo_agents in the external Control configuration" -}}
+{{- end -}}
 {{- if or .Values.secrets.existingSecrets.worker .Values.secrets.existingSecrets.runner -}}
 {{- fail "Unified OCP runtime images require Chart-managed Worker and Runner configuration Secrets; remove their existingSecrets overrides, or set openshift.runtimeImages.enabled=false and synchronize both external configurations manually" -}}
 {{- end -}}
@@ -52,7 +55,8 @@
   (include "tali.image" (dict "root" . "image" .Values.images.hermesSandbox))
   (include "tali.image" (dict "root" . "image" .Values.images.deepagentsSandbox))
   (include "tali.image" (dict "root" . "image" .Values.images.control))
-  (include "tali.image" (dict "root" . "image" .Values.images.expertAgentRuntime)) -}}
+  (include "tali.image" (dict "root" . "image" .Values.images.expertAgentRuntime))
+  (include "tali.image" (dict "root" . "image" .Values.images.exampleMcp)) -}}
 {{- $sources := dict -}}
 {{- range $reference := $references -}}
 {{- $resolved := include "tali.runtimeImageReference" (dict "root" $ "reference" $reference) -}}

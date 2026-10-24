@@ -139,15 +139,17 @@ function runtimeConfiguration(resources) {
   const objects = materializeBootstrapSecrets(resources);
   const worker = parseToml(objects.find(r => r.stringData?.["worker.toml"]).stringData["worker.toml"]).worker;
   const runner = JSON.parse(objects.find(r => r.stringData?.["runner.json"]).stringData["runner.json"]);
+  const control = parseToml(objects.find(r => r.stringData?.["control.toml"]).stringData["control.toml"]);
   const gateway = worker.project_openshell;
   return {
-    worker, runner,
+    worker, runner, control,
     images: {
       gateway: `${gateway.gatewayImageRepository}:${gateway.gatewayImageTag}`,
       supervisor: `${gateway.supervisorImageRepository}:${gateway.supervisorImageTag}`,
       sandbox: gateway.sandboxImage,
       bridge: worker.project_runtime_bridge.image,
       expert: worker.expert_agent_runtime.image,
+      demo: control.demo_agents.image,
       ...runner.openshell.sandbox.images,
     },
   };
@@ -155,7 +157,7 @@ function runtimeConfiguration(resources) {
 
 function assertSharedRuntime(resources, prefix, original) {
   const config = runtimeConfiguration(resources);
-  assert.equal(Object.keys(config.images).length, 8);
+  assert.equal(Object.keys(config.images).length, 9);
   for (const [component, image] of Object.entries(config.images)) {
     assert.equal(image, `${prefix}/${original.images[component].split("/").at(-1)}`, component);
   }
@@ -163,6 +165,42 @@ function assertSharedRuntime(resources, prefix, original) {
   assert.deepEqual([...config.worker.project_openshell.sandboxImages].sort(), Object.values(config.runner.openshell.sandbox.images).sort());
   return config;
 }
+
+test("UI Demo images follow Helm settings even with the Example MCP Deployment disabled", () => {
+  for (const ocp of [false, true]) {
+    const settings = [`openshift.enabled=${ocp}`, "openshift.runtimeImages.enabled=true",
+      "openshift.imageSourceNamespace=shared-images", "openshift.imageRegistryHost=registry.ocp.local:5000",
+      "exampleMcp.enabled=false", "images.exampleMcp.repository=registry.offline.local/samples/daily",
+      "images.exampleMcp.useGlobalRegistry=false",
+      "images.exampleMcp.tag=v4", "images.exampleMcp.pullPolicy=Never", "global.imagePullSecrets[0].name=offline"];
+    const resources = render(settings);
+    const config = runtimeConfiguration(resources).control.demo_agents;
+    assert.deepEqual(JSON.parse(JSON.stringify(config)), {
+      image: ocp ? "registry.ocp.local:5000/shared-images/daily:v4" : "registry.offline.local/samples/daily:v4",
+      imagePullPolicy: "Never", imagePullSecrets: [{ name: "offline" }],
+    });
+    assert(!resources.some(r => r.kind === "Deployment" && r.metadata.name.endsWith("example-mcp")));
+    const digest = "sha256:" + "a".repeat(64);
+    const pinned = runtimeConfiguration(render([...settings, `images.exampleMcp.tag=v4@${digest}`]));
+    assert.equal(pinned.images.demo, `${ocp ? "registry.ocp.local:5000/shared-images" : "registry.offline.local/samples"}/daily:v4@${digest}`);
+  }
+});
+
+test("Demo configuration changes roll Control and Worker and reject unmanaged OCP configuration", () => {
+  const first = render();
+  const upgraded = render(["images.exampleMcp.tag=next-version"], "control-images", ["--is-upgrade"]);
+  for (const component of ["control", "control-worker"]) {
+    const checksum = resources => resources.find(r => r.kind === "Deployment"
+      && r.metadata.labels["app.kubernetes.io/component"] === component)
+      .spec.template.metadata.annotations["checksum/control-config"];
+    assert.notEqual(checksum(first), checksum(upgraded));
+  }
+  assert.throws(() => render(["openshift.enabled=true", "openshift.runtimeImages.enabled=true",
+    "secrets.existingSecrets.control=external"]), /Chart-managed Control configuration/);
+  assert.doesNotThrow(() => render(["secrets.existingSecrets.control=external"]));
+  assert.throws(() => render(["openshift.enabled=true", "openshift.runtimeImages.enabled=true",
+    "images.exampleMcp.repository=vendor/tali-control", "images.exampleMcp.useGlobalRegistry=false"]), /mapping collision/);
+});
 
 test("OCP automatically shares every tenant image, including Gateway/certgen and Supervisor", () => {
   const ordinary = render();
@@ -292,7 +330,8 @@ test("OCP import plan follows rendered tags/digests without exporting configurat
   const source = asYaml(render(settings));
   const target = asYaml(render([...settings, "openshift.enabled=true", "openshift.runtimeImages.enabled=true"]));
   const plan = imagePlan(source, target);
-  assert.equal(plan.images.length, 8);
+  assert.equal(plan.images.length, 9);
+  assert(plan.images.some(i => i.roles.includes("demo") && i.stream === "demo-test"));
   assert.deepEqual(plan.images.find(i => i.roles.includes("gateway")).roles, ["gateway", "certgen"]);
   assert.equal(plan.images.find(i => i.roles.includes("hermes")).tag, "v7");
   assert.equal(plan.images.find(i => i.roles.includes("sandbox")).tag, "relay-sha256-" + "b".repeat(64));

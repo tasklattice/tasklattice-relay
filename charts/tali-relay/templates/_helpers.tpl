@@ -386,6 +386,11 @@ master_key = {{ (include "tali.credential" "litellmMasterKey") | toJson }}
 enabled = {{ .Values.projectRuntimeNamespaces.enabled }}
 cluster_id = {{ .Values.projectRuntimeNamespaces.clusterId | toJson }}
 
+[demo_agents]
+image = {{ include "tali.runtimeImage" (dict "root" . "image" .Values.images.exampleMcp) | toJson }}
+imagePullPolicy = {{ .Values.images.exampleMcp.pullPolicy | toJson }}
+imagePullSecrets = {{ include "tali.tomlValue" .Values.global.imagePullSecrets }}
+
 [metrics]
 token = {{ (include "tali.credential" "metricsToken") | toJson }}
 

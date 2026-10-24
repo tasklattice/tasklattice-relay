@@ -42,6 +42,7 @@ import {
 import { AgentGardenStore } from "./agent-garden-store";
 import { builtInAgentCatalog } from "./built-in-agent-catalog";
 import { databaseAgentCatalog } from "./database-agent-catalog";
+import { configuredDemoAgent } from "./demo-agent-runtime";
 
 function safeError(error: unknown): string {
   return (
@@ -276,7 +277,7 @@ export class AgentGardenService {
       agents: [
         ...builtInAgentCatalog,
         ...databaseAgentCatalog.map(
-          (agent) => persistedById.get(agent.id) ?? agent,
+          (agent) => configuredDemoAgent(persistedById.get(agent.id) ?? agent),
         ),
         ...persistedAgents.filter(
           (agent) =>
@@ -934,6 +935,9 @@ export class AgentGardenService {
     try {
       const runtime = await this.runtime.onboard({
         ...input,
+        imagePullPolicy: getControlConfig().demo_agents.imagePullPolicy,
+        imagePullSecrets: getControlConfig().demo_agents.imagePullSecrets,
+        prepareImagePull: true,
         agentId: agent.id,
         instanceId,
         namespace: target.namespace,
@@ -1027,11 +1031,11 @@ export class AgentGardenService {
 
   private async requireCallableAgent(id: string): Promise<AgentGardenEntry> {
     const existing = await this.store.getAgent(id);
-    if (existing) return existing;
+    if (existing) return configuredDemoAgent(existing);
     const developed = (await this.developedAgents()).find((agent) => agent.id === id);
     if (developed) return developed;
     const seeded = databaseAgentCatalog.find((candidate) => candidate.id === id);
     if (!seeded) throw new Error("Agent Garden entry was not found.");
-    return this.store.saveAgent(seeded);
+    return configuredDemoAgent(await this.store.saveAgent(seeded));
   }
 }

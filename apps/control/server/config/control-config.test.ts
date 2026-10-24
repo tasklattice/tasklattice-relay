@@ -49,6 +49,15 @@ function loadWorker(raw: string) {
 }
 
 describe("component configuration contract", () => {
+  it("keeps old Control configuration loadable and validates Demo pull settings", () => {
+    const { demo_agents: _demo, ...old } = developmentControlConfig();
+    expect(load(stringify(old)).demo_agents).toEqual({
+      image: "ghcr.io/tasklattice/demo-test:dev", imagePullPolicy: "IfNotPresent", imagePullSecrets: [],
+    });
+    expect(() => load(stringify({ ...old, demo_agents: { image: "" } }))).toThrow("demo_agents");
+    expect(() => load(stringify({ ...old, demo_agents: { imagePullPolicy: "Sometimes" } }))).toThrow("demo_agents");
+  });
+
   it("serves the Agent catalog in production without Worker configuration", async () => {
     const store = createTestStore();
     load(stringify(developmentControlConfig()));

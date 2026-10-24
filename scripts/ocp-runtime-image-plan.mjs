@@ -16,6 +16,8 @@ function inventory(yaml) {
   if (specs.length !== 1) throw Error('Expected one credential bootstrap specification');
   const output = JSON.parse(specs[0].data['spec.json']).outputs.find(o => o.fields?.['runner.json']);
   if (!output) throw Error('Expected Chart-managed Runner configuration');
+  const control = JSON.parse(specs[0].data['spec.json']).outputs.find(o => o.fields?.['control.toml']);
+  if (!control) throw Error('Expected Chart-managed Control configuration for built-in Demo images');
   const platforms = JSON.parse(output.fields['runner.json']).openshell.sandbox.images;
   if (JSON.stringify(Object.values(platforms).sort()) !== JSON.stringify([...(worker.project_openshell.sandboxImages ?? [])].sort())) {
     throw Error('Worker and Runner platform images differ');
@@ -27,6 +29,7 @@ function inventory(yaml) {
     sandbox: g.sandboxImage,
     openclaw: platforms.openclaw, hermes: platforms.hermes, deepagents: platforms.deepagents,
     bridge: worker.project_runtime_bridge.image, expert: worker.expert_agent_runtime.image,
+    demo: parseToml(control.fields['control.toml']).demo_agents.image,
   } };
 }
 

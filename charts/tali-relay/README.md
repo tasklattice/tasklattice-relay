@@ -820,3 +820,62 @@ for tenant-local pull credentials, bounded by `openshift.imagePullReadyTimeoutMs
 (default 120000). Deploy the updated Worker image and chart together; the image
 bundles the certgen existing-SA patch. See
 [cross-namespace pulling and upgrade acceptance](../../docs/openshell-install-troubleshooting.md#openshift-cross-namespace-imagestream-pulling).
+
+## Built-in Demo Agent images
+
+UI-created GitHub Daily Triage, Pull Request Risk Scanner, and Support Escalation
+Router Instances use `images.exampleMcp`, independently of `exampleMcp.enabled`.
+That switch controls only the optional Example MCP Deployment in the control
+namespace. The same image setting is written to `[demo_agents]` in `control.toml`
+and consumed by Control Worker when creating tenant Demo workloads.
+
+```yaml
+images:
+  exampleMcp:
+    repository: demo-test
+    tag: "<release-tag>"
+    pullPolicy: IfNotPresent
+```
+
+The default source is `global.imageRegistry/demo-test:<release-tag>`. To use a
+complete private repository without the global prefix:
+
+```yaml
+images:
+  exampleMcp:
+    repository: registry.internal.example.com/relay/demo-test
+    useGlobalRegistry: false
+    tag: "<release-tag>"
+    pullPolicy: IfNotPresent
+```
+
+With `openshift.enabled=true` and `openshift.runtimeImages.enabled=true`, tenant
+Demo images are rewritten to the configured OCP registry and source namespace,
+just like Bridge and Sandbox images. The OCP import-plan script includes the
+Demo ImageStream even when `exampleMcp.enabled=false`. Import it before creating
+a Demo Instance. The control-namespace Example MCP Deployment retains the
+normal `tali.image` address. For digest pinning use `tag: "<tag>@sha256:<digest>"`.
+
+Demo workloads honor `global.imagePullSecrets`; these are references to Secrets
+in the **tenant namespace**, not copies from the control namespace. OCP internal
+pulls also wait for the tenant default SA's ready pull credentials. The default
+SA's cross-namespace image-puller grant is established during Project
+initialization. Ordinary Kubernetes keeps explicit registry addresses and uses
+the configured pull policy and Secret references.
+
+Upgrade the Chart and Control/Worker image together. Changed Demo settings roll
+both Control and Worker through their configuration checksum. Existing built-in
+catalog entries resolve the deployed settings when displayed or instantiated,
+so old `:dev` references or cached catalog digests do not override new settings.
+No catalog reset is required. Existing running Instances are not restarted by
+catalog reads; retry a failed creation after upgrading to use the new image.
+User-registered Agent images remain user-controlled. Image digest pinning keeps
+the configured registry/repository even if the container runtime reports an
+upstream GHCR reference.
+
+External Control configuration must supply `[demo_agents]` (`image`,
+`imagePullPolicy`, `imagePullSecrets`) explicitly. Unified OCP mapping rejects
+`secrets.existingSecrets.control` to avoid silently deploying an unmapped Demo;
+use Chart-managed configuration, or disable unified mapping and maintain the
+external image references yourself. Older standalone Control configs without
+this section remain loadable with the development default.

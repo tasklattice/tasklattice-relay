@@ -1,5 +1,6 @@
 import { PatchStrategy, type V1Deployment, type V1Service } from "@kubernetes/client-node";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import * as imagePull from "./project-image-pull-readiness";
 import {
   KubernetesManagedAgentRuntimeClient,
   managedAgentRevisionKey,
@@ -30,6 +31,8 @@ const input: ManagedAgentRuntimeInput = {
   args: [],
 };
 
+afterEach(() => vi.restoreAllMocks());
+
 function notFound(): never {
   throw { code: 404 };
 }
@@ -42,6 +45,54 @@ function readyDeployment(): V1Deployment {
 }
 
 describe("KubernetesManagedAgentRuntimeClient", () => {
+  it("does not deploy a Demo before its pull credentials are ready", async () => {
+    vi.spyOn(imagePull, "prepareRuntimeImagePull").mockRejectedValue(new Error("Pull credentials not ready"));
+    const objects = { patch: vi.fn() };
+    const client = new KubernetesManagedAgentRuntimeClient(
+      { readNamespacedDeployment: vi.fn(notFound) } as never,
+      { readNamespacedService: vi.fn(notFound) } as never,
+      objects as never, 100, 1,
+    );
+    await expect(client.onboard({ ...input, prepareImagePull: true }))
+      .rejects.toThrow("Pull credentials not ready");
+    expect(objects.patch).not.toHaveBeenCalled();
+  });
+
+  it("prepares Demo pull credentials and preserves the mirror through digest pinning", async () => {
+    const demoInput = { ...input, prepareImagePull: true, imagePullPolicy: "Never" as const,
+      image: "image-registry.openshift-image-registry.svc:5000/tali/demo:rc4",
+      imagePullSecretName: "", imagePullSecrets: [{ name: "global-pull" }],
+    };
+    const secrets = [{ name: "global-pull" }, { name: "default-dockercfg" }];
+    const prepare = vi.spyOn(imagePull, "prepareRuntimeImagePull").mockResolvedValue(secrets);
+    let deployment: V1Deployment | undefined;
+    const objects = { patch: vi.fn(async (resource: V1Deployment | V1Service) => {
+      if (resource.kind === "Deployment") deployment = resource as V1Deployment;
+      return {};
+    }) };
+    const apps = { readNamespacedDeployment: vi.fn(async () => deployment ? readyDeployment() : notFound()) };
+    const core = {
+      readNamespacedService: vi.fn(notFound),
+      listNamespacedPod: vi.fn(async () => ({ items: [{
+        metadata: { name: "demo-pod", labels: deployment!.spec!.template.metadata!.labels },
+        spec: deployment!.spec!.template.spec,
+        status: { containerStatuses: [{ name: "agent", ready: true,
+          imageID: "docker-pullable://ghcr.io/tasklattice/demo-test@sha256:" + "b".repeat(64) }] },
+      }] })),
+    };
+    const client = new KubernetesManagedAgentRuntimeClient(apps as never, core as never, objects as never, 100, 1);
+    const result = await client.onboard(demoInput);
+    expect(prepare).toHaveBeenCalledWith(demoInput, demoInput.image, [{ name: "global-pull" }]);
+    expect(prepare.mock.invocationCallOrder[0]).toBeLessThan(objects.patch.mock.invocationCallOrder[0]!);
+    expect(result.imageDigest).toBe("image-registry.openshift-image-registry.svc:5000/tali/demo@sha256:" + "b".repeat(64));
+    for (const [resource] of objects.patch.mock.calls.filter(([r]) => r.kind === "Deployment")) {
+      const spec = (resource as V1Deployment).spec!.template.spec!;
+      expect(spec.imagePullSecrets).toEqual(secrets);
+      expect(spec.containers[0]!.image).toMatch(/^image-registry\./);
+      expect(spec.containers[0]!.imagePullPolicy).toBe("Never");
+    }
+  });
+
   it("deploys a hardened service and pins the resolved image digest", async () => {
     const apps = {
       readNamespacedDeployment: vi.fn()

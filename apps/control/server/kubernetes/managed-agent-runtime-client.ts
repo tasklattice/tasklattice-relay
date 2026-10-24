@@ -13,6 +13,7 @@ import {
 } from "@kubernetes/client-node";
 import type { OnboardContainerImageAgentInput } from "@tali/contracts";
 import { loadPlatformRuntimeConfiguration } from "../platform/platform-runtime-config";
+import { prepareRuntimeImagePull } from "./project-image-pull-readiness";
 
 const FIELD_MANAGER = "tali-control-managed-agent";
 const DEFAULT_ONBOARD_TIMEOUT_MS = 120_000;
@@ -43,6 +44,9 @@ export interface ManagedAgentRuntimeInput
   instanceId: string;
   namespace: string;
   projectId: string;
+  imagePullPolicy?: "Always" | "IfNotPresent" | "Never";
+  imagePullSecrets?: Array<{ name: string }>;
+  prepareImagePull?: boolean;
 }
 
 export interface ManagedAgentRuntimeResult {
@@ -105,6 +109,8 @@ export function managedAgentRevisionKey(
       input.agentCardPath,
       input.image,
       input.imagePullSecretName,
+      ...(input.imagePullPolicy || input.imagePullSecrets
+        ? [input.imagePullPolicy, input.imagePullSecrets] : []),
       input.command,
       input.args,
       image,
@@ -207,8 +213,8 @@ function deploymentResource(
         },
         spec: {
           automountServiceAccountToken: false,
-          ...(input.imagePullSecretName
-            ? { imagePullSecrets: [{ name: input.imagePullSecretName }] }
+          ...(input.imagePullSecrets?.length || input.imagePullSecretName
+            ? { imagePullSecrets: input.imagePullSecrets ?? [{ name: input.imagePullSecretName }] }
             : {}),
           securityContext: {
             seccompProfile: { type: "RuntimeDefault" },
@@ -217,7 +223,7 @@ function deploymentResource(
             {
               name: "agent",
               image,
-              imagePullPolicy: managedImagePullPolicy(image),
+              imagePullPolicy: input.imagePullPolicy ?? managedImagePullPolicy(image),
               ...(input.command.length ? { command: input.command } : {}),
               ...(input.args.length ? { args: input.args } : {}),
               env: [
@@ -326,7 +332,8 @@ export function pinnedImageReference(
   if (requestedImage.includes("@sha256:")) return requestedImage;
   if (!imageId) return undefined;
   const normalized = imageId.replace(/^[a-z][a-z0-9+.-]*:\/\//i, "");
-  if (normalized.includes("@sha256:")) return normalized;
+  // CRI may report the upstream registry for a mirrored OCP image. Keep the
+  // requested repository so the pinning rollout cannot escape the mirror.
   const digest = normalized.match(/sha256:[a-f0-9]{64}/i)?.[0];
   return digest ? `${imageRepository(requestedImage)}@${digest}` : undefined;
 }
@@ -430,6 +437,11 @@ export class KubernetesManagedAgentRuntimeClient
   ): Promise<ManagedAgentRuntimeResult> {
     await this.assertExistingOwnership(input);
     const owner = await readProjectNamespaceOwner(input.namespace, input.projectId);
+    if (input.prepareImagePull) {
+      input = { ...input, imagePullSecrets: await prepareRuntimeImagePull(
+        input, input.image, input.imagePullSecrets ?? [],
+      ) };
+    }
     await this.apply(withNamespaceOwner(serviceResource(input), owner));
     await this.apply(withNamespaceOwner(deploymentResource(input, input.image), owner));
     let readyPod = await this.waitUntilReady(input, input.image);

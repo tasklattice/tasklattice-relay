@@ -7,10 +7,24 @@ import {
   demoAgentEndpoint,
   hermesMvpA2aAgentIds,
   runDemoAgentMessage,
+  configuredDemoAgent,
 } from "./demo-agent-runtime";
 import { databaseAgentCatalog } from "./database-agent-catalog";
 
 describe("demo Agent runtime", () => {
+  it("resolves current deployment images without rewriting user-registered Agents", () => {
+    const image = "registry.local/demos/daily@sha256:" + "b".repeat(64);
+    getControlConfig().demo_agents.image = image;
+    const old = databaseAgentCatalog.find(a => a.id === "a2a-github-daily-triage")!;
+    const stored = { ...old, configuration: { ...old.configuration,
+      imageReference: "ghcr.io/tasklattice/demo-test:dev", imageDigest: "old-digest" } };
+    expect(configuredDemoAgent(stored).configuration.imageReference).toBe(image);
+    expect(configuredDemoAgent(stored).configuration.imageDigest).toBeUndefined();
+    expect(stored.configuration.imageDigest).toBe("old-digest");
+    const registered = { ...stored, source: "PROJECT_REGISTERED" as const };
+    expect(configuredDemoAgent(registered)).toBe(registered);
+  });
+
   it("uses the deployed Control Service origin for callable examples", () => {
     getControlConfig().server.internal_url = "http://tali-relay-control.tali.svc.cluster.local:38080/";
     expect(demoAgentEndpoint("a2a-github-daily-triage")).toBe(

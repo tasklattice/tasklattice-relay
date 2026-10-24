@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { getControlConfig, setControlConfigForTests } from "../config/control-config";
 import type {
   AgentPlatformId,
   Instance as Agent,
@@ -12,6 +13,51 @@ import type { AgentDiscoveryClient } from "./agent-discovery";
 import { AgentGardenService } from "./agent-garden-service";
 import { AgentGardenStore } from "./agent-garden-store";
 import { databaseAgentCatalog } from "./database-agent-catalog";
+
+afterEach(() => setControlConfigForTests(undefined));
+
+it.each([false, true])("creates built-in Demos with deployment settings (old catalog=%s)", async (existing) => {
+  const projectStore = createTestStore();
+  await projectStore.database().projectRuntimeTarget.create({ data: {
+    projectId: projectStore.projectId, clusterId: "in-cluster",
+    namespace: "tp-abcdefghijklm", status: "ready",
+  } });
+  const store = new AgentGardenStore(projectStore.projectId, projectStore.database());
+  const id = "a2a-github-daily-triage";
+  if (existing) {
+    const old = databaseAgentCatalog.find(a => a.id === id)!;
+    await store.saveAgent({ ...old, configuration: { ...old.configuration,
+      imageReference: "ghcr.io/tasklattice/demo-test:dev", imageDigest: "ghcr.io/tasklattice/demo-test@sha256:" + "a".repeat(64),
+    } });
+  }
+  const image = "image-registry.openshift-image-registry.svc:5000/control-images/daily:rc4";
+  getControlConfig().demo_agents = {
+    image, imagePullPolicy: "Never", imagePullSecrets: [{ name: "offline-pull" }],
+  };
+  const runtime: ManagedAgentRuntimeClient = {
+    onboard: vi.fn(async input => ({
+      endpoint: "http://demo.tp-abcdefghijklm.svc.cluster.local:3000",
+      agentCardUrl: "http://demo.tp-abcdefghijklm.svc.cluster.local:3000/.well-known/agent-card.json",
+      deploymentName: "demo", serviceName: "demo", podName: "demo-pod",
+      namespace: input.namespace, imageReference: input.image,
+      imageDigest: input.image.split(":rc4")[0] + "@sha256:" + "b".repeat(64),
+    })),
+    remove: vi.fn(async () => undefined),
+  };
+  const discovery: AgentDiscoveryClient = { discover: vi.fn(async agent => ({
+    endpoint: agent.endpoint!, agentCardUrl: agent.agentCardUrl!, a2a: a2aProfile, skills: agent.skills,
+  })) };
+  const service = new AgentGardenService(store, projectStore, discovery, undefined, runtime);
+  // Create directly: no preceding catalog refresh or migration is required.
+  expect(await service.instantiate(id, "local-admin")).toMatchObject({ status: "READY", imageReference: image });
+  expect(runtime.onboard).toHaveBeenCalledWith(expect.objectContaining({
+    image, imagePullPolicy: "Never", imagePullSecrets: [{ name: "offline-pull" }],
+    prepareImagePull: true, args: ["a2a", id],
+  }));
+  const snapshot = await service.snapshot();
+  expect(snapshot.agents.find(a => a.id === id)?.configuration.imageReference).toBe(image);
+  expect(runtime.onboard).toHaveBeenCalledTimes(1);
+});
 
 function coordinator(
   id = "coordinator-a",

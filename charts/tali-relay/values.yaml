@@ -88,6 +88,8 @@ images:
     tag: "1.87.0-guard.3"
     pullPolicy: IfNotPresent
   exampleMcp:
+    # Also used by UI-created built-in Demo Agents in tenant namespaces,
+    # regardless of exampleMcp.enabled. OCP runtimeImages rewrites tenant URLs.
     repository: demo-test
     tag: ""
     pullPolicy: IfNotPresent

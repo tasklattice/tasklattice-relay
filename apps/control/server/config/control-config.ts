@@ -105,6 +105,11 @@ const controlConfigSchema = z
     runtime_namespaces: runtimeNamespacesConfigSchema.default(
       defaultRuntimeNamespacesConfig,
     ),
+    demo_agents: z.object({
+      image: z.string().trim().min(1).default("ghcr.io/tasklattice/demo-test:dev"),
+      imagePullPolicy: z.enum(["Always", "IfNotPresent", "Never"]).default("IfNotPresent"),
+      imagePullSecrets: z.array(z.object({ name: z.string().min(1) }).strict()).default([]),
+    }).strict().prefault({}),
   })
   .strict();
 
