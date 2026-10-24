@@ -94,7 +94,7 @@ while IFS= read -r ns; do
 done < "$EVIDENCE/tenants.before.txt"
 ```
 
-统一模式要求 Chart 管理 Worker/Runner 配置；若已有 `secrets.existingSecrets.worker` 或 `.runner`，先迁移配置管理方式，或保持 `runtimeImages.enabled=false` 手工同步两端。本手册在渲染阶段会拒绝半自动迁移。
+Chart 统一生成 Worker/Runner 配置，两端的运行时镜像来自同一组 values；无需分别维护组件 Secret。
 
 ## 2. 生成实际镜像导入清单
 

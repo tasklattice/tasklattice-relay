@@ -28,6 +28,7 @@ changes the tag to the permanent `dev` value:
 ```text
 ghcr.io/tasklattice/tali-control:dev
 ghcr.io/tasklattice/tali-openshell-runner:dev
+ghcr.io/tasklattice/tali-expert-agent-runtime:dev
 ghcr.io/tasklattice/demo-test:dev
 ghcr.io/tasklattice/tali-nemoclaw-sandbox:dev
 ghcr.io/tasklattice/tali-nemoclaw-hermes-sandbox:dev
@@ -66,7 +67,7 @@ context, and finally an available `orbstack` context.
 
 ```sh
 git clone git@github.com:tasklattice/tasklattice-relay.git
-cd TaskLattice Relay
+cd tasklattice-relay
 npm ci
 npm test
 npm run typecheck
@@ -106,6 +107,7 @@ Confirm the resulting images:
 ```sh
 docker image inspect ghcr.io/tasklattice/tali-control:dev
 docker image inspect ghcr.io/tasklattice/tali-openshell-runner:dev
+docker image inspect ghcr.io/tasklattice/tali-expert-agent-runtime:dev
 docker image inspect ghcr.io/tasklattice/tali-litellm:1.87.0-guard.3  # pulled; published by tasklattice-litellm-guard
 docker image inspect ghcr.io/tasklattice/tali-nemoclaw-sandbox:dev
 docker image inspect ghcr.io/tasklattice/tali-nemoclaw-hermes-sandbox:dev
@@ -118,6 +120,7 @@ Individual build commands are available for shorter loops:
 ```sh
 npm run images:build:dev:control
 npm run images:build:dev:runner
+npm run images:build:dev:expert-agent-runtime
 npm run images:build:dev:litellm
 npm run images:build:dev:demo-test
 npm run images:build:dev:sandbox:openclaw
@@ -127,8 +130,9 @@ npm run images:build:dev:sandbox:deepagents
 
 ## Deploy with Helm
 
-The development values install TaskLattice Relay, LiteLLM, PostgreSQL, OpenShell, and
-the Agent Sandbox controller as one Helm release:
+The development values install the Relay control plane, Runner, LiteLLM,
+PostgreSQL, Docling, Hindsight, and Agent Sandbox controller in namespace `tali`.
+Control Worker provisions an OpenShell Gateway in each Project namespace:
 
 ```sh
 KUBE_CONTEXT=orbstack npm run helm:deploy:dev
@@ -136,7 +140,7 @@ KUBE_CONTEXT=orbstack npm run helm:deploy:dev
 
 The deploy script:
 
-- verifies that all five `:dev` images exist locally;
+- verifies the required development images exist locally;
 - loads them into Kind when the context name starts with `kind-`;
 - installs `charts/tali-relay` with `values-dev.yaml`;
 - changes `global.rolloutRevision` so rebuilt mutable images create new Pods;
@@ -145,16 +149,31 @@ The deploy script:
 Verify the workloads:
 
 ```sh
-kubectl -n tali-sandboxes rollout status deployment/tali-relay-control --timeout=300s
-kubectl -n tali-sandboxes rollout status deployment/tali-relay-runner --timeout=300s
-kubectl -n tali-sandboxes rollout status deployment/tali-relay-litellm --timeout=300s
-kubectl -n tali-sandboxes rollout status statefulset/tali-relay-postgresql --timeout=300s
-kubectl -n tali-sandboxes rollout status statefulset/tali-relay-openshell --timeout=300s
-kubectl -n tali-sandboxes rollout status deployment/agent-sandbox-controller --timeout=300s
+kubectl -n tali rollout status deployment/tali-relay-control --timeout=300s
+kubectl -n tali rollout status deployment/tali-relay-runner --timeout=300s
+kubectl -n tali rollout status deployment/tali-relay-litellm --timeout=300s
+kubectl -n tali rollout status statefulset/tali-relay-postgresql --timeout=300s
+kubectl -n tali rollout status deployment/agent-sandbox-controller --timeout=300s
 ```
 
-On OrbStack, open `http://localhost:38080` and sign in with `admin / admin`. The
-LiteLLM development UI uses `admin / tali-local-admin`.
+On OrbStack, run `npm run helm:deploy:dev:keycloak` to deploy into namespace
+`tali`, enable Keycloak, and initialize the development Projects. Re-running it
+reuses existing Projects by name. OrbStack exposes the Services directly:
+
+| Component | URL | Account | Password |
+| --- | --- | --- | --- |
+| Relay | `http://localhost:38080` | `admin` | `password` |
+| LiteLLM | `http://localhost:4000/ui/` | `admin` | `password` |
+| Keycloak admin | `http://keycloak.localhost:8180/admin/` | `admin` | `password` |
+| Keycloak SSO test users | Relay's Keycloak sign-in | Configured test username | `password` |
+
+Local deployment requires no CA installation, certificate generation, or separate
+reverse proxy. Use `CONTROL_SERVICE_PORT` to change Relay's local port.
+
+The development profile also uses `password` for PostgreSQL, Hindsight's database
+and Example MCP. Service tokens, OIDC client secrets and encryption keys remain
+random and stable across init Job reruns. The base Chart keeps random account
+passwords; use `values-dev.yaml` only on a trusted local cluster.
 
 The development values disable OpenShell TLS and allow unauthenticated gateway
 clients. Use them only on a trusted local cluster.
@@ -167,7 +186,7 @@ validate the runtime flow through the Control console:
 
 1. Create an Instance with one or more Active Access Policies and confirm it
    reaches `READY`.
-2. OpenShell publishes the Agent UI and its routed endpoint returns HTTP 200.
+2. Open the native Agent UI through `/<projectId>/<instanceId>/ui/` on the Control origin and verify its HTTP and WebSocket connection.
 3. The terminal connects to the same-name Sandbox Pod.
 4. `/etc/hostname` matches the Instance `sandboxName`.
 5. The pinned Agent runtime and `/usr/local/bin/nemoclaw-start` are available.
@@ -181,9 +200,10 @@ a release gate until that migration is complete.
 Useful runtime inspection commands:
 
 ```sh
-kubectl -n tali-sandboxes get sandboxes,pods,pvc
-kubectl -n tali-sandboxes logs deployment/tali-relay-runner --tail=200
-kubectl -n tali-sandboxes logs statefulset/tali-relay-openshell --tail=200
+kubectl -n tali logs deployment/tali-relay-runner --tail=200
+# Use the actual tp-... Project ID shown in Relay; it is also its namespace.
+kubectl -n <project-id> get sandboxes,pods,pvc
+kubectl -n <project-id> logs deployment/openshell-<project-id> --tail=200
 ```
 
 ## Host-only API and UI development
@@ -203,7 +223,7 @@ Terminal 2:
 
 ```sh
 docker run --rm --name tali-dev-postgres \
-  -e POSTGRES_PASSWORD=tali \
+  -e POSTGRES_PASSWORD=password \
   -e POSTGRES_DB=tali \
   -p 5432:5432 pgvector/pgvector:0.8.6-pg17
 ```
@@ -213,13 +233,16 @@ Terminal 3:
 ```sh
 cp control.example.toml control.toml
 # Set database.url to:
-# postgresql://postgres:tali@127.0.0.1:5432/tali
+# postgresql://postgres:password@127.0.0.1:5432/tali
+# Set server.public_urls to ["http://localhost:5173"], auth.secret to a random
+# secret of at least 32 characters, and the initial administrator password to
+# password for local development.
 export TALI_CONFIG="$PWD/control.toml"
 npm run db:migrate --workspace @tali/control
-PORT=18080 npm run dev:control
+npm run dev:control
 ```
 
-The control console is then available at `http://127.0.0.1:18080`.
+The control console is then available at `http://localhost:5173`.
 
 ## Rebuild and roll out
 
@@ -290,7 +313,7 @@ remains `dev`.
 Inspect the Sandbox, runner, and OpenShell gateway:
 
 ```sh
-kubectl -n tali-sandboxes get sandboxes,pods,pvc
-kubectl -n tali-sandboxes logs deployment/tali-relay-runner --tail=200
-kubectl -n tali-sandboxes logs statefulset/tali-relay-openshell --tail=200
+kubectl -n tali get sandboxes,pods,pvc
+kubectl -n tali logs deployment/tali-relay-runner --tail=200
+kubectl -n tali logs statefulset/tali-relay-openshell --tail=200
 ```

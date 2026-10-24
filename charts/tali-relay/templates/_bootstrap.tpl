@@ -3,10 +3,16 @@
 {{- end }}
 
 {{- define "tali.exampleMcpSecretName" -}}
-{{- default (printf "%s-auth" (include "tali.componentName" (dict "root" . "component" "example-mcp"))) .Values.secrets.existingSecrets.exampleMcp -}}
+{{- printf "%s-auth" (include "tali.componentName" (dict "root" . "component" "example-mcp")) -}}
 {{- end }}
 
 {{- define "tali.bootstrapSpec" -}}
+{{- if not (kindIs "bool" .Values.credentialBootstrap.developmentMode) -}}
+{{- fail "credentialBootstrap.developmentMode must be a boolean" -}}
+{{- end -}}
+{{- if and .Values.credentialBootstrap.developmentMode .Values.credentialBootstrap.existingSecret -}}
+{{- fail "Local development credentials cannot use an external credential store" -}}
+{{- end -}}
 {{- $outputs := list -}}
 {{- $definitions := list
   (dict "component" "control" "enabled" true "fields" (dict "control.toml" (include "tali.controlConfig" .)) "formats" (dict "control.toml" "toml"))
@@ -19,11 +25,11 @@
   (dict "component" "exampleMcp" "enabled" .Values.exampleMcp.enabled "fields" (dict "username" .Values.exampleMcp.auth.username "password" (include "tali.credential" "exampleMcpPassword") "auth-value" (printf "%s:%s" .Values.exampleMcp.auth.username (include "tali.credential" "exampleMcpPassword"))))
 -}}
 {{- range $item := $definitions -}}
-{{- if and $item.enabled (not (index $.Values.secrets.existingSecrets $item.component)) -}}
+{{- if $item.enabled -}}
 {{- $name := include "tali.secretName" (dict "root" $ "component" $item.component) -}}
 {{- if eq $item.component "exampleMcp" -}}{{- $name = include "tali.exampleMcpSecretName" $ -}}{{- end -}}
 {{- $outputs = append $outputs (dict "name" $name "fields" $item.fields "formats" (default dict $item.formats)) -}}
 {{- end -}}
 {{- end -}}
-{{- dict "namespace" .Release.Namespace "release" .Release.Name "credentialSecret" (include "tali.credentialSecretName" .) "externalCredentials" (not (empty .Values.credentialBootstrap.existingSecret)) "databaseHost" (printf "%s.%s.svc.cluster.local" (include "tali.componentName" (dict "root" . "component" "postgresql")) .Release.Namespace) "hindsightDatabase" (include "tali.hindsightDatabaseName" .) "hindsightUser" (include "tali.hindsightDatabaseUser" .) "outputs" $outputs | toJson -}}
+{{- dict "namespace" .Release.Namespace "release" .Release.Name "developmentMode" .Values.credentialBootstrap.developmentMode "credentialSecret" (include "tali.credentialSecretName" .) "externalCredentials" (not (empty .Values.credentialBootstrap.existingSecret)) "databaseHost" (printf "%s.%s.svc.cluster.local" (include "tali.componentName" (dict "root" . "component" "postgresql")) .Release.Namespace) "hindsightDatabase" (include "tali.hindsightDatabaseName" .) "hindsightUser" (include "tali.hindsightDatabaseUser" .) "outputs" $outputs | toJson -}}
 {{- end }}

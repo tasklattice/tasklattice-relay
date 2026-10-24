@@ -198,17 +198,15 @@ forward the Control Service and open `http://127.0.0.1:18080`:
 kubectl -n tali port-forward service/tali-relay-control 18080:38080
 ```
 
-Keep this second forward running when validating a Sandbox Agent UI through
-OpenShell:
+On OrbStack, the Service is directly available at `http://localhost:38080`.
+Agent native UIs use `/<projectId>/<instanceId>/ui/` on the same Control
+origin; no additional public service, port-forward, or local certificate is needed.
 
-```sh
-kubectl -n tali port-forward service/tali-relay-openshell 8080:8080
-```
-
-The checked-in Chart defaults are suitable only for a trusted cluster: local
-login is `admin / admin`, and OpenShell permits unauthenticated plaintext
-gateway clients. Before shared or internet-facing use, override every
-`secrets.*` value and configure authenticated ingress plus OpenShell TLS/OIDC.
+The base Chart generates and retains independent credentials in its bootstrap
+Secret. The trusted local `values-dev.yaml` profile uses `admin / password` for
+Relay, LiteLLM and Keycloak; configured SSO test users also use `password`.
+Machine tokens and encryption keys remain random. Shared environments must use
+the base credential profile and configure their existing ingress and runtime security.
 For an end-to-end SSO test environment, the Chart can deploy an ephemeral,
 preconfigured Keycloak. Do not enable `keycloak.enabled` alone:
 `keycloak.publicUrl` must be reachable from both the browser and the Control

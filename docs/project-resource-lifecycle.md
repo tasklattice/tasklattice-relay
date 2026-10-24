@@ -123,8 +123,8 @@ Gateway database and login. A failed uninstall retains database state for retry.
 
 Control and Worker still share core `control.toml` credentials. Only Worker
 mounts `worker.toml` (`TALI_WORKER_CONFIG`), with OpenShell, Runtime Bridge,
-Expert Agent and Docling settings. `secrets.existingSecrets.worker` independently
-selects an externally managed Worker Secret. Control's configuration schema
+Expert Agent and Docling settings. Helm renders the Worker configuration and
+the bootstrap Job generates the shared Control configuration. Control's configuration schema
 rejects the former Worker section. Its cluster role permits only diagnostic
 reads; the Worker service account owns resource mutation permissions.
 

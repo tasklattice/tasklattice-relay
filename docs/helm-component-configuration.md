@@ -43,6 +43,13 @@ their saved values remain authoritative across restarts. SSO and SMTP
 remain database-owned. All other deployment sections are read directly from
 the file and take effect after a rollout.
 
+The Chart's [values guide](../charts/tali-relay/README.md#default-values-and-advanced-overrides)
+describes the supported deployment settings and optional Docling/Argo CD
+integrations. Component Secret contents, Gateway names/chart path, sync order,
+and test identities are managed by the Chart. The generated LiteLLM bootstrap URL
+follows `litellm.service.port`; an already-saved Platform URL remains
+database-owned and must be updated there when changing that Service port.
+
 Control and Worker retain only process/bootstrap environment (`TALI_CONFIG`, `TALI_WORKER_CONFIG` for Worker,
 `PORT`, Kubernetes discovery, CA path and cache locations). The old business
 environment overrides and `control.extraEnv` / `control.worker.extraEnv` are
@@ -53,17 +60,26 @@ generates and retains the credential store, then renders component files. See
 Changes to generated Control or Hindsight config roll the respective consumers.
 The Hindsight migration Job name includes its configuration/launcher checksum,
 so an immutable existing Job cannot hide a new migration configuration.
-With `secrets.existingSecrets.<component>`, supply that component's file/keys and bump
-`global.rolloutRevision` when updating an external Secret; Helm cannot hash
-externally managed contents. Mounts expose only the file each component uses.
+Mounts expose only the file each component uses. The bootstrap Job derives all
+component credentials from one store; `credentialBootstrap.existingSecret`
+selects an operator-supplied credential source without replacing component files.
 
 Project Gateway deployment settings live in `[worker.project_openshell]`:
 Gateway/Supervisor images, base image, chart, Agent workspace storage and pull policy.
-Tenant TLS/auth remain fixed by the supported Project topology and are validated
-by Helm; they are no longer passed to Runner as display-only environment values.
+Tenant TLS/auth are set by the provisioner for the supported Project topology;
+they are not exposed as Helm values. Control Worker, Project
+Namespaces, Project Gateways and Project routing are always enabled. The Chart
+fixes Runner's Gateway endpoint to `openshell-<namespace>.<namespace>` on port
+8080 and the internal OpenShell Host base to `http://openshell.localhost:8080`;
+Agent UI uses the Control origin.
 Related provisioners live in `[worker.project_runtime_bridge]`,
 `[worker.expert_agent_runtime]`, `[worker.resource_ownership]` and
 `[worker.provisioning]`. These sections live only in `worker.toml`.
+The Chart always enables resource ownership. Optional Argo CD annotations are
+deployment settings read by Worker after rollout; configure them through the
+[advanced values example](../charts/tali-relay/examples/project-runtime-argocd-values.yaml).
+Only `projectRuntimeNamespaces.clusterId` seeds a missing Platform cluster ID;
+subsequent Helm upgrades do not overwrite the saved cluster ID.
 Control commits desired state and durable jobs, and reads observed state from the
 database. It never installs tenant charts or waits for runtime resources. Its
 Kubernetes RBAC is read-only for diagnostics. Only Worker has resource mutation

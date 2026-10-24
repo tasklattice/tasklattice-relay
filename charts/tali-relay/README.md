@@ -80,16 +80,34 @@ The pre-install/pre-upgrade credential Job generates random credentials and stor
 them in Kubernetes Secrets. Helm values and rendered manifests contain no initial
 credential values. Repeated initialization preserves credentials. See
 [credential initialization](../../docs/helm-credential-bootstrap.md) for retrieval,
-external Secret contracts and automatic OCP bootstrap image-pull preparation.
+external credential-store contract and automatic OCP bootstrap image-pull preparation.
+
+### Default values and advanced overrides
+
+`values.yaml` lists deployment choices: public origins and exposure, images and
+pull credentials, resources and storage, runtime limits, and optional components.
+Component configuration Secrets are generated from one credential store. Argo CD
+sync order, Gateway release name/service prefix/chart path, and the embedded
+Keycloak test identities are built into the Chart.
+
+Two optional integrations have dedicated examples:
+
+| Integration | Example |
+| --- | --- |
+| Project visibility in Argo CD | [Project tracking annotations](examples/project-runtime-argocd-values.yaml) |
+| External document parser | [External Docling](examples/external-docling-values.yaml) |
+
+Use current defaults plus the overrides needed by the installation. Removed
+settings fail rendering; they are not translated into new configuration.
+
+Keep image versions explicit for compatible and reproducible runtimes. Resource
+requests/limits, persistence, security contexts, CA trust, service ports, timeouts,
+and controller ownership are operational choices. The Durable Memory feature
+switch is distinct from deploying Hindsight; disabling the feature need not
+remove its provider workload. These settings retain their current semantics.
 
 Before publishing, run `npm run test:chart-credentials` and
-`npm run helm:validate:credentials`. Packaging checks the exact `.tgz`, including
-nested dependencies and every bundled values profile; both release workflows
-check the artifact again before `helm push`. Fixed password values, password
-environment values, encoded Secret contents and credentials in connection URLs
-fail the check. Required field names and Secret references remain supported.
-Diagnostics report locations without printing credential values. This check
-does not replace review of arbitrary executable initialization code.
+`npm run helm:validate:credentials`.
 
 If the Agent Sandbox controller already exists cluster-wide, set
 `agentSandbox.enabled=false`. For private GHCR packages, create a registry
@@ -120,9 +138,8 @@ preserve the exact Project name; a DNS-safe name is also stored as a label.
 `projectRuntimeNamespaces.clusterId` seeds the initial Platform Infrastructure
 setting when the database has no runtime configuration.
 
-The Chart requires `projectOpenShell.enabled=true`,
-`runner.projectTargetRouting.enabled=true`, `projectRuntimeNamespaces.enabled=true`,
-and `openshell.enabled=false`. Worker installs the pinned official OpenShell
+Control Worker, Project Namespaces, Project Gateways, and Project routing are
+always enabled by the Chart. Worker installs the pinned official OpenShell
 chart as a separate Helm release in each Project Namespace. The Gateway uses that
 Namespace for Sandboxes, with a private `ClusterIP` Service and NetworkPolicy.
 Its image, resources and pull Secrets come from `openshell.*` values. The
@@ -154,34 +171,42 @@ kubectl -n <control-namespace> exec deployment/<release>-control-worker -- \
 OpenShell 0.0.106 fixes one Kubernetes sandbox Namespace per Gateway. The
 architecture runs one Gateway per Project and one central Runner. Every Agent lifecycle, audit, terminal, and Web UI operation
 carries the stable Project Runtime Target; the Runner derives the trusted
-Gateway Service address from `runner.projectTargetRouting.gatewayEndpointTemplate`.
-It never accepts a Gateway URL from an API request. Browser service hostnames
-are forwarded by the central Runner's workspace-aware service proxy.
+Gateway Service address as
+`http://openshell-<namespace>.<namespace>.svc.cluster.local:8080`. Worker uses the
+same fixed prefix when naming the Gateway Service. Runner never accepts a Gateway URL
+from an API request. Agent Web UI uses the authenticated Control path
+`/<projectId>/<instanceId>/ui/`; Control forwards HTTP/WebSocket traffic through
+Runner's private 9090 API. The internal OpenShell Host base is fixed to
+`http://openshell.localhost:8080` and requires no public DNS or separate ingress.
 
-Helm rejects configurations that disable Project routing or enable a shared
-Gateway in the Control namespace. See
+Helm rejects obsolete topology and routing settings. See
 [Project Runtime Namespaces](../../docs/project-runtime-namespaces.md).
+
+Keep `control.publicUrls` as the browser-origin allowlist and configure
+`control.trustProxyHeaders` according to the ingress. Agent UI uses that same
+Control origin. Gateway routing and ownership require no additional values.
 
 ### Project resource tree and read-only Argo CD visibility
 
-`projectRuntimeNamespaces.resourceOwnership` defaults to `true`. Project roots
+Project resource ownership is always enabled by the Chart. Project roots
 (OpenShell workloads and its dedicated RBAC, Runtime Bridge, managed/expert Agent
 workloads, Sandbox CRs, and unowned PVCs) reference the actual Project Namespace
-UID. Existing controller references are preserved: Gateway Pods belong to their
-StatefulSet, and Agent Pods and workspace PVCs belong to their Sandbox. No new CRD is introduced.
+UID. Existing controller references are preserved: Gateway Pods retain their
+workload controller, and Agent Pods and workspace PVCs belong to their Sandbox. No new CRD is introduced.
 Sandbox ownership is reconciled when Control observes provisioning or ready
 Instances; it also repairs existing Instances during normal observation.
 
-To show API-created Project Namespaces in an existing Argo CD Application, copy
-the **exact tracking annotation of an existing visible resource** into this value:
+To show API-created Project Namespaces in an existing Argo CD Application, use the
+[advanced Argo CD values example](examples/project-runtime-argocd-values.yaml).
+Copy the **exact tracking annotation of an existing visible resource** into
+`projectRuntimeNamespaces.argocd.sourceTrackingId` and match its installation ID
+when configured. These optional keys are omitted from the default values;
+omitting the entire `argocd` object or either field is supported.
 
-```yaml
-projectRuntimeNamespaces:
-  resourceOwnership: true
-  argocd:
-    sourceTrackingId: "tali:/Namespace:/tali" # Example only; use your actual source ID.
-    installationId: "" # Match Argo CD's installation ID when configured.
-```
+Only `projectRuntimeNamespaces.clusterId` seeds a missing database setting;
+later cluster-ID changes belong in **Platform Setting -> Infrastructure**.
+Argo CD overrides are read directly from Worker deployment configuration after
+rollout and are not imported into Platform Settings.
 
 This opt-in integration requires Argo CD's `annotation` or `annotation+label`
 tracking mode and permission to watch the Project Namespaces and resource kinds.
@@ -235,9 +260,8 @@ TaskLattice Relay resources are deliberately later than the dependencies:
 | `40` | Control, Control Worker, Runner, Hindsight API, and optional example MCP Deployments |
 | `50` | Optional OpenShift Routes |
 
-Argo CD waits for each wave to become healthy before advancing. The values are
-centralized under `global.argocd.syncWaves` and can be adjusted for a cluster's
-policy without editing any dependency chart. Plain Helm and Kubernetes ignore
+Argo CD waits for each wave to become healthy before advancing. The Chart fixes
+this order to match component dependencies. Plain Helm and Kubernetes ignore
 the Argo CD annotations.
 
 LiteLLM defaults to one Uvicorn worker per Pod. Uvicorn workers are separate
@@ -284,28 +308,27 @@ upstream that patch when refreshing the dependency so the hook can run before
 the namespace `LimitRange` exists on a first installation.
 
 The Job derives each component configuration Secret from one retained credential
-store. Worker configuration remains a Helm-rendered Secret. Set external names under
-`secrets.existingSecrets`:
+store. Worker configuration remains a Helm-rendered Secret. Component Secret
+names and contents are managed by the Chart:
 
-| Component key | Default Secret suffix | Required keys |
-| --- | --- | --- |
-| `control` | `control-config` | `control.toml` (shared with Worker) |
-| `worker` | `worker-config` | `worker.toml` (Worker only) |
-| `runner` | `runner-config` | `runner.json` |
-| `postgresql` | `postgresql-config` | `postgres-password`, `admin-url` |
-| `litellm` | `litellm-config` | `litellm-config.yaml`, `database-url`, `litellm-master-key`, `litellm-ui-username`, `litellm-ui-password`, `litellm-salt-key` |
-| `hindsight` | `hindsight-config` | `hindsight-config.json` |
-| `metrics` | `metrics-config` | `metrics-token` |
-| `keycloak` | `keycloak-config` | `keycloak-admin-password`, `keycloak-client-secret`, `keycloak-test-user-password` |
-| `exampleMcp` | `example-mcp-auth` | `username`, `password`, `auth-value` |
+| Component | Secret suffix |
+| --- | --- |
+| `control` | `control-config` |
+| `worker` | `worker-config` |
+| `runner` | `runner-config` |
+| `postgresql` | `postgresql-config` |
+| `litellm` | `litellm-config` |
+| `hindsight` | `hindsight-config` |
+| `metrics` | `metrics-config` |
+| `keycloak` | `keycloak-config` |
+| `exampleMcp` | `example-mcp-auth` |
 
 Names are prefixed with the release fullname. `<fullname>-credentials` is only
 read by the bootstrap Job; applications mount their component-specific Secrets.
-External credentials referenced by multiple services must agree; for
-example Control's Runner token must match `runner.json`, and the metrics token
-in `control.toml` must match the monitoring Secret. Bump
-`global.rolloutRevision` when changing externally managed Secret contents.
-The legacy `secrets.existingSecret` and `runner.extraEnv` keys are rejected.
+The shared source keeps cross-component credentials consistent. To supply
+credentials from a Secret manager, use `credentialBootstrap.existingSecret` with
+the complete key set documented in [credential initialization](../../docs/helm-credential-bootstrap.md).
+The Job reads that source and generates every enabled component's configuration.
 
 `control.toml` includes typed deployment settings and one-time bootstrap values
 for Platform Infrastructure. Saved Infrastructure, SSO and SMTP settings remain
@@ -316,7 +339,7 @@ complete ownership and initialization image contracts.
 
 To deliver Project invitations, sign in as a Platform Administrator and
 configure **Platform Setting -> Email delivery**. Port 587 uses STARTTLS; use
-implicit TLS for port 465. SMTP settings and the encrypted password are stored
+implicit TLS for port 465. SMTP settings and encrypted credentials are stored
 only in PostgreSQL and have no values-file or `control.toml` fallback.
 
 ## Disconnected / air-gapped installation
@@ -364,15 +387,15 @@ The profile also pins LiteLLM to one worker and sets
 `LITELLM_LOCAL_MODEL_COST_MAP=True`; pricing and model context metadata come
 from the JSON bundled in `tali-litellm`, not from GitHub at startup.
 
-Before installing, create the release namespace and its registry pull Secret.
-The Agent Sandbox controller and webhook are installed into that same namespace:
+Before installing, create the release namespace and its registry pull Secret
+from an authenticated registry configuration file. The Agent Sandbox controller
+and webhook are installed into that same namespace:
 
 ```bash
 oc new-project tali
-oc -n tali create secret docker-registry airgap-registry \
-  --docker-server=registry.internal.example.com \
-  --docker-username='<username>' \
-  --docker-password='<password>'
+oc -n tali create secret generic airgap-registry \
+  --type=kubernetes.io/dockerconfigjson \
+  --from-file=.dockerconfigjson=/path/to/registry-config.json
 ```
 
 Dependency preparation (`npm run helm:dependencies`) needs network access and
@@ -520,9 +543,8 @@ the owning Project, selects the Project's validated/default Model or Routing,
 and calls LiteLLM with a short-lived service key on the Project Team. Missing,
 ambiguous, or dimension-incompatible Project configuration fails closed. The
 Hindsight API, Worker and migration read `hindsight-config.json` from their
-own Secret. Generate an external file from the rendered chart using the commands
-in [`examples/hindsight-existing-secret.yaml`](examples/hindsight-existing-secret.yaml).
-Never commit rendered or real values.
+own bootstrap-managed Secret. Change provider settings through `hindsight.*`
+values; the bootstrap Job regenerates the component configuration.
 
 The API runs its built-in worker by default. Set
 `hindsight.worker.enabled=true` only after load testing shows that extraction
@@ -534,9 +556,9 @@ dumps, MCP, and provider Control Plane exposure are disabled by default.
 Enable Prometheus Operator integration with
 `monitoring.serviceMonitor.enabled=true` and actionable Memory alerts with
 `monitoring.prometheusRule.enabled=true`. This scrapes authenticated Relay and
-Control Worker metrics plus Hindsight's private `/metrics` endpoint. Set an
-independent generated `metricsToken` from the credential store (or a coordinated
-`metrics-token` in `secrets.existingSecrets.metrics`). Hindsight Bank ID labels remain disabled and async
+Control Worker metrics plus Hindsight's private `/metrics` endpoint. The bootstrap
+Job supplies the same independent `metricsToken` to Control and the monitoring
+Secret. Hindsight Bank ID labels remain disabled and async
 backlog metrics are enabled. The complete backup, restore, alert-response,
 upgrade, troubleshooting, and uninstall procedure is in
 [`docs/durable-memory-operations.md`](../../docs/durable-memory-operations.md).
@@ -630,6 +652,17 @@ The repository's local deployment script performs this mapping automatically:
 npm run helm:deploy:dev:keycloak
 ```
 
+The local script deploys directly into OrbStack and exposes Control at
+`http://localhost:38080`, LiteLLM at `http://localhost:4000`, and Keycloak at
+`http://keycloak.localhost:8180`. OrbStack provides the Service port forwarding;
+no local CA, certificate issuance, or additional proxy is required.
+
+`control.accessLog.enabled=true` records method, fixed route category, transport,
+status and duration. It never emits supplied URLs, query strings, cookies,
+Authorization headers, or upstream error text. If you add an ingress or APM,
+apply the same policy there; application redaction cannot sanitize another
+component's access logs. In particular, never record `/_agent-ui/` capability URLs.
+
 Every local deployment idempotently ensures Projects named `proj1` and
 `Isolation 1` exist under `dep1` from `config/development-projects.json`, matching
 by Department and name. Their IDs are generated by Control as `tp-` plus 13
@@ -641,23 +674,23 @@ keeps Local authentication enabled, and merges test Group bindings for every
 Project discovered under the development Department. Development Keycloak
 Group aliases come from the fixture's optional `keycloakGroup` (such as
 `isolation-1`), while each binding targets the actual generated Project ID.
-Other Projects use their ID as the Group name. If the local
-administrator credentials have changed, provide
-`CONTROL_LOCAL_ADMIN_USERNAME` and `CONTROL_LOCAL_ADMIN_PASSWORD`.
+Other Projects use their ID as the Group name.
 Set `CONTROL_DEVELOPMENT_PROJECTS_ENABLED=false` to skip these development
 fixtures, or point `CONTROL_DEVELOPMENT_PROJECTS_FILE` at a compatible JSON
 list to exercise another Project/SLA layout.
 
+`values-dev.yaml` explicitly enables `credentialBootstrap.developmentMode`.
 Development usernames remain `admin` for Relay, LiteLLM and Keycloak, and the
-configured test usernames for SSO. Their initial credentials are generated separately:
-`initialPlatformAdministratorPassword`, `litellmUiPassword`, `keycloakAdminPassword`
-and `keycloakTestUserPassword` in `<fullname>-credentials`. They have no fixed default.
-Local deployment helpers read the generated Relay administrator credential unless
-`CONTROL_LOCAL_ADMIN_PASSWORD` is explicitly supplied. Test user profile fields can
-be changed through `keycloak.testUsers`; inline credentials are rejected.
+configured test usernames for SSO. Local deployment helpers read the stored Relay
+administrator credential. Test users and Project aliases are fixed fixtures in
+`files/keycloak-test-identities.yaml`; their passwords come from the bootstrap
+credential store. Configure a separate OIDC provider through Platform Settings
+when custom identity management is needed.
+The base Chart defaults to `developmentMode: false` and independently generates
+all credentials. Only use the development profile on a trusted local cluster.
 
 This mode runs Keycloak with `start-dev` and ephemeral storage. Realm changes
-are lost when its pod is replaced. An external `secrets.existingSecrets.keycloak` must provide the documented keys. For a manual Helm installation, configure its issuer and Client
+are lost when its pod is replaced. For a manual Helm installation, configure its issuer and Client
 credentials in **Platform Setting -> Security & SSO**, keep the Group claim as
 `groups`, and add the exact test bindings represented by these Group paths:
 
@@ -674,7 +707,7 @@ credentials in **Platform Setting -> Security & SSO**, keep the Group claim as
 `adm` and `sso-admin` are both Platform Administrators, `dep1` Department
 Administrators, and members of every configured development Project role so the
 complete authorization surface can be exercised during development.
-All SSO profiles use the generated `keycloakTestUserPassword` from the credential store. The remaining users isolate one
+All SSO profiles use the shared SSO credential from the credential store. The remaining users isolate one
 administrative scope or Project role each. A
 successful SSO sign-in
 materializes the corresponding externally managed Project membership and shows
@@ -804,17 +837,13 @@ ImageStream updates do not automatically restart existing Agent instances.
 
 For an existing OCP deployment that has not mirrored every runtime image, set
 `openshift.runtimeImages.enabled=false` to retain explicit mixed-registry URLs.
-Missing settings in reused old values also preserve the original URLs. Applying
-the new OCP profile explicitly enables migration; keep a final override of `false`
+The OCP profile enables unified image mapping; keep a final override of `false`
 until images are ready. Apply the external-registry `values-airgap.yaml` **after**
 `values-openshift.yaml`, as shown in the offline installation example. Ordinary Kubernetes (`openshift.enabled=false`) preserves all
 original image URLs regardless of the runtimeImages setting.
 
-Unified mode requires Chart-managed Worker and Runner configuration Secrets;
-rendering fails when either `secrets.existingSecrets.worker` or `.runner` is set,
-preventing a partial migration. For externally managed configurations, keep
-`runtimeImages.enabled=false`, update both configurations together (including Worker
-`sandboxImages` and Runner `openshell.sandbox.images`), and roll out both services.
+The Chart generates Worker and Runner image references together, including
+Worker `sandboxImages` and Runner `openshell.sandbox.images`.
 Per-instance `sandboxImage` overrides remain explicit and are not rewritten. Worker grants each Project SA group pull access in the source and waits
 for tenant-local pull credentials, bounded by `openshift.imagePullReadyTimeoutMs`
 (default 120000). Deploy the updated Worker image and chart together; the image
@@ -873,9 +902,5 @@ User-registered Agent images remain user-controlled. Image digest pinning keeps
 the configured registry/repository even if the container runtime reports an
 upstream GHCR reference.
 
-External Control configuration must supply `[demo_agents]` (`image`,
-`imagePullPolicy`, `imagePullSecrets`) explicitly. Unified OCP mapping rejects
-`secrets.existingSecrets.control` to avoid silently deploying an unmapped Demo;
-use Chart-managed configuration, or disable unified mapping and maintain the
-external image references yourself. Older standalone Control configs without
-this section remain loadable with the development default.
+The Chart generates `[demo_agents]` (`image`, `imagePullPolicy`,
+`imagePullSecrets`) for Control from the same image settings used by Worker.

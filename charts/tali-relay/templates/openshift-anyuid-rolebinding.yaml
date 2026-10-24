@@ -19,9 +19,7 @@ subjects:
   - kind: ServiceAccount
     name: {{ include "tali.serviceAccountName" . }}
     namespace: {{ .Release.Namespace }}
-  {{- if .Values.control.worker.enabled }}
   - kind: ServiceAccount
     name: {{ include "tali.controlWorkerServiceAccountName" . }}
     namespace: {{ .Release.Namespace }}
-  {{- end }}
 {{- end }}

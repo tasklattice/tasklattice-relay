@@ -15,7 +15,7 @@ Relay Chart 不接受密码、共享 token 或连接串的明文 values，也不
 - 初始化 Secret 由安装 Namespace 持有，带 `keep`、Argo `Prune=false,Delete=false` 注解。卸载 release 保留 Secret；删除 Namespace 会删除这些 Secret。备份数据库时同时备份凭据源和组件 Secret。
 - Worker 自身的 `worker.toml` 没有共享初始化凭据，仍由 Helm 渲染；Worker 通过 Control 的组件 Secret 获取共用配置。
 
-**本次不提供旧 values/旧 Secret 的自动兼容迁移。** 旧的 `secrets.*` 明文键（除 `existingSecrets` 外）、`exampleMcp.auth.password`、Keycloak 用户内联口令直接报错，不静默忽略。不要把旧 Helm values 全量复用到新 Chart；已有数据库不能靠删除 Secret 来“重新初始化”。旧安装需要单独制定凭据导入/迁移方案，或在可销毁环境全新安装。
+组件配置由 Chart/bootstrap 统一生成，不接受整份外部组件 Secret 或 values 中的初始化密码。部署 values 只记录非敏感设置和凭据源名称。
 
 ## 部署与读取初始凭据
 
@@ -45,9 +45,9 @@ kubectl -n tali get secret tali-relay-credentials \
 
 ## 外部 Secret
 
-`credentialBootstrap.existingSecret` 可指定预先准备的完整凭据源，键集合见上表。Job 仅读取它，不接管其 owner、不写入、不轮换；连接串必须与对应密码一致。凭据由 Secret 管理系统创建，不经 values、Job 环境变量或命令行传入。
+`credentialBootstrap.existingSecret` 是唯一的外部初始化凭据入口，可指定预先准备的完整凭据源，键集合见上表。Job 仅读取它，不接管其 owner、不写入、不轮换；连接串必须与对应密码一致。凭据由 Secret 管理系统创建，不经 values、Job 环境变量或命令行传入。
 
-继续支持 `secrets.existingSecrets.<component>` 的完整组件配置；该组件不会进入 Job 的输出清单。`exampleMcp` 的外部 Secret 需要 `username`、`password`、`auth-value`。外部配置与自动生成组件混用时，跨组件的数据库连接、Runner token、LiteLLM key、Hindsight 和 metrics token 必须一致；需要共享凭据时预置同一个外部凭据源。外部凭据源被轮换后，Job 会因输出指纹不匹配而失败；凭据轮换必须单独协调数据库、配置和消费者，不能靠重跑 Job 完成。
+所有启用组件的 Secret 都由同一个凭据源生成，保证数据库连接、Runner token、LiteLLM key、Hindsight 和 metrics token 在消费者之间一致。Worker 的非敏感配置仍由 Helm 渲染。外部凭据源被轮换后，Job 会因输出指纹不匹配而失败；凭据轮换必须单独协调数据库、配置和消费者，不能靠重跑 Job 完成。
 
 新生成的 `<fullname>-credentials` 为未来启用的可选组件也保存独立凭据，启用组件不需要重新生成现有密钥。
 

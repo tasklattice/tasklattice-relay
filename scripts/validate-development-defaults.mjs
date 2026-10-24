@@ -5,6 +5,7 @@ import { readFileSync } from "node:fs";
 import { parseAllDocuments } from "yaml";
 import { parse as parseToml } from "smol-toml";
 import { materializeBootstrapSecrets } from "./testing/helm-bootstrap-fixture.mjs";
+import { credentialKeys, developmentPasswordKeys, generateCredentials } from "../charts/tali-relay/files/bootstrap-secrets.mjs";
 
 const developmentProjects = JSON.parse(
   readFileSync("config/development-projects.json", "utf8"),
@@ -51,21 +52,29 @@ if (objects.some(object => object.kind === "Secret" && object.metadata.name !== 
 }
 const generated = materializeBootstrapSecrets(objects);
 const secret = { stringData: Object.assign({}, ...generated.filter((object) => object.kind === "Secret").map((object) => object.stringData ?? {})) };
-const credentials = [];
+const spec = JSON.parse(objects.find(object => object.data?.["spec.json"]).data["spec.json"]);
+if (spec.developmentMode !== true) throw new Error("Development credentials must opt into the local profile.");
+const credentials = generateCredentials(spec);
+for (const key of developmentPasswordKeys) {
+  if (credentials[key] !== "password") throw new Error(`${key} must use the documented local login.`);
+}
+const machineKeys = credentialKeys.filter(key => !developmentPasswordKeys.includes(key));
+if (machineKeys.some(key => credentials[key].length < 64)
+  || new Set(machineKeys.map(key => credentials[key])).size !== machineKeys.length) {
+  throw new Error("Development machine tokens, keys and salts must remain independent random values.");
+}
 for (const key of [
   "keycloak-admin-password",
   "keycloak-test-user-password",
   "litellm-ui-password",
 ]) {
-  if (!/^[a-f0-9]{64}$/.test(secret.stringData?.[key] ?? "")) {
-    throw new Error(`${key} must use an independently generated credential.`);
+  if (secret.stringData?.[key] !== "password") {
+    throw new Error(`${key} must use the documented local login.`);
   }
-  credentials.push(secret.stringData[key]);
 }
 const administrator = parseToml(secret.stringData["control.toml"]).auth.local.initial_platform_administrator_password;
-credentials.push(administrator);
-if (!/^[a-f0-9]{64}$/.test(administrator) || new Set(credentials).size !== credentials.length) {
-  throw new Error("The local administrator and component credentials must be independently generated.");
+if (administrator !== "password") {
+  throw new Error("The local administrator must use the documented local login.");
 }
 
 const realmConfig = objects.find(
@@ -101,5 +110,5 @@ for (const { keycloakGroup: groupName } of expectedProjects) {
 }
 
 console.log(
-  `Validated ${developmentProjects.length} development Projects, independent credentials and ${realm.users.length} Secret-backed Keycloak users.`,
+  `Validated ${developmentProjects.length} development Projects, repeatable local logins, random machine credentials and ${realm.users.length} Secret-backed Keycloak users.`,
 );

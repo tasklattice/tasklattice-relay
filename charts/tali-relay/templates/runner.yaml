@@ -48,10 +48,6 @@ spec:
           ports:
             - name: http
               containerPort: 9090
-            {{- if and .Values.runner.projectTargetRouting.enabled .Values.runner.projectTargetRouting.serviceProxy.enabled }}
-            - name: service-proxy
-              containerPort: {{ .Values.runner.projectTargetRouting.serviceProxy.port }}
-            {{- end }}
           env:
             - name: TALI_RUNNER_CONFIG
               value: /etc/tali-runner/runner.json
@@ -111,22 +107,3 @@ spec:
     - name: http
       port: 9090
       targetPort: http
-{{- if and .Values.runner.projectTargetRouting.enabled .Values.runner.projectTargetRouting.serviceProxy.enabled }}
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: {{ printf "%s-openshell-services" $name | trunc 63 | trimSuffix "-" }}
-  labels:
-    {{- include "tali.labels" . | nindent 4 }}
-  annotations:
-    {{- include "tali.resourceAnnotations" (dict "root" . "wave" "exposure" "annotations" .Values.runner.projectTargetRouting.serviceProxy.annotations) | nindent 4 }}
-spec:
-  type: {{ .Values.runner.projectTargetRouting.serviceProxy.type }}
-  selector:
-    {{- include "tali.selectorLabels" (dict "root" . "component" $component) | nindent 4 }}
-  ports:
-    - name: http
-      port: {{ .Values.runner.projectTargetRouting.serviceProxy.port }}
-      targetPort: service-proxy
-{{- end }}

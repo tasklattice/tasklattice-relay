@@ -1,0 +1,10 @@
+# Advanced: use an existing document parser instead of the bundled Deployment.
+docling:
+  enabled: false
+control:
+  worker:
+    docling:
+      url: https://docling.internal.example.com
+      # Optional API key. A supplied value is stored in Helm release metadata;
+      # leave empty for an unauthenticated private parser.
+      apiKey: ""

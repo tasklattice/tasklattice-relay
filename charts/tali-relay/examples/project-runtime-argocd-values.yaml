@@ -1,0 +1,13 @@
+# Advanced opt-in: show Relay-managed Project Namespaces in an existing Argo CD
+# Application. Apply this file after your normal installation values.
+# Requires annotation or annotation+label tracking and permission to view the
+# Project Namespaces and their resource kinds. Relay still owns their lifecycle.
+# These settings are read by Worker after rollout, not imported into Platform Settings.
+projectRuntimeNamespaces:
+  argocd:
+    # Replace this example with the exact argocd.argoproj.io/tracking-id from an
+    # existing resource in your Application. It must NOT identify the dynamically
+    # created Project Namespace itself. Omit or leave empty to disable tracking.
+    sourceTrackingId: "tali:/Namespace:/tali"
+    # Match the source's argocd.argoproj.io/installation-id when configured.
+    installationId: ""

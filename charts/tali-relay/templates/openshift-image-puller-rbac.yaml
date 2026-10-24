@@ -1,4 +1,4 @@
-{{- if and .Values.openshift.enabled .Values.control.worker.enabled .Values.projectRuntimeNamespaces.enabled }}
+{{- if .Values.openshift.enabled }}
 {{- $name := include "tali.componentName" (dict "root" . "component" "project-image-puller") }}
 {{- if ne (include "tali.imageSourceNamespace" .) .Release.Namespace }}
 {{- $name = printf "%s-%s" (printf "%s/%s" .Release.Namespace .Release.Name | sha256sum | trunc 10) $name }}

@@ -4,6 +4,11 @@
 global:
   imageRegistry: ghcr.io/tasklattice
 
+# Repeatable local logins, including after resetting the development cluster.
+# Never enable this profile on a shared or production installation.
+credentialBootstrap:
+  developmentMode: true
+
 images:
   control:
     tag: dev
@@ -47,8 +52,6 @@ litellm:
     type: LoadBalancer
 
 openshell:
-  # Development uses the same Project Gateway topology as UAT.
-  enabled: false
   # Keep the two Project Gateways and their certificate hooks schedulable on
   # the constrained single-node development cluster. Production defaults stay
   # at 100m/128Mi in values.yaml.
@@ -59,9 +62,6 @@ openshell:
   server:
     sandboxImagePullPolicy: IfNotPresent
 
-projectOpenShell:
-  enabled: true
-
 runner:
   # Keep the local Project-isolation acceptance Sandbox schedulable alongside
   # the control stack and any developer Sandboxes already on a single node.
@@ -69,8 +69,6 @@ runner:
     cpu: "1"
     cpuRequest: 500m
   startTimeoutMs: 600000
-  projectTargetRouting:
-    enabled: true
 
 keycloak:
   resources:

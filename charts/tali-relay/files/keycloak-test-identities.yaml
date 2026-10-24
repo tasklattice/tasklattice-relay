@@ -1,0 +1,103 @@
+# Built-in identities for the optional, ephemeral Keycloak test provider.
+# Not production accounts. Passwords are supplied by the credential bootstrap.
+# Stable user IDs preserve OIDC subject mappings across Pod recreation.
+# Realm groups for the two default development Projects. The post-deploy
+# configurator binds every Project it discovers, so additional development
+# Projects do not require script changes.
+testProjectIds:
+  - proj1
+  - isolation-1
+testUsers:
+  # Stable IDs keep OIDC subject mappings valid when the ephemeral test
+  # Keycloak Pod is recreated and imports the realm again.
+  - id: 247cf669-9e00-4948-bc83-39d4fd3626fc
+    username: alice
+    email: alice@tali.test
+    firstName: Alice
+    lastName: Operator
+    groups:
+      - /tali/d/dep1/p/proj1/r/ROLE_PROJECT_ADMIN
+      - /tali/d/dep1/p/isolation-1/r/ROLE_PROJECT_ADMIN
+  - id: 71000000-0000-4000-8000-000000000001
+    username: adm
+    email: adm@tali.test
+    firstName: Development
+    lastName: Administrator
+    groups:
+      - /tali/r/ROLE_PLATFORM_ADMIN
+      - /tali/d/dep1/r/ROLE_DEPARTMENT_ADMIN
+      - /tali/d/dep1/p/proj1/r/ROLE_PROJECT_ADMIN
+      - /tali/d/dep1/p/proj1/r/ROLE_AUDITOR
+      - /tali/d/dep1/p/proj1/r/ROLE_AGENT_DEVELOPER
+      - /tali/d/dep1/p/proj1/r/ROLE_REVIEWER
+      - /tali/d/dep1/p/proj1/r/ROLE_USER
+      - /tali/d/dep1/p/isolation-1/r/ROLE_PROJECT_ADMIN
+      - /tali/d/dep1/p/isolation-1/r/ROLE_AUDITOR
+      - /tali/d/dep1/p/isolation-1/r/ROLE_AGENT_DEVELOPER
+      - /tali/d/dep1/p/isolation-1/r/ROLE_REVIEWER
+      - /tali/d/dep1/p/isolation-1/r/ROLE_USER
+  - id: 71000000-0000-4000-8000-000000000007
+    username: sso-admin
+    email: sso-admin@tali.test
+    firstName: SSO
+    lastName: Administrator
+    groups:
+      - /tali/r/ROLE_PLATFORM_ADMIN
+      - /tali/d/dep1/r/ROLE_DEPARTMENT_ADMIN
+      - /tali/d/dep1/p/proj1/r/ROLE_PROJECT_ADMIN
+      - /tali/d/dep1/p/proj1/r/ROLE_AUDITOR
+      - /tali/d/dep1/p/proj1/r/ROLE_AGENT_DEVELOPER
+      - /tali/d/dep1/p/proj1/r/ROLE_REVIEWER
+      - /tali/d/dep1/p/proj1/r/ROLE_USER
+      - /tali/d/dep1/p/isolation-1/r/ROLE_PROJECT_ADMIN
+      - /tali/d/dep1/p/isolation-1/r/ROLE_AUDITOR
+      - /tali/d/dep1/p/isolation-1/r/ROLE_AGENT_DEVELOPER
+      - /tali/d/dep1/p/isolation-1/r/ROLE_REVIEWER
+      - /tali/d/dep1/p/isolation-1/r/ROLE_USER
+  - id: 71000000-0000-4000-8000-000000000002
+    username: project-admin
+    email: project-admin@tali.test
+    firstName: Project
+    lastName: Administrator
+    groups:
+      - /tali/d/dep1/p/proj1/r/ROLE_PROJECT_ADMIN
+      - /tali/d/dep1/p/isolation-1/r/ROLE_PROJECT_ADMIN
+  - id: 71000000-0000-4000-8000-000000000008
+    username: department-admin
+    email: department-admin@tali.test
+    firstName: Department
+    lastName: Administrator
+    groups:
+      - /tali/d/dep1/r/ROLE_DEPARTMENT_ADMIN
+  - id: 71000000-0000-4000-8000-000000000003
+    username: developer
+    email: developer@tali.test
+    firstName: Agent
+    lastName: Developer
+    groups:
+      - /tali/d/dep1/p/proj1/r/ROLE_AGENT_DEVELOPER
+      - /tali/d/dep1/p/isolation-1/r/ROLE_AGENT_DEVELOPER
+  - id: 71000000-0000-4000-8000-000000000004
+    username: reviewer
+    email: reviewer@tali.test
+    firstName: Change
+    lastName: Reviewer
+    groups:
+      - /tali/d/dep1/p/proj1/r/ROLE_REVIEWER
+      - /tali/d/dep1/p/isolation-1/r/ROLE_REVIEWER
+  - id: 71000000-0000-4000-8000-000000000005
+    username: end-user
+    email: end-user@tali.test
+    firstName: Project
+    lastName: User
+    groups:
+      - /tali/d/dep1/p/proj1/r/ROLE_USER
+      - /tali/d/dep1/p/isolation-1/r/ROLE_USER
+  - id: 71000000-0000-4000-8000-000000000006
+    username: auditor
+    email: auditor@tali.test
+    firstName: Project
+    lastName: Auditor
+    groups:
+      - /tali/d/dep1/p/proj1/r/ROLE_AUDITOR
+      - /tali/d/dep1/p/isolation-1/r/ROLE_AUDITOR

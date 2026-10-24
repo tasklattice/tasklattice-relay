@@ -1,10 +1,5 @@
 {{- if .Values.keycloak.enabled }}
-{{- if not .Values.keycloak.testUsers }}
-{{- fail "keycloak.testUsers must contain at least one complete test user when the embedded Keycloak is enabled" }}
-{{- end }}
-{{- if not .Values.keycloak.testProjectIds }}
-{{- fail "keycloak.testProjectIds must contain at least one Project ID when the embedded Keycloak is enabled" }}
-{{- end }}
+{{- $identities := .Files.Get "files/keycloak-test-identities.yaml" | fromYaml -}}
 {{- $component := "keycloak" -}}
 {{- $name := include "tali.componentName" (dict "root" . "component" $component) -}}
 {{- $publicUrl := trimSuffix "/" (required "keycloak.publicUrl is required when the embedded Keycloak is enabled" .Values.keycloak.publicUrl) -}}
@@ -184,10 +179,10 @@ data:
                     {
                       "name": "p",
                       "subGroups": [
-                        {{- range $projectIndex, $projectId := .Values.keycloak.testProjectIds }}
+                        {{- range $projectIndex, $projectId := $identities.testProjectIds }}
                         {{- if $projectIndex }},{{ end }}
                         {
-                          "name": {{ required "every keycloak.testProjectIds entry requires a Project ID" $projectId | quote }},
+                          "name": {{ required "every built-in Keycloak testProjectIds entry requires a Project ID" $projectId | quote }},
                           "subGroups": [
                             {
                               "name": "r",
@@ -212,16 +207,16 @@ data:
         }
       ],
       "users": [
-        {{- range $index, $user := .Values.keycloak.testUsers }}
+        {{- range $index, $user := $identities.testUsers }}
         {{- if $index }},{{ end }}
         {
           {{- with $user.id }}
           "id": {{ . | quote }},
           {{- end }}
-          "username": {{ required "every keycloak.testUsers entry requires username" $user.username | quote }},
-          "email": {{ required "every keycloak.testUsers entry requires email" $user.email | quote }},
-          "firstName": {{ required "every keycloak.testUsers entry requires firstName" $user.firstName | quote }},
-          "lastName": {{ required "every keycloak.testUsers entry requires lastName" $user.lastName | quote }},
+          "username": {{ required "every built-in Keycloak testUsers entry requires username" $user.username | quote }},
+          "email": {{ required "every built-in Keycloak testUsers entry requires email" $user.email | quote }},
+          "firstName": {{ required "every built-in Keycloak testUsers entry requires firstName" $user.firstName | quote }},
+          "lastName": {{ required "every built-in Keycloak testUsers entry requires lastName" $user.lastName | quote }},
           "enabled": true,
           "emailVerified": true,
           "groups": {{ toJson ($user.groups | default (list)) }},
@@ -255,7 +250,7 @@ spec:
       labels:
         {{- include "tali.selectorLabels" (dict "root" . "component" $component) | nindent 8 }}
       annotations:
-        checksum/realm: {{ printf "%s:%s:%d" (toJson .Values.keycloak) (toJson .Values.control.publicUrls) .Release.Revision | sha256sum }}
+        checksum/realm: {{ printf "%s:%s:%s:%d" (toJson .Values.keycloak) (toJson $identities) (toJson .Values.control.publicUrls) .Release.Revision | sha256sum }}
         checksum/keycloak-secret: {{ include "tali.keycloakSecretChecksum" . }}
     spec:
       serviceAccountName: {{ include "tali.runtimeServiceAccountName" . }}

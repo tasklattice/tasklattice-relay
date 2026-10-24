@@ -56,7 +56,6 @@ helm_values=(
   --set-string "images.deepagentsSandbox.tag=$image_tag" \
   --set "control.service.type=ClusterIP" \
   --set "litellm.service.type=ClusterIP" \
-  --set "runner.projectTargetRouting.serviceProxy.type=ClusterIP"
 )
 
 render_chart() {

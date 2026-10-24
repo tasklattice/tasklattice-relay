@@ -19,7 +19,7 @@ spec:
       labels:
         {{- include "tali.selectorLabels" (dict "root" . "component" $component) | nindent 8 }}
       annotations:
-        checksum/auth-secret: {{ printf "%s:%s" .Values.exampleMcp.auth.username .Values.secrets.existingSecrets.exampleMcp | sha256sum }}
+        checksum/auth-secret: {{ .Values.exampleMcp.auth.username | sha256sum }}
         {{- with .Values.global.rolloutRevision }}
         tali.ai/rollout-revision: {{ . | quote }}
         {{- end }}

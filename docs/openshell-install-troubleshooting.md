@@ -151,15 +151,11 @@ loss/deletion cancels waiting; Namespace ownership/UID is rechecked during retri
 ### Upgrade and existing tenants
 
 Rebuild/deploy the Worker image (which includes the patched OpenShell chart) and
-upgrade the Relay chart together. An existing Worker TOML with only `enabled` and
-`imageSourceNamespace` remains valid; omitted readiness settings use defaults. For
-Helm upgrades that reuse old values, a missing readiness timeout also defaults to
-120 seconds. Interrupted initial installs are recovered before reading SA credentials,
-because cleanup can remove the old SAs and their generated pull Secrets. For
-externally managed Worker config Secrets, update the source explicitly, set the
-readiness timeout/route if needed, and provide `worker.project_openshell.sandboxImages`
-with the Runner's platform images so preflight covers those images too. Roll out
-Worker when an external Secret changes: its contents are not hashed by Helm.
+upgrade the Relay chart together. The Chart generates Worker configuration and
+Runner image references from the same values. `openshift.imagePullReadyTimeoutMs`
+controls the readiness budget; the default is 120 seconds. Interrupted initial
+installs are recovered before reading SA credentials, because cleanup can remove
+the old SAs and their generated pull Secrets.
 
 Existing ready Projects are selected by periodic reconciliation after the existing
 five-minute stale interval; failed Projects need the existing reinitialize action.

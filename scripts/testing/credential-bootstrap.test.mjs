@@ -8,7 +8,7 @@ import { cpSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, sym
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { parse as parseToml } from "smol-toml";
-import { bootstrap, credentialKeys, generateCredentials, renderOutput } from "../../charts/tali-relay/files/bootstrap-secrets.mjs";
+import { bootstrap, credentialKeys, developmentPasswordKeys, generateCredentials, renderOutput } from "../../charts/tali-relay/files/bootstrap-secrets.mjs";
 
 function render(args = []) {
   return parseAllDocuments(execFileSync("helm", ["template", "relay", "charts/tali-relay", "--namespace", "tali",
@@ -69,6 +69,60 @@ test("fresh initialization generates shared credentials and reruns perform no wr
   const snapshot = structuredClone([...s.secrets]); const count = s.writes.length;
   await bootstrap(s.request, spec);
   assert.deepEqual([...s.secrets], snapshot); assert.equal(s.writes.length,count);
+});
+
+test("local profile keeps account passwords repeatable across fresh installs and machine credentials stable on reruns", async () => {
+  const devObjects = render(["-f", "charts/tali-relay/values-dev.yaml", "--set", "keycloak.enabled=true",
+    "--set", "keycloak.publicUrl=http://keycloak.localhost:8180", "--set", "exampleMcp.enabled=true"]);
+  const devSpec = JSON.parse(devObjects.find(o => o.data?.["spec.json"]).data["spec.json"]);
+  assert.equal(devSpec.developmentMode, true);
+  const first = server(), second = server();
+  await bootstrap(first.request, devSpec);
+  await bootstrap(second.request, devSpec);
+  const initial = first.data(devSpec.credentialSecret), recreated = second.data(devSpec.credentialSecret);
+  for (const key of developmentPasswordKeys) {
+    assert.equal(initial[key], "password", key);
+    assert.equal(recreated[key], "password", key);
+  }
+  for (const key of credentialKeys.filter(key => !developmentPasswordKeys.includes(key))) {
+    assert(initial[key].length >= 64, key);
+    assert.notEqual(initial[key], recreated[key], key);
+  }
+  assert.equal(parseToml(first.data("relay-control-config")["control.toml"]).auth.local.initial_platform_administrator_password, "password");
+  assert.equal(first.data("relay-litellm-config")["litellm-ui-password"], "password");
+  assert.equal(first.data("relay-keycloak-config")["keycloak-admin-password"], "password");
+  assert.equal(first.data("relay-keycloak-config")["keycloak-test-user-password"], "password");
+  assert.equal(first.data("relay-example-mcp-auth")["auth-value"], "Username:password");
+  assert.equal(new URL(initial.databaseUrl).password, "password");
+  assert.equal(new URL(initial.hindsightDatabaseUrl).password, "password");
+  const before = structuredClone([...first.secrets]), writes = first.writes.length;
+  await bootstrap(first.request, devSpec);
+  assert.deepEqual([...first.secrets], before);
+  assert.equal(first.writes.length, writes);
+});
+
+test("switching credential profiles fails before changing existing secrets", async () => {
+  for (const developmentMode of [false, true]) {
+    const s = server();
+    await bootstrap(s.request, { ...spec, developmentMode });
+    const before = structuredClone([...s.secrets]), writes = s.writes.length;
+    await assert.rejects(bootstrap(s.request, { ...spec, developmentMode: !developmentMode }), /Credential profile changed/);
+    assert.deepEqual([...s.secrets], before);
+    assert.equal(s.writes.length, writes);
+  }
+  // An older random root remains valid without the newly introduced annotation.
+  const s = server(); await bootstrap(s.request, spec);
+  delete s.secrets.get(spec.credentialSecret).metadata.annotations["tali.io/credential-profile"];
+  await bootstrap(s.request, spec);
+});
+
+test("development mode requires an explicit boolean and a managed store", async () => {
+  const s = server();
+  await assert.rejects(bootstrap(s.request, { ...spec, developmentMode: "true" }), /must be a boolean/);
+  await assert.rejects(bootstrap(s.request, { ...spec, developmentMode: true, externalCredentials: true }), /external credential store/);
+  assert.equal(s.writes.length, 0);
+  assert.throws(() => render(["--set-string", "credentialBootstrap.developmentMode=true"]));
+  assert.throws(() => render(["-f", "charts/tali-relay/values-dev.yaml", "--set", "credentialBootstrap.existingSecret=external"]));
 });
 
 test("configuration upgrades and rollbacks change settings without rotating credentials", async () => {
@@ -240,11 +294,18 @@ test("TOML and JSON substitutions escape quotes, backslashes and newlines", () =
 
 test("Chart stores references/templates only and rejects removed inline settings", () => {
   const values = parseYaml(readFileSync("charts/tali-relay/values.yaml","utf8"));
-  assert.deepEqual(Object.keys(values.secrets),["existingSecrets"]);
+  assert.equal(values.secrets, undefined);
   assert(!("password" in values.exampleMcp.auth));
   assert(!objects.some(o => o.kind === "Secret" && o.metadata.name !== "relay-worker-config"));
   for (const setting of ["secrets.postgresPassword=unsafe", "secrets.authSecret=unsafe", "exampleMcp.auth.password=unsafe"]) {
     assert.throws(() => render(["--set-string",setting]), /removed/);
+  }
+});
+
+test("all component configurations use the bootstrap credential store", () => {
+  for (const component of ["control", "worker", "runner", "postgresql", "litellm", "hindsight", "metrics", "keycloak", "exampleMcp"]) {
+    assert.throws(() => render(["--set-string", `secrets.existingSecrets.${component}=external`]),
+      /component Secrets are generated from one credentialBootstrap store/);
   }
 });
 
@@ -372,15 +433,6 @@ test("OCP bootstrap identities stay bounded and source bindings are distinct acr
   const sa = long.find(o => o.kind === "ServiceAccount" && o.metadata.annotations?.["openshift.io/internal-registry-pull-secret-ref"]);
   assert(sa.metadata.name.length <= 63);
   assert(sa.metadata.annotations["openshift.io/internal-registry-pull-secret-ref"].length <= 63);
-});
-
-test("fully external component Secrets do not create bootstrap pull identities or permissions", () => {
-  const args = ["control", "runner", "postgresql", "litellm", "hindsight", "metrics", "keycloak", "exampleMcp"]
-    .flatMap(component => ["--set", `secrets.existingSecrets.${component}=external-${component.toLowerCase()}`]);
-  const resources = render([...internalBootstrapArgs, ...args]);
-  assert.equal(bootstrapJob(resources), undefined);
-  assert.equal(bootstrapPullBinding(resources), undefined);
-  assert(!resources.some(o => o.metadata.annotations?.["openshift.io/internal-registry-pull-secret-ref"]));
 });
 
 test("server rendering reuses the OCP SA without recreating it, and rejects foreign or terminating identities", async () => {

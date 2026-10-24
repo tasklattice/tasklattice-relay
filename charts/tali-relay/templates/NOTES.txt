@@ -2,9 +2,7 @@ TaskLattice Relay {{ .Chart.AppVersion }} has been installed in {{ .Release.Name
 
 Wait for the core workloads:
   kubectl -n {{ .Release.Namespace }} rollout status deployment/{{ include "tali.componentName" (dict "root" . "component" "control") }} --timeout=5m
-{{- if .Values.control.worker.enabled }}
   kubectl -n {{ .Release.Namespace }} rollout status deployment/{{ include "tali.componentName" (dict "root" . "component" "control-worker") }} --timeout=5m
-{{- end }}
   kubectl -n {{ .Release.Namespace }} rollout status deployment/{{ include "tali.componentName" (dict "root" . "component" "runner") }} --timeout=5m
   kubectl -n {{ .Release.Namespace }} rollout status deployment/{{ include "tali.componentName" (dict "root" . "component" "litellm") }} --timeout=5m
 {{- if .Values.docling.enabled }}
@@ -37,13 +35,8 @@ LiteLLM auth-value Secret reference:
   k8s://{{ .Release.Namespace }}/{{ include "tali.exampleMcpSecretName" . }}#auth-value
 {{- end }}
 
-{{- if not .Values.secrets.existingSecrets.control }}
 Initial credentials are retained in the credential store:
   {{ include "tali.credentialSecretName" . }}
 Retrieve the initial administrator credential with an authorized local terminal:
   kubectl -n {{ .Release.Namespace }} get secret {{ include "tali.credentialSecretName" . }} -o jsonpath='{.data.initialPlatformAdministratorPassword}' | base64 --decode
 Repeated installs/upgrades reuse credentials; the Job never resets application accounts.
-{{- else }}
-Control uses the external configuration Secret {{ .Values.secrets.existingSecrets.control }}.
-Retrieve administrator access through the operator managing that configuration.
-{{- end }}

@@ -58,8 +58,8 @@ if (pendingLoadBalancers.length) {
   throw new Error(`Kind smoke Services cannot require external load balancers: ${pendingLoadBalancers.map((service) => service.metadata.name).join(", ")}`);
 }
 const smokeProxy = smokeServices.find((service) => service.metadata?.name.endsWith("-runner-openshell-services"));
-if (smokeProxy?.spec?.type !== "ClusterIP" || !smokeProxy.spec.ports?.length) {
-  throw new Error("Kind smoke must keep the Runner OpenShell proxy enabled as a ClusterIP Service.");
+if (smokeProxy) {
+  throw new Error("Agent Web UI must only use the authenticated Control path; a public Runner proxy is forbidden.");
 }
 function runnerConfig(collection) { return JSON.parse(releaseSecret(collection)["runner.json"]); }
 assert.equal(runnerConfig(defaults).openshell.projectTargetRouting, true);
@@ -69,7 +69,26 @@ assert.deepEqual(runnerEnv, [{ name: "TALI_RUNNER_CONFIG", value: "/etc/tali-run
 const defaultConfig = controlConfig(defaults);
 assert.equal(new URL(defaultConfig.database.url).hostname, `${releaseName}-postgresql.${releaseNamespace}.svc.cluster.local`);
 assert.equal(workerConfig(defaults).project_openshell.enabled, true);
+assert.equal(workerConfig(defaults).project_openshell.targetRouting, true);
+assert.equal(controlConfig(defaults).runtime_namespaces.enabled, true);
+assert.equal(runnerConfig(defaults).openshell.serviceBaseUrl, "http://openshell.localhost:8080");
+// Worker naming and Runner routing share the fixed internal topology.
+const customGateway = parseObjects(renderChart([
+  "--set-string", "projectOpenShell.workspace.storageSize=5Gi",
+  "--set-string", "projectOpenShell.workspace.storageClass=project-storage",
+  "--set-string", "control.publicUrls[0]=https://relay.example.com",
+]));
+assert.equal(runnerConfig(customGateway).openshell.gatewayEndpointTemplate,
+  `http://${workerConfig(customGateway).project_openshell.serviceNamePrefix}{namespace}.{namespace}.svc.cluster.local:8080`);
+assert.equal(workerConfig(customGateway).project_openshell.serviceNamePrefix, "openshell-");
+assert.equal(workerConfig(customGateway).project_openshell.releaseName, "openshell");
+assert.equal(workerConfig(customGateway).project_openshell.chart, "/opt/tali/helm/openshell.tgz");
+assert.equal(workerConfig(customGateway).project_openshell.workspaceDefaultStorageSize, "5Gi");
+assert.equal(workerConfig(customGateway).project_openshell.workspaceStorageClass, "project-storage");
+assert.equal(runnerConfig(customGateway).openshell.serviceBaseUrl, "http://openshell.localhost:8080");
 assert.equal(workerConfig(defaults).resource_ownership.enabled, true);
+assert.equal(workerConfig(defaults).resource_ownership.sourceTrackingId, "");
+assert.equal(workerConfig(defaults).resource_ownership.installationId, "");
 assert.equal(workerConfig(defaults).resource_ownership.controlRelease, releaseName);
 assert.equal(workerConfig(defaults).resource_ownership.controlNamespace, releaseNamespace);
 const argoTrackingId = "relay:apps/Deployment:tali/relay-control";
@@ -79,6 +98,19 @@ const argoConfigured = parseObjects(renderChart([
 ]));
 assert.equal(workerConfig(argoConfigured).resource_ownership.sourceTrackingId, argoTrackingId);
 assert.equal(workerConfig(argoConfigured).resource_ownership.installationId, "internal");
+const argoExample = parseObjects(renderChart([
+  "--values", "charts/tali-relay/examples/project-runtime-argocd-values.yaml",
+]));
+assert.equal(workerConfig(argoExample).resource_ownership.enabled, true);
+assert.equal(workerConfig(argoExample).resource_ownership.sourceTrackingId, "tali:/Namespace:/tali");
+assert.equal(workerConfig(argoExample).resource_ownership.installationId, "");
+for (const [field, value] of [["sourceTrackingId", argoTrackingId], ["installationId", "internal"]]) {
+  const partial = workerConfig(parseObjects(renderChart([
+    "--set-string", `projectRuntimeNamespaces.argocd.${field}=${value}`,
+  ]))).resource_ownership;
+  assert.equal(partial[field], value);
+  assert.equal(partial[field === "sourceTrackingId" ? "installationId" : "sourceTrackingId"], "");
+}
 
 function templateArguments(extraArguments = []) {
   return [
@@ -101,16 +133,27 @@ function renderChart(extraArguments = []) {
   });
 }
 
-const externalComponents = ["control", "worker", "runner", "postgresql", "litellm", "hindsight", "metrics"];
-const externalObjects = parseObjects(renderChart(externalComponents.flatMap((component) => [
-  "--set-string", `secrets.existingSecrets.${component}=external-${component}`,
-]).concat(["--set", "monitoring.serviceMonitor.enabled=true"])));
-for (const component of externalComponents) {
-  assert(!externalObjects.some((o) => o.kind === "Secret"
-    && o.metadata?.name === `${releaseName}-${component}-config`), `${component} must honor its external Secret`);
-  assert(JSON.stringify(externalObjects).includes(`external-${component}`), `${component} external Secret must be referenced`);
-}
-for (const object of defaults) {
+const externalParser = parseObjects(renderChart([
+  "--values", "charts/tali-relay/examples/external-docling-values.yaml",
+]));
+assert(!externalParser.some(o => o.kind === "Deployment" && o.metadata.name.endsWith("-docling")));
+assert.deepEqual({ ...workerConfig(externalParser).docling },
+  { enabled: true, baseUrl: "https://docling.internal.example.com", apiKey: "" });
+assert.equal(workerConfig(parseObjects(renderChart(["--set", "docling.enabled=false"]))).docling.enabled, false);
+const optionalComponents = parseObjects(renderChart([
+  "--set", "keycloak.enabled=true,keycloak.publicUrl=https://sso.example.test,exampleMcp.enabled=true,monitoring.serviceMonitor.enabled=true",
+]));
+const testRealm = JSON.parse(optionalComponents.find(o => o.data?.["tali-realm.json"]).data["tali-realm.json"]);
+const identities = parseYaml(readFileSync(`${chartPath}/files/keycloak-test-identities.yaml`, "utf8"));
+assert.deepEqual(testRealm.users.map(u => ({ id: u.id, username: u.username, groups: u.groups })),
+  identities.testUsers.map(u => ({ id: u.id, username: u.username, groups: u.groups })));
+const realmProjects = testRealm.groups.find(g => g.name === "tali").subGroups.find(g => g.name === "d")
+  .subGroups.find(g => g.name === "dep1").subGroups.find(g => g.name === "p").subGroups;
+assert.deepEqual(realmProjects.map(g => g.name), identities.testProjectIds);
+const customLiteLLMPort = parseObjects(renderChart(["--set", "litellm.service.port=4100"]));
+const liteLLMService = customLiteLLMPort.find(o => o.kind === "Service" && o.metadata.name.endsWith("-litellm"));
+assert.equal(new URL(controlConfig(customLiteLLMPort).litellm.url).port, String(liteLLMService.spec.ports[0].port));
+for (const object of optionalComponents) {
   const spec = object.spec?.template?.spec;
   if (!spec) continue;
   const refs = [
@@ -119,7 +162,7 @@ for (const object of defaults) {
       .filter((e) => e.valueFrom?.secretKeyRef).map((e) => ({ name: e.valueFrom.secretKeyRef.name, keys: [e.valueFrom.secretKeyRef.key] }))),
   ];
   for (const ref of refs) {
-    const secret = defaults.find((o) => o.kind === "Secret" && o.metadata?.name === ref.name);
+    const secret = optionalComponents.find((o) => o.kind === "Secret" && o.metadata?.name === ref.name);
     assert(secret, `${object.metadata.name} references missing Secret ${ref.name}`);
     for (const key of ref.keys) assert(key in (secret.stringData ?? {}) || key in (secret.data ?? {}), `${ref.name} is missing ${key}`);
   }
@@ -262,8 +305,6 @@ for (const [flag, message] of [
   ["secrets.existingSecret=old-contract", "was removed"],
   ["runner.extraEnv[0].name=OPENSHELL_GATEWAY_IMAGE", "was removed"],
   ["docling.replicaCount=2", "require ReadWriteMany"],
-  ["control.worker.enabled=false", "Control Worker is required"],
-  ["openshell.server.disableTls=false", "tenant TLS/auth are not configurable"],
 ]) {
   const invalid = spawnSync("helm", templateArguments(["--set", flag]), { encoding: "utf8" });
   assert.notEqual(invalid.status, 0, `${flag} must be rejected`);
@@ -882,15 +923,37 @@ if (
   );
 }
 
-for (const [setting, message] of [
-  ["openshell.enabled=true", "OpenShell is installed only in Project Namespaces"],
-  ["projectOpenShell.enabled=false", "Project Gateways are required"],
-  ["runner.projectTargetRouting.enabled=false", "Project routing is required"],
-  ["projectRuntimeNamespaces.enabled=false", "Project Namespaces are required"],
+// Removed settings must fail even when an old values file supplies the old default.
+for (const [path, values, message] of [
+  ["secrets.existingSecrets.control", ["external"], "one credentialBootstrap store"],
+  ["global.argocd.syncWaves.foundation", [0], "sync order is built into"],
+  ["projectOpenShell.releaseName", ["custom"], "release name is fixed"],
+  ["projectOpenShell.serviceNamePrefix", ["custom-"], "prefix is fixed"],
+  ["projectOpenShell.helmChart", ["/custom.tgz"], "Worker uses the bundled"],
+  ["keycloak.testUsers", ["custom"], "bundled identities"],
+  ["keycloak.testProjectIds", ["custom"], "bundled Project aliases"],
+  ["control.worker.enabled", [true, false], "Control Worker is always enabled"],
+  ["projectOpenShell.enabled", [true, false], "Project Gateways are always enabled"],
+  ["runner.projectTargetRouting.enabled", [true, false], "Project routing is always enabled"],
+  ["projectRuntimeNamespaces.enabled", [true, false], "Project Namespaces are always enabled"],
+  ["projectRuntimeNamespaces.resourceOwnership", [true, false], "Project resource ownership is always enabled"],
+  ["openshell.enabled", [false, true], "OpenShell is installed only in Project Namespaces"],
+  ["openshell.server.disableTls", [true, false], "tenant TLS/auth are fixed"],
+  ["openshell.server.auth.allowUnauthenticatedUsers", [true, false], "tenant TLS/auth are fixed"],
+  ["openshell.service.type", ["LoadBalancer"], "always use ClusterIP"],
+  ["openshell.supervisor.sideloadMethod", ["init-container"], "always uses init-container"],
+  ["openshell.server.telemetryEnabled", [false], "always disabled"],
+  ["openshell.server.workspaceDefaultStorageSize", ["1Gi"], "use projectOpenShell.workspace.storageSize"],
+  ["openshell.server.workspaceStorageClass", ["", "old-storage"], "use projectOpenShell.workspace.storageClass"],
+  ["runner.serviceBaseUrl", ["http://openshell.localhost:8080"], "managed automatically"],
+  ["runner.projectTargetRouting.gatewayEndpointTemplate", ["http://old.{namespace}.svc.cluster.local:8080"], "fixed openshell- prefix"],
 ]) {
-  const result = spawnSync("helm", templateArguments(["--set", setting]), { encoding: "utf8" });
-  if (result.status === 0 || !result.stderr.includes(message)) {
-    throw new Error(`Unsupported topology must fail explicitly: ${setting}`);
+  for (const value of values) {
+    const setting = `${path}=${value}`;
+    const result = spawnSync("helm", templateArguments(["--set", setting]), { encoding: "utf8" });
+    assert.notEqual(result.status, 0, `${setting} must be rejected`);
+    assert(result.stderr.includes("was removed"), `${setting}: expected removal error`);
+    assert(result.stderr.includes(message), `${setting}: expected ${message}`);
   }
 }
 

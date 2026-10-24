@@ -23,11 +23,6 @@ keycloak:
   service:
     type: ClusterIP
 
-runner:
-  projectTargetRouting:
-    serviceProxy:
-      type: ClusterIP
-
 agentSandbox:
   podSecurityContext:
     runAsNonRoot: true

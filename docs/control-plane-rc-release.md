@@ -117,8 +117,8 @@ helm upgrade --install tali-relay \
 
 Remove stale `images.*.tag` overrides to use the new Chart's version policy. Avoid
 blindly using `--reuse-values`, which can preserve old tags. Preserve environment
-settings such as `openshift.enabled`; externally managed Worker Secrets still need
-updating for configuration changes. Select prereleases explicitly with `--version`.
+settings such as `openshift.enabled`; the Chart generates component configuration
+from those settings. Select prereleases explicitly with `--version`.
 
 No stable or `latest` tag is changed by this workflow. The existing stable release
 workflow still performs full builds; automatically promoting a validated RC's

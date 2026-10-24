@@ -13,11 +13,13 @@ function render(settings = [], namespace = "control-images", args = []) {
 }
 const isPuller = (r) => r.metadata?.name?.endsWith("project-image-puller");
 test("all Hindsight DNS policies allow OCP backend ports without changing Kubernetes rules", () => {
+  const isHindsightPolicy = (resource) => resource.kind === "NetworkPolicy"
+    && resource.metadata.labels["app.kubernetes.io/component"].startsWith("hindsight-");
   for (const openshift of [false, true]) {
     for (const worker of [false, true]) {
       const resources = render([`openshift.enabled=${openshift}`, "hindsight.enabled=true",
         "hindsight.networkPolicy.enabled=true", `hindsight.worker.enabled=${worker}`]);
-      const policies = resources.filter(r => r.kind === "NetworkPolicy");
+      const policies = resources.filter(isHindsightPolicy);
       assert.deepEqual(policies.map(p => p.metadata.labels["app.kubernetes.io/component"]).sort(),
         ["hindsight-api", "hindsight-migration", ...(worker ? ["hindsight-worker"] : [])].sort());
       for (const policy of policies) {
@@ -32,9 +34,9 @@ test("all Hindsight DNS policies allow OCP backend ports without changing Kubern
     }
   }
   assert(!render(["openshift.enabled=true", "hindsight.networkPolicy.enabled=false"])
-    .some(r => r.kind === "NetworkPolicy"));
+    .some(isHindsightPolicy));
   assert(!render(["openshift.enabled=true", "hindsight.enabled=false"])
-    .some(r => r.kind === "NetworkPolicy"));
+    .some(isHindsightPolicy));
 });
 
 test("OpenShift grants only the Worker scoped image-puller binding authority", () => {
@@ -186,7 +188,7 @@ test("UI Demo images follow Helm settings even with the Example MCP Deployment d
   }
 });
 
-test("Demo configuration changes roll Control and Worker and reject unmanaged OCP configuration", () => {
+test("Demo configuration changes roll Control and Worker and reject conflicting image mappings", () => {
   const first = render();
   const upgraded = render(["images.exampleMcp.tag=next-version"], "control-images", ["--is-upgrade"]);
   for (const component of ["control", "control-worker"]) {
@@ -195,9 +197,6 @@ test("Demo configuration changes roll Control and Worker and reject unmanaged OC
       .spec.template.metadata.annotations["checksum/control-config"];
     assert.notEqual(checksum(first), checksum(upgraded));
   }
-  assert.throws(() => render(["openshift.enabled=true", "openshift.runtimeImages.enabled=true",
-    "secrets.existingSecrets.control=external"]), /Chart-managed Control configuration/);
-  assert.doesNotThrow(() => render(["secrets.existingSecrets.control=external"]));
   assert.throws(() => render(["openshift.enabled=true", "openshift.runtimeImages.enabled=true",
     "images.exampleMcp.repository=vendor/tali-control", "images.exampleMcp.useGlobalRegistry=false"]), /mapping collision/);
 });
@@ -276,15 +275,6 @@ test("OCP profile explicitly opts in; offline profile preserves external images 
     const config = runtimeConfiguration(render([], "control-images", profiles));
     for (const image of Object.values(config.images)) assert.match(image, /^registry\.airgap\.example\.com\//);
     assert.deepEqual([...config.worker.project_openshell.sandboxImages].sort(), Object.values(config.runner.openshell.sandbox.images).sort());
-  }
-});
-
-test("unified OCP configuration refuses an external Worker or Runner to prevent split image sources", () => {
-  for (const component of ["worker", "runner"]) {
-    assert.throws(() => render(["openshift.enabled=true", "openshift.runtimeImages.enabled=true",
-      `secrets.existingSecrets.${component}=external`]), /Chart-managed Worker and Runner/);
-    assert.doesNotThrow(() => render(["openshift.enabled=true", `secrets.existingSecrets.${component}=external`]));
-    assert.doesNotThrow(() => render(["openshift.runtimeImages.enabled=true", `secrets.existingSecrets.${component}=external`]));
   }
 });
 

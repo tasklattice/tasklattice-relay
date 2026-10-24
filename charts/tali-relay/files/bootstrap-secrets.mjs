@@ -13,10 +13,19 @@ export const credentialKeys = [
   "hindsightDatabasePassword", "hindsightApiKey", "hindsightRouterToken",
   "metricsToken", "exampleMcpPassword",
 ];
+// Only the explicit local development profile shares login credentials. Machine
+// tokens, signing/encryption keys and salts still use independent random values.
+export const developmentPasswordKeys = [
+  "postgresPassword", "initialPlatformAdministratorPassword", "litellmUiPassword",
+  "keycloakAdminPassword", "keycloakTestUserPassword", "hindsightDatabasePassword",
+  "exampleMcpPassword",
+];
 const urlKeys = ["databaseUrl", "adminUrl", "hindsightDatabaseUrl"];
 const retention = { "helm.sh/resource-policy": "keep", "argocd.argoproj.io/compare-options": "IgnoreExtraneous",
   "argocd.argoproj.io/sync-options": "Prune=false,Delete=false" };
 const fingerprintKey = "tali.io/credential-fingerprint";
+const profileKey = "tali.io/credential-profile";
+const credentialProfile = spec => spec.developmentMode === true ? "local-development" : "random";
 const fingerprint = credentials => createHash("sha256")
   .update(JSON.stringify([...credentialKeys, ...urlKeys].map(key => [key, credentials[key]]))).digest("hex");
 const dbUrl = (host, user, credential, database) =>
@@ -24,6 +33,9 @@ const dbUrl = (host, user, credential, database) =>
 
 export function generateCredentials(spec) {
   const data = Object.fromEntries(credentialKeys.map(key => [key, randomBytes(32).toString("hex")]));
+  if (spec.developmentMode === true) {
+    for (const key of developmentPasswordKeys) data[key] = "password";
+  }
   data.litellmMasterKey = `sk-${data.litellmMasterKey}`;
   data.databaseUrl = dbUrl(spec.databaseHost, "litellm", data.postgresPassword, "litellm");
   data.adminUrl = dbUrl(spec.databaseHost, "litellm", data.postgresPassword, "postgres");
@@ -96,6 +108,12 @@ function resource(name, data, spec, owner, annotations = {}) {
 }
 
 export async function bootstrap(request, spec) {
+  if (spec.developmentMode !== undefined && typeof spec.developmentMode !== "boolean") {
+    throw new BootstrapError("developmentMode must be a boolean.");
+  }
+  if (spec.developmentMode && spec.externalCredentials) {
+    throw new BootstrapError("Local development credentials cannot use an external credential store.");
+  }
   const names = [spec.credentialSecret, ...spec.outputs.map(output => output.name)];
   if (new Set(names).size !== names.length) throw new BootstrapError("Credential store and output Secret names must be distinct.");
   const base = `/api/v1/namespaces/${encodeURIComponent(spec.namespace)}`;
@@ -122,13 +140,20 @@ export async function bootstrap(request, spec) {
     }
     if (root.status === 404) {
       const data = generateCredentials(spec);
-      root = await request("POST", `${base}/secrets`, { ...resource(spec.credentialSecret, data, spec, owner), immutable: true });
+      root = await request("POST", `${base}/secrets`, {
+        ...resource(spec.credentialSecret, data, spec, owner, { [profileKey]: credentialProfile(spec) }), immutable: true,
+      });
       if (root.status === 409) root = await request("GET", secretPath(spec.credentialSecret));
     }
   }
   if (![200, 201].includes(root.status)) throw new BootstrapError(`Cannot read/create credential Secret: HTTP ${root.status}.`);
   if (root.body.metadata?.deletionTimestamp) throw new BootstrapError("Credential Secret is terminating; restore it before retrying initialization.");
   if (!spec.externalCredentials) requireOwner(root.body, spec, owner);
+  // Never silently reset existing accounts or reuse known development credentials
+  // after switching back to a production profile. Older stores are random.
+  if (!spec.externalCredentials && (root.body.metadata?.annotations?.[profileKey] ?? "random") !== credentialProfile(spec)) {
+    throw new BootstrapError("Credential profile changed; explicit credential migration or a fresh local installation is required.");
+  }
   const credentials = decode(root.body);
   validateCredentials(credentials, spec);
   const annotations = { ...retention, [fingerprintKey]: fingerprint(credentials) };

@@ -1,4 +1,3 @@
-{{- if .Values.control.worker.enabled }}
 {{- $component := "control-worker" -}}
 {{- $name := include "tali.componentName" (dict "root" . "component" $component) -}}
 {{- if .Values.monitoring.serviceMonitor.enabled }}
@@ -38,7 +37,7 @@ spec:
       labels:
         {{- include "tali.selectorLabels" (dict "root" . "component" $component) | nindent 8 }}
       annotations:
-        checksum/worker-config: {{ printf "%s:%s" (include "tali.workerConfig" .) .Values.secrets.existingSecrets.worker | sha256sum }}
+        checksum/worker-config: {{ include "tali.workerConfig" . | sha256sum }}
         checksum/control-config: {{ include "tali.controlConfigChecksum" . }}
         {{- if .Values.hindsight.enabled }}
         checksum/hindsight-secret: {{ include "tali.hindsightSecretChecksum" . }}
@@ -158,4 +157,3 @@ spec:
             items:
               - key: control.toml
                 path: control.toml
-{{- end }}

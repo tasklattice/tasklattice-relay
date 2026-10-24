@@ -59,7 +59,7 @@ ports:
 {{- end }}
 
 {{- define "tali.argocdSyncWave" -}}
-{{- index .root.Values.global.argocd.syncWaves .name -}}
+{{- index (dict "prerequisites" "-10" "foundation" "10" "database" "20" "platform" "30" "application" "40" "exposure" "50") .name -}}
 {{- end }}
 
 {{- define "tali.resourceAnnotations" -}}
@@ -124,7 +124,7 @@ ports:
 {{- end }}
 
 {{- define "tali.secretName" -}}
-{{- default (include "tali.componentName" (dict "root" .root "component" (printf "%s-config" .component))) (index .root.Values.secrets.existingSecrets .component) -}}
+{{- include "tali.componentName" (dict "root" .root "component" (printf "%s-config" .component)) -}}
 {{- end }}
 
 {{- define "tali.serviceAccountName" -}}
@@ -191,9 +191,6 @@ ports:
 
 {{- define "tali.hindsightSecretChecksum" -}}
 {{- $config := include "tali.hindsightConfig" . -}}
-{{- if .Values.secrets.existingSecrets.hindsight -}}
-{{- $config = printf "existing:%s:%s" .Values.secrets.existingSecrets.hindsight .Values.global.rolloutRevision -}}
-{{- end -}}
 {{- printf "%s:%s:%s" $config (.Files.Get "files/hindsight-entrypoint.py") (.Files.Get "files/hindsight-bootstrap.py") | sha256sum -}}
 {{- end }}
 
@@ -380,11 +377,11 @@ url = {{ printf "http://%s:9090" (include "tali.componentName" (dict "root" . "c
 token = {{ (include "tali.credential" "runnerToken") | toJson }}
 
 [litellm]
-url = {{ printf "http://%s.%s.svc.cluster.local:4000" (include "tali.componentName" (dict "root" . "component" "litellm")) .Release.Namespace | toJson }}
+url = {{ printf "http://%s.%s.svc.cluster.local:%v" (include "tali.componentName" (dict "root" . "component" "litellm")) .Release.Namespace .Values.litellm.service.port | toJson }}
 master_key = {{ (include "tali.credential" "litellmMasterKey") | toJson }}
 
 [runtime_namespaces]
-enabled = {{ .Values.projectRuntimeNamespaces.enabled }}
+enabled = true
 cluster_id = {{ .Values.projectRuntimeNamespaces.clusterId | toJson }}
 
 [demo_agents]
@@ -407,21 +404,23 @@ recallTimeoutMs = {{ .Values.hindsight.runtimeRecallTimeoutMs }}
 {{- end }}
 
 {{- define "tali.workerConfig" -}}
+{{- $argocd := default dict .Values.projectRuntimeNamespaces.argocd -}}
+{{- $docling := default dict .Values.control.worker.docling -}}
 [worker]
 healthPort = {{ .Values.control.worker.healthPort }}
 role = "tali-control-worker"
 [worker.docling]
-enabled = {{ or .Values.docling.enabled (not (empty .Values.control.worker.docling.url)) }}
-baseUrl = {{ default (printf "http://%s:%v" (include "tali.componentName" (dict "root" . "component" "docling")) .Values.docling.service.port) .Values.control.worker.docling.url | toJson }}
-apiKey = {{ .Values.control.worker.docling.apiKey | toJson }}
+enabled = {{ or .Values.docling.enabled (not (empty $docling.url)) }}
+baseUrl = {{ default (printf "http://%s:%v" (include "tali.componentName" (dict "root" . "component" "docling")) .Values.docling.service.port) $docling.url | toJson }}
+apiKey = {{ default "" $docling.apiKey | toJson }}
 
 [worker.resource_ownership]
 controlRelease = {{ .Release.Name | toJson }}
 controlNamespace = {{ .Release.Namespace | toJson }}
 controlServiceAccount = {{ include "tali.serviceAccountName" . | toJson }}
-enabled = {{ .Values.projectRuntimeNamespaces.resourceOwnership }}
-sourceTrackingId = {{ .Values.projectRuntimeNamespaces.argocd.sourceTrackingId | toJson }}
-installationId = {{ .Values.projectRuntimeNamespaces.argocd.installationId | toJson }}
+enabled = true
+sourceTrackingId = {{ default "" $argocd.sourceTrackingId | toJson }}
+installationId = {{ default "" $argocd.installationId | toJson }}
 
 [worker.openshift]
 enabled = {{ .Values.openshift.enabled }}
@@ -433,14 +432,14 @@ imageRegistryHost = {{ . | toJson }}
 {{- end }}
 
 [worker.project_openshell]
-enabled = {{ .Values.projectOpenShell.enabled }}
-targetRouting = {{ .Values.runner.projectTargetRouting.enabled }}
-chart = {{ .Values.projectOpenShell.helmChart | toJson }}
+enabled = true
+targetRouting = true
+chart = "/opt/tali/helm/openshell.tgz"
 certgenActiveDeadlineSeconds = {{ .Values.projectOpenShell.certgenActiveDeadlineSeconds }}
 helmTimeoutSeconds = {{ .Values.projectOpenShell.helmTimeoutSeconds }}
 helmProcessTimeoutSeconds = {{ .Values.projectOpenShell.helmProcessTimeoutSeconds }}
-releaseName = {{ .Values.projectOpenShell.releaseName | toJson }}
-serviceNamePrefix = {{ .Values.projectOpenShell.serviceNamePrefix | toJson }}
+releaseName = "openshell"
+serviceNamePrefix = "openshell-"
 gatewayImageRepository = {{ include "tali.runtimeImageReference" (dict "root" . "reference" .Values.openshell.image.repository "repositoryOnly" true) | toJson }}
 gatewayImageTag = {{ .Values.openshell.image.tag | toJson }}
 gatewayResources = {{ include "tali.tomlValue" .Values.openshell.resources }}
@@ -461,7 +460,7 @@ workspaceStorageClass = {{ . | toJson }}
 {{- end }}
 
 [worker.project_runtime_bridge]
-enabled = {{ and .Values.projectRuntimeNamespaces.enabled .Values.projectRuntimeBridge.enabled }}
+enabled = {{ .Values.projectRuntimeBridge.enabled }}
 image = {{ include "tali.runtimeImage" (dict "root" . "image" .Values.images.control) | toJson }}
 imagePullPolicy = {{ .Values.images.control.pullPolicy | toJson }}
 revision = {{ default .Chart.AppVersion .Values.global.rolloutRevision | toJson }}
@@ -469,7 +468,7 @@ imagePullSecrets = {{ include "tali.tomlValue" .Values.global.imagePullSecrets }
 resources = {{ include "tali.tomlValue" .Values.projectRuntimeBridge.resources }}
 
 [worker.expert_agent_runtime]
-enabled = {{ and .Values.projectRuntimeNamespaces.enabled .Values.projectRuntimeBridge.enabled .Values.expertAgentRuntime.enabled }}
+enabled = {{ and .Values.projectRuntimeBridge.enabled .Values.expertAgentRuntime.enabled }}
 image = {{ include "tali.runtimeImage" (dict "root" . "image" .Values.images.expertAgentRuntime) | toJson }}
 imagePullPolicy = {{ .Values.images.expertAgentRuntime.pullPolicy | toJson }}
 revision = {{ default .Chart.AppVersion .Values.global.rolloutRevision | toJson }}
@@ -478,19 +477,11 @@ resources = {{ include "tali.tomlValue" .Values.expertAgentRuntime.resources }}
 {{- end }}
 
 {{- define "tali.controlConfigChecksum" -}}
-{{- if .Values.secrets.existingSecrets.control -}}
-{{- printf "existing:%s" .Values.secrets.existingSecrets.control | sha256sum -}}
-{{- else -}}
 {{- include "tali.controlConfig" . | sha256sum -}}
-{{- end -}}
 {{- end }}
 
 {{- define "tali.runnerSecretChecksum" -}}
-{{- if .Values.secrets.existingSecrets.runner -}}
-{{- printf "existing:%s" .Values.secrets.existingSecrets.runner | sha256sum -}}
-{{- else -}}
 {{- include "tali.runnerConfig" . | sha256sum -}}
-{{- end -}}
 {{- end }}
 
 {{/* Exact resource APIs required to install the pinned official OpenShell chart. */}}
@@ -532,23 +523,15 @@ resources = {{ include "tali.tomlValue" .Values.expertAgentRuntime.resources }}
 {{- end -}}
 
 {{- define "tali.postgresqlSecretChecksum" -}}
-{{- if .Values.secrets.existingSecrets.postgresql -}}
-{{- printf "existing:%s" .Values.secrets.existingSecrets.postgresql | sha256sum -}}
-{{- else -}}
-{{- printf "%s:%s" .Values.secrets.existingSecrets.postgresql (include "tali.credential" "postgresPassword") | sha256sum -}}
-{{- end -}}
+{{- include "tali.credential" "postgresPassword" | sha256sum -}}
 {{- end }}
 
 {{- define "tali.litellmSecretChecksum" -}}
-{{- if .Values.secrets.existingSecrets.litellm -}}
-{{- printf "existing:%s" .Values.secrets.existingSecrets.litellm | sha256sum -}}
-{{- else -}}
-{{- printf "%s:%s:%s:%s:%s:%s" .Values.secrets.existingSecrets.litellm (include "tali.credential" "litellmMasterKey") (include "tali.databaseUrl" .) .Values.litellmAdministration.username (include "tali.credential" "litellmUiPassword") (include "tali.credential" "litellmSaltKey") | sha256sum -}}
-{{- end -}}
+{{- printf "%s:%s:%s:%s:%s" (include "tali.credential" "litellmMasterKey") (include "tali.databaseUrl" .) .Values.litellmAdministration.username (include "tali.credential" "litellmUiPassword") (include "tali.credential" "litellmSaltKey") | sha256sum -}}
 {{- end }}
 
 {{- define "tali.keycloakSecretChecksum" -}}
-{{- printf "%s:%s:%s:%s" .Values.secrets.existingSecrets.keycloak (include "tali.credential" "keycloakAdminPassword") (include "tali.credential" "keycloakClientSecret") (include "tali.credential" "keycloakTestUserPassword") | sha256sum -}}
+{{- printf "%s:%s:%s" (include "tali.credential" "keycloakAdminPassword") (include "tali.credential" "keycloakClientSecret") (include "tali.credential" "keycloakTestUserPassword") | sha256sum -}}
 {{- end }}
 
 {{- define "tali.doclingConfig" -}}
@@ -564,8 +547,7 @@ max_sync_wait: {{ .Values.docling.maxSyncWaitSeconds }}
 {{- $server := dict "host" "0.0.0.0" "port" 9090 "token" ((include "tali.credential" "runnerToken")) "mode" "openshell-kubernetes" "shutdownTimeoutMs" 540000 -}}
 {{- $sandbox := dict "cpu" (.Values.runner.sandbox.cpu | toString) "memory" .Values.runner.sandbox.memory "images" (dict "openclaw" (include "tali.runtimeImage" (dict "root" . "image" .Values.images.openclawSandbox)) "hermes" (include "tali.runtimeImage" (dict "root" . "image" .Values.images.hermesSandbox)) "deepagents" (include "tali.runtimeImage" (dict "root" . "image" .Values.images.deepagentsSandbox))) -}}
 {{- with .Values.runner.sandbox.cpuRequest -}}{{- $_ := set $sandbox "cpuRequest" (. | toString) -}}{{- end -}}
-{{- $proxy := dict "enabled" (and .Values.runner.projectTargetRouting.enabled .Values.runner.projectTargetRouting.serviceProxy.enabled) "port" .Values.runner.projectTargetRouting.serviceProxy.port "host" "0.0.0.0" -}}
-{{- $runtime := dict "startTimeoutMs" .Values.runner.startTimeoutMs "projectTargetRouting" .Values.runner.projectTargetRouting.enabled "gatewayEndpointTemplate" .Values.runner.projectTargetRouting.gatewayEndpointTemplate "serviceBaseUrl" .Values.runner.serviceBaseUrl "serviceProxy" $proxy "nemoclawVersion" .Values.projectOpenShell.nemoclawVersion "kubernetesServiceCidrs" (splitList "," .Values.runner.kubernetesServiceCidrs) "sandbox" $sandbox -}}
+{{- $runtime := dict "startTimeoutMs" .Values.runner.startTimeoutMs "projectTargetRouting" true "gatewayEndpointTemplate" "http://openshell-{namespace}.{namespace}.svc.cluster.local:8080" "serviceBaseUrl" "http://openshell.localhost:8080" "nemoclawVersion" .Values.projectOpenShell.nemoclawVersion "kubernetesServiceCidrs" (splitList "," .Values.runner.kubernetesServiceCidrs) "sandbox" $sandbox -}}
 {{- dict "schemaVersion" 1 "server" $server "openshell" $runtime | toPrettyJson -}}
 {{- end }}
 

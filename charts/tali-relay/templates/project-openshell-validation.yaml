@@ -1,50 +1,57 @@
-{{- if not .Values.control.worker.enabled -}}
-{{- fail "Control Worker is required for asynchronous resource management: control.worker.enabled must be true" -}}
+{{/* Removed public knobs: fail explicitly instead of silently ignoring old values. */}}
+{{- $removed := dict
+  "secrets" "component Secrets are generated from one credentialBootstrap store"
+  "global.argocd" "Argo CD sync order is built into the Chart"
+  "projectOpenShell.releaseName" "the Project release name is fixed to openshell"
+  "projectOpenShell.serviceNamePrefix" "the Project Gateway prefix is fixed to openshell-"
+  "projectOpenShell.helmChart" "Worker uses the bundled /opt/tali/helm/openshell.tgz"
+  "keycloak.testUsers" "the test provider uses bundled identities"
+  "keycloak.testProjectIds" "the test provider uses bundled Project aliases"
+  "control.worker.enabled" "Control Worker is always enabled"
+  "projectOpenShell.enabled" "Project Gateways are always enabled"
+  "runner.projectTargetRouting.enabled" "Project routing is always enabled"
+  "projectRuntimeNamespaces.enabled" "Project Namespaces are always enabled"
+  "projectRuntimeNamespaces.resourceOwnership" "Project resource ownership is always enabled"
+  "openshell.enabled" "OpenShell is installed only in Project Namespaces"
+  "openshell.server.disableTls" "tenant TLS/auth are fixed by the supported internal topology"
+  "openshell.server.auth.allowUnauthenticatedUsers" "tenant TLS/auth are fixed by the supported internal topology"
+  "openshell.service.type" "Project Gateway Services always use ClusterIP"
+  "openshell.supervisor.sideloadMethod" "Supervisor sideloading always uses init-container"
+  "openshell.server.telemetryEnabled" "Gateway telemetry is always disabled"
+  "openshell.server.workspaceDefaultStorageSize" "use projectOpenShell.workspace.storageSize"
+  "openshell.server.workspaceStorageClass" "use projectOpenShell.workspace.storageClass"
+  "runner.serviceBaseUrl" "the internal OpenShell Host base is managed automatically; browsers use control.publicUrls"
+  "runner.projectTargetRouting.gatewayEndpointTemplate" "Project Gateway endpoints use the fixed openshell- prefix"
+-}}
+{{- range $path, $reason := $removed -}}
+{{- $value := $.Values -}}
+{{- $present := true -}}
+{{- range splitList "." $path -}}
+{{- if kindIs "map" $value -}}
+{{- if hasKey $value . -}}
+{{- $value = index $value . -}}
+{{- else -}}
+{{- $present = false -}}
+{{- $value = dict -}}
 {{- end -}}
-{{- if not .Values.projectOpenShell.enabled -}}
-{{- fail "Project Gateways are required: projectOpenShell.enabled must be true" -}}
+{{- else -}}
+{{- $present = false -}}
 {{- end -}}
-{{- if not .Values.runner.projectTargetRouting.enabled -}}
-{{- fail "Project routing is required: runner.projectTargetRouting.enabled must be true" -}}
 {{- end -}}
-{{- if not .Values.projectRuntimeNamespaces.enabled -}}
-{{- fail "Project Namespaces are required: projectRuntimeNamespaces.enabled must be true" -}}
+{{- if $present -}}
+{{- fail (printf "%s was removed; %s. Remove this key from your Helm values" $path $reason) -}}
 {{- end -}}
-{{- if .Values.openshell.enabled -}}
-{{- fail "OpenShell is installed only in Project Namespaces; openshell.enabled must be false in the Control chart" -}}
-{{- end -}}
-{{- if or (not .Values.openshell.server.disableTls) (not .Values.openshell.server.auth.allowUnauthenticatedUsers) -}}
-{{- fail "Project OpenShell currently requires openshell.server.disableTls=true and openshell.server.auth.allowUnauthenticatedUsers=true; tenant TLS/auth are not configurable by this provisioner" -}}
 {{- end -}}
 {{- if or (hasKey .Values.control "extraEnv") (hasKey .Values.control.worker "extraEnv") -}}
-{{- fail "control.extraEnv and control.worker.extraEnv were removed; configure control.toml / worker.toml instead" -}}
-{{- end -}}
-{{- if hasKey .Values.secrets "existingSecret" -}}
-{{- fail "secrets.existingSecret was removed; use secrets.existingSecrets per component" -}}
-{{- end -}}
-{{- range $key, $_ := .Values.secrets -}}
-{{- if ne $key "existingSecrets" -}}
-{{- fail "Inline secrets settings were removed; use credentialBootstrap or existing Secrets" -}}
-{{- end -}}
+{{- fail "control.extraEnv and control.worker.extraEnv were removed; use the supported control and control.worker values" -}}
 {{- end -}}
 {{- if hasKey .Values.exampleMcp.auth "password" -}}
-{{- fail "Inline example MCP credentials were removed; use the initialized or existing Secret" -}}
-{{- end -}}
-{{- range .Values.keycloak.testUsers -}}
-{{- if hasKey . "password" -}}
-{{- fail "Inline Keycloak user credentials were removed; use the initialized or existing Secret" -}}
-{{- end -}}
+{{- fail "Inline example MCP credentials were removed; credentials come from the credentialBootstrap store" -}}
 {{- end -}}
 {{- if hasKey .Values.runner "extraEnv" -}}
-{{- fail "runner.extraEnv was removed; configure runner.json instead" -}}
+{{- fail "runner.extraEnv was removed; use the supported runner values" -}}
 {{- end -}}
 {{- if eq (include "tali.runtimeImagesEnabled" .) "true" -}}
-{{- if .Values.secrets.existingSecrets.control -}}
-{{- fail "Unified OCP Demo images require Chart-managed Control configuration; remove existingSecrets.control, or disable openshift.runtimeImages.enabled and configure demo_agents in the external Control configuration" -}}
-{{- end -}}
-{{- if or .Values.secrets.existingSecrets.worker .Values.secrets.existingSecrets.runner -}}
-{{- fail "Unified OCP runtime images require Chart-managed Worker and Runner configuration Secrets; remove their existingSecrets overrides, or set openshift.runtimeImages.enabled=false and synchronize both external configurations manually" -}}
-{{- end -}}
 {{/* Two unrelated upstream images must not silently collapse onto the same tag.
      Identical digest references can safely share content across repositories. */}}
 {{- $references := list
