@@ -27,7 +27,7 @@ function inventory(yaml) {
     gateway: `${g.gatewayImageRepository}:${g.gatewayImageTag}`,
     supervisor: `${g.supervisorImageRepository}:${g.supervisorImageTag}`,
     sandbox: g.sandboxImage,
-    openclaw: platforms.openclaw, hermes: platforms.hermes, deepagents: platforms.deepagents,
+    openclaw: platforms.openclaw, hermes: platforms.hermes, deepagents: platforms.deepagents, pi: platforms.pi,
     bridge: worker.project_runtime_bridge.image, expert: worker.expert_agent_runtime.image,
     demo: parseToml(control.fields['control.toml']).demo_agents.image,
   } };

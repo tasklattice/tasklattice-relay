@@ -61,6 +61,7 @@
   (include "tali.image" (dict "root" . "image" .Values.images.openclawSandbox))
   (include "tali.image" (dict "root" . "image" .Values.images.hermesSandbox))
   (include "tali.image" (dict "root" . "image" .Values.images.deepagentsSandbox))
+  (include "tali.image" (dict "root" . "image" .Values.images.piSandbox))
   (include "tali.image" (dict "root" . "image" .Values.images.control))
   (include "tali.image" (dict "root" . "image" .Values.images.expertAgentRuntime))
   (include "tali.image" (dict "root" . "image" .Values.images.exampleMcp)) -}}

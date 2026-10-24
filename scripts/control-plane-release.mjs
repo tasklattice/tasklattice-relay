@@ -16,6 +16,7 @@ export const releaseImages = {
   openclawSandbox: { image: "tali-nemoclaw-sandbox", agent: "openclaw" },
   hermesSandbox: { image: "tali-nemoclaw-hermes-sandbox", agent: "hermes" },
   deepagentsSandbox: { image: "tali-nemoclaw-deepagents-sandbox", agent: "deepagents" },
+  piSandbox: { image: "tali-nemoclaw-pi-sandbox", agent: "pi" },
 };
 export function pinControlReleaseValues(values, tag, registry) {
   const { version } = parseControlReleaseTag(tag);

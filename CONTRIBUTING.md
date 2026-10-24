@@ -33,10 +33,11 @@ ghcr.io/tasklattice/demo-test:dev
 ghcr.io/tasklattice/tali-nemoclaw-sandbox:dev
 ghcr.io/tasklattice/tali-nemoclaw-hermes-sandbox:dev
 ghcr.io/tasklattice/tali-nemoclaw-deepagents-sandbox:dev
+ghcr.io/tasklattice/tali-nemoclaw-pi-sandbox:dev
 ```
 
 These images are built into the local Docker store. The Release workflow does
-not publish the `dev` tag; release tags publish the same seven repositories.
+not publish the `dev` tag; release tags publish the same eight repositories.
 
 ## Prerequisites
 
@@ -84,7 +85,7 @@ Never commit `.env`.
 
 ## Build the local images
 
-Build all seven first-party development images from the current checkout and the
+Build all eight first-party development images from the current checkout and the
 selected upstream sources. Every final image is written only to the local Docker
 store with a `:dev` tag:
 
@@ -112,6 +113,7 @@ docker image inspect ghcr.io/tasklattice/tali-litellm:1.87.0-guard.3  # pulled; 
 docker image inspect ghcr.io/tasklattice/tali-nemoclaw-sandbox:dev
 docker image inspect ghcr.io/tasklattice/tali-nemoclaw-hermes-sandbox:dev
 docker image inspect ghcr.io/tasklattice/tali-nemoclaw-deepagents-sandbox:dev
+docker image inspect ghcr.io/tasklattice/tali-nemoclaw-pi-sandbox:dev
 docker image inspect ghcr.io/tasklattice/demo-test:dev
 ```
 
@@ -126,6 +128,7 @@ npm run images:build:dev:demo-test
 npm run images:build:dev:sandbox:openclaw
 npm run images:build:dev:sandbox:hermes
 npm run images:build:dev:sandbox:deepagents
+npm run images:build:dev:sandbox:pi
 ```
 
 ## Deploy with Helm
@@ -255,7 +258,13 @@ KUBE_CONTEXT=orbstack npm run helm:deploy:dev
 
 The same pattern applies to runner and LiteLLM changes. Rebuilding an Agent
 sandbox image affects newly created Sandboxes; recreate an existing development
-Instance when testing a new OpenClaw, Hermes, or Deep Agents Code image.
+Instance when testing a new OpenClaw, Hermes, Deep Agents Code, or Pi image.
+
+Pi follows NemoClaw v0.0.138 and stays at Pi 0.84.1. Its native TUI uses
+Relay's terminal and Model Routing. Sessions and files persist on the Instance
+PVC; reopening the terminal resumes the latest session. Pi currently has no
+HTTP UI, Durable Memory, MCP, Knowledge, or delegation integration. Reviewed
+dependency fixes are locked in `infra/npm/pi-runtime/`.
 
 ## Kind smoke test
 

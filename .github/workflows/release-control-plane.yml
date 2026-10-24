@@ -68,7 +68,7 @@ jobs:
             echo "This RC is already released. Create a new RC tag instead." >&2
             exit 1
           fi
-          for repository in tali-control tali-openshell-runner tali-expert-agent-runtime demo-test tali-nemoclaw-sandbox tali-nemoclaw-hermes-sandbox tali-nemoclaw-deepagents-sandbox charts/tali-relay; do
+          for repository in tali-control tali-openshell-runner tali-expert-agent-runtime demo-test tali-nemoclaw-sandbox tali-nemoclaw-hermes-sandbox tali-nemoclaw-deepagents-sandbox tali-nemoclaw-pi-sandbox charts/tali-relay; do
             reference="$REGISTRY/$repository:$VERSION"
             if docker buildx imagetools inspect "$reference" >/dev/null 2>&1; then
               echo "Refusing to overwrite published artifact: $reference" >&2
@@ -199,6 +199,7 @@ jobs:
           export NEMOCLAW_IMAGE="$IMAGE-$ARCH"
           export NEMOCLAW_HERMES_IMAGE="$IMAGE-$ARCH"
           export NEMOCLAW_DEEPAGENTS_IMAGE="$IMAGE-$ARCH"
+          export NEMOCLAW_PI_IMAGE="$IMAGE-$ARCH"
           export NEMOCLAW_BUILD_OUTPUT=ci-push
           export NEMOCLAW_UPSTREAM_IMAGE="${IMAGE%:*}:build-upstream-${IMAGE##*:}-$ARCH"
           export NEMOCLAW_FALLBACK_BASE_IMAGE="${IMAGE%:*}:build-base-${IMAGE##*:}-$ARCH"

@@ -121,6 +121,7 @@ images=(
   "$image_registry/tali-litellm:1.87.0-guard.3"
   "$image_registry/demo-test:$image_tag"
   "$image_registry/tali-nemoclaw-hermes-sandbox:$image_tag"
+  "$image_registry/tali-nemoclaw-pi-sandbox:$image_tag"
 )
 missing_images=()
 for image_name in "${images[@]}"; do

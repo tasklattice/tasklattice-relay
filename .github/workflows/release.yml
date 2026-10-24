@@ -238,6 +238,12 @@ jobs:
           - agent: deepagents
             architecture: arm64
             runner: ubuntu-24.04-arm
+          - agent: pi
+            architecture: amd64
+            runner: ubuntu-24.04
+          - agent: pi
+            architecture: arm64
+            runner: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
@@ -261,6 +267,9 @@ jobs:
           elif [[ "${NEMOCLAW_AGENT_PLATFORM}" == "hermes" ]]; then
             image="${registry}/tali-nemoclaw-hermes-sandbox"
             export NEMOCLAW_HERMES_IMAGE="${image}:${version}-${{ matrix.architecture }}"
+          elif [[ "${NEMOCLAW_AGENT_PLATFORM}" == "pi" ]]; then
+            image="${registry}/tali-nemoclaw-pi-sandbox"
+            export NEMOCLAW_PI_IMAGE="${image}:${version}-${{ matrix.architecture }}"
           else
             image="${registry}/tali-nemoclaw-deepagents-sandbox"
             export NEMOCLAW_DEEPAGENTS_IMAGE="${image}:${version}-${{ matrix.architecture }}"
@@ -282,6 +291,7 @@ jobs:
           - tali-nemoclaw-sandbox
           - tali-nemoclaw-hermes-sandbox
           - tali-nemoclaw-deepagents-sandbox
+          - tali-nemoclaw-pi-sandbox
     steps:
       - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
       - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
@@ -348,6 +358,7 @@ jobs:
             "${registry}/tali-nemoclaw-sandbox:${version}"
             "${registry}/tali-nemoclaw-hermes-sandbox:${version}"
             "${registry}/tali-nemoclaw-deepagents-sandbox:${version}"
+            "${registry}/tali-nemoclaw-pi-sandbox:${version}"
           )
 
           # Runtime dependencies include images used directly by Pods and

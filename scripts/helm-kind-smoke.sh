@@ -53,6 +53,7 @@ helm_values=(
   --set-string "images.exampleMcp.pullPolicy=$first_party_image_pull_policy" \
   --set-string "images.openclawSandbox.tag=$image_tag" \
   --set-string "images.hermesSandbox.tag=$image_tag" \
+  --set-string "images.piSandbox.tag=$image_tag" \
   --set-string "images.deepagentsSandbox.tag=$image_tag" \
   --set "control.service.type=ClusterIP" \
   --set "litellm.service.type=ClusterIP" \

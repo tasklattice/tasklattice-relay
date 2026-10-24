@@ -31,7 +31,7 @@ test("every first-party chart image uses the current RC, including reused images
   const original = parse(readFileSync("charts/tali-relay/values.yaml", "utf8"));
   const values = pinControlReleaseValues(structuredClone(original), "v0.2.8-rc.2", registry);
   for (const key of Object.keys(releaseImages)) assert.equal(values.images[key].tag, "0.2.8-rc.2");
-  assert.equal(Object.keys(releaseImages).length, 7);
+  assert.equal(Object.keys(releaseImages).length, 8);
   // LiteLLM comes from tasklattice-litellm-guard at a pinned tag, not the RC.
   assert.match(values.images.litellm.tag, /^\d+\.\d+\.\d+-guard\.\d+$/);
   assert.deepEqual(values.openshell, original.openshell);
@@ -49,7 +49,7 @@ test("selects the highest published prior RC in the same series, not draft or st
 test("first RC or absent compatible predecessor builds all seven images", () => {
   for (const tag of ["v0.2.8-rc.1", "v0.2.8-rc.3"]) {
     const plan = makePlan(tag, registry, sha, [], undefined);
-    assert.equal(plan.images.length, 7);
+    assert.equal(plan.images.length, 8);
     assert(plan.images.every(i => i.action === "build" && !i.source));
   }
 });
@@ -57,14 +57,14 @@ test("Control-only fix rebuilds Control and reuses six exact digests", () => {
   const plan = makePlan("v0.2.8-rc.2", registry, sha, ["apps/control/server/foo.ts"], previous());
   assert.deepEqual(plan.images.filter(i => i.action === "build").map(i => i.key), ["control"]);
   const reused = plan.images.filter(i => i.action === "reuse");
-  assert.equal(reused.length, 6);
+  assert.equal(reused.length, 7);
   assert(reused.every(i => i.reference.endsWith(":0.2.8-rc.2") && i.source.endsWith(`@sha256:${"b".repeat(64)}`) && i.sourceTag === "v0.2.8-rc.1"));
 });
 test("transitive dependencies and unknown files invalidate conservatively", () => {
   assert.deepEqual([...affectedImages(["apps/expert-agent-runtime/src/server.ts"])].sort(), ["control", "exampleMcp", "expertAgentRuntime"].sort());
   assert.deepEqual([...affectedImages(["apps/runner/src/index.ts"])], ["control", "runner"]);
   for (const file of ["package-lock.json", "packages/contracts/src/index.ts", "infra/docker/Dockerfile", "scripts/build-nemoclaw-sandbox.sh", ".github/workflows/release-control-plane.yml", "unknown-file"]) {
-    assert.equal(affectedImages([file]).size, 7, file);
+    assert.equal(affectedImages([file]).size, 8, file);
   }
 });
 test("malformed or cross-series predecessors are rejected; missing image metadata rebuilds it", () => {
@@ -96,11 +96,11 @@ test("Sandbox release guard accepts RC and stable workflows without bypassing ta
       NEMOCLAW_IMAGE: "example/sandbox:0.2.8-rc.1-amd64", ...overrides },
   });
   try {
-    for (const agent of ["openclaw", "hermes", "deepagents"]) {
+    for (const agent of ["openclaw", "hermes", "deepagents", "pi"]) {
       for (const arch of ["amd64", "arm64"]) {
         const image = `example/sandbox:0.2.8-rc.1-${arch}`;
         const result = invoke({ NEMOCLAW_AGENT_PLATFORM: agent, DOCKER_DEFAULT_PLATFORM: `linux/${arch}`,
-          NEMOCLAW_IMAGE: image, NEMOCLAW_HERMES_IMAGE: image, NEMOCLAW_DEEPAGENTS_IMAGE: image });
+          NEMOCLAW_IMAGE: image, NEMOCLAW_HERMES_IMAGE: image, NEMOCLAW_DEEPAGENTS_IMAGE: image, NEMOCLAW_PI_IMAGE: image });
         assert.equal(result.status, 86, result.stderr);
         assert.match(result.stderr, /sandbox-guard-passed/);
       }
@@ -123,23 +123,23 @@ test("Sandbox release guard accepts RC and stable workflows without bypassing ta
 test("grouped matrices retain all manifests when a group needs no builds", () => {
   const full = releaseMatrices(previous());
   assert.equal(full.coreBuildMatrix.include.length, 8);
-  assert.equal(full.sandboxBuildMatrix.include.length, 6);
+  assert.equal(full.sandboxBuildMatrix.include.length, 8);
   assert.equal(full.coreManifestMatrix.include.length, 4);
-  assert.equal(full.sandboxManifestMatrix.include.length, 3);
+  assert.equal(full.sandboxManifestMatrix.include.length, 4);
   assert(full.coreBuildRequired && full.sandboxBuildRequired);
   const incremental = releaseMatrices(makePlan("v0.2.8-rc.2", registry, sha, ["apps/control/server/foo.ts"], previous()));
   assert.equal(incremental.coreBuildMatrix.include.length, 2);
   assert.equal(incremental.sandboxBuildRequired, false);
   assert.deepEqual(incremental.sandboxBuildMatrix, { include: [] });
-  assert.equal(incremental.sandboxManifestMatrix.include.length, 3);
+  assert.equal(incremental.sandboxManifestMatrix.include.length, 4);
   assert(incremental.sandboxManifestMatrix.include.every(i => i.action === "reuse"));
 });
 
-test("release manifest requires seven matching publication receipts", () => {
+test("release manifest requires eight matching publication receipts", () => {
   const plan = makePlan("v0.2.8-rc.2", registry, sha, [], previous());
   const receipts = plan.images.map(i => ({ key: i.key, tag: plan.tag, sourceSha: sha, reference: i.reference, digest: `sha256:${"b".repeat(64)}` }));
   const manifest = assembleReleaseManifest(plan, receipts);
-  assert.equal(manifest.images.length, 7);
+  assert.equal(manifest.images.length, 8);
   assert(manifest.images.every(i => i.digest === receipts[0].digest));
   assert.equal(manifest.images.find(i => i.key === "runner").sourceTag, "v0.2.8-rc.1");
   for (const invalid of [receipts.slice(1), [...receipts.slice(1), receipts[1]],
@@ -187,7 +187,7 @@ test("per-image publication writes isolated receipts and assembly requires every
     }
     assert.equal(invoke("assemble-manifest").status, 0);
     const manifest = JSON.parse(readFileSync(join(directory, "dist/control-release/release-manifest.json"), "utf8"));
-    assert.equal(manifest.images.length, 7);
+    assert.equal(manifest.images.length, 8);
     for (const [name, contents] of Object.entries(releaseImageOutputs(manifest).files)) {
       assert.equal(readFileSync(join(directory, "dist/control-release", name), "utf8"), contents);
     }

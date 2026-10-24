@@ -89,6 +89,9 @@ images:
   deepagentsSandbox:
     repository: tali-nemoclaw-deepagents-sandbox
     tag: ""
+  piSandbox:
+    repository: tali-nemoclaw-pi-sandbox
+    tag: ""
   postgres:
     repository: pgvector/pgvector
     tag: 0.8.6-pg17

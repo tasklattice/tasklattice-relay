@@ -451,7 +451,7 @@ supervisorImageRepository = {{ include "tali.runtimeImageReference" (dict "root"
 supervisorImageTag = {{ .Values.openshell.supervisor.image.tag | toJson }}
 supervisorImagePullPolicy = {{ .Values.openshell.supervisor.image.pullPolicy | toJson }}
 sandboxImage = {{ include "tali.runtimeImageReference" (dict "root" . "reference" .Values.openshell.server.sandboxImage) | toJson }}
-sandboxImages = {{ list (include "tali.runtimeImage" (dict "root" . "image" .Values.images.openclawSandbox)) (include "tali.runtimeImage" (dict "root" . "image" .Values.images.hermesSandbox)) (include "tali.runtimeImage" (dict "root" . "image" .Values.images.deepagentsSandbox)) | toJson }}
+sandboxImages = {{ list (include "tali.runtimeImage" (dict "root" . "image" .Values.images.openclawSandbox)) (include "tali.runtimeImage" (dict "root" . "image" .Values.images.hermesSandbox)) (include "tali.runtimeImage" (dict "root" . "image" .Values.images.deepagentsSandbox)) (include "tali.runtimeImage" (dict "root" . "image" .Values.images.piSandbox)) | toJson }}
 sandboxImagePullPolicy = {{ .Values.openshell.server.sandboxImagePullPolicy | toJson }}
 sandboxImagePullSecrets = {{ include "tali.tomlValue" .Values.openshell.server.sandboxImagePullSecrets }}
 workspaceDefaultStorageSize = {{ .Values.projectOpenShell.workspace.storageSize | toJson }}
@@ -545,7 +545,7 @@ max_sync_wait: {{ .Values.docling.maxSyncWaitSeconds }}
 
 {{- define "tali.runnerConfig" -}}
 {{- $server := dict "host" "0.0.0.0" "port" 9090 "token" ((include "tali.credential" "runnerToken")) "mode" "openshell-kubernetes" "shutdownTimeoutMs" 540000 -}}
-{{- $sandbox := dict "cpu" (.Values.runner.sandbox.cpu | toString) "memory" .Values.runner.sandbox.memory "images" (dict "openclaw" (include "tali.runtimeImage" (dict "root" . "image" .Values.images.openclawSandbox)) "hermes" (include "tali.runtimeImage" (dict "root" . "image" .Values.images.hermesSandbox)) "deepagents" (include "tali.runtimeImage" (dict "root" . "image" .Values.images.deepagentsSandbox))) -}}
+{{- $sandbox := dict "cpu" (.Values.runner.sandbox.cpu | toString) "memory" .Values.runner.sandbox.memory "images" (dict "openclaw" (include "tali.runtimeImage" (dict "root" . "image" .Values.images.openclawSandbox)) "hermes" (include "tali.runtimeImage" (dict "root" . "image" .Values.images.hermesSandbox)) "deepagents" (include "tali.runtimeImage" (dict "root" . "image" .Values.images.deepagentsSandbox)) "pi" (include "tali.runtimeImage" (dict "root" . "image" .Values.images.piSandbox))) -}}
 {{- with .Values.runner.sandbox.cpuRequest -}}{{- $_ := set $sandbox "cpuRequest" (. | toString) -}}{{- end -}}
 {{- $runtime := dict "startTimeoutMs" .Values.runner.startTimeoutMs "projectTargetRouting" true "gatewayEndpointTemplate" "http://openshell-{namespace}.{namespace}.svc.cluster.local:8080" "serviceBaseUrl" "http://openshell.localhost:8080" "nemoclawVersion" .Values.projectOpenShell.nemoclawVersion "kubernetesServiceCidrs" (splitList "," .Values.runner.kubernetesServiceCidrs) "sandbox" $sandbox -}}
 {{- dict "schemaVersion" 1 "server" $server "openshell" $runtime | toPrettyJson -}}

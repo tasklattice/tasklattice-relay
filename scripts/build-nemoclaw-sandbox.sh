@@ -32,6 +32,14 @@ case "$AGENT_PLATFORM" in
     readonly WRAPPER_DOCKERFILE="$REPOSITORY_ROOT/infra/docker/Dockerfile.nemoclaw-deepagents"
     readonly FALLBACK_BASE_DOCKERFILE="agents/langchain-deepagents-code/Dockerfile.base"
     ;;
+  pi)
+    readonly NEMOCLAW_BASE_IMAGE="ghcr.io/nvidia/nemoclaw/pi-sandbox-base:${NEMOCLAW_VERSION}"
+    readonly NEMOCLAW_IMAGE="${NEMOCLAW_PI_IMAGE:-ghcr.io/tasklattice/tali-nemoclaw-pi-sandbox:dev}"
+    readonly DOCKERFILE="agents/pi/Dockerfile"
+    readonly DEFAULT_UPSTREAM_IMAGE="tali-nemoclaw-pi-upstream:${NEMOCLAW_VERSION#v}"
+    readonly WRAPPER_DOCKERFILE="$REPOSITORY_ROOT/infra/docker/Dockerfile.nemoclaw-pi"
+    readonly FALLBACK_BASE_DOCKERFILE="agents/pi/Dockerfile.base"
+    ;;
   *)
     echo "Unsupported NEMOCLAW_AGENT_PLATFORM: $AGENT_PLATFORM" >&2
     exit 2
@@ -138,11 +146,7 @@ if ! base_image_available; then
     fi
     resolved_base_image="$NEMOCLAW_FALLBACK_BASE_IMAGE"
   else
-    if [ "$AGENT_PLATFORM" = "hermes" ]; then
-      resolved_base_image="${NEMOCLAW_FALLBACK_BASE_IMAGE:-tali-nemoclaw-hermes-base:${NEMOCLAW_VERSION#v}}"
-    else
-      resolved_base_image="${NEMOCLAW_FALLBACK_BASE_IMAGE:-tali-nemoclaw-deepagents-base:${NEMOCLAW_VERSION#v}}"
-    fi
+    resolved_base_image="${NEMOCLAW_FALLBACK_BASE_IMAGE:-tali-nemoclaw-${AGENT_PLATFORM}-base:${NEMOCLAW_VERSION#v}}"
   fi
 
   echo "$AGENT_PLATFORM base image is unavailable from GHCR; building the selected-tag fallback."

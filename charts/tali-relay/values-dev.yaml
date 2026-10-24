@@ -28,6 +28,8 @@ images:
     tag: dev
   deepagentsSandbox:
     tag: dev
+  piSandbox:
+    tag: dev
 
 # Match the existing trusted local-cluster developer experience.
 control:
