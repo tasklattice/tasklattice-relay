@@ -113,6 +113,8 @@ spec:
               value: "8080"
             - name: TALI_CONFIG
               value: /etc/tali/control.toml
+            - name: TALI_ACCESS_LOG_ENABLED
+              value: {{ .Values.control.accessLog.enabled | quote }}
             - name: POD_NAMESPACE
               valueFrom:
                 fieldRef:
