@@ -19,11 +19,6 @@ const schema = z.object({
     gatewayEndpoint: z.string().url().default("http://openshell.openshell.svc.cluster.local:8080"),
     workspace: z.string().default("default"),
     serviceBaseUrl: z.string().url().default("http://openshell.localhost:8080"),
-    serviceProxy: z.object({
-      enabled: z.boolean().default(false),
-      host: z.string().default("0.0.0.0"),
-      port: port.default(8080),
-    }).strict().prefault({}),
     kubernetesServiceCidrs: z.array(z.string().min(1)).default(["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"]),
     nemoclawVersion: z.string().min(1).default("0.0.123"),
     dashboardPort: z.string().default("18789"),

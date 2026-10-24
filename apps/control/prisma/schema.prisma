@@ -428,9 +428,33 @@ model AuthSession {
 
   user          User                  @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   accessContext AccessContextSession?
+  agentUiSessions AgentUiSession[]
 
   @@index([userId])
   @@map("auth_sessions")
+  @@schema("tasklattice")
+}
+
+model AgentUiSession {
+  id                  String   @id
+  credentialHash      String   @map("credential_hash")
+  authSessionId       String   @map("auth_session_id")
+  actorId             String   @map("actor_id")
+  projectId           String   @map("project_id")
+  instanceId          String   @map("instance_id")
+  sandboxName         String   @map("sandbox_name")
+  generation          String
+  namespace           String
+  platform            String
+  upstreamOrigin      String   @map("upstream_origin")
+  upstreamSecret      String   @map("upstream_secret")
+  expiresAt           DateTime @map("expires_at") @db.Timestamptz(6)
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  authSession         AuthSession @relation(fields: [authSessionId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
+  @@index([authSessionId])
+  @@map("agent_ui_sessions")
   @@schema("tasklattice")
 }
 

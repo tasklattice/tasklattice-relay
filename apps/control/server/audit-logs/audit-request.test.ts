@@ -17,6 +17,15 @@ afterEach(async () => {
 });
 
 describe("platform audit request capture", () => {
+  it("audits the public native entry without recording capability routes", async () => {
+    for (const path of ["/project-a/instance-a/ui", "/project-a/instance-a/ui/", "/project-a/instance-a/ui/chat"]) {
+      const captured = await captureAuditRequest(new Request(`https://relay.test${path}`));
+      expect(captured?.descriptor).toMatchObject({ action: "agent_ui.open", projectId: "project-a", objectId: "instance-a" });
+    }
+    expect(await captureAuditRequest(new Request("https://relay.test/project-a/instance-a/ui-other"))).toBeUndefined();
+    expect(await captureAuditRequest(new Request("https://relay.test/_agent-ui/session/secret/api/messages", { method: "POST" }))).toBeUndefined();
+  });
+
   it("classifies side-effect routes and redacts credentials recursively", async () => {
     database = createTestPrisma();
     const captured = await captureAuditRequest(new Request(

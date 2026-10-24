@@ -4,11 +4,11 @@ import { requireAuth, unauthorizedResponse } from "../../../../../../../auth/aut
 import { instanceInteractionAccess } from "../../../../../../../instances/instance-http-view";
 import { errorResponse, jsonResponse, problemResponse } from "../../../../../../../http/responses";
 import { getInstanceService } from "../../../../../../../services";
+import { agentUiUrl } from "../../../../../../../agent-ui/access";
 
 export default defineHandler(async (event) => {
-  let subject: string;
   try {
-    subject = (await requireAuth(event.req)).user.id;
+    await requireAuth(event.req);
   } catch (error) {
     return unauthorizedResponse(error);
   }
@@ -18,12 +18,7 @@ export default defineHandler(async (event) => {
     const instance = await service.get(id);
     const httpEndpoint =
       instance?.status === "READY" && instance.httpEndpoint?.status === "READY"
-        ? await service.runner.getSandboxInteraction(
-            instance.sandboxName,
-            instance.agentPlatform,
-            subject,
-            await service.runnerRuntimeTarget(),
-          )
+        ? { ...instance.httpEndpoint, url: agentUiUrl(service.store.projectId, instance.id) }
         : instance?.httpEndpoint;
     return instance
       ? jsonResponse(instanceInteractionAccess(instance, httpEndpoint), {

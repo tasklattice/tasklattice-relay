@@ -49,10 +49,7 @@ import {
   sandboxStateKey,
   type RunnerRuntimeTarget,
 } from "./runtime-target.js";
-import {
-  projectServiceProxyEnabled,
-  startProjectServiceProxy,
-} from "./project-service-proxy.js";
+import { proxyWebUiHttp, proxyWebUiUpgrade } from "./web-ui-proxy.js";
 
 type Phase = RunnerSandbox["phase"];
 type SandboxState = RunnerSandbox;
@@ -312,6 +309,14 @@ function runtimeTargetFromQuery(value: unknown): RunnerRuntimeTarget | undefined
   return runnerRuntimeTargetSchema.parse({ namespace: value });
 }
 
+// Streaming Agent requests must run before JSON parsing and always authenticate
+// the Control -> Runner hop. Public hostname routing is deliberately removed.
+app.use((request, response, next) => {
+  if (!/^\/v1\/sandboxes\/[^/]+\/web-ui\//.test(request.url)) return next();
+  if (!authorized(request.headers.authorization)) return void response.status(401).end();
+  if (!isOpenShell) return void response.status(409).end();
+  proxyWebUiHttp(request, response);
+});
 app.use(express.json({ limit: "32kb" }));
 app.get("/health", (_request, response) => response.json({
   ok: true,
@@ -337,7 +342,7 @@ app.get("/health", (_request, response) => response.json({
           serviceBaseUrl: openShellServiceBaseUrl(),
           kubernetesServiceCidrs: openShellKubernetesServiceCidrs(),
           projectTargetRouting: projectTargetRoutingEnabled(),
-          projectServiceProxy: projectServiceProxyEnabled(),
+          projectServiceProxy: false,
         },
       }
     : {}),
@@ -642,6 +647,10 @@ server.on("upgrade", async (request, socket, head) => {
     request.url ?? "/",
     `http://${request.headers.host ?? "localhost"}`,
   );
+  if (/^\/v1\/sandboxes\/[^/]+\/web-ui\//.test(url.pathname)) {
+    if (!isOpenShell) return void rejectTerminalUpgrade(socket, 409, "Web UI unavailable.");
+    return proxyWebUiUpgrade(request, socket, head);
+  }
   const match = url.pathname.match(/^\/v1\/sandboxes\/([a-z0-9-]+)\/terminal$/);
   if (!match)
     return void rejectTerminalUpgrade(socket, 409, "Unknown terminal path.");
@@ -787,13 +796,11 @@ app.use(
 server.listen(port, host, () =>
   console.log(`TaskLattice Relay Runtime Runner listening on ${host}:${port} (${mode})`),
 );
-const projectServiceProxy = startProjectServiceProxy();
 
 async function gracefulShutdown(signal: NodeJS.Signals): Promise<void> {
   if (shuttingDown) return;
   shuttingDown = true;
   server.close();
-  projectServiceProxy?.close();
   console.info(
     `${signal} received; draining ${provisionTasks.size} active provisioning task(s).`,
   );

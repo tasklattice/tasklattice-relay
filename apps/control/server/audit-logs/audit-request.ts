@@ -125,6 +125,11 @@ async function captureBody(request: Request): Promise<unknown> {
 }
 
 function descriptor(method: string, path: string): AuditDescriptor | undefined {
+  const agentUi = path.match(/^\/([^/]+)\/([^/]+)\/ui(?:\/|$)/);
+  if (method === "GET" && agentUi) {
+    return { action: "agent_ui.open", objectType: "Agent Web UI", operation: "open",
+      projectId: decodeURIComponent(agentUi[1]!), objectId: decodeURIComponent(agentUi[2]!) };
+  }
   if (method === "PUT" && path === "/api/v1/access-context") {
     return {
       action: "user.access_context_select",

@@ -1,6 +1,5 @@
 import { getRunnerConfig, setRunnerConfigForTests } from "./runner-config.js";
 import { afterEach, describe, expect, it } from "vitest";
-import { projectServiceRoute } from "./project-service-proxy.js";
 import {
   resolveOpenShellTarget,
   sandboxStateKey,
@@ -54,55 +53,7 @@ describe("Project OpenShell target routing", () => {
     }));
   });
 
-  it("routes only a complete workspace-qualified OpenShell service host", () => {
-    expect(projectServiceRoute(
-      "tp-abcdefghijklm--i-example--webui.openshell.example.test",
-      "https://openshell.example.test",
-    )).toEqual({
-      upstreamHost:
-        "openshell-tp-abcdefghijklm.tp-abcdefghijklm.svc.cluster.local",
-      upstreamPort: 8080,
-      upstreamProtocol: "http:",
-      workspace: "tp-abcdefghijklm",
-    });
-    expect(projectServiceRoute(
-      "default--i-example--webui.openshell.example.test",
-      "https://openshell.example.test",
-    )).toBeUndefined();
-    expect(projectServiceRoute(
-      "tp-abcdefghijklm.openshell.example.test",
-      "https://openshell.example.test",
-    )).toBeUndefined();
-  });
 
-  it("does not route two Project service hosts through the same Gateway", () => {
-    const serviceBaseUrl = "https://openshell.example.test";
-    const first = projectServiceRoute(
-      "tp-abcdefghijklm--i-shared--webui.openshell.example.test",
-      serviceBaseUrl,
-    );
-    const second = projectServiceRoute(
-      "tp-bcdefghijklmn--i-shared--webui.openshell.example.test",
-      serviceBaseUrl,
-    );
-
-    expect(first).toMatchObject({
-      upstreamHost:
-        "openshell-tp-abcdefghijklm.tp-abcdefghijklm.svc.cluster.local",
-      workspace: "tp-abcdefghijklm",
-    });
-    expect(second).toMatchObject({
-      upstreamHost:
-        "openshell-tp-bcdefghijklmn.tp-bcdefghijklmn.svc.cluster.local",
-      workspace: "tp-bcdefghijklmn",
-    });
-    expect(first?.upstreamHost).not.toBe(second?.upstreamHost);
-    expect(sandboxStateKey("i-shared", {
-      namespace: first!.workspace,
-    })).not.toBe(sandboxStateKey("i-shared", {
-      namespace: second!.workspace,
-    }));
-  });
 });
 
 afterEach(() => setRunnerConfigForTests());

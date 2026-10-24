@@ -202,6 +202,9 @@ export function projectRouteAdmissionPolicy(
     if (tail.length === 3 && tail[2] === "interaction" && method === "GET") {
       return policy("INSTANCE", [requirement("CAP_AGENT_INSTANCE_INTERACT", "AgentInstance")], instanceId);
     }
+    if (tail.length === 3 && tail[2] === "web-ui-sessions" && ["POST", "PATCH"].includes(method)) {
+      return policy("INSTANCE", [requirement("CAP_AGENT_INSTANCE_INTERACT", "AgentInstance")], instanceId);
+    }
     if (tail.length === 3 && tail[2] === "logs" && method === "GET") {
       return policy("INSTANCE", [requirement("CAP_AGENT_INSTANCE_LOG_VIEW", "AgentInstance")], instanceId);
     }

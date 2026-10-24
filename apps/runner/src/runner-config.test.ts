@@ -37,6 +37,6 @@ describe("Runner file contract", () => {
     expect(config.openshell.sandbox.cpu).toBe("1");
     expect(config.openshell.startTimeoutMs).toBe(600000);
     expect(config.openshell.projectTargetRouting).toBe(true);
-    expect(config.openshell.serviceProxy.enabled).toBe(true);
+    expect(config.openshell).not.toHaveProperty("serviceProxy");
   });
 });
