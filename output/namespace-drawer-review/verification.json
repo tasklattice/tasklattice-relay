@@ -1,0 +1,86 @@
+{
+  "scope": "Check Namespace right-side drawer",
+  "mode": "prototype",
+  "data": "Actual component with simulated API responses; original localhost:38180 route redirected to sign-in.",
+  "desktopCssViewports": [
+    [
+      1439,
+      900
+    ],
+    [
+      1200,
+      760
+    ]
+  ],
+  "checks": {
+    "rightSideDrawer": true,
+    "noInlineDisclosure": true,
+    "loadingAndDuplicateCheckPrevention": true,
+    "errorAndRetryRecovery": true,
+    "escapeAndFocusReturn": true,
+    "focusTrappedInDrawer": true,
+    "lightAndDarkReviewed": true,
+    "noHorizontalOverflow": true,
+    "scrollBodyAndPersistentFooter": true,
+    "consoleErrorsOrWarnings": []
+  },
+  "validation": {
+    "typecheck": "passed",
+    "productionBuild": "passed",
+    "tests": "26 passed in 3 files",
+    "diffCheck": "passed"
+  },
+  "dimensions": {
+    "productIntent": {
+      "weight": 0.22,
+      "subchecks": {
+        "clearCheckAction": 2,
+        "secondaryDetailsInDrawer": 2
+      }
+    },
+    "informationArchitecture": {
+      "weight": 0.22,
+      "subchecks": {
+        "summaryOnPage": 2,
+        "detailsAndActionsInDrawer": 2
+      }
+    },
+    "trustAndDomainFit": {
+      "weight": 0.18,
+      "subchecks": {
+        "retainsApiAndPermissions": 2,
+        "failureAndLastCheckedShown": 2
+      }
+    },
+    "interactionReadiness": {
+      "weight": 0.16,
+      "subchecks": {
+        "openCloseAndKeyboard": 2,
+        "loadingErrorAndRetry": 2
+      }
+    },
+    "systemCraft": {
+      "weight": 0.14,
+      "subchecks": {
+        "sharedSheetAndTokens": 2,
+        "desktopScrollingAndFooter": 2
+      }
+    },
+    "visualAndBrandExpression": {
+      "weight": 0.08,
+      "subchecks": {
+        "lightDarkAndReadableHierarchy": 2,
+        "noNewDecorativeStyles": 2
+      }
+    }
+  },
+  "weightedScoreForScopedChange": 10,
+  "limitations": [
+    "No deployment to localhost:38180; live authenticated route not verified."
+  ],
+  "screenshots": [
+    "light-preview.png",
+    "dark-preview.png",
+    "dark-error.png"
+  ]
+}
