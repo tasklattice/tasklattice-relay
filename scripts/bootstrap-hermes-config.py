@@ -10,8 +10,6 @@ import os
 from pathlib import Path
 import re
 import stat
-import subprocess
-import sys
 import tempfile
 import urllib.parse
 import urllib.request
@@ -24,7 +22,7 @@ MCP_LINE = re.compile(
     r"^# nemoclaw-hermes-mcp-state-v1 intended=([0-9a-f]{64}) applied=([0-9a-f]{64})$"
 )
 OPENSHELL_CREDENTIAL_PLACEHOLDER = re.compile(
-    r"^openshell:resolve:env:v[0-9]+_OPENAI_API_KEY$"
+    r"^openshell:resolve:env:(?:v[0-9]{1,20}|s[a-f0-9]{64})_OPENAI_API_KEY$"
 )
 ENVIRONMENT_NAME = re.compile(r"^[A-Z][A-Z0-9_]*$")
 MAX_A2A_REGISTRY_BYTES = 1024 * 1024
@@ -51,7 +49,7 @@ def require_directory(path: Path) -> None:
 
 def require_regular_file(path: Path) -> None:
     metadata = path.lstat()
-    if not stat.S_ISREG(metadata.st_mode) or metadata.st_nlink != 1:
+    if not stat.S_ISREG(metadata.st_mode) or metadata.st_nlink != 1 or metadata.st_uid != os.geteuid():
         raise RuntimeError(f"Refusing non-regular Hermes file: {path}")
 
 
@@ -76,42 +74,36 @@ def atomic_write(path: Path, data: bytes, mode: int) -> None:
         raise
 
 
-def mcp_digest(config: Path, builder: Path, guard: Path) -> str:
-    result = subprocess.run(
-        [
-            sys.executable,
-            "-I",
-            str(builder),
-            "--guard",
-            str(guard),
-            "--config",
-            str(config),
-        ],
-        check=True,
-        capture_output=True,
-        text=True,
-        timeout=15,
-    )
-    value = result.stdout.strip()
-    if not re.fullmatch(r"[0-9a-f]{64}", value):
-        raise RuntimeError("Hermes MCP digest builder returned an invalid digest")
-    return value
+def mcp_digest(config: Path) -> str:
+    # Same canonical map as NemoClaw v0.0.138's runtime-config-guard.
+    document = yaml.safe_load(config.read_text(encoding="utf-8"))
+    if not isinstance(document, dict):
+        raise RuntimeError("Hermes config must be a YAML object")
+    servers = document.get("mcp_servers", {})
+    if servers is None:
+        servers = {}
+    if not isinstance(servers, dict):
+        raise RuntimeError("Hermes MCP configuration must be an object")
+    return digest(json.dumps(
+        servers, allow_nan=False, ensure_ascii=True,
+        separators=(",", ":"), sort_keys=True,
+    ).encode("utf-8"))
 
 
-def parse_anchor(anchor: bytes, config: Path, env: Path) -> tuple[str, str, str]:
+def parse_anchor(anchor: bytes, config: Path, env: Path) -> tuple[str, str, str | None]:
     lines = anchor.decode("utf-8").splitlines()
-    if len(lines) != 3:
+    if len(lines) not in (2, 3):
         raise RuntimeError("Hermes hash anchor has an unexpected shape")
     config_match = HASH_LINE.fullmatch(lines[0])
     env_match = HASH_LINE.fullmatch(lines[1])
-    mcp_match = MCP_LINE.fullmatch(lines[2])
+    mcp_match = MCP_LINE.fullmatch(lines[2]) if len(lines) == 3 else None
     if not config_match or config_match.group(2) != str(config):
         raise RuntimeError("Hermes config hash anchor is invalid")
     if not env_match or env_match.group(2) != str(env):
         raise RuntimeError("Hermes env hash anchor is invalid")
-    if not mcp_match or mcp_match.group(1) != mcp_match.group(2):
+    if len(lines) == 3 and (not mcp_match or mcp_match.group(1) != mcp_match.group(2)):
         raise RuntimeError("Hermes MCP hash anchor is not in a clean state")
-    return config_match.group(1), env_match.group(1), mcp_match.group(1)
+    return config_match.group(1), env_match.group(1), mcp_match.group(1) if mcp_match else None
 
 
 def validate_a2a_registry_url(value: str) -> urllib.parse.ParseResult:
@@ -370,16 +362,6 @@ def main() -> None:
     parser.add_argument("--vector-database-registry-token")
     parser.add_argument("--durable-memory-provider")
     parser.add_argument("--durable-memory-endpoint")
-    parser.add_argument(
-        "--mcp-digest-builder",
-        type=Path,
-        default=Path("/usr/local/lib/nemoclaw/build-hermes-mcp-digest.py"),
-    )
-    parser.add_argument(
-        "--runtime-config-guard",
-        type=Path,
-        default=Path("/usr/local/lib/nemoclaw/hermes-runtime-config-guard.py"),
-    )
     args = parser.parse_args()
 
     config = args.config
@@ -395,8 +377,6 @@ def main() -> None:
         config,
         env,
         hash_file,
-        args.mcp_digest_builder,
-        args.runtime_config_guard,
     ):
         require_regular_file(path)
     original_config = config.read_bytes()
@@ -405,7 +385,7 @@ def main() -> None:
     config_hash, env_hash, anchored_mcp = parse_anchor(original_anchor, config, env)
     if digest(original_config) != config_hash or digest(original_env) != env_hash:
         raise RuntimeError("Hermes persisted inputs already differ from the image anchor")
-    if mcp_digest(config, args.mcp_digest_builder, args.runtime_config_guard) != anchored_mcp:
+    if anchored_mcp is not None and mcp_digest(config) != anchored_mcp:
         raise RuntimeError("Hermes MCP configuration already differs from the image anchor")
 
     current = original_config.decode("utf-8")
@@ -532,18 +512,16 @@ def main() -> None:
         width=1000,
     )
     updated_config = updated.encode("utf-8")
-    config_mode = config.stat().st_mode & 0o7777
-    env_mode = env.stat().st_mode & 0o7777
-    anchor_mode = hash_file.stat().st_mode & 0o7777
+    config_mode = 0o640
+    env_mode = 0o640
+    anchor_mode = 0o640
 
     try:
         atomic_write(config, updated_config, config_mode)
         atomic_write(env, updated_env, env_mode)
-        updated_mcp = mcp_digest(config, args.mcp_digest_builder, args.runtime_config_guard)
         updated_anchor = (
             f"{digest(updated_config)}  {config}\n"
             f"{digest(updated_env)}  {env}\n"
-            f"# nemoclaw-hermes-mcp-state-v1 intended={updated_mcp} applied={updated_mcp}\n"
         ).encode("utf-8")
         atomic_write(hash_file, updated_anchor, anchor_mode)
     except BaseException:

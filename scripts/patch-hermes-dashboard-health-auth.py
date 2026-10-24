@@ -28,8 +28,18 @@ AUTHENTICATED_PROBE = '''    api_server_key = os.getenv("API_SERVER_KEY", "").st
 '''
 
 
+def _with_parse_import(source: str) -> str:
+    anchor = "import urllib.request\n"
+    if source.count(anchor) != 1:
+        raise SystemExit("expected one urllib.request import")
+    return source.replace(anchor, "import urllib.parse\n" + anchor)
+
+
 def patch_web_server(path: Path) -> None:
     source = path.read_text(encoding="utf-8")
+    # Hermes 0.21.3 moved the probe to web_server_gateway.py.
+    if "import urllib.parse\n" not in source:
+        source = _with_parse_import(source)
     occurrences = source.count(PROBE_ANCHOR)
     if occurrences != 1:
         raise SystemExit(

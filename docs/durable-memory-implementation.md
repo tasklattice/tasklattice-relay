@@ -180,7 +180,7 @@ do not remove the index until every in-flight create request has expired.
   `agent_end` hooks. The plugin prepends bounded recall context and submits a
   fire-and-forget retain event after the final turn.
 - Hermes uses the unmodified upstream `hindsight` provider bundled in the
-  pinned NemoClaw v0.0.123 image, with `hindsight-client==0.6.1` installed at
+  pinned NemoClaw v0.0.138 image, with `hindsight-client==0.6.1` installed at
   build time. The custom `tali_relay` provider has been removed. The frontend
   Native selection configures builtin memory (`memory.provider: ""`); selecting
   a platform Memory sets `memory.provider: hindsight` in CLI and Dashboard.

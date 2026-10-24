@@ -49,7 +49,8 @@ with tempfile.TemporaryDirectory() as home:
     assert provider and provider.name == 'hindsight'
     provider.initialize('build-probe')
     assert provider._mode == 'local_external'
-    assert 'sapphire' in provider._do_recall('launch codename').text
+    recalled, count = provider._do_recall('launch codename')
+    assert 'sapphire' in recalled and count == 1
     provider.sync_turn('The launch codename is sapphire.', 'Remembered.')
     provider._wait_for_retains_drained(10)
     assert ('POST', '/v1/default/banks/agent-test/memories') in requests, requests

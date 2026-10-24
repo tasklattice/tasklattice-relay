@@ -11,7 +11,7 @@ const bootstrap = resolve(
   import.meta.dirname,
   "../../../scripts/bootstrap-hermes-config.py",
 );
-const mcpHash = "a".repeat(64);
+const mcpHash = createHash("sha256").update("{}").digest("hex");
 const managedCredentialPlaceholder =
   "openshell:resolve:env:v123456_OPENAI_API_KEY";
 
@@ -28,94 +28,6 @@ afterEach(async () => {
 });
 
 describe("Hermes config bootstrap", () => {
-  it("seeds the native Hermes Dashboard without optional Relay tool registries", () => {
-    const patch = resolve(import.meta.dirname, "../../../scripts/patch-hermes-dashboard-relay-integrations.py");
-    const program = `
-from __future__ import annotations
-import importlib.util
-import sys
-spec = importlib.util.spec_from_file_location("integrations_patch", sys.argv[1])
-module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(module)
-scope = {"InvalidDashboardSeedDocumentError": ValueError}
-source = module.FUNCTION_REPLACEMENT
-exec(source[source.index("_RELAY_TOOLSETS ="):source.index("def _set_policy_value")], scope)
-normalize = scope["_normalized_relay_integrations"]
-assert normalize({"plugins": {"enabled": ["nemoclaw", "tali-run-telemetry"]}}) == {
-    "toolsets": ["hermes-cli"], "plugins": ["nemoclaw", "tali-run-telemetry"]}
-for toolsets in (None, [], ["unapproved"]):
-    try:
-        normalize({"toolsets": toolsets, "plugins": {"enabled": ["tali-run-telemetry"]}})
-    except ValueError:
-        pass
-    else:
-        raise AssertionError(f"invalid tools accepted: {toolsets}")
-`;
-    const result = spawnSync("python3", ["-c", program, patch], { encoding: "utf8" });
-    expect(result.status, result.stderr).toBe(0);
-  });
-
-  it("allows builtin and Hindsight Dashboard memory while rejecting unknown providers and invalid flags", () => {
-    const patch = resolve(import.meta.dirname, "../../../scripts/patch-hermes-dashboard-memory.py");
-    const program = `
-from __future__ import annotations
-import importlib.util
-import sys
-spec = importlib.util.spec_from_file_location("memory_patch", sys.argv[1])
-module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(module)
-scope = {"InvalidDashboardSeedDocumentError": ValueError}
-source = module.FUNCTION_REPLACEMENT
-exec(source[source.index("def _normalized_memory"):source.index("def _set_policy_value")], scope)
-normalize = scope["_normalized_memory"]
-assert normalize({}) is None
-for provider in (None, "", "hindsight"):
-    memory = {"memory_enabled": True, "user_profile_enabled": True}
-    if provider is not None:
-        memory["provider"] = provider
-    result = normalize({"memory": memory})
-    assert result == {**memory, "provider": provider or ""}
-for memory in ({"provider": "unknown"}, {"memory_enabled": "true"}, []):
-    try:
-        normalize({"memory": memory})
-    except ValueError:
-        pass
-    else:
-        raise AssertionError(f"invalid memory accepted: {memory}")
-`;
-    const result = spawnSync("python3", ["-c", program, patch], { encoding: "utf8" });
-    expect(result.status, result.stderr).toBe(0);
-  });
-
-  it("mirrors only the scoped LiteLLM MCP gateway into the Dashboard", () => {
-    const patch = resolve(import.meta.dirname, "../../../scripts/patch-hermes-dashboard-relay-integrations.py");
-    const program = `
-import importlib.util, sys, urllib.parse
-from copy import deepcopy
-spec = importlib.util.spec_from_file_location("bootstrap", sys.argv[1])
-bootstrap = importlib.util.module_from_spec(spec); spec.loader.exec_module(bootstrap)
-spec = importlib.util.spec_from_file_location("patch", sys.argv[2])
-patch = importlib.util.module_from_spec(spec); spec.loader.exec_module(patch)
-scope = {"InvalidDashboardSeedDocumentError": ValueError, "urllib": __import__("urllib"), "deepcopy": deepcopy}
-source = patch.FUNCTION_REPLACEMENT
-exec(source[source.index("_RELAY_TOOLSETS ="):source.index("def _set_policy_value")], scope)
-normalize = scope["_normalized_relay_integrations"]
-credential = "openshell:resolve:env:v123456_OPENAI_API_KEY"
-config = {"model": {"base_url": "http://litellm.test:4000/v1", "api_key": credential},
-          "plugins": {"enabled": ["tali-run-telemetry"]}}
-bootstrap.configure_gateway_mcp(config, config["model"]["base_url"], credential)
-assert config["mcp_servers"]["tali"]["url"] == "http://litellm.test:4000/mcp/"
-assert normalize(config)["mcp_servers"] == config["mcp_servers"]
-for bad in ({"url": "http://other.test/mcp/"}, {"headers": {"Authorization": "Bearer raw-secret"}}):
-    changed = deepcopy(config); changed["mcp_servers"]["tali"].update(bad)
-    try: normalize(changed)
-    except ValueError: pass
-    else: raise AssertionError("cross-origin or unmanaged MCP credential accepted")
-`;
-    const result = spawnSync("python3", ["-c", program, bootstrap, patch], { encoding: "utf8" });
-    expect(result.status, result.stderr).toBe(0);
-  });
-
   it("enables the bundled Run telemetry plugin", () => {
     const program = `
 import importlib.util
@@ -297,7 +209,10 @@ print(json.dumps(document))
     });
   });
 
-  it("routes through the custom provider with OpenShell's runtime credential placeholder", async () => {
+  it.each([
+    managedCredentialPlaceholder,
+    `openshell:resolve:env:s${"a".repeat(64)}_OPENAI_API_KEY`,
+  ])("routes through the custom provider with issued credential %s", async (credential) => {
     const root = await mkdtemp(join(tmpdir(), "tali-hermes-config-"));
     temporaryDirectories.push(root);
     const state = join(root, ".hermes");
@@ -305,8 +220,6 @@ print(json.dumps(document))
     const config = join(state, "config.yaml");
     const environment = join(state, ".env");
     const anchor = join(state, ".config-hash");
-    const builder = join(root, "mcp-digest.py");
-    const guard = join(root, "guard.py");
     const initial = `# Managed by NemoClaw
 _nemoclaw_upstream:
   provider: deepseek
@@ -331,8 +244,6 @@ custom_providers:
     const env = "HERMES_HOME=/sandbox/.hermes\n";
     await writeFile(config, initial);
     await writeFile(environment, env);
-    await writeFile(builder, `print("${mcpHash}")\n`);
-    await writeFile(guard, "# test guard\n");
     await writeFile(
       anchor,
       `${digest(initial)}  ${config}\n${digest(env)}  ${environment}\n# nemoclaw-hermes-mcp-state-v1 intended=${mcpHash} applied=${mcpHash}\n`,
@@ -356,22 +267,18 @@ custom_providers:
       "hindsight",
       "--durable-memory-endpoint",
       "http://runtime-bridge.project.svc.cluster.local:8080/v1/hindsight/coordinators/agent-a",
-      "--mcp-digest-builder",
-      builder,
-      "--runtime-config-guard",
-      guard,
     ];
     const first = spawnSync("python3", args, {
       encoding: "utf8",
-      env: { ...process.env, OPENAI_API_KEY: managedCredentialPlaceholder },
+      env: { ...process.env, OPENAI_API_KEY: credential },
     });
     expect(first.status, first.stderr).toBe(0);
     const migrated = await readFile(config, "utf8");
     const document = parse(migrated) as Record<string, any>;
     expect(document.model.provider).toBe("custom");
-    expect(document.model.api_key).toBe(managedCredentialPlaceholder);
-    expect(document.providers.deepseek.api_key).toBe(managedCredentialPlaceholder);
-    expect(document.custom_providers[0].api_key).toBe(managedCredentialPlaceholder);
+    expect(document.model.api_key).toBe(credential);
+    expect(document.providers.deepseek.api_key).toBe(credential);
+    expect(document.custom_providers[0].api_key).toBe(credential);
     expect(document.plugins.enabled).toContain("tali-run-telemetry");
     expect(document.memory.provider).toBe("hindsight");
     const migratedEnvironment = await readFile(environment, "utf8");
@@ -405,6 +312,8 @@ custom_providers:
     ["missing", undefined],
     ["literal secret", "sk-live-secret"],
     ["unversioned placeholder", "openshell:resolve:env:OPENAI_API_KEY"],
+    ["malformed stable handle", "openshell:resolve:env:sabc_OPENAI_API_KEY"],
+    ["wrong credential name", `openshell:resolve:env:s${"a".repeat(64)}_OTHER_KEY`],
   ])("fails closed for a %s model credential", async (_name, credential) => {
     const root = await mkdtemp(join(tmpdir(), "tali-hermes-config-"));
     temporaryDirectories.push(root);
@@ -413,14 +322,10 @@ custom_providers:
     const config = join(state, "config.yaml");
     const environment = join(state, ".env");
     const anchor = join(state, ".config-hash");
-    const builder = join(root, "mcp-digest.py");
-    const guard = join(root, "guard.py");
     const initial = `_nemoclaw_upstream:\n  provider: deepseek\nmodel:\n  default: deepseek-chat\n  provider: deepseek\n  base_url: https://inference.local/v1\n  api_key: image-template-only\nproviders:\n  deepseek:\n    api_key: image-template-only\ncustom_providers:\n  - name: deepseek\n    api_key: image-template-only\n`;
     const env = "HERMES_HOME=/sandbox/.hermes\n";
     await writeFile(config, initial);
     await writeFile(environment, env);
-    await writeFile(builder, `print("${mcpHash}")\n`);
-    await writeFile(guard, "# test guard\n");
     await writeFile(
       anchor,
       `${digest(initial)}  ${config}\n${digest(env)}  ${environment}\n# nemoclaw-hermes-mcp-state-v1 intended=${mcpHash} applied=${mcpHash}\n`,
@@ -436,8 +341,6 @@ custom_providers:
       "--model", "tali/provider/deepseek-v4-pro",
       "--template-endpoint", "https://inference.local/v1",
       "--template-model", "deepseek-chat",
-      "--mcp-digest-builder", builder,
-      "--runtime-config-guard", guard,
     ], { encoding: "utf8", env: childEnvironment });
     expect(result.status).not.toBe(0);
     expect(result.stderr).toContain(

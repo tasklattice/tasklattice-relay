@@ -1,15 +1,13 @@
 ARG BASE_IMAGE=tali-nemoclaw-hermes-upstream:local
 FROM ${BASE_IMAGE}
 
-# NemoClaw v0.0.123 already has 124 filesystem layers. Stage every Relay
-# overlay input in one layer, then install it together with the identity fix so
-# the final image remains runnable by containerd/OrbStack's 127-layer limit.
+# Stage the Relay overlay together to stay below containerd's layer limit.
+# NemoClaw v0.0.138 shares the native Hermes home across CLI and Dashboard;
+# no separate Dashboard config seeder is needed.
 COPY scripts/bootstrap-hermes-config.py \
+     scripts/verify-hermes-bootstrap.py \
+     scripts/migrate-hermes-legacy-dashboard.py \
      scripts/patch-hermes-hindsight-env.py \
-     scripts/patch-hermes-dashboard-credential-placeholder.py \
-     scripts/patch-hermes-dashboard-custom-provider.py \
-     scripts/patch-hermes-dashboard-relay-integrations.py \
-     scripts/patch-hermes-dashboard-memory.py \
      scripts/patch-hermes-dashboard-health-auth.py \
      scripts/patch-hermes-nonroot-cron-drain.py \
      scripts/verify-hermes-a2a-plugin.py \
@@ -28,16 +26,14 @@ ARG OPENSHELL_SANDBOX_GID=1000
 USER root
 RUN set -eux; \
     uv pip install --python /opt/hermes/.venv/bin/python3 "hindsight-client==0.6.1"; \
-    /opt/hermes/.venv/bin/python3 -I /tmp/tali-hermes-overlay/patch-hermes-dashboard-credential-placeholder.py /usr/local/lib/nemoclaw/seed-hermes-dashboard-config.py; \
-    /opt/hermes/.venv/bin/python3 -I /tmp/tali-hermes-overlay/patch-hermes-dashboard-custom-provider.py /usr/local/lib/nemoclaw/seed-hermes-dashboard-config.py; \
-    /opt/hermes/.venv/bin/python3 -I /tmp/tali-hermes-overlay/patch-hermes-dashboard-memory.py /usr/local/lib/nemoclaw/seed-hermes-dashboard-config.py; \
-    /opt/hermes/.venv/bin/python3 -I /tmp/tali-hermes-overlay/patch-hermes-dashboard-relay-integrations.py /usr/local/lib/nemoclaw/seed-hermes-dashboard-config.py; \
-    /opt/hermes/.venv/bin/python3 -I /tmp/tali-hermes-overlay/patch-hermes-dashboard-health-auth.py /opt/hermes/hermes_cli/web_server.py; \
+    /opt/hermes/.venv/bin/python3 -I /tmp/tali-hermes-overlay/patch-hermes-dashboard-health-auth.py /opt/hermes/hermes_cli/web_server_gateway.py; \
     /opt/hermes/.venv/bin/python3 -I /tmp/tali-hermes-overlay/patch-hermes-nonroot-cron-drain.py /opt/hermes/gateway/drain_control.py; \
     /opt/hermes/.venv/bin/python3 -I /tmp/tali-hermes-overlay/patch-hermes-hindsight-env.py /usr/local/lib/nemoclaw/validate-hermes-env-secret-boundary.py; \
     install -D -m 0555 /tmp/tali-hermes-overlay/bootstrap-hermes-config.py /usr/local/lib/tali/bootstrap-hermes-config.py; \
     install -D -m 0555 /tmp/tali-hermes-overlay/verify-hermes-a2a-plugin.py /usr/local/lib/tali/verify-hermes-a2a-plugin.py; \
     install -D -m 0555 /tmp/tali-hermes-overlay/verify-hermes-vector-database-plugin.py /usr/local/lib/tali/verify-hermes-vector-database-plugin.py; \
+    install -D -m 0555 /tmp/tali-hermes-overlay/migrate-hermes-legacy-dashboard.py /usr/local/lib/tali/migrate-hermes-legacy-dashboard.py; \
+    install -D -m 0555 /tmp/tali-hermes-overlay/verify-hermes-bootstrap.py /usr/local/lib/tali/verify-hermes-bootstrap.py; \
     install -D -m 0555 /tmp/tali-hermes-overlay/verify-hermes-hindsight.py /usr/local/lib/tali/verify-hermes-hindsight.py; \
     install -d -m 0755 /opt/hermes/plugins/tali-a2a; \
     install -m 0444 /tmp/tali-hermes-overlay/hermes-a2a-plugin/plugin.yaml /opt/hermes/plugins/tali-a2a/plugin.yaml; \
@@ -54,11 +50,11 @@ RUN set -eux; \
     rm -rf /tmp/tali-hermes-overlay; \
     uid_owner="$(getent passwd "${OPENSHELL_SANDBOX_UID}" | cut -d: -f1 || true)"; \
     gid_owner="$(getent group "${OPENSHELL_SANDBOX_GID}" | cut -d: -f1 || true)"; \
-    if [ -n "$uid_owner" ] && [ "$uid_owner" != "node" ]; then \
+    if [ -n "$uid_owner" ] && [ "$uid_owner" != "node" ] && [ "$uid_owner" != "sandbox" ]; then \
       echo "UID ${OPENSHELL_SANDBOX_UID} is unexpectedly owned by ${uid_owner}" >&2; \
       exit 1; \
     fi; \
-    if [ -n "$gid_owner" ] && [ "$gid_owner" != "node" ]; then \
+    if [ -n "$gid_owner" ] && [ "$gid_owner" != "node" ] && [ "$gid_owner" != "sandbox" ]; then \
       echo "GID ${OPENSHELL_SANDBOX_GID} is unexpectedly owned by ${gid_owner}" >&2; \
       exit 1; \
     fi; \
@@ -71,13 +67,15 @@ RUN set -eux; \
     test "$(id -u sandbox)" = "${OPENSHELL_SANDBOX_UID}"; \
     test "$(id -g sandbox)" = "${OPENSHELL_SANDBOX_GID}"; \
     test "$(stat -c '%u:%g' /sandbox)" = "${OPENSHELL_SANDBOX_UID}:${OPENSHELL_SANDBOX_GID}"; \
-    /usr/local/lib/tali/bootstrap-hermes-config.py --help >/dev/null; \
+    /usr/local/lib/tali/verify-hermes-bootstrap.py; \
     /usr/local/lib/tali/verify-hermes-a2a-plugin.py; \
     /usr/local/lib/tali/verify-hermes-vector-database-plugin.py; \
     /usr/local/lib/tali/verify-hermes-hindsight.py; \
     /opt/hermes/.venv/bin/python3 -m py_compile /opt/hermes/plugins/tali-run-telemetry/__init__.py; \
-    /opt/hermes/.venv/bin/python3 -m py_compile /usr/local/lib/nemoclaw/seed-hermes-dashboard-config.py; \
-    /opt/hermes/.venv/bin/python3 -m py_compile /opt/hermes/hermes_cli/web_server.py; \
+    /opt/hermes/.venv/bin/python3 -m py_compile /opt/hermes/hermes_cli/web_server_gateway.py; \
     /opt/hermes/.venv/bin/python3 -m py_compile /opt/hermes/gateway/drain_control.py; \
     /opt/hermes/.venv/bin/python3 -c 'import aiohttp'; \
     /usr/local/lib/tali/hermes-webui-auth-proxy.py --help >/dev/null
+
+# OpenShell 0.0.116 validates the OCI default user before creating a sandbox.
+USER sandbox
