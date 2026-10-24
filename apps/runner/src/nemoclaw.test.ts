@@ -1,5 +1,8 @@
 import { getRunnerConfig, setRunnerConfigForTests } from "./runner-config.js";
-import { readFile } from "node:fs/promises";
+import { readFile, mkdtemp, writeFile, rm } from "node:fs/promises";
+import { execFileSync } from "node:child_process";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   encodeTerminalResize,
@@ -21,6 +24,7 @@ import {
   openShellNemoClawProbeArguments,
   openShellAuditArguments,
   openShellSandboxCreateArguments,
+  openShellSandboxMainCommand,
   openShellRuntimeBridgeProviderName,
   openShellTerminalArguments,
   openShellWebUiOrigin,
@@ -214,7 +218,7 @@ describe("OpenShell Kubernetes command contract", () => {
     expect(profile).toContain("- /opt/venv/bin/python3*");
   });
 
-  it("creates a managed Pod-backed sandbox with uploaded instructions", () => {
+  it("creates a managed Pod-backed sandbox with a persistent canonical command", () => {
     const args = openShellSandboxCreateArguments(
       input,
       "/tmp/AGENTS.md",
@@ -225,17 +229,14 @@ describe("OpenShell Kubernetes command contract", () => {
     expect(args).toContain("ghcr.io/tasklattice/tali-nemoclaw-sandbox:dev");
     expect(args).toContain("tali.ai/managed=true");
     expect(args).toContain("tali.io/runtime-provider=nemoclaw");
-    expect(args).toContain("tali.io/nemoclaw-version=0.0.123");
-    expect(args).toContain(
-      "/tmp/AGENTS.md:/sandbox/.openclaw/workspace/AGENTS.md",
-    );
-    expect(args).toContain(
-      "/tmp/tali-nemoclaw-start:/tmp/tali-nemoclaw-start",
-    );
+    expect(args).toContain("tali.io/nemoclaw-version=0.0.138");
+    const command = args.slice(args.indexOf("--") + 1);
+    const startup = Buffer.from(command.slice(4).join(""), "base64").toString("utf8");
+    expect(args).not.toContain("--upload");
+    expect(startup).toContain("/sandbox/.openclaw/workspace/AGENTS.md");
+    expect(startup).toContain("/tmp/tali-nemoclaw-start");
     expect(args).toContain("tali-research-a1b2c3d4");
-    expect(args).toContain(
-      "/tmp/tali-run-telemetry.env:/tmp/tali-run-telemetry.env",
-    );
+    expect(startup).toContain("/tmp/tali-run-telemetry.env");
     expect(args.join(" ")).not.toContain("test-run-telemetry-token-with-safe-length");
     expect(runTelemetryEnvironmentFile(input)).not.toContain(
       "test-run-telemetry-token-with-safe-length",
@@ -250,16 +251,29 @@ describe("OpenShell Kubernetes command contract", () => {
     );
     expect(args).toContain("1");
     expect(args).toContain("2Gi");
-    expect(args.slice(-4)).toEqual([
-      "--no-tty",
-      "--",
-      "/bin/bash",
-      "/tmp/tali-nemoclaw-start",
-    ]);
+    expect(command.slice(0, 2)).toEqual(["/bin/bash", "-c"]);
+    expect(command[3]).toBe("tali-nemoclaw-start");
+  });
+
+  it("restarts the canonical bootstrap without re-seeding instructions", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "tali-main-process-"));
+    try {
+      const path = join(directory, "AGENTS.md");
+      const prompt = "中文🙂 $(exit 99) `exit 99`".repeat(800);
+      const command = openShellSandboxMainCommand(path, prompt, "printf 'ready'");
+      expect(command.every((arg) => Buffer.byteLength(arg) <= 32768)).toBe(true);
+      expect(execFileSync(command[0]!, command.slice(1), { encoding: "utf8" })).toBe("ready");
+      expect(await readFile(path, "utf8")).toBe(prompt);
+      await writeFile(path, "Agent-edited instructions");
+      expect(execFileSync(command[0]!, command.slice(1), { encoding: "utf8" })).toBe("ready");
+      expect(await readFile(path, "utf8")).toBe("Agent-edited instructions");
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
   });
 
   it("normalizes a release-tag NemoClaw version in the Sandbox label", () => {
-    getRunnerConfig().openshell.nemoclawVersion = "v0.0.123";
+    getRunnerConfig().openshell.nemoclawVersion = "v0.0.138";
     try {
       const args = openShellSandboxCreateArguments(
         input,
@@ -268,8 +282,8 @@ describe("OpenShell Kubernetes command contract", () => {
         "/tmp/openshell-policy.yaml",
       );
 
-      expect(args).toContain("tali.io/nemoclaw-version=0.0.123");
-      expect(args).not.toContain("tali.io/nemoclaw-version=v0.0.123");
+      expect(args).toContain("tali.io/nemoclaw-version=0.0.138");
+      expect(args).not.toContain("tali.io/nemoclaw-version=v0.0.138");
     } finally {
       vi.unstubAllEnvs();
     }
@@ -484,12 +498,11 @@ describe("OpenShell Kubernetes command contract", () => {
     expect(createArgs).toContain(
       "ghcr.io/tasklattice/tali-nemoclaw-hermes-sandbox:dev",
     );
-    expect(createArgs).toContain("/tmp/SOUL.md:/sandbox/.hermes/SOUL.md");
+    const startup = Buffer.from(createArgs.slice(createArgs.indexOf("--") + 5).join(""), "base64").toString("utf8");
+    expect(startup).toContain("/sandbox/.hermes/SOUL.md");
     expect(createArgs).toContain(openShellRuntimeBridgeProviderName(hermesInput.name));
     expect(createArgs.join(" ")).not.toContain("TALI_DURABLE_MEMORY_ENDPOINT");
-    expect(createArgs).toContain(
-      "/tmp/tali-run-telemetry.env:/tmp/tali-run-telemetry.env",
-    );
+    expect(startup).toContain("/tmp/tali-run-telemetry.env");
     expect(
       openShellNemoClawProbeArguments(
         hermesInput.name,
@@ -581,12 +594,9 @@ describe("OpenShell Kubernetes command contract", () => {
     expect(createArgs).toContain(
       "ghcr.io/tasklattice/tali-nemoclaw-deepagents-sandbox:dev",
     );
-    expect(createArgs).toContain(
-      "/tmp/AGENTS.md:/sandbox/.deepagents/agent/AGENTS.md",
-    );
-    expect(createArgs).not.toContain(
-      "/tmp/tali-run-telemetry.env:/tmp/tali-run-telemetry.env",
-    );
+    const startup = Buffer.from(createArgs.slice(createArgs.indexOf("--") + 5).join(""), "base64").toString("utf8");
+    expect(startup).toContain("/sandbox/.deepagents/agent/AGENTS.md");
+    expect(startup).not.toContain("/tmp/tali-run-telemetry.env");
     expect(runtime.endpointKind).toBeUndefined();
     expect(runtime.headlessCommand).toBe("dcode -n");
     expect(runtime.healthProbe("18789")).toContain("dcode --version");
@@ -661,17 +671,8 @@ describe("OpenShell Kubernetes command contract", () => {
     expect(dockerfile).toContain("patch-hermes-nonroot-cron-drain.py");
     expect(dockerfile).toContain("hermes-run-telemetry/plugin.yaml");
     expect(dockerfile).toContain("hermes-run-telemetry/__init__.py");
-    expect(dockerfile).toContain(
-      "patch-hermes-dashboard-credential-placeholder.py",
-    );
-    expect(dockerfile).toContain("patch-hermes-dashboard-custom-provider.py");
-    expect(dockerfile).toContain(
-      "patch-hermes-dashboard-relay-integrations.py",
-    );
-    expect(dockerfile).toContain("/opt/hermes/hermes_cli/web_server.py");
-    expect(dockerfile).toContain(
-      "/usr/local/lib/nemoclaw/seed-hermes-dashboard-config.py",
-    );
+    expect(dockerfile).not.toContain("seed-hermes-dashboard-config.py");
+    expect(dockerfile).toContain("USER sandbox");
     expect(dockerfile).toContain("/opt/hermes/gateway/drain_control.py");
     expect(dockerfile).toContain("python3 -m py_compile");
   });

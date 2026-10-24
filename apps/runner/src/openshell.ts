@@ -2,7 +2,7 @@ import { getRunnerConfig } from "./runner-config.js";
 import { createHmac, randomUUID } from "node:crypto";
 import { kubernetesResourceName } from "@tali/contracts/resource-identity";
 import { spawn } from "node:child_process";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { isDeepStrictEqual } from "node:util";
@@ -239,7 +239,7 @@ export function openShellWorkspaceAdminArguments(
     "--gateway-endpoint",
     openShellGatewayEndpoint(target),
     // Every OpenShell Gateway bootstraps this workspace. Workspace creation
-    // must be issued from a scope that already exists on 0.0.106.
+    // must be issued from a scope that already exists on 0.0.116.
     "--workspace",
     "default",
     ...args,
@@ -808,7 +808,7 @@ export function composeOpenShellInferencePolicy(
     const readWrite = Array.isArray(filesystemPolicy.read_write)
       ? [...filesystemPolicy.read_write]
       : [];
-    // Hermes' browser Chat launches its TUI in a nested PTY. OpenShell 0.0.106
+    // Hermes' browser Chat launches its TUI in a nested PTY. OpenShell 0.0.116
     // can safely prepare the existing devpts mount, while adding /dev/ptmx
     // itself would fail because that path is a symlink. Landlock authorizes
     // the resolved /dev/pts/ptmx device through this mount-level rule.
@@ -837,18 +837,63 @@ export function composeOpenShellInferencePolicy(
   return stringify(document, { lineWidth: 0 }).trimEnd() + "\n";
 }
 
+// OpenShell 0.0.116 persists the canonical command and rejects --upload with it.
+// Carry only non-secret bootstrap data; Provider references arrive at runtime.
+export function openShellSandboxMainCommand(
+  instructionsPath: string,
+  instructions: string,
+  bootstrap: string,
+  telemetry?: string,
+): string[] {
+  if (!/^\/[a-zA-Z0-9_./-]+$/.test(instructionsPath))
+    throw new Error("Invalid Agent instructions path.");
+  const encode = (value: string) => Buffer.from(value, "utf8").toString("base64");
+  const script = [
+    "#!/bin/bash",
+    "set -euo pipefail",
+    "umask 077",
+    'rm -f -- "$0"',
+    // Seed once, so restarting the canonical process preserves Agent edits.
+    `if [ ! -e '${instructionsPath}.relay-initialized' ]; then`,
+    `  mkdir -p -- '${instructionsPath.slice(0, instructionsPath.lastIndexOf("/"))}'`,
+    `  instructions_tmp=$(mktemp '${instructionsPath}.XXXXXX')`,
+    `  printf '%s' '${encode(instructions)}' | base64 -d >"$instructions_tmp"`,
+    `  mv -f -- "$instructions_tmp" '${instructionsPath}'`,
+    `  touch -- '${instructionsPath}.relay-initialized'`,
+    "fi",
+    ...(telemetry === undefined ? [] : [
+      "telemetry_tmp=$(mktemp /tmp/tali-run-telemetry.XXXXXX)",
+      `printf '%s' '${encode(telemetry)}' | base64 -d >"$telemetry_tmp"`,
+      'mv -f -- "$telemetry_tmp" /tmp/tali-run-telemetry.env',
+    ]),
+    bootstrap,
+  ].join("\n");
+  // Bound each argv entry below OpenShell's 32 KiB limit, including CJK prompts.
+  const payload = encode(script);
+  const command = [
+    "/bin/bash", "-c",
+    'set -euo pipefail; umask 077; startup=$(mktemp /tmp/tali-start.XXXXXX); '
+      + 'printf \'%s\' "$@" | base64 -d >"$startup"; exec /bin/bash "$startup"',
+    "tali-nemoclaw-start",
+    ...payload.match(/.{1,16384}/g)!,
+  ];
+  if (command.reduce((size, value) => size + Buffer.byteLength(value), 0) > 256 * 1024)
+    throw new Error("Agent bootstrap exceeds the OpenShell command size limit.");
+  return command;
+}
+
 export function openShellSandboxCreateArguments(
   input: ProvisionInput,
-  instructionsFile: string,
-  bootstrapFile: string,
+  instructions: string,
+  bootstrap: string,
   policyFile: string,
-  telemetryFile?: string,
+  telemetry?: string,
   target?: OpenShellTarget,
 ): string[] {
   const runtime = getAgentPlatformRuntime(input.agentPlatform);
   const capabilities = getAgentPlatformDefinition(input.agentPlatform)
     .capabilities;
-  const nemoClawVersion = (getRunnerConfig().openshell.nemoclawVersion ?? "0.0.123")
+  const nemoClawVersion = (getRunnerConfig().openshell.nemoclawVersion ?? "0.0.138")
     .replace(/^v/, "");
   const cpuLimit = input.sandboxResources?.cpu
     ?? getRunnerConfig().openshell.sandbox.cpu
@@ -901,17 +946,14 @@ export function openShellSandboxCreateArguments(
     ...(input.agentPlatform === "hermes"
       ? ["--env", "HERMES_LAZY_INSTALL_TARGET=/sandbox/.hermes/lazy-packages"]
       : []),
-    "--upload",
-    `${instructionsFile}:${runtime.instructionsPath}`,
-    "--upload",
-    `${bootstrapFile}:/tmp/tali-nemoclaw-start`,
-    ...(telemetryFile && capabilities.embeddedRunTelemetry
-      ? ["--upload", `${telemetryFile}:/tmp/tali-run-telemetry.env`]
-      : []),
     "--no-tty",
     "--",
-    "/bin/bash",
-    "/tmp/tali-nemoclaw-start",
+    ...openShellSandboxMainCommand(
+      runtime.instructionsPath,
+      instructions,
+      bootstrap,
+      capabilities.embeddedRunTelemetry ? telemetry : undefined,
+    ),
   ], target);
 }
 
@@ -1282,15 +1324,20 @@ async function createOpenShellNemoClawSandbox(
   observer?: ProvisioningObserver,
 ): Promise<string[]> {
   const timeoutMs = Number(getRunnerConfig().openshell.startTimeoutMs ?? "180000");
+  const [instructions, bootstrap, telemetry] = await Promise.all([
+    readFile(instructionsFile, "utf8"),
+    readFile(bootstrapFile, "utf8"),
+    telemetryFile ? readFile(telemetryFile, "utf8") : undefined,
+  ]);
   return new Promise((resolve, reject) => {
     const child = spawn(
       openShellBinary(),
       openShellSandboxCreateArguments(
         input,
-        instructionsFile,
-        bootstrapFile,
+        instructions,
+        bootstrap,
         policyFile,
-        telemetryFile,
+        telemetry,
         target,
       ),
       { env: process.env, stdio: ["ignore", "pipe", "pipe"] },
@@ -1339,7 +1386,7 @@ async function createOpenShellNemoClawSandbox(
           ),
         );
         if (probe.exitCode === 0) {
-          // OpenShell 0.0.106 keeps the startup command attached to the create
+          // OpenShell 0.0.116 keeps the startup command attached to the create
           // stream. Once health is proven, detach the local CLI; the sandbox
           // runtime keeps the long-lived NemoClaw process running.
           settled = true;
@@ -1365,7 +1412,9 @@ async function createOpenShellNemoClawSandbox(
 
     child.on("error", (error) => finish(error));
     child.on("close", (code) => {
-      if (settled) return;
+      // The v0.0.116 client can detach on stdin EOF before services are ready.
+      // A successful create still needs the application health gate below.
+      if (settled || code === 0) return;
       finish(
         new Error(
           output.trim() || `OpenShell sandbox creation exited ${code ?? 1}.`,

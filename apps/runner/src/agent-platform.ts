@@ -87,6 +87,28 @@ fi
 readonly config_file=/sandbox/.openclaw/openclaw.json
 readonly hash_file=/sandbox/.openclaw/.config-hash
 
+# Kubelet's fsGroup mount reconciliation can re-add group write on restart.
+# Tighten only this instance-owned directory, without following symlinks.
+python3 -I - <<'PY_SQLITE_TMP'
+import os, stat
+parent = os.open('/sandbox/.openclaw', os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+try:
+    try:
+        os.mkdir('tmp', 0o700, dir_fd=parent)
+    except FileExistsError:
+        pass
+    fd = os.open('tmp', os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=parent)
+    try:
+        metadata = os.fstat(fd)
+        if (metadata.st_uid, metadata.st_gid) != (os.geteuid(), os.getegid()):
+            raise RuntimeError('Unexpected OpenClaw SQLite temporary directory owner')
+        os.fchmod(fd, 0o700)
+    finally:
+        os.close(fd)
+finally:
+    os.close(parent)
+PY_SQLITE_TMP
+
 node - "$config_file" "${dashboardOrigin}" "${inferenceEndpoint}" "${model}" "${memoryPayload}" <<'NODE'
 const fs = require("node:fs");
 const [configFile, corsOrigin, inferenceEndpoint, modelId, memoryPayload] = process.argv.slice(2);
@@ -250,6 +272,7 @@ readonly hermes_dir=/sandbox/.hermes
 readonly config_file="$hermes_dir/config.yaml"
 readonly hash_file="$hermes_dir/.config-hash"
 readonly config_bootstrap=/usr/local/lib/tali/bootstrap-hermes-config.py
+/usr/local/lib/tali/migrate-hermes-legacy-dashboard.py
 readonly webui_auth_proxy=/usr/local/lib/tali/hermes-webui-auth-proxy.py
 readonly webui_secret_file=/tmp/tali-hermes-webui-secret
 readonly webui_public_port=${dashboardPort}

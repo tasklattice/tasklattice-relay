@@ -426,7 +426,7 @@ export class InstanceService {
       updatedAt: new Date().toISOString(),
     });
 
-    let observed = await this.getRunnerSandbox(agent);
+    let observed = await this.getRunnerSandbox(agent, true);
     if (agent.liteLLMTokenId && observed.phase === "READY") {
       if (operationId) {
         await this.lifecycle.recordStage(
@@ -949,7 +949,7 @@ export class InstanceService {
 
   private async refresh(agent: Agent): Promise<Agent> {
     if (agent.status === "DESTROYING") return agent;
-    if (agent.status === "FAILED" && agent.runtimePhase !== "NOT_FOUND") {
+    if (agent.status === "FAILED" && agent.runtimePhase !== "NOT_FOUND" && !agent.liteLLMTokenId) {
       return agent;
     }
     try {
@@ -1033,12 +1033,12 @@ export class InstanceService {
       : this.runner.createSandbox(runtimeInput);
   }
 
-  private async getRunnerSandbox(agent: Agent): Promise<RunnerSandbox> {
+  private async getRunnerSandbox(agent: Agent, reconcileOwnership = false): Promise<RunnerSandbox> {
     const target = await this.runnerRuntimeTarget();
     const observed = await (target
       ? this.runner.getSandbox(agent.sandboxName, agent.agentPlatform, target)
       : this.runner.getSandbox(agent.sandboxName, agent.agentPlatform));
-    if (target && (observed.phase === "PROVISIONING" || observed.phase === "READY")) {
+    if (reconcileOwnership && target && (observed.phase === "PROVISIONING" || observed.phase === "READY")) {
       await reconcileSandboxOwnership(target.namespace, this.store.projectId, agent.sandboxName);
     }
     return observed;
@@ -1066,7 +1066,7 @@ export class InstanceService {
     };
     while (Date.now() < deadline) {
       await new Promise((resolve) => setTimeout(resolve, 2_000));
-      observed = await this.getRunnerSandbox(agent);
+      observed = await this.getRunnerSandbox(agent, true);
       if (observed.phase === "READY" || observed.phase === "FAILED") {
         return observed;
       }

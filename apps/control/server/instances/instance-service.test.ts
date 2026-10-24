@@ -464,14 +464,15 @@ describe("Instance Access Policy lifecycle", () => {
     expect(setup.runner.createSandbox).toHaveBeenCalledOnce();
   });
 
-  it("recovers a false NOT_FOUND failure after the Sandbox becomes ready", async () => {
+  it.each(["NOT_FOUND", "FAILED"] as const)("recovers a %s runtime failure after the provisioned Sandbox becomes ready", async (runtimePhase) => {
     const setup = await configuredService();
     const agent = await createConfiguredInstance(setup);
     await setup.store.save({
       ...agent,
       status: "FAILED",
-      runtimePhase: "NOT_FOUND",
-      error: "The OpenShell Sandbox was not found.",
+      runtimePhase,
+      liteLLMTokenId: "existing-instance-key",
+      error: "The OpenShell Sandbox temporarily failed.",
     });
     vi.mocked(setup.runner.getSandbox).mockResolvedValueOnce({
       name: agent.sandboxName,

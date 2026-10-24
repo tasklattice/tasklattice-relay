@@ -50,6 +50,7 @@ import {
   type RunnerRuntimeTarget,
 } from "./runtime-target.js";
 import { proxyWebUiHttp, proxyWebUiUpgrade } from "./web-ui-proxy.js";
+import { observedOpenShellPhase } from "./sandbox-state.js";
 
 type Phase = RunnerSandbox["phase"];
 type SandboxState = RunnerSandbox;
@@ -487,7 +488,7 @@ app.get("/v1/sandboxes/:name", async (request, response, next) => {
       : undefined;
     const local = states.get(key);
     if (
-      local?.phase === "FAILED" ||
+      (!isOpenShell && local?.phase === "FAILED") ||
       mode === "fixture" ||
       activeProvisions.has(key)
     )
@@ -496,14 +497,7 @@ app.get("/v1/sandboxes/:name", async (request, response, next) => {
       );
     if (isOpenShell) {
       const observed = await observeOpenShellSandbox(name, openShellTarget);
-      const normalized = observed?.phase.toLowerCase();
-      const phase: Phase = !observed
-        ? "NOT_FOUND"
-        : normalized === "ready"
-          ? "READY"
-          : normalized === "failed" || normalized === "error"
-            ? "FAILED"
-            : "PROVISIONING";
+      const phase = observedOpenShellPhase(observed?.phase, local);
       let httpEndpoint = local?.httpEndpoint;
       const platformRuntime = getAgentPlatformRuntime(agentPlatform);
       if (
@@ -545,6 +539,7 @@ app.get("/v1/sandboxes/:name", async (request, response, next) => {
               : {}),
         ...(local?.operationId ? { operationId: local.operationId } : {}),
         logs: local?.logs ?? [],
+        ...(phase === "FAILED" && local?.error ? { error: local.error } : {}),
         ...(httpEndpoint ? { httpEndpoint } : {}),
       };
       if (phase === "NOT_FOUND") states.delete(key);
