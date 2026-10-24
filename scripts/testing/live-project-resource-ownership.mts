@@ -50,11 +50,11 @@ const run = async (input: CommandInput) => {
 const client = new HelmProjectOpenShellGatewayClient({
   enabled: true, chart: resolve(".helm-dependencies/openshell"), releaseName: "openshell",
   gatewayResources: { requests: { cpu: "100m", memory: "128Mi" }, limits: { cpu: "1", memory: "1Gi" } },
-  gatewayImageRepository: "ghcr.io/nvidia/openshell/gateway", gatewayImageTag: "0.0.106",
-  supervisorImageRepository: "ghcr.io/nvidia/openshell/supervisor", supervisorImageTag: "0.0.106",
+  gatewayImageRepository: "ghcr.io/nvidia/openshell/gateway", gatewayImageTag: "0.0.116",
+  supervisorImageRepository: "ghcr.io/nvidia/openshell/supervisor", supervisorImageTag: "0.0.116",
   supervisorImagePullPolicy: "IfNotPresent",
   imagePullSecrets: [], imagePullPolicy: "IfNotPresent", sandboxImagePullSecrets: [],
-  sandboxImage: "ghcr.io/nvidia/nemoclaw/sandbox-base:v0.0.123", sandboxImagePullPolicy: "IfNotPresent",
+  sandboxImage: "ghcr.io/nvidia/nemoclaw/sandbox-base:v0.0.138", sandboxImagePullPolicy: "IfNotPresent",
   serviceNamePrefix: "openshell-", workspaceDefaultStorageSize: "1Gi",
 }, run, async () => owner, (owner, name) => reconcileGatewayResources(objects, owner, name),
 new PostgresProjectOpenShellDatabase(() => databaseUrl, () => core));
@@ -92,7 +92,7 @@ try {
   }
   await k("exec", "ownership-client", "--", "openshell", "--gateway-endpoint",
     `http://${gateway}:8080`, "--workspace", "default", "workspace", "create", "--name", namespace);
-  await cli("sandbox", "create", "--name", "ownership-check", "--from", "ghcr.io/nvidia/nemoclaw/sandbox-base:v0.0.123",
+  await cli("sandbox", "create", "--name", "ownership-check", "--from", "ghcr.io/nvidia/nemoclaw/sandbox-base:v0.0.138",
     "--label", `tali.io/instance-id=${projectId}`, "--cpu", "500m", "--memory", "1Gi",
     "--no-tty", "--no-auto-providers", "--", "sh", "-c", "echo ownership-ready > /sandbox/marker");
   const sandboxName = `${namespace}--ownership-check`;

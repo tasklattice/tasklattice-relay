@@ -34,7 +34,7 @@ trap cleanup EXIT
 
 helm upgrade --install "$release_name" "$repository_root/.helm-dependencies/openshell" \
   --kube-context "$kube_context" --namespace "$namespace" \
-  --set image.tag=0.0.106 --set supervisor.image.tag=0.0.106 \
+  --set image.tag=0.0.116 --set supervisor.image.tag=0.0.116 \
   --set supervisor.sideloadMethod=init-container \
   --set server.disableTls=true --set server.auth.allowUnauthenticatedUsers=true \
   --set server.telemetryEnabled=false --set server.sandboxImagePullPolicy=IfNotPresent \
@@ -43,7 +43,7 @@ helm upgrade --install "$release_name" "$repository_root/.helm-dependencies/open
 k run openshell-client --image="$runner_image" --image-pull-policy=IfNotPresent \
   --restart=Never --command -- sleep 1800
 k wait pod/openshell-client --for=condition=Ready --timeout=120s
-[[ "$(k exec openshell-client -- openshell --version)" == "openshell 0.0.106" ]]
+[[ "$(k exec openshell-client -- openshell --version)" == "openshell 0.0.116" ]]
 # Endpoint publication can briefly lag behind Pod readiness.
 for attempt in {1..15}; do
   if cli sandbox list -o json >/dev/null 2>&1; then break; fi
@@ -51,7 +51,7 @@ for attempt in {1..15}; do
   sleep 2
 done
 cli sandbox create --name "$sandbox_name" \
-  --from ghcr.io/nvidia/nemoclaw/sandbox-base:v0.0.123 --cpu 500m --memory 1Gi \
+  --from ghcr.io/nvidia/nemoclaw/sandbox-base:v0.0.138 --cpu 500m --memory 1Gi \
   --no-tty --no-auto-providers -- sh -c 'echo agent-sandbox-v1.0.2 > /sandbox/compat-marker'
 k wait sandbox/"$resource_name" --for=condition=Ready --timeout=120s
 k get sandbox "$resource_name" -o json | jq -e '
@@ -71,4 +71,4 @@ k wait sandbox/"$resource_name" --for=condition=Ready --timeout=120s
 [[ "$(cli sandbox exec --name "$sandbox_name" --timeout 30 -- cat /sandbox/compat-marker)" == "agent-sandbox-v1.0.2" ]]
 cli sandbox delete "$sandbox_name"
 k wait --for=delete sandbox/"$resource_name" pod/"$resource_name" pvc/"$workspace_name" --timeout=120s
-echo "PASS: OpenShell 0.0.106 + Agent Sandbox v1beta1: create, exec, suspend, resume, persistent workspace, delete."
+echo "PASS: OpenShell 0.0.116 + Agent Sandbox v1beta1: create, exec, suspend, resume, persistent workspace, delete."

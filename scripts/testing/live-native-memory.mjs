@@ -54,7 +54,7 @@ let passed = false;
 try {
   console.log(`[native-memory] Installing test Gateway in ${namespace}`);
   helm("upgrade", "--install", namespace, ".helm-dependencies/openshell",
-    "--set", "image.tag=0.0.106", "--set", "supervisor.image.tag=0.0.106",
+    "--set", "image.tag=0.0.116", "--set", "supervisor.image.tag=0.0.116",
     "--set", "supervisor.sideloadMethod=init-container",
     "--set", "server.disableTls=true", "--set", "server.auth.allowUnauthenticatedUsers=true",
     "--set", "server.telemetryEnabled=false", "--set", "server.sandboxImagePullPolicy=IfNotPresent",
@@ -141,7 +141,7 @@ try {
   assert.equal(stats.embeddings, 0);
   assert(stats.completions >= 3);
   passed = true;
-  console.log(JSON.stringify({ result: "PASS", context, version: "v0.0.123", embeddingRequests: 0, completionRequests: stats.completions, results }, null, 2));
+  console.log(JSON.stringify({ result: "PASS", context, version: "v0.0.138", embeddingRequests: 0, completionRequests: stats.completions, results }, null, 2));
 } finally {
   if (!passed) console.error(`Inspect the failed test namespace: ${namespace}`);
   if (passed || process.env.TALI_KEEP_FAILED_TEST !== "1") {

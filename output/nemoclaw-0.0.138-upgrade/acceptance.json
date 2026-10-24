@@ -1,0 +1,144 @@
+{
+  "at": "2026-10-24T11:03:37.086Z",
+  "versions": {
+    "nemoclaw": "0.0.138",
+    "openshell": "0.0.116",
+    "openclaw": "2026.9.2",
+    "hermes": "0.21.3",
+    "deepagents": "0.1.71"
+  },
+  "workloads": [
+    {
+      "name": "tp-v3i65n4c7jslo--ti-4exlqqqrtjwjd",
+      "ready": true,
+      "containers": 1,
+      "supervisor": "ghcr.io/nvidia/openshell/supervisor:0.0.116",
+      "imageId": "docker://sha256:565b42b8fdd95076c19e4a9c9462c08b454cd75988cfb0426a698374177e35e9"
+    },
+    {
+      "name": "tp-v3i65n4c7jslo--ti-ahbbdywgek2ut",
+      "ready": true,
+      "containers": 1,
+      "supervisor": "ghcr.io/nvidia/openshell/supervisor:0.0.116",
+      "imageId": "docker://sha256:48bc366d3f1673747dbc1916eaa3fc9f0cc37555c994214c287459b79b597ec2"
+    },
+    {
+      "name": "tp-v3i65n4c7jslo--ti-dcnete56spocy",
+      "ready": true,
+      "containers": 1,
+      "supervisor": "ghcr.io/nvidia/openshell/supervisor:0.0.116",
+      "imageId": "docker://sha256:48bc366d3f1673747dbc1916eaa3fc9f0cc37555c994214c287459b79b597ec2"
+    },
+    {
+      "name": "tp-v3i65n4c7jslo--ti-dl5kx72w5f4jx",
+      "ready": true,
+      "containers": 1,
+      "supervisor": "ghcr.io/nvidia/openshell/supervisor:0.0.116",
+      "imageId": "docker://sha256:9dba2dc7db53717261d6ae1998fa2f41f09e1b8415aea6d85ab64f4718ca1bce"
+    },
+    {
+      "name": "tp-v3i65n4c7jslo--ti-ftwc7cunm7rzx",
+      "ready": true,
+      "containers": 1,
+      "supervisor": "ghcr.io/nvidia/openshell/supervisor:0.0.116",
+      "imageId": "docker://sha256:48bc366d3f1673747dbc1916eaa3fc9f0cc37555c994214c287459b79b597ec2"
+    },
+    {
+      "name": "tp-v3i65n4c7jslo--ti-htlyeqtofbhj6",
+      "ready": true,
+      "containers": 1,
+      "supervisor": "ghcr.io/nvidia/openshell/supervisor:0.0.116",
+      "imageId": "docker://sha256:565b42b8fdd95076c19e4a9c9462c08b454cd75988cfb0426a698374177e35e9"
+    },
+    {
+      "name": "tp-v3i65n4c7jslo--ti-vbidmsxkdnz6v",
+      "ready": true,
+      "containers": 1,
+      "supervisor": "ghcr.io/nvidia/openshell/supervisor:0.0.116",
+      "imageId": "docker://sha256:48bc366d3f1673747dbc1916eaa3fc9f0cc37555c994214c287459b79b597ec2"
+    }
+  ],
+  "gateways": [
+    {
+      "namespace": "tp-t4y75jk72mc55",
+      "image": "ghcr.io/nvidia/openshell/gateway:0.0.116",
+      "ready": true
+    },
+    {
+      "namespace": "tp-t5r7oyer4yfb2",
+      "image": "ghcr.io/nvidia/openshell/gateway:0.0.116",
+      "ready": true
+    },
+    {
+      "namespace": "tp-v3i65n4c7jslo",
+      "image": "ghcr.io/nvidia/openshell/gateway:0.0.116",
+      "ready": true
+    }
+  ],
+  "volumes": [
+    {
+      "name": "data-tali-relay-postgresql-0",
+      "uid": "c36613a4-42c2-40c1-8f55-726fe45114b3",
+      "preserved": true
+    },
+    {
+      "name": "tali-relay-docling-models",
+      "uid": "056d759d-868c-44a2-b3ad-f30e554348be",
+      "preserved": true
+    },
+    {
+      "name": "workspace-tp-v3i65n4c7jslo--ti-ahbbdywgek2ut",
+      "uid": "3d00d8c5-607c-45ff-b4e2-6c6da607ca13",
+      "preserved": true
+    },
+    {
+      "name": "workspace-tp-v3i65n4c7jslo--ti-dcnete56spocy",
+      "uid": "b614b214-53ba-412f-a851-9746646af37b",
+      "preserved": true
+    },
+    {
+      "name": "workspace-tp-v3i65n4c7jslo--ti-dl5kx72w5f4jx",
+      "uid": "0dfcca62-7ee2-4f34-a659-d6d6f13f9511",
+      "preserved": true
+    },
+    {
+      "name": "workspace-tp-v3i65n4c7jslo--ti-ftwc7cunm7rzx",
+      "uid": "4913e165-f02a-4c2d-a75e-ff58a5f7573f",
+      "preserved": true
+    },
+    {
+      "name": "workspace-tp-v3i65n4c7jslo--ti-vbidmsxkdnz6v",
+      "uid": "1b617b33-e129-4681-969a-ab1a81e7dc7a",
+      "preserved": true
+    }
+  ],
+  "unauth": [
+    {
+      "id": "ti-dl5kx72w5f4jx",
+      "status": 401
+    },
+    {
+      "id": "ti-ftwc7cunm7rzx",
+      "status": 401
+    }
+  ],
+  "crossProjectStatus": 403,
+  "browserAcceptance": {
+    "openclaw": "OPENCLAW-FINAL-138-OK",
+    "hermesNative": "COPPER-PINE-724",
+    "hermesHindsight": {
+      "retained": "JADE-FALCON-138",
+      "recalled": "JADE-FALCON-138",
+      "writeSession": "64aea3f8",
+      "recallSession": "4759513a"
+    },
+    "deepagents": "DEEPAGENTS-UI-138-OK"
+  },
+  "tests": {
+    "runnerPassed": 82,
+    "controlTargetedPassedBeforeFinalSubscriptionTest": 104,
+    "finalProxyTestsPassed": 6,
+    "runnerTypecheck": "passed",
+    "controlTypecheck": "passed"
+  }
+}
