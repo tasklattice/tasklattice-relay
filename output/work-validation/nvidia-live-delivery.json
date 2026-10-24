@@ -1,0 +1,344 @@
+{
+  "id": "676a1903-791c-4cf2-9fcf-b27111a40ec1",
+  "projectId": "tp-cdtsixla2y6bc",
+  "revision": 19,
+  "state": {
+    "title": "NVIDIA 实测：简化个人首次体验",
+    "goal": "请基于以下给定材料创建且只创建一项文本交付任务，由工作专家整理三点首次体验改进建议。材料：用户认为接入模型需要填写太多配置；希望协调者与专家自动准备；连接失败后不想重填已经成功的配置。验收：三点建议分别包含问题、建议动作、可观察的验收标准，并明确这只是基于材料的建议，没有进行外部调研。",
+    "ownerUserId": "work-personal-ui-test",
+    "memberUserIds": [
+      "work-personal-ui-test"
+    ],
+    "agents": [
+      {
+        "instanceId": "personal-work-coordinator-17358e71-ca07-4b96-82e1-02d3b9bf43e6",
+        "name": "工作协调者",
+        "role": "coordinator",
+        "versionId": "17358e71-ca07-4b96-82e1-02d3b9bf43e6",
+        "capability": "把用户的目标整理为可调整的任务计划，分配专家并保留完成记录。"
+      },
+      {
+        "instanceId": "personal-work-expert-b2e5af30-26c1-4c4a-b722-2328c02d9d12",
+        "name": "工作专家",
+        "role": "expert",
+        "versionId": "b2e5af30-26c1-4c4a-b722-2328c02d9d12",
+        "capability": "根据任务和已有材料整理分析、文本草稿及行动建议，明确证据与未知。"
+      }
+    ],
+    "tasks": [
+      {
+        "id": "R-1",
+        "title": "整理三点首次体验改进建议",
+        "status": "done",
+        "reason": "产物已验证并确认交付",
+        "ownerInstanceId": "personal-work-expert-b2e5af30-26c1-4c4a-b722-2328c02d9d12",
+        "dependencies": [],
+        "acceptance": "1. 文本交付包含三条改进建议，每条建议均包含：<br>• 问题描述<br>• 建议动作<br>• 可观察的验收标准<br>2. 文本中明确指出这些建议仅基于用户提供的材料，未进行任何外部调研。<br>3. 文本格式清晰、无语法错误，符合内部交付标准。",
+        "replaces": null,
+        "sourceMessageId": "13ce58e7-7115-4bd7-a2b6-ec3b2da0b02f"
+      }
+    ],
+    "artifacts": [
+      {
+        "id": "fea060d2-a6ea-4009-a761-0a53d5328ec8",
+        "taskId": "R-1",
+        "runId": "34cf800c-6cbb-4e4d-814f-e90d7b440155",
+        "sourceMessageId": "13ce58e7-7115-4bd7-a2b6-ec3b2da0b02f",
+        "instanceId": "personal-work-expert-b2e5af30-26c1-4c4a-b722-2328c02d9d12",
+        "taskScopeHash": "250e410a7f8973c5945161711924208af18a8a0470747543df7f1f20fd6341c8",
+        "title": "首次体验改进建议（仅基于用户提供的材料，未进行外部调研）",
+        "content": "以下为三条针对首次体验的改进建议。每条建议均包含：<br>• 问题描述（基于用户材料）<br>• 建议动作（专家提出的可行方案）<br>• 可观察的验收标准（可量化、可验证的指标）<br>并在文末说明缺失信息与本建议的局限性。",
+        "version": 1,
+        "previousId": null,
+        "status": "draft",
+        "evidence": "用户材料：<br>• 用户认为接入模型需要填写太多配置；<br>• 希望协调者与专家自动准备；<br>• 连接失败后不想重填已经成功的配置。<br>（以上均为用户直接表述，视为已验证事实）<br>（未进行任何外部调研）",
+        "verifiedBy": null
+      },
+      {
+        "id": "f0e89050-2216-489b-a0fa-452bab017e7c",
+        "taskId": "R-1",
+        "runId": "d2360679-e6d6-4fb9-b078-ae17ef709474",
+        "sourceMessageId": "13ce58e7-7115-4bd7-a2b6-ec3b2da0b02f",
+        "instanceId": "personal-work-expert-b2e5af30-26c1-4c4a-b722-2328c02d9d12",
+        "taskScopeHash": "250e410a7f8973c5945161711924208af18a8a0470747543df7f1f20fd6341c8",
+        "title": "首次体验改进建议（基于用户材料）",
+        "content": "1. **问题**：用户在接入模型时需要填写过多配置，导致体验繁琐。",
+        "version": 2,
+        "previousId": "fea060d2-a6ea-4009-a761-0a53d5328ec8",
+        "status": "draft",
+        "evidence": "用户反馈：认为接入模型需要填写太多配置。  ",
+        "verifiedBy": null
+      },
+      {
+        "id": "77dbb426-115e-4cad-9554-db852bdc1455",
+        "taskId": "R-1",
+        "runId": "88b2080d-d225-4973-a236-425e9865d585",
+        "sourceMessageId": "13ce58e7-7115-4bd7-a2b6-ec3b2da0b02f",
+        "instanceId": "personal-work-expert-b2e5af30-26c1-4c4a-b722-2328c02d9d12",
+        "taskScopeHash": "250e410a7f8973c5945161711924208af18a8a0470747543df7f1f20fd6341c8",
+        "title": "首次体验改进建议",
+        "content": "1. **问题**：用户认为接入模型需要填写太多配置，导致首次体验繁琐。  **建议动作**：简化配置流程，采用默认配置或智能推荐，减少必填字段数量。  **可观察的验收标准**：首次完成配置所需时间从原来的 5 分钟缩短至 2 分钟以内，且用户在配置完成后不再报告“配置过多”不满。 2. **问题**：用户希望协调者与专家能够自动准备配置，降低人工操作。  **建议动作**：开发“自动配置助手”，在用户首次登录时自动收集必要信息并预填配置，必要时由专家进行审核。  **可观察的验收标准**：自动配置成功率达到 90% 以上，且用户在首次使用时不需要手动输入任何配置。 3. **问题**：连接失败后，用户不想重新填写已成功的配置，导致重复劳动。  **建议动作**：实现配置缓存与恢复机制，失败后自动恢复到上一次成功的配置状态。  **可观察的验收标准**：在连接失败后，用户不需要重新输入配置，系统自动恢复成功配置，且用户报告“无需重填”满意度提升至 80% 以上。 以上建议仅基于用户提供的材料，未进行任何外部调研。",
+        "version": 3,
+        "previousId": "f0e89050-2216-489b-a0fa-452bab017e7c",
+        "status": "draft",
+        "evidence": "依据用户材料：用户认为接入模型需要填写太多配置；希望协调者与专家自动准备；连接失败后不想重填已成功的配置。缺失信息：当前配置流程细节、用户使用场景、技术实现限制等。",
+        "verifiedBy": null
+      },
+      {
+        "id": "9bc00daf-4730-46c4-9b79-11192f815945",
+        "taskId": "R-1",
+        "runId": "2e2bdc84-b127-4208-aa4b-73b4597c2488",
+        "sourceMessageId": "13ce58e7-7115-4bd7-a2b6-ec3b2da0b02f",
+        "instanceId": "personal-work-expert-b2e5af30-26c1-4c4a-b722-2328c02d9d12",
+        "taskScopeHash": "250e410a7f8973c5945161711924208af18a8a0470747543df7f1f20fd6341c8",
+        "title": "首次体验改进建议草稿",
+        "content": "1. **问题描述**：用户认为接入模型需要填写太多配置。  **建议动作**：简化配置流程，采用默认配置或预设模板，允许用户仅填写必要字段。  **可观察的验收标准**：在用户首次接入时，配置页面仅显示3-4个必填字段，且完成配置的平均时间比当前流程缩短30%。 2. **问题描述**：用户希望协调者与专家自动准备配置。  **建议动作**：实现后台自动生成配置文件的功能，协调者在用户提交请求后自动调用专家接口完成配置。  **可观察的验收标准**：在用户提交接入请求后，系统在5分钟内自动完成配置并返回成功提示，用户不需要手动填写任何字段。 3. **问题描述**：连接失败后不想重填已经成功的配置。  **建议动作**：在连接失败时保留已成功的配置数据，允许用户直接重试而不必重新填写。  **可观察的验收标准**：在连接失败后，系统提示“重试”，并在重试时自动使用之前成功的配置，用户不需要再次输入任何字段。 以上建议均基于用户提供的材料，未进行任何外部调研。",
+        "version": 4,
+        "previousId": "77dbb426-115e-4cad-9554-db852bdc1455",
+        "status": "delivered",
+        "evidence": "联调审阅：已对照三条原始反馈逐项检查 v4，三条建议均包含问题、动作和可观察验收标准，并明确未做外部调研。3–4 个字段、30%、5 分钟均按草稿证据中的假设目标理解，当前基线未知，需后续测量；本次确认仅针对建议文档完整性，不代表功能已实现或指标已达成。v1–v3 不予验证。",
+        "verifiedBy": "work-personal-ui-test"
+      }
+    ],
+    "defaultView": "board",
+    "modelCallLimit": 20,
+    "modelCallsUsed": 5
+  },
+  "messages": [
+    {
+      "projectId": "tp-cdtsixla2y6bc",
+      "workId": "676a1903-791c-4cf2-9fcf-b27111a40ec1",
+      "id": "13ce58e7-7115-4bd7-a2b6-ec3b2da0b02f",
+      "kind": "human",
+      "userId": "work-personal-ui-test",
+      "instanceId": null,
+      "name": "个人体验用户",
+      "text": "请基于以下给定材料创建且只创建一项文本交付任务，由工作专家整理三点首次体验改进建议。材料：用户认为接入模型需要填写太多配置；希望协调者与专家自动准备；连接失败后不想重填已经成功的配置。验收：三点建议分别包含问题、建议动作、可观察的验收标准，并明确这只是基于材料的建议，没有进行外部调研。",
+      "source": "text",
+      "createdAt": "2026-10-12T12:44:48.313Z"
+    },
+    {
+      "projectId": "tp-cdtsixla2y6bc",
+      "workId": "676a1903-791c-4cf2-9fcf-b27111a40ec1",
+      "id": "2ef992ca-d06c-4235-92fb-e87b8d6f2fd7",
+      "kind": "agent",
+      "userId": null,
+      "instanceId": "personal-work-coordinator-17358e71-ca07-4b96-82e1-02d3b9bf43e6",
+      "name": "工作协调者",
+      "text": "R-1",
+      "source": "runtime",
+      "createdAt": "2026-10-12T12:45:27.633Z"
+    },
+    {
+      "projectId": "tp-cdtsixla2y6bc",
+      "workId": "676a1903-791c-4cf2-9fcf-b27111a40ec1",
+      "id": "60747437-1e93-4d5e-aa1a-69bedccf3268",
+      "kind": "agent",
+      "userId": null,
+      "instanceId": "personal-work-expert-b2e5af30-26c1-4c4a-b722-2328c02d9d12",
+      "name": "工作专家",
+      "text": "已生成「首次体验改进建议（仅基于用户提供的材料，未进行外部调研）」草稿，请核实后确认交付。",
+      "source": "runtime",
+      "createdAt": "2026-10-12T12:46:54.840Z"
+    },
+    {
+      "projectId": "tp-cdtsixla2y6bc",
+      "workId": "676a1903-791c-4cf2-9fcf-b27111a40ec1",
+      "id": "d69cee05-20f5-4ce7-b97c-ff615fe8573e",
+      "kind": "agent",
+      "userId": null,
+      "instanceId": "personal-work-expert-b2e5af30-26c1-4c4a-b722-2328c02d9d12",
+      "name": "工作专家",
+      "text": "已生成「首次体验改进建议（基于用户材料）」草稿，请核实后确认交付。",
+      "source": "runtime",
+      "createdAt": "2026-10-12T12:50:02.602Z"
+    },
+    {
+      "projectId": "tp-cdtsixla2y6bc",
+      "workId": "676a1903-791c-4cf2-9fcf-b27111a40ec1",
+      "id": "958b4e17-1319-4d51-8993-3432ab561cf0",
+      "kind": "agent",
+      "userId": null,
+      "instanceId": "personal-work-expert-b2e5af30-26c1-4c4a-b722-2328c02d9d12",
+      "name": "工作专家",
+      "text": "已生成「首次体验改进建议」草稿，请核实后确认交付。",
+      "source": "runtime",
+      "createdAt": "2026-10-12T12:52:53.209Z"
+    },
+    {
+      "projectId": "tp-cdtsixla2y6bc",
+      "workId": "676a1903-791c-4cf2-9fcf-b27111a40ec1",
+      "id": "72cf8ebb-3f2b-47b4-97a2-8149b59361ef",
+      "kind": "agent",
+      "userId": null,
+      "instanceId": "personal-work-expert-b2e5af30-26c1-4c4a-b722-2328c02d9d12",
+      "name": "工作专家",
+      "text": "已生成「首次体验改进建议草稿」草稿，请核实后确认交付。",
+      "source": "runtime",
+      "createdAt": "2026-10-12T12:54:31.864Z"
+    }
+  ],
+  "events": [
+    {
+      "sequence": 1,
+      "type": "message",
+      "summary": "新增讨论",
+      "createdAt": "2026-10-12T12:44:48.315Z"
+    },
+    {
+      "sequence": 2,
+      "type": "plan",
+      "summary": "已授权协调者规划（一次模型调用）",
+      "createdAt": "2026-10-12T12:44:48.333Z"
+    },
+    {
+      "sequence": 3,
+      "type": "model_dispatch",
+      "summary": "已预留一次模型调用；未开放外部工具",
+      "createdAt": "2026-10-12T12:44:49.104Z"
+    },
+    {
+      "sequence": 4,
+      "type": "run_result",
+      "summary": "协调者已更新任务安排",
+      "createdAt": "2026-10-12T12:45:27.636Z"
+    },
+    {
+      "sequence": 5,
+      "type": "execute",
+      "summary": "已授权执行 R-1（一次模型调用）",
+      "createdAt": "2026-10-12T12:46:08.604Z"
+    },
+    {
+      "sequence": 6,
+      "type": "model_dispatch",
+      "summary": "已预留一次模型调用；未开放外部工具",
+      "createdAt": "2026-10-12T12:46:09.037Z"
+    },
+    {
+      "sequence": 7,
+      "type": "run_result",
+      "summary": "专家已提交草稿",
+      "createdAt": "2026-10-12T12:46:54.846Z"
+    },
+    {
+      "sequence": 8,
+      "type": "view",
+      "summary": "视图偏好已保存",
+      "createdAt": "2026-10-12T12:47:06.773Z"
+    },
+    {
+      "sequence": 9,
+      "type": "execute",
+      "summary": "已授权执行 R-1（一次模型调用）",
+      "createdAt": "2026-10-12T12:49:22.928Z"
+    },
+    {
+      "sequence": 10,
+      "type": "model_dispatch",
+      "summary": "已预留一次模型调用；未开放外部工具",
+      "createdAt": "2026-10-12T12:49:24.075Z"
+    },
+    {
+      "sequence": 11,
+      "type": "run_result",
+      "summary": "专家已提交草稿",
+      "createdAt": "2026-10-12T12:50:02.611Z"
+    },
+    {
+      "sequence": 12,
+      "type": "execute",
+      "summary": "已授权执行 R-1（一次模型调用）",
+      "createdAt": "2026-10-12T12:52:22.442Z"
+    },
+    {
+      "sequence": 13,
+      "type": "model_dispatch",
+      "summary": "已预留一次模型调用；未开放外部工具",
+      "createdAt": "2026-10-12T12:52:23.479Z"
+    },
+    {
+      "sequence": 14,
+      "type": "run_result",
+      "summary": "专家已提交草稿",
+      "createdAt": "2026-10-12T12:52:53.214Z"
+    },
+    {
+      "sequence": 15,
+      "type": "execute",
+      "summary": "已授权执行 R-1（一次模型调用）",
+      "createdAt": "2026-10-12T12:53:59.596Z"
+    },
+    {
+      "sequence": 16,
+      "type": "model_dispatch",
+      "summary": "已预留一次模型调用；未开放外部工具",
+      "createdAt": "2026-10-12T12:54:00.640Z"
+    },
+    {
+      "sequence": 17,
+      "type": "run_result",
+      "summary": "专家已提交草稿",
+      "createdAt": "2026-10-12T12:54:31.867Z"
+    },
+    {
+      "sequence": 18,
+      "type": "verify",
+      "summary": "已记录人工验证证据",
+      "createdAt": "2026-10-12T12:55:32.988Z"
+    },
+    {
+      "sequence": 19,
+      "type": "deliver",
+      "summary": "产物已确认交付",
+      "createdAt": "2026-10-12T12:55:44.361Z"
+    }
+  ],
+  "runs": [
+    {
+      "id": "2e2bdc84-b127-4208-aa4b-73b4597c2488",
+      "taskId": "R-1",
+      "instanceId": "personal-work-expert-b2e5af30-26c1-4c4a-b722-2328c02d9d12",
+      "status": "succeeded",
+      "reason": null,
+      "kind": "execute",
+      "createdAt": "2026-10-12T12:53:59.594Z"
+    },
+    {
+      "id": "88b2080d-d225-4973-a236-425e9865d585",
+      "taskId": "R-1",
+      "instanceId": "personal-work-expert-b2e5af30-26c1-4c4a-b722-2328c02d9d12",
+      "status": "succeeded",
+      "reason": null,
+      "kind": "execute",
+      "createdAt": "2026-10-12T12:52:22.438Z"
+    },
+    {
+      "id": "d2360679-e6d6-4fb9-b078-ae17ef709474",
+      "taskId": "R-1",
+      "instanceId": "personal-work-expert-b2e5af30-26c1-4c4a-b722-2328c02d9d12",
+      "status": "succeeded",
+      "reason": null,
+      "kind": "execute",
+      "createdAt": "2026-10-12T12:49:22.922Z"
+    },
+    {
+      "id": "34cf800c-6cbb-4e4d-814f-e90d7b440155",
+      "taskId": "R-1",
+      "instanceId": "personal-work-expert-b2e5af30-26c1-4c4a-b722-2328c02d9d12",
+      "status": "succeeded",
+      "reason": null,
+      "kind": "execute",
+      "createdAt": "2026-10-12T12:46:08.603Z"
+    },
+    {
+      "id": "66ad47c0-0d32-4ce8-aa48-2457f3d198dd",
+      "taskId": null,
+      "instanceId": "personal-work-coordinator-17358e71-ca07-4b96-82e1-02d3b9bf43e6",
+      "status": "succeeded",
+      "reason": null,
+      "kind": "plan",
+      "createdAt": "2026-10-12T12:44:48.331Z"
+    }
+  ]
+}

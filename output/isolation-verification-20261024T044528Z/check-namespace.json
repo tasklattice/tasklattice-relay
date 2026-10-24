@@ -1,0 +1,248 @@
+{
+  "checkedAt": "2026-10-24T04:51:57.299Z",
+  "namespace": "tp-v3i65n4c7jslo",
+  "clusterId": "in-cluster",
+  "healthy": true,
+  "checks": [
+    {
+      "id": "enabled",
+      "label": "Runtime namespaces",
+      "status": "passed",
+      "message": "Project runtime namespaces are enabled."
+    },
+    {
+      "id": "target",
+      "label": "Namespace mapping",
+      "status": "passed",
+      "message": "Expected Namespace tp-v3i65n4c7jslo in cluster in-cluster."
+    },
+    {
+      "id": "namespace",
+      "label": "Live Namespace",
+      "status": "passed",
+      "message": "Kubernetes returned Namespace tp-v3i65n4c7jslo."
+    },
+    {
+      "id": "owner",
+      "label": "Project ownership",
+      "status": "passed",
+      "message": "The Namespace belongs to this Project."
+    },
+    {
+      "id": "phase",
+      "label": "Namespace phase",
+      "status": "passed",
+      "message": "Namespace phase: Active."
+    },
+    {
+      "id": "metadata",
+      "label": "Relay metadata",
+      "status": "passed",
+      "message": "Project name and Relay management labels match."
+    },
+    {
+      "id": "isolation-configuration",
+      "label": "Deployed isolation configuration",
+      "status": "passed",
+      "message": "Control and Worker use the same current deployment address."
+    },
+    {
+      "id": "control-service",
+      "label": "Control Service target",
+      "status": "passed",
+      "message": "Using relay-initjob-test/tali-relay-control:38180 and its complete Pod selector."
+    },
+    {
+      "id": "v1/Secret/tp-v3i65n4c7jslo/tali-agent-runtime-bridge",
+      "label": "Secret/tali-agent-runtime-bridge",
+      "status": "passed",
+      "message": "Present, owned as expected, and matches the deployed isolation configuration."
+    },
+    {
+      "id": "v1/Service/tp-v3i65n4c7jslo/tali-agent-runtime-bridge",
+      "label": "Service/tali-agent-runtime-bridge",
+      "status": "passed",
+      "message": "Present, owned as expected, and matches the deployed isolation configuration."
+    },
+    {
+      "id": "apps/v1/Deployment/tp-v3i65n4c7jslo/tali-agent-runtime-bridge",
+      "label": "Deployment/tali-agent-runtime-bridge",
+      "status": "passed",
+      "message": "Present, owned as expected, and matches the deployed isolation configuration."
+    },
+    {
+      "id": "networking.k8s.io/v1/NetworkPolicy/tp-v3i65n4c7jslo/tali-agent-runtime-bridge",
+      "label": "NetworkPolicy/tali-agent-runtime-bridge",
+      "status": "passed",
+      "message": "Present, owned as expected, and matches the deployed isolation configuration."
+    },
+    {
+      "id": "v1/ServiceAccount/tp-v3i65n4c7jslo/default",
+      "label": "ServiceAccount/default",
+      "status": "passed",
+      "message": "Present, owned as expected, and matches the deployed isolation configuration."
+    },
+    {
+      "id": "networking.k8s.io/v1/NetworkPolicy/tp-v3i65n4c7jslo/openshell-tp-v3i65n4c7jslo-sandbox-ssh",
+      "label": "NetworkPolicy/openshell-tp-v3i65n4c7jslo-sandbox-ssh",
+      "status": "passed",
+      "message": "Present, owned as expected, and matches the deployed isolation configuration."
+    },
+    {
+      "id": "v1/ServiceAccount/tp-v3i65n4c7jslo/openshell-tp-v3i65n4c7jslo",
+      "label": "ServiceAccount/openshell-tp-v3i65n4c7jslo",
+      "status": "passed",
+      "message": "Present, owned as expected, and matches the deployed isolation configuration."
+    },
+    {
+      "id": "v1/ServiceAccount/tp-v3i65n4c7jslo/openshell-tp-v3i65n4c7jslo-sandbox",
+      "label": "ServiceAccount/openshell-tp-v3i65n4c7jslo-sandbox",
+      "status": "passed",
+      "message": "Present, owned as expected, and matches the deployed isolation configuration."
+    },
+    {
+      "id": "v1/Secret/tp-v3i65n4c7jslo/openshell-tp-v3i65n4c7jslo-credential-storage-key-encryption-ke",
+      "label": "Secret/openshell-tp-v3i65n4c7jslo-credential-storage-key-encryption-ke",
+      "status": "passed",
+      "message": "Present, owned as expected, and matches the deployed isolation configuration."
+    },
+    {
+      "id": "v1/ConfigMap/tp-v3i65n4c7jslo/openshell-tp-v3i65n4c7jslo-config",
+      "label": "ConfigMap/openshell-tp-v3i65n4c7jslo-config",
+      "status": "passed",
+      "message": "Present, owned as expected, and matches the deployed isolation configuration."
+    },
+    {
+      "id": "rbac.authorization.k8s.io/v1/ClusterRole/cluster/openshell-tp-v3i65n4c7jslo-node-reader",
+      "label": "ClusterRole/openshell-tp-v3i65n4c7jslo-node-reader",
+      "status": "passed",
+      "message": "Present, owned as expected, and matches the deployed isolation configuration."
+    },
+    {
+      "id": "rbac.authorization.k8s.io/v1/ClusterRoleBinding/cluster/openshell-tp-v3i65n4c7jslo-node-reader",
+      "label": "ClusterRoleBinding/openshell-tp-v3i65n4c7jslo-node-reader",
+      "status": "passed",
+      "message": "Present, owned as expected, and matches the deployed isolation configuration."
+    },
+    {
+      "id": "rbac.authorization.k8s.io/v1/Role/tp-v3i65n4c7jslo/openshell-tp-v3i65n4c7jslo-sandbox",
+      "label": "Role/openshell-tp-v3i65n4c7jslo-sandbox",
+      "status": "passed",
+      "message": "Present, owned as expected, and matches the deployed isolation configuration."
+    },
+    {
+      "id": "rbac.authorization.k8s.io/v1/RoleBinding/tp-v3i65n4c7jslo/openshell-tp-v3i65n4c7jslo-sandbox",
+      "label": "RoleBinding/openshell-tp-v3i65n4c7jslo-sandbox",
+      "status": "passed",
+      "message": "Present, owned as expected, and matches the deployed isolation configuration."
+    },
+    {
+      "id": "v1/Service/tp-v3i65n4c7jslo/openshell-tp-v3i65n4c7jslo",
+      "label": "Service/openshell-tp-v3i65n4c7jslo",
+      "status": "passed",
+      "message": "Present, owned as expected, and matches the deployed isolation configuration."
+    },
+    {
+      "id": "apps/v1/Deployment/tp-v3i65n4c7jslo/openshell-tp-v3i65n4c7jslo",
+      "label": "Deployment/openshell-tp-v3i65n4c7jslo",
+      "status": "passed",
+      "message": "Present, owned as expected, and matches the deployed isolation configuration."
+    },
+    {
+      "id": "v1/ServiceAccount/tp-v3i65n4c7jslo/openshell-tp-v3i65n4c7jslo-certgen",
+      "label": "ServiceAccount/openshell-tp-v3i65n4c7jslo-certgen",
+      "status": "passed",
+      "message": "Present, owned as expected, and matches the deployed isolation configuration."
+    },
+    {
+      "id": "rbac.authorization.k8s.io/v1/Role/tp-v3i65n4c7jslo/openshell-tp-v3i65n4c7jslo-certgen",
+      "label": "Role/openshell-tp-v3i65n4c7jslo-certgen",
+      "status": "passed",
+      "message": "Present, owned as expected, and matches the deployed isolation configuration."
+    },
+    {
+      "id": "rbac.authorization.k8s.io/v1/RoleBinding/tp-v3i65n4c7jslo/openshell-tp-v3i65n4c7jslo-certgen",
+      "label": "RoleBinding/openshell-tp-v3i65n4c7jslo-certgen",
+      "status": "passed",
+      "message": "Present, owned as expected, and matches the deployed isolation configuration."
+    },
+    {
+      "id": "v1/Secret/tp-v3i65n4c7jslo/openshell-postgresql",
+      "label": "Secret/openshell-postgresql",
+      "status": "passed",
+      "message": "Present, owned as expected, and matches the deployed isolation configuration."
+    },
+    {
+      "id": "v1/Secret/tp-v3i65n4c7jslo/openshell-tp-v3i65n4c7jslo-jwt-keys",
+      "label": "Secret/openshell-tp-v3i65n4c7jslo-jwt-keys",
+      "status": "passed",
+      "message": "Present, owned as expected, and matches the deployed isolation configuration."
+    },
+    {
+      "id": "v1/Secret/tp-v3i65n4c7jslo/openshell-server-tls",
+      "label": "Secret/openshell-server-tls",
+      "status": "passed",
+      "message": "Present, owned as expected, and matches the deployed isolation configuration."
+    },
+    {
+      "id": "v1/Secret/tp-v3i65n4c7jslo/openshell-client-tls",
+      "label": "Secret/openshell-client-tls",
+      "status": "passed",
+      "message": "Present, owned as expected, and matches the deployed isolation configuration."
+    },
+    {
+      "id": "rbac.authorization.k8s.io/v1/Role/tp-v3i65n4c7jslo/tali-project-isolation-reader",
+      "label": "Role/tali-project-isolation-reader",
+      "status": "passed",
+      "message": "Present, owned as expected, and matches the deployed isolation configuration."
+    },
+    {
+      "id": "rbac.authorization.k8s.io/v1/RoleBinding/tp-v3i65n4c7jslo/tali-project-isolation-reader",
+      "label": "RoleBinding/tali-project-isolation-reader",
+      "status": "passed",
+      "message": "Present, owned as expected, and matches the deployed isolation configuration."
+    },
+    {
+      "id": "reference:v1/ServiceAccount/tp-v3i65n4c7jslo/default",
+      "label": "Infrastructure dependency: ServiceAccount/default",
+      "status": "passed",
+      "message": "Referenced resource and required keys exist."
+    },
+    {
+      "id": "reference:v1/Secret/tp-v3i65n4c7jslo/tali-agent-runtime-bridge",
+      "label": "Infrastructure dependency: Secret/tali-agent-runtime-bridge",
+      "status": "passed",
+      "message": "Referenced resource and required keys exist."
+    },
+    {
+      "id": "reference:v1/ServiceAccount/tp-v3i65n4c7jslo/openshell-tp-v3i65n4c7jslo",
+      "label": "Infrastructure dependency: ServiceAccount/openshell-tp-v3i65n4c7jslo",
+      "status": "passed",
+      "message": "Referenced resource and required keys exist."
+    },
+    {
+      "id": "reference:v1/Secret/tp-v3i65n4c7jslo/openshell-tp-v3i65n4c7jslo-credential-storage-key-encryption-ke",
+      "label": "Infrastructure dependency: Secret/openshell-tp-v3i65n4c7jslo-credential-storage-key-encryption-ke",
+      "status": "passed",
+      "message": "Referenced resource and required keys exist."
+    },
+    {
+      "id": "reference:v1/Secret/tp-v3i65n4c7jslo/openshell-postgresql",
+      "label": "Infrastructure dependency: Secret/openshell-postgresql",
+      "status": "passed",
+      "message": "Referenced resource and required keys exist."
+    },
+    {
+      "id": "reference:v1/ConfigMap/tp-v3i65n4c7jslo/openshell-tp-v3i65n4c7jslo-config",
+      "label": "Infrastructure dependency: ConfigMap/openshell-tp-v3i65n4c7jslo-config",
+      "status": "passed",
+      "message": "Referenced resource and required keys exist."
+    },
+    {
+      "id": "reference:v1/Secret/tp-v3i65n4c7jslo/openshell-tp-v3i65n4c7jslo-jwt-keys",
+      "label": "Infrastructure dependency: Secret/openshell-tp-v3i65n4c7jslo-jwt-keys",
+      "status": "passed",
+      "message": "Referenced resource and required keys exist."
+    }
+  ]
+}

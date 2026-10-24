@@ -1,0 +1,45 @@
+{
+  "defaultValuesLines": {
+    "before": 700,
+    "after": 568
+  },
+  "profiles": [
+    {
+      "profile": "default",
+      "resources": 46,
+      "unchanged": true
+    },
+    {
+      "profile": "dev",
+      "resources": 46,
+      "unchanged": true
+    },
+    {
+      "profile": "uat",
+      "resources": 40,
+      "unchanged": true
+    },
+    {
+      "profile": "openshift",
+      "resources": 50,
+      "unchanged": true
+    },
+    {
+      "profile": "airgap",
+      "resources": 46,
+      "unchanged": true
+    },
+    {
+      "profile": "local",
+      "resources": 49,
+      "unchanged": true
+    },
+    {
+      "profile": "optional",
+      "resources": 60,
+      "unchanged": true
+    }
+  ],
+  "advancedOverridesCompatible": true,
+  "liveDeploymentChanged": false
+}

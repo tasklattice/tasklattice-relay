@@ -1,0 +1,680 @@
+{
+  "projectId": "tp-cdtsixla2y6bc",
+  "workId": "7bd4e9ac-b18b-4f81-9457-e25eaa64bda3",
+  "observedAt": "2026-10-12T13:20:22.485Z",
+  "realProvider": "NVIDIA NIM",
+  "model": "openai/gpt-oss-20b",
+  "providerInvoiceVerified": false,
+  "summary": {
+    "currency": "USD",
+    "totalSpendUsd": 0,
+    "totalTokens": 3297,
+    "promptTokens": 2436,
+    "completionTokens": 861,
+    "requests": 2,
+    "unknownCostRequests": 0,
+    "uncorrelatedRunRequests": 0,
+    "comparison": {}
+  },
+  "breakdowns": {
+    "work": {
+      "currency": "USD",
+      "items": [
+        {
+          "id": "7bd4e9ac-b18b-4f81-9457-e25eaa64bda3",
+          "name": "NVIDIA 计费归属验证",
+          "detail": "7bd4e9ac-b18b-4f81-9457-e25eaa64bda3",
+          "spendUsd": 0,
+          "promptTokens": 2436,
+          "completionTokens": 861,
+          "totalTokens": 3297,
+          "requests": 2,
+          "averageCostPerRequest": 0,
+          "share": 0,
+          "lastActive": "2026-10-12T13:12:10.916Z",
+          "provider": "NVIDIA NIM",
+          "providerAccount": "个人模型连接",
+          "modelsUsed": 1,
+          "boundInstance": "工作协调者",
+          "boundInstanceId": "personal-work-coordinator-17358e71-ca07-4b96-82e1-02d3b9bf43e6",
+          "user": "—",
+          "team": "f8e56b39-69c5-4a33-a6f9-eb5234a29c20"
+        }
+      ],
+      "total": 1,
+      "page": 1,
+      "pageSize": 25,
+      "filterOptions": {
+        "work": [
+          {
+            "value": "unmapped-work",
+            "label": "No Work attribution"
+          },
+          {
+            "value": "7bd4e9ac-b18b-4f81-9457-e25eaa64bda3",
+            "label": "NVIDIA 计费归属验证"
+          }
+        ],
+        "task": [
+          {
+            "value": "unmapped-task",
+            "label": "No Task attribution"
+          },
+          {
+            "value": "7bd4e9ac-b18b-4f81-9457-e25eaa64bda3/__planning__",
+            "label": "Work planning"
+          },
+          {
+            "value": "7bd4e9ac-b18b-4f81-9457-e25eaa64bda3/R-1a2b3c4d-5e6f-7g8h-9i0j-k1l2m3n4o5p6",
+            "label": "撰写首次使用说明"
+          }
+        ],
+        "instance": [
+          {
+            "value": "unmapped-instance",
+            "label": "Unmapped Instance"
+          },
+          {
+            "value": "personal-work-expert-b2e5af30-26c1-4c4a-b722-2328c02d9d12",
+            "label": "工作专家"
+          },
+          {
+            "value": "personal-work-coordinator-17358e71-ca07-4b96-82e1-02d3b9bf43e6",
+            "label": "工作协调者"
+          }
+        ],
+        "model_endpoint": [
+          {
+            "value": "a6116f3e-fa5e-40e0-81fa-48238172dca2",
+            "label": "openai/gpt-oss-20b"
+          },
+          {
+            "value": "model-routing:4c436cf5-7b7e-462a-bf25-a1e5d4ab35a4",
+            "label": "个人默认模型"
+          }
+        ],
+        "provider": [
+          {
+            "value": "LiteLLM",
+            "label": "LiteLLM"
+          },
+          {
+            "value": "NVIDIA NIM",
+            "label": "NVIDIA NIM"
+          }
+        ],
+        "provider_account": [
+          {
+            "value": "litellm-default",
+            "label": "Primary LiteLLM Gateway"
+          },
+          {
+            "value": "d6881ff3-b439-4fc6-8e82-f36d3b35bb43",
+            "label": "个人模型连接"
+          }
+        ],
+        "virtual_key": [
+          {
+            "value": "sha256:0831fc07cb9e50c2e5e06f13c20c24d23b1e8beb0f1469f0266c74e8491d1452",
+            "label": "Virtual key ••••1452"
+          },
+          {
+            "value": "sha256:1df082023b860a7c313a1d5876a5a5ba540a4b09256e01b363cafa8a7c12248e",
+            "label": "Virtual key ••••248e"
+          },
+          {
+            "value": "sha256:9ca43f25429e92b7cbbab630d4c6600ee1e3371dabf65cf9705954ea8c322e85",
+            "label": "Virtual key ••••2e85"
+          },
+          {
+            "value": "sha256:e469294a94eb1b8da37609f637ec5443984658f3473d5d001e3825495905374b",
+            "label": "Virtual key ••••374b"
+          },
+          {
+            "value": "sha256:2150cbccd266b5cdcb70e71e5c31fa382cc67c6e5f0e31e36476f4698ec0572d",
+            "label": "Virtual key ••••572d"
+          },
+          {
+            "value": "sha256:28eab32adb77535125af58fde17687993489c3a0af0c2736e18ce71f2c8561e8",
+            "label": "Virtual key ••••61e8"
+          },
+          {
+            "value": "sha256:3c7b259dcaea802efc5c97f76a05bc1f59fcea6cf3d2b4d23b527ee4a2c187f6",
+            "label": "Virtual key ••••87f6"
+          },
+          {
+            "value": "sha256:564c6d419268f0178fd77ce6df34d1a8b445d4dadd36460458e149e13b03b16a",
+            "label": "Virtual key ••••b16a"
+          },
+          {
+            "value": "sha256:6568110ef2ec4d26567be161fdc7d32b19a64395396bfa581e94c70027706bd7",
+            "label": "work-eb69474c-eedf-49a8-a30a-3bdd82981e0f"
+          },
+          {
+            "value": "sha256:cda0b0741ba4ab4abbf75d7e77a7e8c613a605623361ffef38998395dbce067d",
+            "label": "work-feae92e6-b1ac-4d39-ae6e-715a7ac232bf"
+          }
+        ],
+        "project": [
+          {
+            "value": "tp-cdtsixla2y6bc",
+            "label": "tp-cdtsixla2y6bc"
+          }
+        ]
+      }
+    },
+    "task": {
+      "currency": "USD",
+      "items": [
+        {
+          "id": "7bd4e9ac-b18b-4f81-9457-e25eaa64bda3/__planning__",
+          "name": "Work planning",
+          "detail": "NVIDIA 计费归属验证",
+          "spendUsd": 0,
+          "promptTokens": 1302,
+          "completionTokens": 482,
+          "totalTokens": 1784,
+          "requests": 1,
+          "averageCostPerRequest": 0,
+          "share": 0,
+          "lastActive": "2026-10-12T13:11:07.965Z",
+          "provider": "NVIDIA NIM",
+          "providerAccount": "个人模型连接",
+          "modelsUsed": 1,
+          "boundInstance": "工作协调者",
+          "boundInstanceId": "personal-work-coordinator-17358e71-ca07-4b96-82e1-02d3b9bf43e6",
+          "user": "—",
+          "team": "f8e56b39-69c5-4a33-a6f9-eb5234a29c20"
+        },
+        {
+          "id": "7bd4e9ac-b18b-4f81-9457-e25eaa64bda3/R-1a2b3c4d-5e6f-7g8h-9i0j-k1l2m3n4o5p6",
+          "name": "撰写首次使用说明",
+          "detail": "NVIDIA 计费归属验证 · R-1a2b3c4d-5e6f-7g8h-9i0j-k1l2m3n4o5p6",
+          "spendUsd": 0,
+          "promptTokens": 1134,
+          "completionTokens": 379,
+          "totalTokens": 1513,
+          "requests": 1,
+          "averageCostPerRequest": 0,
+          "share": 0,
+          "lastActive": "2026-10-12T13:12:10.916Z",
+          "provider": "NVIDIA NIM",
+          "providerAccount": "个人模型连接",
+          "modelsUsed": 1,
+          "boundInstance": "工作专家",
+          "boundInstanceId": "personal-work-expert-b2e5af30-26c1-4c4a-b722-2328c02d9d12",
+          "user": "—",
+          "team": "f8e56b39-69c5-4a33-a6f9-eb5234a29c20"
+        }
+      ],
+      "total": 2,
+      "page": 1,
+      "pageSize": 25,
+      "filterOptions": {
+        "work": [
+          {
+            "value": "unmapped-work",
+            "label": "No Work attribution"
+          },
+          {
+            "value": "7bd4e9ac-b18b-4f81-9457-e25eaa64bda3",
+            "label": "NVIDIA 计费归属验证"
+          }
+        ],
+        "task": [
+          {
+            "value": "unmapped-task",
+            "label": "No Task attribution"
+          },
+          {
+            "value": "7bd4e9ac-b18b-4f81-9457-e25eaa64bda3/__planning__",
+            "label": "Work planning"
+          },
+          {
+            "value": "7bd4e9ac-b18b-4f81-9457-e25eaa64bda3/R-1a2b3c4d-5e6f-7g8h-9i0j-k1l2m3n4o5p6",
+            "label": "撰写首次使用说明"
+          }
+        ],
+        "instance": [
+          {
+            "value": "unmapped-instance",
+            "label": "Unmapped Instance"
+          },
+          {
+            "value": "personal-work-expert-b2e5af30-26c1-4c4a-b722-2328c02d9d12",
+            "label": "工作专家"
+          },
+          {
+            "value": "personal-work-coordinator-17358e71-ca07-4b96-82e1-02d3b9bf43e6",
+            "label": "工作协调者"
+          }
+        ],
+        "model_endpoint": [
+          {
+            "value": "a6116f3e-fa5e-40e0-81fa-48238172dca2",
+            "label": "openai/gpt-oss-20b"
+          },
+          {
+            "value": "model-routing:4c436cf5-7b7e-462a-bf25-a1e5d4ab35a4",
+            "label": "个人默认模型"
+          }
+        ],
+        "provider": [
+          {
+            "value": "LiteLLM",
+            "label": "LiteLLM"
+          },
+          {
+            "value": "NVIDIA NIM",
+            "label": "NVIDIA NIM"
+          }
+        ],
+        "provider_account": [
+          {
+            "value": "litellm-default",
+            "label": "Primary LiteLLM Gateway"
+          },
+          {
+            "value": "d6881ff3-b439-4fc6-8e82-f36d3b35bb43",
+            "label": "个人模型连接"
+          }
+        ],
+        "virtual_key": [
+          {
+            "value": "sha256:0831fc07cb9e50c2e5e06f13c20c24d23b1e8beb0f1469f0266c74e8491d1452",
+            "label": "Virtual key ••••1452"
+          },
+          {
+            "value": "sha256:1df082023b860a7c313a1d5876a5a5ba540a4b09256e01b363cafa8a7c12248e",
+            "label": "Virtual key ••••248e"
+          },
+          {
+            "value": "sha256:9ca43f25429e92b7cbbab630d4c6600ee1e3371dabf65cf9705954ea8c322e85",
+            "label": "Virtual key ••••2e85"
+          },
+          {
+            "value": "sha256:e469294a94eb1b8da37609f637ec5443984658f3473d5d001e3825495905374b",
+            "label": "Virtual key ••••374b"
+          },
+          {
+            "value": "sha256:2150cbccd266b5cdcb70e71e5c31fa382cc67c6e5f0e31e36476f4698ec0572d",
+            "label": "Virtual key ••••572d"
+          },
+          {
+            "value": "sha256:28eab32adb77535125af58fde17687993489c3a0af0c2736e18ce71f2c8561e8",
+            "label": "Virtual key ••••61e8"
+          },
+          {
+            "value": "sha256:3c7b259dcaea802efc5c97f76a05bc1f59fcea6cf3d2b4d23b527ee4a2c187f6",
+            "label": "Virtual key ••••87f6"
+          },
+          {
+            "value": "sha256:564c6d419268f0178fd77ce6df34d1a8b445d4dadd36460458e149e13b03b16a",
+            "label": "Virtual key ••••b16a"
+          },
+          {
+            "value": "sha256:6568110ef2ec4d26567be161fdc7d32b19a64395396bfa581e94c70027706bd7",
+            "label": "work-eb69474c-eedf-49a8-a30a-3bdd82981e0f"
+          },
+          {
+            "value": "sha256:cda0b0741ba4ab4abbf75d7e77a7e8c613a605623361ffef38998395dbce067d",
+            "label": "work-feae92e6-b1ac-4d39-ae6e-715a7ac232bf"
+          }
+        ],
+        "project": [
+          {
+            "value": "tp-cdtsixla2y6bc",
+            "label": "tp-cdtsixla2y6bc"
+          }
+        ]
+      }
+    },
+    "instance": {
+      "currency": "USD",
+      "items": [
+        {
+          "id": "personal-work-expert-b2e5af30-26c1-4c4a-b722-2328c02d9d12",
+          "name": "工作专家",
+          "detail": "nvidia_nim/openai/gpt-oss-20b",
+          "spendUsd": 0,
+          "promptTokens": 1134,
+          "completionTokens": 379,
+          "totalTokens": 1513,
+          "requests": 1,
+          "averageCostPerRequest": 0,
+          "share": 0,
+          "lastActive": "2026-10-12T13:12:10.916Z",
+          "provider": "NVIDIA NIM",
+          "providerAccount": "个人模型连接",
+          "modelsUsed": 1,
+          "boundInstance": "工作专家",
+          "boundInstanceId": "personal-work-expert-b2e5af30-26c1-4c4a-b722-2328c02d9d12",
+          "user": "—",
+          "team": "f8e56b39-69c5-4a33-a6f9-eb5234a29c20"
+        },
+        {
+          "id": "personal-work-coordinator-17358e71-ca07-4b96-82e1-02d3b9bf43e6",
+          "name": "工作协调者",
+          "detail": "nvidia_nim/openai/gpt-oss-20b",
+          "spendUsd": 0,
+          "promptTokens": 1302,
+          "completionTokens": 482,
+          "totalTokens": 1784,
+          "requests": 1,
+          "averageCostPerRequest": 0,
+          "share": 0,
+          "lastActive": "2026-10-12T13:11:07.965Z",
+          "provider": "NVIDIA NIM",
+          "providerAccount": "个人模型连接",
+          "modelsUsed": 1,
+          "boundInstance": "工作协调者",
+          "boundInstanceId": "personal-work-coordinator-17358e71-ca07-4b96-82e1-02d3b9bf43e6",
+          "user": "—",
+          "team": "f8e56b39-69c5-4a33-a6f9-eb5234a29c20"
+        }
+      ],
+      "total": 2,
+      "page": 1,
+      "pageSize": 25,
+      "filterOptions": {
+        "work": [
+          {
+            "value": "unmapped-work",
+            "label": "No Work attribution"
+          },
+          {
+            "value": "7bd4e9ac-b18b-4f81-9457-e25eaa64bda3",
+            "label": "NVIDIA 计费归属验证"
+          }
+        ],
+        "task": [
+          {
+            "value": "unmapped-task",
+            "label": "No Task attribution"
+          },
+          {
+            "value": "7bd4e9ac-b18b-4f81-9457-e25eaa64bda3/__planning__",
+            "label": "Work planning"
+          },
+          {
+            "value": "7bd4e9ac-b18b-4f81-9457-e25eaa64bda3/R-1a2b3c4d-5e6f-7g8h-9i0j-k1l2m3n4o5p6",
+            "label": "撰写首次使用说明"
+          }
+        ],
+        "instance": [
+          {
+            "value": "unmapped-instance",
+            "label": "Unmapped Instance"
+          },
+          {
+            "value": "personal-work-expert-b2e5af30-26c1-4c4a-b722-2328c02d9d12",
+            "label": "工作专家"
+          },
+          {
+            "value": "personal-work-coordinator-17358e71-ca07-4b96-82e1-02d3b9bf43e6",
+            "label": "工作协调者"
+          }
+        ],
+        "model_endpoint": [
+          {
+            "value": "a6116f3e-fa5e-40e0-81fa-48238172dca2",
+            "label": "openai/gpt-oss-20b"
+          },
+          {
+            "value": "model-routing:4c436cf5-7b7e-462a-bf25-a1e5d4ab35a4",
+            "label": "个人默认模型"
+          }
+        ],
+        "provider": [
+          {
+            "value": "LiteLLM",
+            "label": "LiteLLM"
+          },
+          {
+            "value": "NVIDIA NIM",
+            "label": "NVIDIA NIM"
+          }
+        ],
+        "provider_account": [
+          {
+            "value": "litellm-default",
+            "label": "Primary LiteLLM Gateway"
+          },
+          {
+            "value": "d6881ff3-b439-4fc6-8e82-f36d3b35bb43",
+            "label": "个人模型连接"
+          }
+        ],
+        "virtual_key": [
+          {
+            "value": "sha256:0831fc07cb9e50c2e5e06f13c20c24d23b1e8beb0f1469f0266c74e8491d1452",
+            "label": "Virtual key ••••1452"
+          },
+          {
+            "value": "sha256:1df082023b860a7c313a1d5876a5a5ba540a4b09256e01b363cafa8a7c12248e",
+            "label": "Virtual key ••••248e"
+          },
+          {
+            "value": "sha256:9ca43f25429e92b7cbbab630d4c6600ee1e3371dabf65cf9705954ea8c322e85",
+            "label": "Virtual key ••••2e85"
+          },
+          {
+            "value": "sha256:e469294a94eb1b8da37609f637ec5443984658f3473d5d001e3825495905374b",
+            "label": "Virtual key ••••374b"
+          },
+          {
+            "value": "sha256:2150cbccd266b5cdcb70e71e5c31fa382cc67c6e5f0e31e36476f4698ec0572d",
+            "label": "Virtual key ••••572d"
+          },
+          {
+            "value": "sha256:28eab32adb77535125af58fde17687993489c3a0af0c2736e18ce71f2c8561e8",
+            "label": "Virtual key ••••61e8"
+          },
+          {
+            "value": "sha256:3c7b259dcaea802efc5c97f76a05bc1f59fcea6cf3d2b4d23b527ee4a2c187f6",
+            "label": "Virtual key ••••87f6"
+          },
+          {
+            "value": "sha256:564c6d419268f0178fd77ce6df34d1a8b445d4dadd36460458e149e13b03b16a",
+            "label": "Virtual key ••••b16a"
+          },
+          {
+            "value": "sha256:6568110ef2ec4d26567be161fdc7d32b19a64395396bfa581e94c70027706bd7",
+            "label": "work-eb69474c-eedf-49a8-a30a-3bdd82981e0f"
+          },
+          {
+            "value": "sha256:cda0b0741ba4ab4abbf75d7e77a7e8c613a605623361ffef38998395dbce067d",
+            "label": "work-feae92e6-b1ac-4d39-ae6e-715a7ac232bf"
+          }
+        ],
+        "project": [
+          {
+            "value": "tp-cdtsixla2y6bc",
+            "label": "tp-cdtsixla2y6bc"
+          }
+        ]
+      }
+    }
+  },
+  "dataQuality": {
+    "unmappedRequests": 0,
+    "unmappedInstances": 0,
+    "unmappedModelEndpoints": 0,
+    "unmappedProviderAccounts": 0,
+    "tokenMismatchRequests": 0,
+    "negativeSpendRequests": 0,
+    "unknownCostRequests": 0,
+    "duplicateRequests": 0,
+    "uncorrelatedRunRequests": 0,
+    "lateArrivingRequests": 10,
+    "lastSyncAt": "2026-10-12T13:20:08.301Z",
+    "syncLagSeconds": 0,
+    "litellmSpend": 0,
+    "taliSpend": 0,
+    "spendDifference": 0
+  },
+  "work": {
+    "id": "7bd4e9ac-b18b-4f81-9457-e25eaa64bda3",
+    "projectId": "tp-cdtsixla2y6bc",
+    "revision": 7,
+    "state": {
+      "title": "NVIDIA 计费归属验证",
+      "goal": "请创建且只创建一个简短文本 Task，指派给工作专家。材料只有：输入需求、附加文档、开始任务。交付一段不超过80字的中文首次使用说明，顺序必须是这三个步骤，不得添加未提供的功能；无需调研。验收是三步骤清晰且内容完整。",
+      "ownerUserId": "work-personal-ui-test",
+      "memberUserIds": [
+        "work-personal-ui-test"
+      ],
+      "agents": [
+        {
+          "instanceId": "personal-work-coordinator-17358e71-ca07-4b96-82e1-02d3b9bf43e6",
+          "name": "工作协调者",
+          "role": "coordinator",
+          "versionId": "17358e71-ca07-4b96-82e1-02d3b9bf43e6",
+          "capability": "把用户的目标整理为可调整的任务计划，分配专家并保留完成记录。"
+        },
+        {
+          "instanceId": "personal-work-expert-b2e5af30-26c1-4c4a-b722-2328c02d9d12",
+          "name": "工作专家",
+          "role": "expert",
+          "versionId": "b2e5af30-26c1-4c4a-b722-2328c02d9d12",
+          "capability": "根据任务和已有材料整理分析、文本草稿及行动建议，明确证据与未知。"
+        }
+      ],
+      "tasks": [
+        {
+          "id": "R-1a2b3c4d-5e6f-7g8h-9i0j-k1l2m3n4o5p6",
+          "title": "撰写首次使用说明",
+          "status": "decision",
+          "reason": "草稿已生成，等待核实证据与交付",
+          "ownerInstanceId": "personal-work-expert-b2e5af30-26c1-4c4a-b722-2328c02d9d12",
+          "dependencies": [],
+          "acceptance": "三步骤清晰且内容完整",
+          "replaces": null,
+          "sourceMessageId": "d0031600-a3f7-408f-a720-a31eae868994"
+        }
+      ],
+      "artifacts": [
+        {
+          "id": "eb35a582-21e0-422a-9f4d-a1cc82ef17f3",
+          "taskId": "R-1a2b3c4d-5e6f-7g8h-9i0j-k1l2m3n4o5p6",
+          "runId": "eb69474c-eedf-49a8-a30a-3bdd82981e0f",
+          "sourceMessageId": "d0031600-a3f7-408f-a720-a31eae868994",
+          "instanceId": "personal-work-expert-b2e5af30-26c1-4c4a-b722-2328c02d9d12",
+          "taskScopeHash": "ecbe000299c5c84e5d77024ad7d20d6a72d3ad576ad2409584b83e4663900aa0",
+          "title": "首次使用说明",
+          "content": "1. 阅读输入需求。2. 查看附加文档。3. 开始执行任务。",
+          "version": 1,
+          "previousId": null,
+          "status": "draft",
+          "evidence": "依据用户提供的任务信息，未进行外部调研，内容仅包含三步说明。",
+          "verifiedBy": null
+        }
+      ],
+      "defaultView": "chat",
+      "modelCallLimit": 20,
+      "modelCallsUsed": 2
+    },
+    "messages": [
+      {
+        "projectId": "tp-cdtsixla2y6bc",
+        "workId": "7bd4e9ac-b18b-4f81-9457-e25eaa64bda3",
+        "id": "d0031600-a3f7-408f-a720-a31eae868994",
+        "kind": "human",
+        "userId": "work-personal-ui-test",
+        "instanceId": null,
+        "name": "个人体验用户",
+        "text": "请创建且只创建一个简短文本 Task，指派给工作专家。材料只有：输入需求、附加文档、开始任务。交付一段不超过80字的中文首次使用说明，顺序必须是这三个步骤，不得添加未提供的功能；无需调研。验收是三步骤清晰且内容完整。",
+        "source": "text",
+        "createdAt": "2026-10-12T13:11:06.998Z"
+      },
+      {
+        "projectId": "tp-cdtsixla2y6bc",
+        "workId": "7bd4e9ac-b18b-4f81-9457-e25eaa64bda3",
+        "id": "bda4451f-67f3-4b7f-837f-756c88b90b82",
+        "kind": "agent",
+        "userId": null,
+        "instanceId": "personal-work-coordinator-17358e71-ca07-4b96-82e1-02d3b9bf43e6",
+        "name": "工作协调者",
+        "text": "已为您创建一项简短文本任务，指派给工作专家完成。该任务将根据您的需求生成不超过80字的中文首次使用说明，严格按输入需求、附加文档、开始任务的顺序排列，且不添加任何未提供的功能。验收标准为三步骤清晰且内容完整。",
+        "source": "runtime",
+        "createdAt": "2026-10-12T13:11:25.170Z"
+      },
+      {
+        "projectId": "tp-cdtsixla2y6bc",
+        "workId": "7bd4e9ac-b18b-4f81-9457-e25eaa64bda3",
+        "id": "647dddfd-c9ec-4e48-b453-98fa99df830e",
+        "kind": "agent",
+        "userId": null,
+        "instanceId": "personal-work-expert-b2e5af30-26c1-4c4a-b722-2328c02d9d12",
+        "name": "工作专家",
+        "text": "已生成「首次使用说明」草稿，请核实后确认交付。",
+        "source": "runtime",
+        "createdAt": "2026-10-12T13:12:35.375Z"
+      }
+    ],
+    "events": [
+      {
+        "sequence": 1,
+        "type": "message",
+        "summary": "新增讨论",
+        "createdAt": "2026-10-12T13:11:07.010Z"
+      },
+      {
+        "sequence": 2,
+        "type": "plan",
+        "summary": "已授权协调者规划（一次模型调用）",
+        "createdAt": "2026-10-12T13:11:07.031Z"
+      },
+      {
+        "sequence": 3,
+        "type": "model_dispatch",
+        "summary": "已预留一次模型调用；未开放外部工具",
+        "createdAt": "2026-10-12T13:11:07.872Z"
+      },
+      {
+        "sequence": 4,
+        "type": "run_result",
+        "summary": "协调者已更新任务安排",
+        "createdAt": "2026-10-12T13:11:25.173Z"
+      },
+      {
+        "sequence": 5,
+        "type": "execute",
+        "summary": "已授权执行 R-1a2b3c4d-5e6f-7g8h-9i0j-k1l2m3n4o5p6（一次模型调用）",
+        "createdAt": "2026-10-12T13:12:09.897Z"
+      },
+      {
+        "sequence": 6,
+        "type": "model_dispatch",
+        "summary": "已预留一次模型调用；未开放外部工具",
+        "createdAt": "2026-10-12T13:12:10.881Z"
+      },
+      {
+        "sequence": 7,
+        "type": "run_result",
+        "summary": "专家已提交草稿",
+        "createdAt": "2026-10-12T13:12:35.380Z"
+      }
+    ],
+    "runs": [
+      {
+        "id": "eb69474c-eedf-49a8-a30a-3bdd82981e0f",
+        "taskId": "R-1a2b3c4d-5e6f-7g8h-9i0j-k1l2m3n4o5p6",
+        "instanceId": "personal-work-expert-b2e5af30-26c1-4c4a-b722-2328c02d9d12",
+        "status": "succeeded",
+        "reason": null,
+        "kind": "execute",
+        "createdAt": "2026-10-12T13:12:09.896Z"
+      },
+      {
+        "id": "feae92e6-b1ac-4d39-ae6e-715a7ac232bf",
+        "taskId": null,
+        "instanceId": "personal-work-coordinator-17358e71-ca07-4b96-82e1-02d3b9bf43e6",
+        "status": "succeeded",
+        "reason": null,
+        "kind": "plan",
+        "createdAt": "2026-10-12T13:11:07.029Z"
+      }
+    ]
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "cluster": "orbstack",
+  "release": "tali-relay",
+  "controlNamespace": "relay-initjob-test",
+  "helmRevision": 3,
+  "image": "docker.io/library/tali-control:isolation-20261024T044528Z",
+  "projectId": "tp-v3i65n4c7jslo",
+  "initialization": {
+    "http": 200,
+    "status": "ready",
+    "generation": 2,
+    "observedGeneration": 2,
+    "attempts": 0,
+    "lastError": null,
+    "updatedAt": "2026-10-24T04:51:34.465Z"
+  },
+  "namespaceCheck": {
+    "checkedAt": "2026-10-24T04:51:57.299Z",
+    "healthy": true,
+    "total": 40,
+    "passed": 40
+  },
+  "bridgePod": "tali-agent-runtime-bridge-7f9cd86ff8-64rdz",
+  "connectivity": {
+    "source": "Bridge Pod",
+    "controlUrl": "http://tali-relay-control.relay-initjob-test.svc.cluster.local:38180/api/health",
+    "controlHttpStatus": 200,
+    "controlOk": true,
+    "bridgeReadyzHttpStatus": 200,
+    "bridgeReadyzControlOk": true
+  },
+  "queueNote": "The single manual Reinitialize request advanced generation to 2. Its existing deferred queue job was expedited in place using PgBoss.update; no second Reinitialize was submitted."
+}

@@ -1,0 +1,10 @@
+{
+  "fixture": "Isolated synthetic exhausted Team; not real spend",
+  "maxBudgetUsd": 0.0001,
+  "syntheticSpendUsd": 1,
+  "httpStatus": 400,
+  "errorType": "None",
+  "errorCode": "400",
+  "budgetRejected": true,
+  "fixturesRemoved": true
+}

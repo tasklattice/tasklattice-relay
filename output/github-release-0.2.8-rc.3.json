@@ -1,0 +1,90 @@
+{
+  "tag": "v0.2.8-rc.3",
+  "sourceSha": "04e0a55d5498bc8b3d1599313a6c927eed17f4c7",
+  "previousTag": "v0.2.8-rc.1",
+  "result": "PASS",
+  "ciUrl": "https://github.com/tasklattice/tasklattice-relay/actions/runs/39943693746",
+  "releaseUrl": "https://github.com/tasklattice/tasklattice-relay/releases/tag/v0.2.8-rc.3",
+  "images": [
+    {
+      "image": "ghcr.io/tasklattice/tali-control:0.2.8-rc.3",
+      "digest": "sha256:5b59fe7072147322c220fe4af1df61eacd3c01e40b982960349909784845b144",
+      "platforms": [
+        "amd64",
+        "arm64"
+      ],
+      "action": "build"
+    },
+    {
+      "image": "ghcr.io/tasklattice/tali-openshell-runner:0.2.8-rc.3",
+      "digest": "sha256:f310e436c7aeaf895b264650bc56eb52c69f2031f2a705bb8a13ac59f3a1b16d",
+      "platforms": [
+        "amd64",
+        "arm64"
+      ],
+      "action": "build"
+    },
+    {
+      "image": "ghcr.io/tasklattice/tali-expert-agent-runtime:0.2.8-rc.3",
+      "digest": "sha256:7a6d3430576b3cbee400aea02dfe8a05a18d704bd6a170be868ada99e0d8da2e",
+      "platforms": [
+        "amd64",
+        "arm64"
+      ],
+      "action": "build"
+    },
+    {
+      "image": "ghcr.io/tasklattice/demo-test:0.2.8-rc.3",
+      "digest": "sha256:1d04667bf14bbe464f56feb4076fd5926b571706b0871501efde99461b749a7d",
+      "platforms": [
+        "amd64",
+        "arm64"
+      ],
+      "action": "build"
+    },
+    {
+      "image": "ghcr.io/tasklattice/tali-nemoclaw-sandbox:0.2.8-rc.3",
+      "digest": "sha256:8ce8d93c2bfb3952e86981224d5539edd171be42ba52d400ff4cec2c3935c60a",
+      "platforms": [
+        "amd64",
+        "arm64"
+      ],
+      "action": "build"
+    },
+    {
+      "image": "ghcr.io/tasklattice/tali-nemoclaw-hermes-sandbox:0.2.8-rc.3",
+      "digest": "sha256:4dfe4928b8ac99804a78efde36867c5b0c1c6b8a95422b61633732ef0d49b4f4",
+      "platforms": [
+        "amd64",
+        "arm64"
+      ],
+      "action": "build"
+    },
+    {
+      "image": "ghcr.io/tasklattice/tali-nemoclaw-deepagents-sandbox:0.2.8-rc.3",
+      "digest": "sha256:33d0e277cd65bb4922f367003230fe81e44000fa88fb831086d9e59efaea2668",
+      "platforms": [
+        "amd64",
+        "arm64"
+      ],
+      "action": "build"
+    }
+  ],
+  "chartCredentialScan": "PASS",
+  "tests": {
+    "workspacePassed": 1075,
+    "postgresPassed": 42,
+    "runnerPassed": 76,
+    "chartCredentialsPassed": 36,
+    "openshiftPassed": 20,
+    "mcporterHttpSmoke": "PASS",
+    "mcporterAuditFindings": 0
+  },
+  "verifiedAt": "2026-10-23T11:17:15.266908+00:00",
+  "chart": {
+    "version": "0.2.8-rc.3",
+    "ociDigest": "sha256:5e8586f46ec7795715480ac767f8c2abec9d13cb88aaff0c8c4b9631cef3eb7f",
+    "githubAssetMatchesOci": true,
+    "archiveSha256": "d1f096a5d2ced1bede9f18bf1a47ab014c2e461318fbea10dc82322342d58c64"
+  }
+}

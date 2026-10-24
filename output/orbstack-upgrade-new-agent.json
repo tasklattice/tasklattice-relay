@@ -1,0 +1,41 @@
+{
+  "projectId": "tp-t5ony35ozoamx",
+  "provider": "deepseek",
+  "embeddingProvisioned": false,
+  "baseUrl": "http://localhost:38180/",
+  "routing": {
+    "id": "140bb61c-8d68-4932-a1fe-7b57643418a5",
+    "status": "READY",
+    "model": "deepseek-flash"
+  },
+  "agentId": "ti-umszc3gjafmst",
+  "terminal": "PASS",
+  "dashboard": {
+    "pageStatus": 200,
+    "accessTokenReplayStatus": 401
+  },
+  "firstTurn": {
+    "tools": [
+      "terminal"
+    ],
+    "response": "Done — real terminal execution, exit code 0.\n\n- File: `/sandbox/relay-acceptance-5113629b-9f4e-495d-afb1-0def4225c9a7.txt`\n- Command: `printf '%s' 'RELAY-LIVE-...' > <file> && cat <file>`\n- Exact output returned by the tool:\n\n```\nRELAY-LIVE-74bfa6bd-5cc2-402a-bf99-b435023a9916\n```\n\nNo trailing newline was added (used `printf '%s'`), so the file content is exactly that 52-character string.",
+    "file": "/sandbox/relay-acceptance-5113629b-9f4e-495d-afb1-0def4225c9a7.txt",
+    "marker": "RELAY-LIVE-74bfa6bd-5cc2-402a-bf99-b435023a9916"
+  },
+  "secondTurn": {
+    "tools": [
+      "terminal"
+    ],
+    "response": "The file's exact content is a single line:\n\n```\nRELAY-LIVE-74bfa6bd-5cc2-402a-bf99-b435023a9916\n```\n\nRead-only access via `cat`; the file was not modified."
+  },
+  "modelAttribution": {
+    "instanceId": "ti-umszc3gjafmst",
+    "model": "deepseek/deepseek-flash",
+    "modelDeploymentId": "37293c1d-a702-450c-b4c9-b94a089e94e6",
+    "assignedModelDeploymentId": "model-routing:140bb61c-8d68-4932-a1fe-7b57643418a5",
+    "requests": 8,
+    "routingId": "140bb61c-8d68-4932-a1fe-7b57643418a5"
+  },
+  "unauthenticatedInteractionStatus": 401,
+  "result": "PASS"
+}

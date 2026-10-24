@@ -1,0 +1,45 @@
+{
+  "cluster": "orbstack",
+  "release": "tali-relay",
+  "helmRevision": 4,
+  "image": "docker.io/library/tali-control:reinitialize-20261024T050100Z",
+  "projectId": "tp-v3i65n4c7jslo",
+  "taskId": "6549c673-7d0e-4e4f-8fc0-8b4abf962a58",
+  "originalStartAfter": "2026-10-24T06:03:11.654Z",
+  "requestedAt": "2026-10-24T05:03:11.967Z",
+  "wakeDelayMs": 81,
+  "duplicateTasksCreated": 0,
+  "whileRunningHttp": 409,
+  "runningGenerationAndLeaseUnchanged": true,
+  "initialization": {
+    "status": "ready",
+    "generation": 3,
+    "observedGeneration": 3,
+    "attempts": 0,
+    "lastError": null,
+    "updatedAt": "2026-10-24T05:03:22.072Z"
+  },
+  "namespaceCheck": {
+    "healthy": true,
+    "total": 40,
+    "passed": 40,
+    "checkedAt": "2026-10-24T05:03:22.541Z"
+  },
+  "bridgePod": "tali-agent-runtime-bridge-688576c94b-zfddh",
+  "connectivity": {
+    "controlUrl": "http://tali-relay-control.relay-initjob-test.svc.cluster.local:38180/api/health",
+    "controlHttp": 200,
+    "controlOk": true,
+    "bridgeReadyHttp": 200,
+    "bridgeReady": true,
+    "bridgeControlOk": true
+  },
+  "validation": {
+    "unitTestsPassed": 31,
+    "postgresTestsPassed": 38,
+    "newPostgresRegressionTests": 10,
+    "typecheck": "passed",
+    "dockerBuild": "passed",
+    "imageSha256": "91ac1c1a1f151906c0a4909917f3ed819fc89063030f9e1ef66bf3edd8a5e387"
+  }
+}

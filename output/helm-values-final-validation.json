@@ -1,0 +1,110 @@
+{
+  "timestamp": "2026-10-24T08:46:28.321Z",
+  "liveDeploymentChanged": false,
+  "comparison": "Rendered resources and configuration are identical except rollout checksums simplified by removing external overrides.",
+  "profiles": [
+    {
+      "profile": "default",
+      "resources": 46,
+      "configurationAndResourcesUnchanged": true,
+      "checksumChanges": [
+        "Deployment//tali-relay-control-worker: checksum/worker-config",
+        "Deployment//tali-relay-litellm: checksum/litellm-secret",
+        "StatefulSet//tali-relay-postgresql: checksum/postgresql-secret"
+      ]
+    },
+    {
+      "profile": "dev",
+      "resources": 46,
+      "configurationAndResourcesUnchanged": true,
+      "checksumChanges": [
+        "Deployment//tali-relay-control-worker: checksum/worker-config",
+        "Deployment//tali-relay-litellm: checksum/litellm-secret",
+        "StatefulSet//tali-relay-postgresql: checksum/postgresql-secret"
+      ]
+    },
+    {
+      "profile": "uat",
+      "resources": 40,
+      "configurationAndResourcesUnchanged": true,
+      "checksumChanges": [
+        "Deployment//tali-relay-control-worker: checksum/worker-config",
+        "Deployment//tali-relay-litellm: checksum/litellm-secret",
+        "StatefulSet//tali-relay-postgresql: checksum/postgresql-secret"
+      ]
+    },
+    {
+      "profile": "openshift",
+      "resources": 50,
+      "configurationAndResourcesUnchanged": true,
+      "checksumChanges": [
+        "Deployment//tali-relay-control-worker: checksum/worker-config",
+        "Deployment//tali-relay-litellm: checksum/litellm-secret",
+        "StatefulSet//tali-relay-postgresql: checksum/postgresql-secret"
+      ]
+    },
+    {
+      "profile": "airgap",
+      "resources": 46,
+      "configurationAndResourcesUnchanged": true,
+      "checksumChanges": [
+        "Deployment//tali-relay-control-worker: checksum/worker-config",
+        "Deployment//tali-relay-litellm: checksum/litellm-secret",
+        "StatefulSet//tali-relay-postgresql: checksum/postgresql-secret"
+      ]
+    },
+    {
+      "profile": "local",
+      "resources": 49,
+      "configurationAndResourcesUnchanged": true,
+      "checksumChanges": [
+        "Deployment//tali-relay-control-worker: checksum/worker-config",
+        "Deployment//tali-relay-keycloak: checksum/keycloak-secret",
+        "Deployment//tali-relay-keycloak: checksum/realm",
+        "Deployment//tali-relay-litellm: checksum/litellm-secret",
+        "StatefulSet//tali-relay-postgresql: checksum/postgresql-secret"
+      ]
+    },
+    {
+      "profile": "optional",
+      "resources": 60,
+      "configurationAndResourcesUnchanged": true,
+      "checksumChanges": [
+        "Deployment//tali-relay-control-worker: checksum/worker-config",
+        "Deployment//tali-relay-example-mcp: checksum/auth-secret",
+        "Deployment//tali-relay-keycloak: checksum/keycloak-secret",
+        "Deployment//tali-relay-keycloak: checksum/realm",
+        "Deployment//tali-relay-litellm: checksum/litellm-secret",
+        "StatefulSet//tali-relay-postgresql: checksum/postgresql-secret"
+      ]
+    }
+  ],
+  "checks": {
+    "credentialTests": {
+      "passed": 44,
+      "failed": 0
+    },
+    "openshiftTests": {
+      "passed": 23,
+      "failed": 0
+    },
+    "resourceValidation": "passed (19 containers)",
+    "developmentDefaults": "passed (2 Projects, 9 Keycloak users)",
+    "airgap": "passed",
+    "helmLint": [
+      "default passed",
+      "dev passed"
+    ],
+    "packagedCredentialAudit": "passed (67 source/archive files)"
+  },
+  "removedOverrides": [
+    "secrets.existingSecrets",
+    "global.argocd.syncWaves",
+    "projectOpenShell.releaseName",
+    "projectOpenShell.serviceNamePrefix",
+    "projectOpenShell.helmChart",
+    "keycloak.testUsers",
+    "keycloak.testProjectIds"
+  ],
+  "defaultValuesLines": 562
+}

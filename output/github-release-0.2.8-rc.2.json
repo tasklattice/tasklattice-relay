@@ -1,0 +1,46 @@
+{
+  "tag": "v0.2.8-rc.2",
+  "sourceSha": "bc8b3ca7069254abc8afc36f650dfd9305ef2c97",
+  "previousTag": "v0.2.8-rc.1",
+  "ciUrl": "https://github.com/tasklattice/tasklattice-relay/actions/runs/39942157748",
+  "status": "failed",
+  "images": [
+    {
+      "key": "control",
+      "reference": "ghcr.io/tasklattice/tali-control:0.2.8-rc.2",
+      "action": "build"
+    },
+    {
+      "key": "runner",
+      "reference": "ghcr.io/tasklattice/tali-openshell-runner:0.2.8-rc.2",
+      "action": "build"
+    },
+    {
+      "key": "expertAgentRuntime",
+      "reference": "ghcr.io/tasklattice/tali-expert-agent-runtime:0.2.8-rc.2",
+      "action": "build"
+    },
+    {
+      "key": "exampleMcp",
+      "reference": "ghcr.io/tasklattice/demo-test:0.2.8-rc.2",
+      "action": "build"
+    },
+    {
+      "key": "openclawSandbox",
+      "reference": "ghcr.io/tasklattice/tali-nemoclaw-sandbox:0.2.8-rc.2",
+      "action": "build"
+    },
+    {
+      "key": "hermesSandbox",
+      "reference": "ghcr.io/tasklattice/tali-nemoclaw-hermes-sandbox:0.2.8-rc.2",
+      "action": "build"
+    },
+    {
+      "key": "deepagentsSandbox",
+      "reference": "ghcr.io/tasklattice/tali-nemoclaw-deepagents-sandbox:0.2.8-rc.2",
+      "action": "build"
+    }
+  ],
+  "failure": "OpenClaw mcporter upstream dependency audit rejected six unaccepted high/critical advisories.",
+  "supersededBy": "v0.2.8-rc.3"
+}

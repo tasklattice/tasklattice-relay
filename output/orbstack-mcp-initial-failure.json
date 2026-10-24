@@ -1,0 +1,15 @@
+{
+  "projectId": "tp-3nrdwhtflu62o",
+  "embeddingProvisioned": false,
+  "mcp": {
+    "id": "93cd1583-e988-4c12-b582-035c5a461bbc",
+    "status": "HEALTHY",
+    "allowedTools": [
+      "echo_message",
+      "calculate_sum"
+    ]
+  },
+  "agentId": "ti-fdgu65hmfpllo",
+  "result": "FAIL",
+  "error": "Hermes Chat turn timed out. Tools: tool_search, terminal, search_files, terminal, terminal, terminal, terminal, terminal, terminal, terminal, terminal, terminal, terminal, terminal, terminal, terminal, terminal, read_file, terminal, terminal, terminal, terminal, terminal, terminal."
+}

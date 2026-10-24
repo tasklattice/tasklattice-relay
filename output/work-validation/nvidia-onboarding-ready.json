@@ -1,0 +1,21 @@
+{
+  "eligible": true,
+  "revision": 13,
+  "status": "READY",
+  "busy": false,
+  "interrupted": false,
+  "error": null,
+  "state": {
+    "providerAccountId": "d6881ff3-b439-4fc6-8e82-f36d3b35bb43",
+    "modelDeploymentId": "a6116f3e-fa5e-40e0-81fa-48238172dca2",
+    "modelId": "openai/gpt-oss-20b",
+    "provider": "nvidia-nim",
+    "endpoint": "https://integrate.api.nvidia.com/v1",
+    "budgetUsd": 1,
+    "routingId": "4c436cf5-7b7e-462a-bf25-a1e5d4ab35a4",
+    "coordinatorAgentId": "051c290c-64d1-4c0e-8a87-c556aa079f91",
+    "expertAgentId": "6d8db97e-6453-44d9-9fae-d72e77e2cdac",
+    "coordinatorInstanceId": "personal-work-coordinator-17358e71-ca07-4b96-82e1-02d3b9bf43e6",
+    "expertInstanceId": "personal-work-expert-b2e5af30-26c1-4c4a-b722-2328c02d9d12"
+  }
+}

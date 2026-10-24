@@ -1,0 +1,68 @@
+{
+  "projectId": "tp-3nrdwhtflu62o",
+  "embeddingProvisioned": false,
+  "mcp": {
+    "id": "93cd1583-e988-4c12-b582-035c5a461bbc",
+    "status": "HEALTHY",
+    "allowedTools": [
+      "echo_message",
+      "calculate_sum"
+    ]
+  },
+  "agentId": "ti-2vw4mpoyh2ixh",
+  "chat": {
+    "tools": [
+      "tool_describe",
+      "mcp__tali__acceptance_calculate_sum",
+      "mcp__tali__acceptance_echo_message"
+    ],
+    "response": "Both MCP tools invoked successfully:\n\n- **calculate_sum(left=137, right=241)** → `378`\n- **echo_message(message=MCP-f9d8cf88-0836-4b2b-a61f-e7b17af394cc)** → `MCP-f9d8cf88-0836-4b2b-a61f-e7b17af394cc`"
+  },
+  "result": "PASS",
+  "modelAttribution": {
+    "instanceId": "ti-2vw4mpoyh2ixh",
+    "model": "deepseek/deepseek-flash",
+    "modelDeploymentId": "92d06eb2-bba1-4d7d-ab17-8f398099fa72",
+    "assignedModelDeploymentId": "model-routing:5afe35cf-a0b0-443f-b8d3-755f6ac9951f",
+    "requests": 5,
+    "routingId": "5afe35cf-a0b0-443f-b8d3-755f6ac9951f"
+  },
+  "overview": {
+    "kpis": {
+      "runs": 1,
+      "runsChangePercent": null,
+      "successRate": 1,
+      "successRateChangePoints": null,
+      "readyInstances": 1,
+      "totalInstances": 1,
+      "spendUsd": 0,
+      "spendChangePercent": 0
+    },
+    "agentActivity": {
+      "agentId": "ti-2vw4mpoyh2ixh",
+      "agentName": "OrbStack MCP acceptance",
+      "runs": 1,
+      "activeUsers": null,
+      "successRate": 1,
+      "costUsd": 0
+    }
+  },
+  "costDataQuality": {
+    "unmappedRequests": 5,
+    "unmappedInstances": 0,
+    "unmappedModelEndpoints": 5,
+    "unmappedProviderAccounts": 0,
+    "tokenMismatchRequests": 0,
+    "negativeSpendRequests": 0,
+    "unknownCostRequests": 0,
+    "duplicateRequests": 0,
+    "uncorrelatedRunRequests": 3,
+    "lateArrivingRequests": 56,
+    "lastSyncAt": "2026-10-23T05:58:41.098Z",
+    "syncLagSeconds": 2,
+    "litellmSpend": 0,
+    "taliSpend": 0,
+    "spendDifference": 0
+  },
+  "bootstrapCredentialsRetained": true
+}

@@ -1,0 +1,12 @@
+{
+  "requestedAt": "2026-10-24T05:03:11.967Z",
+  "http": 202,
+  "body": {
+    "status": "pending",
+    "generation": 3,
+    "observedGeneration": 2,
+    "attempts": 0,
+    "lastError": null,
+    "updatedAt": "2026-10-24T05:03:12.042Z"
+  }
+}

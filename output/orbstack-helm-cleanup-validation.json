@@ -1,0 +1,165 @@
+{
+  "release": "tali/tali-relay",
+  "context": "orbstack",
+  "revision": 3,
+  "status": "deployed",
+  "unchangedSecrets": 12,
+  "workloads": [
+    {
+      "kind": "Deployment",
+      "name": "agent-sandbox-controller",
+      "desired": 1,
+      "ready": 1,
+      "updated": 1
+    },
+    {
+      "kind": "Deployment",
+      "name": "tali-relay-control",
+      "desired": 1,
+      "ready": 1,
+      "updated": 1
+    },
+    {
+      "kind": "Deployment",
+      "name": "tali-relay-control-worker",
+      "desired": 1,
+      "ready": 1,
+      "updated": 1
+    },
+    {
+      "kind": "Deployment",
+      "name": "tali-relay-docling",
+      "desired": 1,
+      "ready": 1,
+      "updated": 1
+    },
+    {
+      "kind": "Deployment",
+      "name": "tali-relay-hindsight-api",
+      "desired": 1,
+      "ready": 1,
+      "updated": 1
+    },
+    {
+      "kind": "Deployment",
+      "name": "tali-relay-keycloak",
+      "desired": 1,
+      "ready": 1,
+      "updated": 1
+    },
+    {
+      "kind": "Deployment",
+      "name": "tali-relay-litellm",
+      "desired": 1,
+      "ready": 1,
+      "updated": 1
+    },
+    {
+      "kind": "Deployment",
+      "name": "tali-relay-runner",
+      "desired": 1,
+      "ready": 1,
+      "updated": 1
+    },
+    {
+      "kind": "StatefulSet",
+      "name": "tali-relay-postgresql",
+      "desired": 1,
+      "ready": 1,
+      "updated": 1
+    }
+  ],
+  "pods": [
+    {
+      "name": "agent-sandbox-controller-84665c684d-jdvnh",
+      "ready": true,
+      "restarts": 0
+    },
+    {
+      "name": "tali-relay-control-5bd69b4d5f-scvcl",
+      "ready": true,
+      "restarts": 0
+    },
+    {
+      "name": "tali-relay-control-worker-76cdfc6df-t8x6p",
+      "ready": true,
+      "restarts": 0
+    },
+    {
+      "name": "tali-relay-docling-b874686c5-knf7x",
+      "ready": true,
+      "restarts": 0
+    },
+    {
+      "name": "tali-relay-hindsight-api-d7ff69469-qj4c4",
+      "ready": true,
+      "restarts": 0
+    },
+    {
+      "name": "tali-relay-keycloak-75b9bcdb8d-k6q95",
+      "ready": true,
+      "restarts": 0
+    },
+    {
+      "name": "tali-relay-litellm-9d9fd4db7-6jgw5",
+      "ready": true,
+      "restarts": 0
+    },
+    {
+      "name": "tali-relay-postgresql-0",
+      "ready": true,
+      "restarts": 0
+    },
+    {
+      "name": "tali-relay-runner-6669f7dcdd-d22ct",
+      "ready": true,
+      "restarts": 0
+    }
+  ],
+  "runner": {
+    "type": "ClusterIP",
+    "port": 9090
+  },
+  "projectGateways": [
+    {
+      "namespace": "tp-t5r7oyer4yfb2",
+      "name": "openshell-tp-t5r7oyer4yfb2",
+      "type": "ClusterIP"
+    },
+    {
+      "namespace": "tp-v3i65n4c7jslo",
+      "name": "openshell-tp-v3i65n4c7jslo",
+      "type": "ClusterIP"
+    }
+  ],
+  "obsoleteValuesRemoved": true,
+  "controlHealth": 200,
+  "administratorLogin": "PASS",
+  "agentUi": {
+    "result": "PASS",
+    "checks": [
+      "anonymous denied",
+      "opaque-origin Control access denied",
+      "cross-origin session creation denied",
+      "tampered capability denied",
+      "upstream tokens withheld",
+      "revocation closes HTTP and WS"
+    ],
+    "platforms": [
+      {
+        "platform": "hermes",
+        "nativeDocument": "PASS",
+        "httpApi": "PASS",
+        "websocket": "PASS",
+        "revokedConnectionMs": 9662
+      },
+      {
+        "platform": "openclaw",
+        "nativeDocument": "PASS",
+        "httpApi": "PASS",
+        "websocket": "PASS",
+        "revokedConnectionMs": 9855
+      }
+    ]
+  }
+}

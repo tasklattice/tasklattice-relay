@@ -1,0 +1,38 @@
+{
+  "tali-relay-control-config": {
+    "uid": "e338e6f5-1c07-4964-bb84-127c2ac189e0",
+    "digest": "c58523acb19ded692c2c520186d25ab205a8cac2d4bfceb46092337b59197718"
+  },
+  "tali-relay-credentials": {
+    "uid": "388829ff-0ee9-4283-bd86-996d6e048f91",
+    "digest": "95daf99da1f24cac844edc0201a38cfead39f0849028fe65de70cf96f1061af3"
+  },
+  "tali-relay-example-mcp-auth": {
+    "uid": "d17af2e9-b5c6-49fe-90af-c630408ce1e0",
+    "digest": "cf17a36b0ea62c6ce6fb8775c47e130567b19bdd16e1011098aac09d25c24a45"
+  },
+  "tali-relay-hindsight-config": {
+    "uid": "eefbbe6c-5c54-456f-910a-f14b55c0fd79",
+    "digest": "b770d4f42a03af3f4e245f626944e04f12c8eed023163d91d85b14e532e10dee"
+  },
+  "tali-relay-keycloak-config": {
+    "uid": "7707d526-5850-4ba7-bf6f-60d61eee037a",
+    "digest": "9123b4259c2bde39d703cf20baec0eeff33181ccf48e3882599e7273b8676527"
+  },
+  "tali-relay-litellm-config": {
+    "uid": "0623765c-6d0c-49e3-b129-a02fe283231b",
+    "digest": "89bd0f6f4094ec59c39f888cb7ce9f7c523cd9652059fa227e0bbb2390653fb1"
+  },
+  "tali-relay-metrics-config": {
+    "uid": "421766d7-7af6-4157-ae26-832fddc4015b",
+    "digest": "9afdfb96337ef7f43fe02b6564b9243b3be2eb6f5e7b46fe959deaed61c94c5c"
+  },
+  "tali-relay-postgresql-config": {
+    "uid": "143350a5-94cd-4a39-9aa9-1f7e70c98d88",
+    "digest": "6179796953a22adc5c2190e98d1f2019c7620090b12683059fa9b823245c2ad6"
+  },
+  "tali-relay-runner-config": {
+    "uid": "bb45d227-47b3-4e4b-862e-07767bf8b215",
+    "digest": "8437a7f95e75ba5a5cd4c0e74414ab6edc2b345f7ad1f0d7fb901eb66e8e793a"
+  }
+}

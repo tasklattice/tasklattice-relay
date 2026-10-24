@@ -1,0 +1,48 @@
+{
+  "projectId": "tp-3nrdwhtflu62o",
+  "provider": "deepseek",
+  "embeddingProvisioned": false,
+  "baseUrl": "http://localhost:38180",
+  "routing": {
+    "id": "5afe35cf-a0b0-443f-b8d3-755f6ac9951f",
+    "status": "READY",
+    "model": "deepseek-flash"
+  },
+  "agentId": "ti-ufzmfth3d5nc4",
+  "terminal": "PASS",
+  "dashboard": {
+    "pageStatus": 200,
+    "accessTokenReplayStatus": 401
+  },
+  "firstTurn": {
+    "tools": [
+      "terminal"
+    ],
+    "response": "Done — `terminal` was actually invoked (exit code 0).\n\n**Exact content printed by `cat`:**\n\n```\nRELAY-LIVE-81628be1-8c76-4052-bdb6-d74707bea116\n```\n\nDetails:\n- **File:** `/sandbox/relay-acceptance-662046a9-4f3c-4baa-b56d-f3f810acb4db.txt`\n- **Written with:** `printf '%s'` (no trailing newline, so the file holds exactly the token)\n- **Verified size:** 47 bytes — matches the 47-character token\n- **Full raw tool output:**\n\n```\n--- cat output below ---\nRELAY-LIVE-81628be1-8c76-4052-bdb6-d74707bea116\n--- byte count ---\n47\n```\n\nThe content round-tripped exactly, with no extra characters or truncation.",
+    "file": "/sandbox/relay-acceptance-662046a9-4f3c-4baa-b56d-f3f810acb4db.txt",
+    "marker": "RELAY-LIVE-81628be1-8c76-4052-bdb6-d74707bea116"
+  },
+  "secondTurn": {
+    "tools": [
+      "terminal",
+      "terminal"
+    ],
+    "response": "File: `/sandbox/relay-acceptance-662046a9-4f3c-4baa-b56d-f3f810acb4db.txt` — 47 bytes, no trailing newline.\n\nExact content:\n\n```\nRELAY-LIVE-81628be1-8c76-4052-bdb6-d74707bea116\n```\n\n(Verified with `cat -A`, which showed no trailing `$` — i.e. no newline terminator. File left untouched.)"
+  },
+  "modelAttribution": {
+    "instanceId": "ti-ufzmfth3d5nc4",
+    "model": "deepseek/deepseek-flash",
+    "modelDeploymentId": "92d06eb2-bba1-4d7d-ab17-8f398099fa72",
+    "assignedModelDeploymentId": "model-routing:5afe35cf-a0b0-443f-b8d3-755f6ac9951f",
+    "requests": 9,
+    "routingId": "5afe35cf-a0b0-443f-b8d3-755f6ac9951f"
+  },
+  "unauthenticatedInteractionStatus": 401,
+  "result": "PASS",
+  "deletion": {
+    "requested": true,
+    "status": "DESTROYING",
+    "apiStatus": 404,
+    "podAndPvcRemoved": true
+  }
+}

@@ -1,0 +1,240 @@
+{
+  "commit": "6e5db4b",
+  "projectId": "tp-ra6n6bbxhr7ub",
+  "startedAt": "2026-10-24T03:43:48.247Z",
+  "scenarios": [
+    {
+      "scenario": "image-pull-failure",
+      "createOperationId": "b2c80f3c-d52d-4fac-bd24-51e8ec469812",
+      "instanceId": "ti-c7z3bpmlr5td6",
+      "creationStateBeforeDelete": "retry",
+      "podFailure": [
+        "ErrImagePull"
+      ],
+      "deletion": {
+        "kind": "resource-operation",
+        "operationId": "16f72917-785f-476e-a0ae-8c641e95916f",
+        "status": "DESTROYING",
+        "background": true,
+        "accepted": true,
+        "id": "ti-c7z3bpmlr5td6",
+        "statusUrl": "/api/v1/projects/tp-ra6n6bbxhr7ub/resource-operations/16f72917-785f-476e-a0ae-8c641e95916f",
+        "elapsedMs": 170
+      },
+      "duplicates": [
+        {
+          "kind": "resource-operation",
+          "operationId": "ac87988d-a3fc-45bd-84e9-b4df8eba6ab4",
+          "status": "DESTROYING",
+          "background": true,
+          "accepted": true,
+          "id": "ti-c7z3bpmlr5td6",
+          "statusUrl": "/api/v1/projects/tp-ra6n6bbxhr7ub/resource-operations/ac87988d-a3fc-45bd-84e9-b4df8eba6ab4",
+          "elapsedMs": 41
+        },
+        {
+          "kind": "resource-operation",
+          "operationId": "4edba9a9-fd36-4280-ae3e-05b8b861cc82",
+          "status": "DESTROYING",
+          "background": true,
+          "accepted": true,
+          "id": "ti-c7z3bpmlr5td6",
+          "statusUrl": "/api/v1/projects/tp-ra6n6bbxhr7ub/resource-operations/4edba9a9-fd36-4280-ae3e-05b8b861cc82",
+          "elapsedMs": 49
+        }
+      ],
+      "completedAt": "2026-10-24T03:46:21.880Z"
+    },
+    {
+      "scenario": "delete-during-creation",
+      "createOperationId": "94db9cf0-856c-499f-8daa-b115d4fe5757",
+      "instanceId": "ti-5wnpdovr37jsa",
+      "creationStateBeforeDelete": "running",
+      "podFailure": [
+        "ErrImagePull"
+      ],
+      "deletion": {
+        "kind": "resource-operation",
+        "operationId": "ef1583ba-de48-4fda-a59f-b145f1e1b750",
+        "status": "DESTROYING",
+        "background": true,
+        "accepted": true,
+        "id": "ti-5wnpdovr37jsa",
+        "statusUrl": "/api/v1/projects/tp-ra6n6bbxhr7ub/resource-operations/ef1583ba-de48-4fda-a59f-b145f1e1b750",
+        "elapsedMs": 37
+      },
+      "duplicates": [
+        {
+          "kind": "resource-operation",
+          "operationId": "0b4441c0-53e9-4b7b-a1f7-aae053549e2c",
+          "status": "DESTROYING",
+          "background": true,
+          "accepted": true,
+          "id": "ti-5wnpdovr37jsa",
+          "statusUrl": "/api/v1/projects/tp-ra6n6bbxhr7ub/resource-operations/0b4441c0-53e9-4b7b-a1f7-aae053549e2c",
+          "elapsedMs": 90
+        },
+        {
+          "kind": "resource-operation",
+          "operationId": "16cc2e19-b7ef-4a73-9a61-ab91f75961f8",
+          "status": "DESTROYING",
+          "background": true,
+          "accepted": true,
+          "id": "ti-5wnpdovr37jsa",
+          "statusUrl": "/api/v1/projects/tp-ra6n6bbxhr7ub/resource-operations/16cc2e19-b7ef-4a73-9a61-ab91f75961f8",
+          "elapsedMs": 99
+        }
+      ],
+      "completedAt": "2026-10-24T03:46:57.771Z"
+    },
+    {
+      "scenario": "recreate-after-deletion",
+      "image": "ghcr.io/tasklattice/demo-test:dev",
+      "instanceId": "ti-7kuy24aimj7r3",
+      "operationId": "f695f37f-5d1b-4a07-b2c4-32d28d58c704",
+      "status": "READY",
+      "pods": [
+        {
+          "name": "ti-7kuy24aimj7r3-d957bb98f-jm4nq",
+          "uid": "4557f581-859f-4f63-b8c1-9464c5e9d9a2",
+          "ready": true
+        }
+      ],
+      "oldDeleteReplays": [
+        "a60b33cd-18f9-4e88-980f-4fdc2fdb14e0",
+        "eb506254-3310-4222-8f51-cfd862d70e9a"
+      ],
+      "workerRestarted": true,
+      "observationSeconds": 124,
+      "observations": 24
+    }
+  ],
+  "queueAfterDeletes": "{\"id\" : \"19af6f26-23fd-47a1-8f02-88acf8bd36e6\", \"state\" : \"completed\", \"retryCount\" : 0, \"operationId\" : \"94db9cf0-856c-499f-8daa-b115d4fe5757\"}\n{\"id\" : \"3b92b95f-a807-4d6f-b2aa-c257e31b02fb\", \"state\" : \"completed\", \"retryCount\" : 0, \"operationId\" : \"16cc2e19-b7ef-4a73-9a61-ab91f75961f8\"}\n{\"id\" : \"51ebfad6-2e97-4a8a-b942-cf9533d3a4b5\", \"state\" : \"completed\", \"retryCount\" : 0, \"operationId\" : \"ef1583ba-de48-4fda-a59f-b145f1e1b750\"}\n{\"id\" : \"5a1c61d0-1f84-4ed8-af03-a7e73ba04be9\", \"state\" : \"retry\", \"retryCount\" : 0, \"operationId\" : \"b2c80f3c-d52d-4fac-bd24-51e8ec469812\"}\n{\"id\" : \"7a494a24-288c-4b2d-b477-d91f21ce7c3c\", \"state\" : \"completed\", \"retryCount\" : 0, \"operationId\" : \"ac87988d-a3fc-45bd-84e9-b4df8eba6ab4\"}\n{\"id\" : \"94eafe50-bcd6-453d-b923-b6b9e5cf2c98\", \"state\" : \"completed\", \"retryCount\" : 0, \"operationId\" : \"4edba9a9-fd36-4280-ae3e-05b8b861cc82\"}\n{\"id\" : \"c2a0a0fe-486b-483d-af2d-b50fe052a0c6\", \"state\" : \"completed\", \"retryCount\" : 0, \"operationId\" : \"0b4441c0-53e9-4b7b-a1f7-aae053549e2c\"}\n{\"id\" : \"fb2f6518-19d9-4398-9e38-cde441c15893\", \"state\" : \"completed\", \"retryCount\" : 0, \"operationId\" : \"16f72917-785f-476e-a0ae-8c641e95916f\"}\n",
+  "finishedAt": "2026-10-24T03:52:39.395Z",
+  "result": "PASS",
+  "queue": [
+    {
+      "state": "completed",
+      "operationId": "94db9cf0-856c-499f-8daa-b115d4fe5757",
+      "retryCount": 0
+    },
+    {
+      "state": "completed",
+      "operationId": "eb506254-3310-4222-8f51-cfd862d70e9a",
+      "retryCount": 0
+    },
+    {
+      "state": "completed",
+      "operationId": "16cc2e19-b7ef-4a73-9a61-ab91f75961f8",
+      "retryCount": 0
+    },
+    {
+      "state": "completed",
+      "operationId": "ef1583ba-de48-4fda-a59f-b145f1e1b750",
+      "retryCount": 0
+    },
+    {
+      "state": "completed",
+      "operationId": "b2c80f3c-d52d-4fac-bd24-51e8ec469812",
+      "retryCount": 1
+    },
+    {
+      "state": "completed",
+      "operationId": "ac87988d-a3fc-45bd-84e9-b4df8eba6ab4",
+      "retryCount": 0
+    },
+    {
+      "state": "completed",
+      "operationId": "4edba9a9-fd36-4280-ae3e-05b8b861cc82",
+      "retryCount": 0
+    },
+    {
+      "state": "completed",
+      "operationId": "a60b33cd-18f9-4e88-980f-4fdc2fdb14e0",
+      "retryCount": 0
+    },
+    {
+      "state": "completed",
+      "operationId": "60ebb6c5-a18d-4170-9493-07a680998433",
+      "retryCount": 0
+    },
+    {
+      "state": "completed",
+      "operationId": "0b4441c0-53e9-4b7b-a1f7-aae053549e2c",
+      "retryCount": 0
+    },
+    {
+      "state": "completed",
+      "operationId": "f695f37f-5d1b-4a07-b2c4-32d28d58c704",
+      "retryCount": 0
+    },
+    {
+      "state": "completed",
+      "operationId": "4e486ac9-d221-4ad8-9c68-c4a23564e0b6",
+      "retryCount": 0
+    },
+    {
+      "state": "completed",
+      "operationId": "16f72917-785f-476e-a0ae-8c641e95916f",
+      "retryCount": 0
+    }
+  ],
+  "administratorLogin": "PASS",
+  "restoration": {
+    "originalControlConfigurationUnchanged": true,
+    "originalConfigMountsRestored": true,
+    "temporarySecretRemoved": true,
+    "applicationImage": "docker.io/library/relay-a2a-control:6e5db4b"
+  },
+  "finalResources": [
+    {
+      "kind": "Deployment",
+      "name": "ti-7kuy24aimj7r3",
+      "uid": "5a72e598-3076-42dc-980e-c23dd987ffb5"
+    },
+    {
+      "kind": "Service",
+      "name": "ti-7kuy24aimj7r3",
+      "uid": "9047d9d9-81dc-4ceb-b1db-12c585817dca"
+    },
+    {
+      "kind": "Pod",
+      "name": "ti-7kuy24aimj7r3-d957bb98f-jm4nq",
+      "uid": "4557f581-859f-4f63-b8c1-9464c5e9d9a2"
+    }
+  ],
+  "controlDeployments": [
+    {
+      "name": "tali-relay-control",
+      "image": "docker.io/library/relay-a2a-control:6e5db4b",
+      "readyReplicas": 1
+    },
+    {
+      "name": "tali-relay-control-worker",
+      "image": "docker.io/library/relay-a2a-control:6e5db4b",
+      "readyReplicas": 1
+    }
+  ],
+  "existingProjects": [
+    {
+      "id": "tp-v3i65n4c7jslo",
+      "name": "proj1"
+    },
+    {
+      "id": "tp-fflafpqhb2fen",
+      "name": "Isolation 1"
+    },
+    {
+      "id": "tp-3nrdwhtflu62o",
+      "name": "InitJob acceptance"
+    },
+    {
+      "id": "tp-t5ony35ozoamx",
+      "name": "Upgrade acceptance 20261023"
+    }
+  ],
+  "testMethod": "Real Relay HTTP API, PostgreSQL/pg-boss and OrbStack Kubernetes; no mocked runtime",
+  "applicationChangesRequired": false,
+  "pushed": false,
+  "published": false
+}

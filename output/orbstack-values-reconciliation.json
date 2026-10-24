@@ -1,0 +1,16 @@
+{
+  "projectId": "tp-t5r7oyer4yfb2",
+  "reason": "Worker restart interrupted reconciliation while PostgreSQL rolled; existing lease protects the operation for 10 minutes.",
+  "leaseExpiresAt": "2026-10-24T09:06:57.159Z",
+  "retryRequested": true,
+  "retryRequestedAt": "2026-10-24T09:07:12.803Z",
+  "finalState": {
+    "status": "ready",
+    "generation": 2,
+    "observedGeneration": 2,
+    "attempts": 0,
+    "lastError": null,
+    "updatedAt": "2026-10-24T09:07:25.140Z"
+  },
+  "result": "PASS"
+}

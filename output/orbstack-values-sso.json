@@ -1,0 +1,13 @@
+{
+  "result": "PASS",
+  "level": "L4-live-no-model",
+  "module": "access",
+  "evidence": {
+    "accessContext": "project:tp-v3i65n4c7jslo:ROLE_PROJECT_ADMIN",
+    "projectId": "tp-v3i65n4c7jslo",
+    "groupCount": 2,
+    "issuer": "http://keycloak.localhost:8180/realms/tali",
+    "providerId": "corporate-sso",
+    "username": "alice@tali.test"
+  }
+}

@@ -1,0 +1,7 @@
+ghcr.io/tasklattice/tali-control:0.2.8-rc.3
+ghcr.io/tasklattice/tali-openshell-runner:0.2.8-rc.3
+ghcr.io/tasklattice/tali-expert-agent-runtime:0.2.8-rc.3
+ghcr.io/tasklattice/demo-test:0.2.8-rc.3
+ghcr.io/tasklattice/tali-nemoclaw-sandbox:0.2.8-rc.3
+ghcr.io/tasklattice/tali-nemoclaw-hermes-sandbox:0.2.8-rc.3
+ghcr.io/tasklattice/tali-nemoclaw-deepagents-sandbox:0.2.8-rc.3

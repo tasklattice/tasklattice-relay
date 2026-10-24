@@ -1,0 +1,171 @@
+{
+  "workerOwnership": true,
+  "argoDefaultsEmpty": true,
+  "projects": [
+    {
+      "namespace": "tp-t5r7oyer4yfb2",
+      "gatewayOwnership": "PASS",
+      "sandboxOwnership": "PASS",
+      "sandboxes": 0,
+      "namespaceOwnedResources": 2,
+      "argoTracking": null
+    },
+    {
+      "namespace": "tp-v3i65n4c7jslo",
+      "gatewayOwnership": "PASS",
+      "sandboxOwnership": "PASS",
+      "sandboxes": 3,
+      "namespaceOwnedResources": 5,
+      "argoTracking": null
+    }
+  ],
+  "agentUi": {
+    "result": "PASS",
+    "checks": [
+      "anonymous denied",
+      "opaque-origin Control access denied",
+      "cross-origin session creation denied",
+      "tampered capability denied",
+      "upstream tokens withheld",
+      "revocation closes HTTP and WS"
+    ],
+    "evidence": [
+      {
+        "platform": "hermes",
+        "instanceId": "ti-vbidmsxkdnz6v",
+        "publicPath": "/tp-v3i65n4c7jslo/ti-vbidmsxkdnz6v/ui/",
+        "nativeDocument": "PASS",
+        "httpApi": "PASS",
+        "websocket": "PASS",
+        "revokedConnectionMs": 9476
+      },
+      {
+        "platform": "openclaw",
+        "instanceId": "ti-dl5kx72w5f4jx",
+        "publicPath": "/tp-v3i65n4c7jslo/ti-dl5kx72w5f4jx/ui/",
+        "nativeDocument": "PASS",
+        "httpApi": "PASS",
+        "websocket": "PASS",
+        "revokedConnectionMs": 9865
+      }
+    ]
+  },
+  "deployment": {
+    "context": "orbstack",
+    "release": "tali/tali-relay",
+    "revision": 4,
+    "status": "deployed",
+    "workloads": [
+      {
+        "name": "agent-sandbox-controller",
+        "desired": 1,
+        "ready": 1,
+        "updated": 1
+      },
+      {
+        "name": "tali-relay-control",
+        "desired": 1,
+        "ready": 1,
+        "updated": 1
+      },
+      {
+        "name": "tali-relay-control-worker",
+        "desired": 1,
+        "ready": 1,
+        "updated": 1
+      },
+      {
+        "name": "tali-relay-docling",
+        "desired": 1,
+        "ready": 1,
+        "updated": 1
+      },
+      {
+        "name": "tali-relay-hindsight-api",
+        "desired": 1,
+        "ready": 1,
+        "updated": 1
+      },
+      {
+        "name": "tali-relay-keycloak",
+        "desired": 1,
+        "ready": 1,
+        "updated": 1
+      },
+      {
+        "name": "tali-relay-litellm",
+        "desired": 1,
+        "ready": 1,
+        "updated": 1
+      },
+      {
+        "name": "tali-relay-runner",
+        "desired": 1,
+        "ready": 1,
+        "updated": 1
+      },
+      {
+        "name": "tali-relay-postgresql",
+        "desired": 1,
+        "ready": 1,
+        "updated": 1
+      }
+    ],
+    "unchangedSecrets": 12,
+    "controlHealth": 200,
+    "defaultNamespaceValues": {
+      "clusterId": "in-cluster"
+    },
+    "pods": [
+      {
+        "name": "agent-sandbox-controller-84665c684d-jdvnh",
+        "ready": true,
+        "restarts": 0
+      },
+      {
+        "name": "tali-relay-control-fdfffbb85-vglwd",
+        "ready": true,
+        "restarts": 0
+      },
+      {
+        "name": "tali-relay-control-worker-54f44fc77f-h56zx",
+        "ready": true,
+        "restarts": 0
+      },
+      {
+        "name": "tali-relay-docling-b874686c5-knf7x",
+        "ready": true,
+        "restarts": 0
+      },
+      {
+        "name": "tali-relay-hindsight-api-d7ff69469-qj4c4",
+        "ready": true,
+        "restarts": 0
+      },
+      {
+        "name": "tali-relay-keycloak-5fcfd4897-c7kxl",
+        "ready": true,
+        "restarts": 0
+      },
+      {
+        "name": "tali-relay-litellm-9d9fd4db7-6jgw5",
+        "ready": true,
+        "restarts": 0
+      },
+      {
+        "name": "tali-relay-postgresql-0",
+        "ready": true,
+        "restarts": 0
+      },
+      {
+        "name": "tali-relay-runner-6669f7dcdd-d22ct",
+        "ready": true,
+        "restarts": 0
+      }
+    ]
+  },
+  "initialUiAttempt": {
+    "result": "INTERRUPTED",
+    "reason": "Connection closed during concurrent Control rollout; full retry passed after workloads stabilized."
+  }
+}

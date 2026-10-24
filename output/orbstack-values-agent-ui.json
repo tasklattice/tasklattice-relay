@@ -1,0 +1,31 @@
+{
+  "result": "PASS",
+  "checks": [
+    "anonymous denied",
+    "opaque-origin Control access denied",
+    "cross-origin session creation denied",
+    "tampered capability denied",
+    "upstream tokens withheld",
+    "revocation closes HTTP and WS"
+  ],
+  "evidence": [
+    {
+      "platform": "hermes",
+      "instanceId": "ti-ftwc7cunm7rzx",
+      "publicPath": "/tp-v3i65n4c7jslo/ti-ftwc7cunm7rzx/ui/",
+      "nativeDocument": "PASS",
+      "httpApi": "PASS",
+      "websocket": "PASS",
+      "revokedConnectionMs": 9482
+    },
+    {
+      "platform": "openclaw",
+      "instanceId": "ti-dl5kx72w5f4jx",
+      "publicPath": "/tp-v3i65n4c7jslo/ti-dl5kx72w5f4jx/ui/",
+      "nativeDocument": "PASS",
+      "httpApi": "PASS",
+      "websocket": "PASS",
+      "revokedConnectionMs": 9956
+    }
+  ]
+}

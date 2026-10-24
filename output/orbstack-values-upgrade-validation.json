@@ -1,0 +1,490 @@
+{
+  "startedAt": "2026-10-24T08:56:38.297Z",
+  "context": "orbstack",
+  "release": "tali/tali-relay",
+  "before": {
+    "secrets": {
+      "tali-relay-control-config": {
+        "uid": "260d2640-5b8c-4d4b-b1be-1d82faa9a162",
+        "dataDigest": "ff825011b5c8c53ee4e9afe62e47a5d40934add247b47839568b5a6e244a37be"
+      },
+      "tali-relay-credentials": {
+        "uid": "14f5ed42-77db-4e2d-8249-a1b49bfc0307",
+        "dataDigest": "59c4f6b231463dcf3f9fa4fcc683dc97113c3f87dd65441b66d78b6920c2f869"
+      },
+      "tali-relay-hindsight-config": {
+        "uid": "03bc9959-2af7-429b-8cee-bb4983b66da9",
+        "dataDigest": "edbe96542afe3f9ba687e8e89664791d3be22bdff3e9dbf01175e21bf3a66e6f"
+      },
+      "tali-relay-keycloak-config": {
+        "uid": "91a4fafe-4e4b-4723-8744-7111130f8069",
+        "dataDigest": "1017878f79193509cd8d96a0c102a0e7334744e58852616084f17adaa73d924b"
+      },
+      "tali-relay-litellm-config": {
+        "uid": "4d029416-9133-4e67-86a0-fe55e2d733cd",
+        "dataDigest": "ff966cfc72c9589635041e766af550a8d5d133c2e9ee48b0de01f7bb54e2d87a"
+      },
+      "tali-relay-metrics-config": {
+        "uid": "fd207aaa-72e5-461b-a61b-309da1b00a63",
+        "dataDigest": "ab4b5619a97292853341dd46505191f7431b1a79ebd67cdbac17b985003d1946"
+      },
+      "tali-relay-postgresql-config": {
+        "uid": "033d65b7-dcb2-47e3-bb29-766574def95c",
+        "dataDigest": "b787317b690ca0d46f07d48c115fb79d48d95a335ba7f682b52db72b996020ad"
+      },
+      "tali-relay-runner-config": {
+        "uid": "64046cb2-4e4d-46ee-af6f-94f2a5c136a9",
+        "dataDigest": "15a23e2f3d16c945ba131f25d958f174170c680724c32e13dbf2f4c1ec51f407"
+      },
+      "tali-relay-worker-config": {
+        "uid": "a69c8233-60ab-4d31-b9d1-93ba48379336",
+        "dataDigest": "2cab5d47d31230c869839c4df74eda145e2092b7d6e8f4603e3a39de78643a41"
+      },
+      "ts-4lws43c7wzmiw": {
+        "uid": "0e262406-daf8-468e-9db6-1708f1d9e2de",
+        "dataDigest": "dd51a2d67edeed8f362eb8706e7c978cc47d41d013c0ca4b8664c09a5eb3ff47"
+      },
+      "ts-4nbcrhc3tyhi5": {
+        "uid": "789ba7af-9ce8-49c7-a6c9-1b4ffbb5a34c",
+        "dataDigest": "a754bbadd9e4f0ae20c0a39256af571bc2040a2e74c74773ea4df16df3e31a85"
+      },
+      "ts-xaryeybygpszf": {
+        "uid": "895c75cc-6b97-4da6-ae1e-c6c176faec8e",
+        "dataDigest": "dd51a2d67edeed8f362eb8706e7c978cc47d41d013c0ca4b8664c09a5eb3ff47"
+      }
+    },
+    "projects": [
+      {
+        "id": "tp-v3i65n4c7jslo",
+        "name": "proj1"
+      },
+      {
+        "id": "tp-t5r7oyer4yfb2",
+        "name": "Isolation 1"
+      }
+    ],
+    "tenants": {
+      "tp-v3i65n4c7jslo": {
+        "namespaceUid": "6c8abefd-df52-4be2-9bc0-e97f0567e26a",
+        "pods": [
+          {
+            "name": "openshell-tp-v3i65n4c7jslo-6879c8c657-hxbrh",
+            "uid": "4f8a34e1-df6c-442f-82a5-4b620a561717",
+            "imageIds": [
+              "docker-pullable://ghcr.io/nvidia/openshell/gateway@sha256:a3804181521e6fe326abee5092a93c80bf3f85da6a7e68316f7d66512782f928"
+            ],
+            "restarts": [
+              0
+            ]
+          },
+          {
+            "name": "tali-agent-runtime-bridge-7d6588b568-67mrs",
+            "uid": "e4ca69b4-05e6-459b-82c3-07370f330213",
+            "imageIds": [
+              "docker://sha256:33dbb64343c2a48ce1953de2b6245f609e8b356ce46b90a1a46b21d12c2e8dfa"
+            ],
+            "restarts": [
+              0
+            ]
+          },
+          {
+            "name": "tp-v3i65n4c7jslo--ti-ahbbdywgek2ut",
+            "uid": "15615caa-1ad2-4a85-ae61-1639911591c6",
+            "imageIds": [
+              "docker://sha256:8969b47f61813808376c048a8f47cf43be667a42e9c230fe9f2aeb15e0b47c43"
+            ],
+            "restarts": [
+              0
+            ]
+          },
+          {
+            "name": "tp-v3i65n4c7jslo--ti-dcnete56spocy",
+            "uid": "0e6a82e3-8488-437a-b679-0ca105db0791",
+            "imageIds": [
+              "docker://sha256:c2b4a95b2067f0ab30586d0e705926f3871acbc8a8a29d9681a457e7b2881e92"
+            ],
+            "restarts": [
+              0
+            ]
+          },
+          {
+            "name": "tp-v3i65n4c7jslo--ti-dl5kx72w5f4jx",
+            "uid": "dd9563c1-bee6-4091-aa74-b02898941a63",
+            "imageIds": [
+              "docker://sha256:6107152014fa8a48c9d478fe8c6b6a5444a38f0dfa2ffa5ef7e43b421f6e05be"
+            ],
+            "restarts": [
+              0
+            ]
+          },
+          {
+            "name": "tp-v3i65n4c7jslo--ti-ftwc7cunm7rzx",
+            "uid": "f913dba8-4cac-4b9f-aaa5-081865dec6e2",
+            "imageIds": [
+              "docker://sha256:c2b4a95b2067f0ab30586d0e705926f3871acbc8a8a29d9681a457e7b2881e92"
+            ],
+            "restarts": [
+              0
+            ]
+          },
+          {
+            "name": "tp-v3i65n4c7jslo--ti-vbidmsxkdnz6v",
+            "uid": "48f2f743-3ccb-4862-8a81-05828207f49c",
+            "imageIds": [
+              "docker://sha256:c2b4a95b2067f0ab30586d0e705926f3871acbc8a8a29d9681a457e7b2881e92"
+            ],
+            "restarts": [
+              0
+            ]
+          }
+        ],
+        "pvcs": [
+          {
+            "name": "workspace-tp-v3i65n4c7jslo--ti-ahbbdywgek2ut",
+            "uid": "3d00d8c5-607c-45ff-b4e2-6c6da607ca13"
+          },
+          {
+            "name": "workspace-tp-v3i65n4c7jslo--ti-dcnete56spocy",
+            "uid": "b614b214-53ba-412f-a851-9746646af37b"
+          },
+          {
+            "name": "workspace-tp-v3i65n4c7jslo--ti-dl5kx72w5f4jx",
+            "uid": "0dfcca62-7ee2-4f34-a659-d6d6f13f9511"
+          },
+          {
+            "name": "workspace-tp-v3i65n4c7jslo--ti-ftwc7cunm7rzx",
+            "uid": "4913e165-f02a-4c2d-a75e-ff58a5f7573f"
+          },
+          {
+            "name": "workspace-tp-v3i65n4c7jslo--ti-vbidmsxkdnz6v",
+            "uid": "1b617b33-e129-4681-969a-ab1a81e7dc7a"
+          }
+        ]
+      },
+      "tp-t5r7oyer4yfb2": {
+        "namespaceUid": "604db3b2-a604-41d5-b27b-76b8886fb330",
+        "pods": [
+          {
+            "name": "openshell-tp-t5r7oyer4yfb2-787f4bdd8c-qmktd",
+            "uid": "e31b3b7d-c8a1-42e7-a052-dc5cd4a1b143",
+            "imageIds": [
+              "docker-pullable://ghcr.io/nvidia/openshell/gateway@sha256:a3804181521e6fe326abee5092a93c80bf3f85da6a7e68316f7d66512782f928"
+            ],
+            "restarts": [
+              0
+            ]
+          },
+          {
+            "name": "tali-agent-runtime-bridge-5886d79db9-dpkvw",
+            "uid": "0dcb0251-01ee-4f89-9203-ca2929d56fb5",
+            "imageIds": [
+              "docker://sha256:8406e11fa26ab8c8552a3826d1d9e0229bf21072223913954ad000e15f6081c3"
+            ],
+            "restarts": [
+              0
+            ]
+          }
+        ],
+        "pvcs": []
+      }
+    }
+  },
+  "beforeRevision": "4",
+  "originalRolloutRevision": "dev-20261024072202",
+  "baselineHealth": "PASS",
+  "retention": {
+    "result": "PASS",
+    "unchangedSecrets": 12,
+    "unchangedProjects": 2,
+    "tenantPodsAndVolumes": "unchanged"
+  },
+  "revision": 5,
+  "status": "deployed",
+  "workloads": [
+    {
+      "name": "agent-sandbox-controller",
+      "desired": 1,
+      "ready": 1,
+      "updated": 1,
+      "generation": 1,
+      "observedGeneration": 1
+    },
+    {
+      "name": "tali-relay-control",
+      "desired": 1,
+      "ready": 1,
+      "updated": 1,
+      "generation": 8,
+      "observedGeneration": 8
+    },
+    {
+      "name": "tali-relay-control-worker",
+      "desired": 1,
+      "ready": 1,
+      "updated": 1,
+      "generation": 7,
+      "observedGeneration": 7
+    },
+    {
+      "name": "tali-relay-docling",
+      "desired": 1,
+      "ready": 1,
+      "updated": 1,
+      "generation": 1,
+      "observedGeneration": 1
+    },
+    {
+      "name": "tali-relay-hindsight-api",
+      "desired": 1,
+      "ready": 1,
+      "updated": 1,
+      "generation": 2,
+      "observedGeneration": 2
+    },
+    {
+      "name": "tali-relay-keycloak",
+      "desired": 1,
+      "ready": 1,
+      "updated": 1,
+      "generation": 5,
+      "observedGeneration": 5
+    },
+    {
+      "name": "tali-relay-litellm",
+      "desired": 1,
+      "ready": 1,
+      "updated": 1,
+      "generation": 3,
+      "observedGeneration": 3
+    },
+    {
+      "name": "tali-relay-runner",
+      "desired": 1,
+      "ready": 1,
+      "updated": 1,
+      "generation": 3,
+      "observedGeneration": 3
+    },
+    {
+      "name": "tali-relay-postgresql",
+      "desired": 1,
+      "ready": 1,
+      "updated": 1,
+      "generation": 2,
+      "observedGeneration": 2
+    }
+  ],
+  "pods": [
+    {
+      "name": "agent-sandbox-controller-84665c684d-jdvnh",
+      "ready": true,
+      "restarts": 0
+    },
+    {
+      "name": "tali-relay-control-8495cbc669-69dmp",
+      "ready": true,
+      "restarts": 0
+    },
+    {
+      "name": "tali-relay-control-worker-6c647645b5-mjnvt",
+      "ready": true,
+      "restarts": 0
+    },
+    {
+      "name": "tali-relay-docling-b874686c5-knf7x",
+      "ready": true,
+      "restarts": 0
+    },
+    {
+      "name": "tali-relay-hindsight-api-d7ff69469-qj4c4",
+      "ready": true,
+      "restarts": 0
+    },
+    {
+      "name": "tali-relay-keycloak-5b97bbd456-gqkjh",
+      "ready": true,
+      "restarts": 0
+    },
+    {
+      "name": "tali-relay-litellm-84b44f55cb-lxmjh",
+      "ready": true,
+      "restarts": 0
+    },
+    {
+      "name": "tali-relay-postgresql-0",
+      "ready": true,
+      "restarts": 0
+    },
+    {
+      "name": "tali-relay-runner-6669f7dcdd-d22ct",
+      "ready": true,
+      "restarts": 0
+    }
+  ],
+  "core": {
+    "databaseHealth": "PASS",
+    "originalAdministratorLogin": "PASS",
+    "projects": [
+      {
+        "id": "tp-v3i65n4c7jslo",
+        "initialization": "ready",
+        "runtimeMode": "openshell-kubernetes",
+        "instances": [
+          {
+            "id": "ti-ftwc7cunm7rzx",
+            "platform": "hermes",
+            "status": "READY"
+          },
+          {
+            "id": "ti-dcnete56spocy",
+            "platform": "hermes",
+            "status": "READY"
+          },
+          {
+            "id": "ti-vbidmsxkdnz6v",
+            "platform": "hermes",
+            "status": "READY"
+          },
+          {
+            "id": "ti-ahbbdywgek2ut",
+            "platform": "hermes",
+            "status": "READY"
+          },
+          {
+            "id": "ti-dl5kx72w5f4jx",
+            "platform": "openclaw",
+            "status": "READY"
+          }
+        ],
+        "inventory": "PASS",
+        "modelRoutings": "PASS",
+        "overview": "PASS",
+        "terminal": "PASS"
+      },
+      {
+        "id": "tp-t5r7oyer4yfb2",
+        "initialization": "ready",
+        "runtimeMode": "openshell-kubernetes",
+        "instances": [],
+        "inventory": "PASS",
+        "modelRoutings": "PASS",
+        "overview": "PASS"
+      }
+    ],
+    "platformSettings": "PASS",
+    "infrastructure": {
+      "control": {
+        "ok": true
+      },
+      "runner": {
+        "ok": true,
+        "mode": "openshell-kubernetes"
+      },
+      "litellm": {
+        "ok": true
+      },
+      "runtimeNamespaces": {
+        "ok": true,
+        "existingTargetCount": 3
+      }
+    }
+  },
+  "uiProjectId": "tp-v3i65n4c7jslo",
+  "sso": {
+    "result": "PASS",
+    "level": "L4-live-no-model",
+    "module": "access",
+    "evidence": {
+      "accessContext": "project:tp-v3i65n4c7jslo:ROLE_PROJECT_ADMIN",
+      "projectId": "tp-v3i65n4c7jslo",
+      "groupCount": 2,
+      "issuer": "http://keycloak.localhost:8180/realms/tali",
+      "providerId": "corporate-sso",
+      "username": "alice@tali.test"
+    }
+  },
+  "agentUi": {
+    "result": "PASS",
+    "checks": [
+      "anonymous denied",
+      "opaque-origin Control access denied",
+      "cross-origin session creation denied",
+      "tampered capability denied",
+      "upstream tokens withheld",
+      "revocation closes HTTP and WS"
+    ],
+    "evidence": [
+      {
+        "platform": "hermes",
+        "instanceId": "ti-ftwc7cunm7rzx",
+        "publicPath": "/tp-v3i65n4c7jslo/ti-ftwc7cunm7rzx/ui/",
+        "nativeDocument": "PASS",
+        "httpApi": "PASS",
+        "websocket": "PASS",
+        "revokedConnectionMs": 9482
+      },
+      {
+        "platform": "openclaw",
+        "instanceId": "ti-dl5kx72w5f4jx",
+        "publicPath": "/tp-v3i65n4c7jslo/ti-dl5kx72w5f4jx/ui/",
+        "nativeDocument": "PASS",
+        "httpApi": "PASS",
+        "websocket": "PASS",
+        "revokedConnectionMs": 9956
+      }
+    ]
+  },
+  "dependencyHealth": [
+    {
+      "name": "worker",
+      "status": 200
+    },
+    {
+      "name": "runner",
+      "status": 200
+    },
+    {
+      "name": "litellm",
+      "status": 200
+    },
+    {
+      "name": "docling",
+      "status": 200
+    },
+    {
+      "name": "hindsight",
+      "status": 200
+    }
+  ],
+  "deploymentInputs": [
+    "charts/tali-relay/values-dev.yaml",
+    "output/orbstack-upgrade-values.yaml"
+  ],
+  "upgradeNotes": [
+    "Keycloak test groups were aligned to existing Project IDs using scripts/lib/dev-keycloak-groups.mjs after the ephemeral realm was reimported; SSO retest passed.",
+    "A Project reconciliation interrupted by the Worker/PostgreSQL rollout recovered through the existing retry API after its protected lease expired; both Projects are ready."
+  ],
+  "preRecoveryObservation": {
+    "phase": "sso",
+    "message": "SSO acceptance failed: {\n  \"result\": \"FAIL\",\n  \"reason\": \"SSO Role binding did not produce a Project context for tp-v3i65n4c7jslo.\"\n}\n"
+  },
+  "releaseValuesCleanup": "PASS",
+  "reconciliationRecovery": {
+    "projectId": "tp-t5r7oyer4yfb2",
+    "reason": "Worker restart interrupted reconciliation while PostgreSQL rolled; existing lease protects the operation for 10 minutes.",
+    "leaseExpiresAt": "2026-10-24T09:06:57.159Z",
+    "retryRequested": true,
+    "retryRequestedAt": "2026-10-24T09:07:12.803Z",
+    "finalState": {
+      "status": "ready",
+      "generation": 2,
+      "observedGeneration": 2,
+      "attempts": 0,
+      "lastError": null,
+      "updatedAt": "2026-10-24T09:07:25.140Z"
+    },
+    "result": "PASS"
+  },
+  "result": "PASS",
+  "completedAt": "2026-10-24T09:08:19.028Z"
+}

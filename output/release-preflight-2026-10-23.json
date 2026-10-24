@@ -1,0 +1,87 @@
+{
+  "checkedAt": "2026-10-23T09:05:19.132093+00:00",
+  "published": false,
+  "nodeVersion": "22.23.4",
+  "lockfileSha256": "e8ad78c3e17f9b4bfe91a7897db072638cf3e84f8bd0d11498b9703c996f2f1d",
+  "tests": {
+    "workspacePassed": 1070,
+    "postgresPassed": 42,
+    "postgresSkipped": 0,
+    "postgresSuites": {
+      "workAndPersonalOnboarding": 16,
+      "projectInitialization": 3,
+      "providerRegistration": 19,
+      "gatewayDatabaseProvisioning": 4
+    },
+    "releaseAndChartRegressionPassed": 83
+  },
+  "passedChecks": [
+    "npm ci",
+    "npm test",
+    "npm run test:postgres",
+    "npm run typecheck",
+    "npm run build",
+    "npm run test:modules:config",
+    "npm run test:release:control",
+    "npm run test:chart-credentials",
+    "npm run helm:validate:openshift",
+    "npm run helm:validate:airgap",
+    "npm run helm:validate:resources",
+    "npm run helm:validate:agent-sandbox",
+    "npm run helm:validate:dev-defaults",
+    "npm run helm:validate:credentials",
+    "npm run helm:package:control",
+    "npm run helm:package:worker",
+    "helm lint charts/tali-relay",
+    "Default and embedded Keycloak Helm renders",
+    "node scripts/testing/credential-bootstrap-containers.mjs",
+    "node scripts/testing/component-init-containers.mjs",
+    "node scripts/testing/component-config-containers.mjs",
+    "npm audit --omit=dev",
+    "git diff --check"
+  ],
+  "isolation": {
+    "databaseImage": "pgvector/pgvector:0.8.6-pg17",
+    "bindAddress": "127.0.0.1",
+    "randomPassword": true,
+    "temporaryDatabaseContainersRemoved": true,
+    "existingRelayAndAgentHealthy": true
+  },
+  "audit": {
+    "production": {
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "high": 0,
+      "critical": 0,
+      "total": 0
+    },
+    "includingDevelopment": {
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "high": 7,
+      "critical": 0,
+      "total": 7
+    },
+    "remaining": "7 high dependency entries from the shadcn -> braces development-only chain. No upstream braces fix available at check time; shadcn is only imported for build-time CSS and is pruned from production dependencies."
+  },
+  "limitations": [
+    "Two external live Hindsight/Docling business tests remain skipped; their container configuration and initialization checks passed separately.",
+    "No actual OCP cluster was used; OCP validation covers chart rendering/RBAC regression and arbitrary-UID containers.",
+    "No images, charts, git tags or releases were published."
+  ],
+  "logs": {
+    "tests": "/tmp/relay-release-full-tests.log",
+    "postgres": "/tmp/relay-release-all-postgres.log",
+    "typecheck": "/tmp/relay-release-typecheck.log",
+    "build": "/tmp/relay-release-build.log",
+    "chart": "/tmp/relay-release-chart.log",
+    "releaseGates": "/tmp/relay-release-gates.log",
+    "bootstrapContainers": "/tmp/relay-release-bootstrap-container.log",
+    "componentInit": "/tmp/relay-release-component-init.log",
+    "componentConfig": "/tmp/relay-release-component-config.log",
+    "productionAudit": "/tmp/relay-release-audit-final.json",
+    "allDependenciesAudit": "/tmp/relay-release-audit-all.json"
+  }
+}

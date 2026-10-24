@@ -1,0 +1,15 @@
+# Local OrbStack overrides, reconciled from the deployed tali/tali-relay release.
+# Apply after charts/tali-relay/values-dev.yaml with --reset-values.
+# Retain rolloutRevision for this values-only upgrade; no image rebuild is needed.
+control:
+  hostAliases:
+    - hostnames:
+        - keycloak.localhost
+      ip: 192.168.139.2
+global:
+  rolloutRevision: dev-20261024072202
+keycloak:
+  enabled: true
+  publicUrl: http://keycloak.localhost:8180
+  service:
+    port: 8180
