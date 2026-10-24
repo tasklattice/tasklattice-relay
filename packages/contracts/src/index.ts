@@ -1983,6 +1983,7 @@ export const a2aAgentInstanceSchema = z.object({
   description: z.string().trim().max(2_000),
   runtime: z.enum(["kubernetes", "external"]),
   status: z.enum(instanceStatuses),
+  deletionCompletedAt: z.string().datetime().optional(),
   provisioningStage: z.enum(provisioningStages).optional(),
   runtimeNamespace: z.string().trim().min(1).max(253).nullable(),
   deploymentName: z.string().trim().min(1).max(253).nullable(),

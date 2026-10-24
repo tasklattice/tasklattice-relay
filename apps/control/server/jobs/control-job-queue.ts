@@ -102,10 +102,10 @@ export class PgBossControlJobQueue implements ControlJobPublisher {
     this.started = false;
   }
 
-  async enqueueResourceOperation(projectId: string, operationId: string, transaction: Prisma.TransactionClient): Promise<string> {
+  async enqueueResourceOperation(projectId: string, operationId: string, transaction: Prisma.TransactionClient, deletion = false): Promise<string> {
     await this.start();
     const id = await this.boss.send(CONTROL_JOB_QUEUES.resourceOperation, { projectId, operationId }, {
-      group: { id: projectId }, singletonKey: operationId, db: fromPrisma(transaction),
+      group: { id: projectId }, priority: deletion ? 90 : 0, singletonKey: operationId, db: fromPrisma(transaction),
     });
     if (!id) throw new Error("Unable to enqueue resource operation.");
     return id;

@@ -7,6 +7,7 @@ import {
   type ProjectAgentRuntimeInstance,
 } from "@tali/contracts";
 import { prisma } from "../db/prisma";
+import { lockProjectRow } from "../projects/project-row-lock";
 import type { Prisma, PrismaClient } from "../generated/prisma/client";
 
 function jsonInput(value: unknown): Prisma.InputJsonValue {
@@ -45,6 +46,20 @@ export class AgentGardenStore {
   async saveAgent(
     agent: AgentGardenEntry,
     ownerUserId?: string,
+    operationId?: string,
+  ): Promise<AgentGardenEntry> {
+    if (!operationId) return this.persistAgent(agent, ownerUserId, this.db);
+    return this.db.$transaction(async (transaction) => {
+      await lockProjectRow(transaction, this.projectId);
+      await this.assertOperationActive(operationId, transaction);
+      return this.persistAgent(agent, ownerUserId, transaction);
+    });
+  }
+
+  private async persistAgent(
+    agent: AgentGardenEntry,
+    ownerUserId: string | undefined,
+    database: PrismaClient | Prisma.TransactionClient,
   ): Promise<AgentGardenEntry> {
     const parsed = agentGardenEntrySchema.parse(agent);
     const timestamps = {
@@ -52,8 +67,8 @@ export class AgentGardenStore {
       updatedAt: parsed.updatedAt ? new Date(parsed.updatedAt) : new Date(),
     };
     if (!ownerUserId) {
-      const updated = await this.db.agentCatalogRecord.updateMany({
-        where: { projectId: this.projectId, id: parsed.id },
+      const updated = await database.agentCatalogRecord.updateMany({
+        where: { projectId: this.projectId, id: parsed.id, deletedAt: null },
         data: {
           payload: jsonInput(parsed),
           updatedAt: timestamps.updatedAt,
@@ -64,8 +79,9 @@ export class AgentGardenStore {
         throw new Error("An owner user is required when creating an Agent Garden entry.");
       }
     }
-    await this.db.agentCatalogRecord.upsert({
+    await database.agentCatalogRecord.upsert({
       where: {
+        deletedAt: null,
         projectId_id: {
           projectId: this.projectId,
           id: parsed.id,
@@ -113,9 +129,9 @@ export class AgentGardenStore {
     return saved;
   }
 
-  async getAgent(id: string): Promise<AgentGardenEntry | undefined> {
+  async getAgent(id: string, includeDeleted = false): Promise<AgentGardenEntry | undefined> {
     const row = await this.db.agentCatalogRecord.findFirst({
-      where: { projectId: this.projectId, id, deletedAt: null },
+      where: { projectId: this.projectId, id, ...(includeDeleted ? {} : { deletedAt: null }) },
       select: { payload: true },
     });
     return row ? agentGardenEntrySchema.parse(row.payload) : undefined;
@@ -153,14 +169,62 @@ export class AgentGardenStore {
   async saveManagedInstance(
     instance: A2aAgentInstance,
     ownerUserId?: string,
+    operationId?: string,
+  ): Promise<A2aAgentInstance> {
+    if (!operationId) return this.persistManagedInstance(instance, ownerUserId, this.db);
+    return this.db.$transaction(async (transaction) => {
+      await lockProjectRow(transaction, this.projectId);
+      await this.assertManagedInstanceActive(instance.id, operationId, transaction);
+      return this.persistManagedInstance(instance, ownerUserId, transaction);
+    });
+  }
+
+  async assertManagedInstanceActive(
+    id: string,
+    operationId?: string,
+    database: PrismaClient | Prisma.TransactionClient = this.db,
+  ): Promise<void> {
+    if (operationId) await this.assertOperationActive(operationId, database);
+    const instance = await database.agentRecord.findUnique({
+      where: { projectId_id: { projectId: this.projectId, id } },
+      select: { deletedAt: true },
+    });
+    if (instance?.deletedAt) throw new Error("Instance creation cancelled by deletion.");
+  }
+
+  async assertOperationActive(
+    operationId: string,
+    database: PrismaClient | Prisma.TransactionClient = this.db,
+  ): Promise<void> {
+    const operation = await database.resourceOperationRecord.findFirst({
+      where: { id: operationId, projectId: this.projectId }, select: { status: true },
+    });
+    if (!operation || !["pending", "running", "retry"].includes(operation.status)) {
+      throw new Error("A2A creation cancelled or no longer active.");
+    }
+  }
+
+  async managedInstancesForCleanup(agentId: string): Promise<A2aAgentInstance[]> {
+    const rows = await this.db.agentRecord.findMany({
+      where: { projectId: this.projectId, kind: "A2A", catalogAgentId: agentId },
+      select: { payload: true },
+    });
+    return rows.map((row) => a2aAgentInstanceSchema.parse(row.payload));
+  }
+
+  private async persistManagedInstance(
+    instance: A2aAgentInstance,
+    ownerUserId: string | undefined,
+    database: PrismaClient | Prisma.TransactionClient,
   ): Promise<A2aAgentInstance> {
     const parsed = a2aAgentInstanceSchema.parse(instance);
     if (!ownerUserId) {
-      const updated = await this.db.agentRecord.updateMany({
+      const updated = await database.agentRecord.updateMany({
         where: {
           projectId: this.projectId,
           id: parsed.id,
           kind: "A2A",
+          deletedAt: null,
         },
         data: {
           payload: managedInstancePayload(parsed),
@@ -174,19 +238,21 @@ export class AgentGardenStore {
       }
       return parsed;
     }
-    const existing = await this.db.agentRecord.findUnique({
+    const existing = await database.agentRecord.findUnique({
       where: {
         projectId_id: { projectId: this.projectId, id: parsed.id },
       },
-      select: { kind: true },
+      select: { kind: true, deletedAt: true },
     });
+    if (existing?.deletedAt) throw new Error("Instance creation cancelled by deletion.");
     if (existing && existing.kind !== "A2A") {
       throw new Error(
         "Agent Instance identifier belongs to a Supervisor runtime.",
       );
     }
-    await this.db.agentRecord.upsert({
+    await database.agentRecord.upsert({
       where: {
+        deletedAt: null,
         projectId_id: { projectId: this.projectId, id: parsed.id },
       },
       create: {
@@ -251,13 +317,14 @@ export class AgentGardenStore {
 
   async getManagedInstance(
     id: string,
+    includeDeleted = false,
   ): Promise<A2aAgentInstance | undefined> {
     const row = await this.db.agentRecord.findFirst({
       where: {
         projectId: this.projectId,
         id,
         kind: "A2A",
-        deletedAt: null,
+        ...(includeDeleted ? {} : { deletedAt: null }),
       },
       select: {
         payload: true,
@@ -361,31 +428,27 @@ export class AgentGardenStore {
     }));
   }
 
-  async deleteManagedInstanceForAgent(agentId: string): Promise<boolean> {
-    const result = await this.db.agentRecord.updateMany({
-      where: {
-        projectId: this.projectId,
-        kind: "A2A",
-        catalogAgentId: agentId,
-        deletedAt: null,
-      },
-      data: { deletedAt: new Date() },
+  async completeManagedInstanceDeletion(instance: A2aAgentInstance): Promise<void> {
+    const now = new Date();
+    await this.db.$transaction(async (transaction) => {
+      await lockProjectRow(transaction, this.projectId);
+      const where = { projectId: this.projectId, id: instance.id, kind: "A2A" };
+      // Preserve the original deletion boundary for jobs queued before upgrade.
+      await transaction.agentRecord.updateMany({
+        where: { ...where, deletedAt: null }, data: { deletedAt: now },
+      });
+      await transaction.agentRecord.updateMany({
+        where,
+        data: {
+          payload: managedInstancePayload({
+            ...instance, status: "DESTROYING", deletionCompletedAt: now.toISOString(),
+            updatedAt: now.toISOString(),
+          }),
+        },
+      });
     });
-    return result.count > 0;
   }
 
-  async deleteManagedInstance(id: string): Promise<boolean> {
-    const result = await this.db.agentRecord.updateMany({
-      where: {
-        projectId: this.projectId,
-        id,
-        kind: "A2A",
-        deletedAt: null,
-      },
-      data: { deletedAt: new Date() },
-    });
-    return result.count > 0;
-  }
 
 }
 

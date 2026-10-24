@@ -1,3 +1,5 @@
+import { a2aCreationWasDeleted, prepareA2aDeletion } from "../projects/resource-operation-service";
+import { lockProjectRow } from "../projects/project-row-lock";
 import { randomUUID } from "node:crypto";
 import { getControlConfig } from "../config/control-config";
 import type { Prisma, PrismaClient } from "../generated/prisma/client";
@@ -26,10 +28,12 @@ export async function runResourceOperation(
     return;
   const acquired = await db
     .$transaction(async (transaction) => {
-      await transaction.$queryRawUnsafe(
-        "SELECT id FROM tasklattice.projects WHERE id = $1 FOR UPDATE",
-        projectId,
-      );
+      await lockProjectRow(transaction, projectId);
+      // The request may have been cancelled while this worker waited for the lock.
+      const current = await transaction.resourceOperationRecord.findFirst({
+        where: { id: operationId, projectId }, select: { status: true },
+      });
+      if (!current || ["completed", "failed", "cancelled"].includes(current.status)) return false;
       const project = await transaction.project.findUnique({
         where: { id: projectId },
         select: { deletedAt: true },
@@ -41,10 +45,23 @@ export async function runResourceOperation(
         });
         return false;
       }
+      if (await a2aCreationWasDeleted(transaction, operation)) {
+        await transaction.resourceOperationRecord.update({
+          where: { id: operationId },
+          data: { status: "cancelled", lastError: "A2A creation cancelled by deletion." },
+        });
+        return false;
+      }
+      // Also fence deletion jobs queued by deployments predating request-time tombstones.
+      if (operation.action === "removeInstance" || operation.action === "remove") {
+        await prepareA2aDeletion(transaction, projectId, operation.action, JSON.parse(
+          decryptPlatformSecret(operation.inputEncrypted, getControlConfig().auth.secret),
+        ));
+      }
       const claim = await transaction.projectRuntimeTarget.updateMany({
         where: {
           projectId,
-          status: "ready",
+          ...(["remove", "removeInstance"].includes(operation.action) ? {} : { status: "ready" }),
           OR: [{ leaseOwner: null }, { leaseExpiresAt: { lte: new Date() } }],
         },
         data: {
@@ -152,21 +169,27 @@ export async function runResourceOperation(
       where: { id: projectId },
       select: { deletedAt: true },
     });
-    await db.resourceOperationRecord.update({
-      where: { id: operationId },
+    await db.resourceOperationRecord.updateMany({
+      where: { id: operationId, status: "running" },
       data: {
         status: !project || project.deletedAt ? "cancelled" : "completed",
         result: result as Prisma.InputJsonValue,
       },
     });
   } catch (error) {
+    const current = await db.resourceOperationRecord.findFirst({
+      where: { id: operationId, projectId }, select: { status: true },
+    });
+    // Acknowledge cancelled creation without scheduling another attempt. Keep
+    // the lease until this handler exits so cleanup cannot race an active apply.
+    if (current?.status === "cancelled") return;
     const lease = await db.projectRuntimeTarget.findUnique({
       where: { projectId },
       select: { leaseOwner: true },
     });
     if (lease?.leaseOwner !== leaseId) throw error;
     await db.resourceOperationRecord.updateMany({
-      where: { id: operationId },
+      where: { id: operationId, status: "running" },
       data: {
         status: job.retryCount >= job.retryLimit ? "failed" : "retry",
         lastError: (error instanceof Error

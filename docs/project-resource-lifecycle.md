@@ -23,10 +23,51 @@ ready target with an observed generation matching the desired generation.
 
 Agent Garden onboarding, discovery, instantiation and removal return HTTP 202
 with `{kind: "resource-operation", operationId, statusUrl}`. The frontend follows
-`statusUrl` to obtain completion or failure. These jobs survive HTTP disconnects
+`statusUrl` to obtain completion or failure for creation and discovery. These jobs survive HTTP disconnects
 and Control restarts. Operation inputs are encrypted using the shared auth key;
 only the requester and Project Administrators may read an operation's result.
 Worker retries reuse the operation ID for generated runtime identities.
+
+A2A deletion uses one lifecycle for built-in presets, registered containers and
+external A2A services. An accepted deletion returns `background=true`,
+`accepted=true`, `id`, `status=DESTROYING`, `operationId` and `statusUrl`.
+The frontend closes the deletion submission immediately and refreshes inventory;
+it does not wait for Kubernetes cleanup. The database tombstone, cancellation of
+existing onboarding/discovery/instantiation operations, and cleanup job commit
+atomically. Deleting an Instance retains its Agent definition; deleting a
+Project-registered definition also deletes its Instances. Built-in definitions
+remain platform-managed.
+
+Cleanup has higher queue priority and waits for the active Project lease.
+Running creation checks cancellation before resource applies, during readiness
+and OCP pull-credential waits, and at database writes. Cancelled job replays are
+acknowledged without provisioning. Cleanup can run when the Project runtime
+status is degraded, handles missing resources, and records `deletionCompletedAt`
+for repeat requests. Only container runtimes trigger Kubernetes deletion;
+external endpoints are never deleted. Cleanup failures remain queryable via
+`statusUrl` and retain the queue's existing retry policy. A new user-requested
+creation gets a new Instance identity, unaffected by retries of an older delete.
+
+No database migration is needed for this A2A change. Worker also applies the
+same deletion fence to historical queued deletion operations, and cancels old
+creation jobs whose Agent was deleted or whose Instance was deleted after the
+job was submitted. Cleanup preserves the original deletion time so a later
+explicit replacement survives. New instantiate/discover jobs retain their input
+shape with an internal fence version; deletion cancels them under the same
+Project lock instead of inferring ordering from timestamps. Both ordinary
+container A2A and Demo instances reuse a ready runtime, and retry failed
+provisioning using the same Instance identity. Upgrade Control,
+Worker and frontend together and drain old Workers before relying on the new
+cancellation checks for in-flight work.
+
+Database reads and writes use Prisma model APIs and transactions. Project row
+locks are shared through `projects/project-row-lock.ts`; callers keep the lock
+and protected writes in the same transaction, acquiring the Project row before
+the runtime target row when both are needed. The legacy A2A timestamp comparison
+lives in `agent-garden/a2a-lifecycle-queries.ts` to retain PostgreSQL microsecond
+precision. These exceptions use parameterized Prisma tagged templates, and the
+comparison result is validated at runtime. Business services do not duplicate
+these SQL statements.
 
 Deletion first records its tombstone and task atomically. It fences new
 provisioning and waits for any active resource lease before external cleanup.

@@ -622,9 +622,9 @@ export function A2aInstanceDetail({
         : api.removeGardenAgent(detail.definition.id);
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({
-        queryKey: scope.key("agent-garden"),
-      });
+      await Promise.all(["agent-garden", "agents", "runtime-inventory"].map((key) =>
+        queryClient.invalidateQueries({ queryKey: scope.key(key) }),
+      ));
       await navigate({
         to: "/$projectId/instances",
         params: { projectId },

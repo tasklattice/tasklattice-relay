@@ -571,9 +571,26 @@ describe("AgentGardenService", () => {
       image: "ghcr.io/acme/research-agent@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     }));
 
+    // Registered containers and presets have the same Instance deletion semantics.
+    await service.removeInstance(agent.configuration.managedInstanceId!);
+    expect(await service.store.getAgent(agent.id)).toBeDefined();
+    const recreated = await service.discover(agent.id);
+    expect(recreated.configuration.managedInstanceId).not.toBe(agent.configuration.managedInstanceId);
+    const recreatedId = recreated.configuration.managedInstanceId!;
+    await service.removeInstance(recreatedId);
+    const instantiated = await service.instantiate(agent.id, "local-admin");
+    expect(instantiated.runtime).toBe("kubernetes");
+    expect(instantiated.id).not.toBe(recreatedId);
+    expect((await service.store.getAgent(agent.id))?.configuration.managedInstanceId).toBe(instantiated.id);
+    expect(runtime.onboard).toHaveBeenLastCalledWith(expect.objectContaining({
+      image: "ghcr.io/acme/research-agent@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    }));
+    await service.removeInstance(agent.configuration.managedInstanceId!);
+    expect(await service.store.getManagedInstance(instantiated.id)).toBeDefined();
+
     await expect(service.remove(agent.id)).resolves.toBe(true);
     await expect(service.remove(agent.id)).resolves.toBe(false);
-    expect(runtime.remove).toHaveBeenCalledTimes(1);
+    expect(runtime.remove).toHaveBeenCalledTimes(3);
     expect(runtime.remove).toHaveBeenCalledWith(expect.objectContaining({
       agentId: agent.id,
       instanceId: agent.configuration.managedInstanceId,

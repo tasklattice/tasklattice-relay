@@ -1,4 +1,5 @@
 import { prisma } from "../db/prisma";
+import { lockProjectRow, lockProjectRuntimeTargetRow } from "./project-row-lock";
 import type { PrismaClient } from "../generated/prisma/client";
 import {
   controlJobQueue,
@@ -42,10 +43,7 @@ export class ProjectRuntimeStatusService {
       .runtimeNamespaces;
     await this.db.$transaction(async (transaction) => {
       // Lock the same Project row as deletion before changing the desired state.
-      await transaction.$queryRawUnsafe(
-        "SELECT id FROM tasklattice.projects WHERE id = $1 FOR UPDATE",
-        projectId,
-      );
+      await lockProjectRow(transaction, projectId);
       const project = await transaction.project.findUnique({
         where: { id: projectId },
         select: { deletedAt: true },
@@ -53,10 +51,7 @@ export class ProjectRuntimeStatusService {
       if (!project || project.deletedAt)
         throw new Error("Project is unavailable or being deleted.");
       // Serialize with Worker lease acquisition, not just other user requests.
-      await transaction.$queryRawUnsafe(
-        "SELECT project_id FROM tasklattice.project_runtime_targets WHERE project_id = $1 FOR UPDATE",
-        projectId,
-      );
+      await lockProjectRuntimeTargetRow(transaction, projectId);
       const target = await transaction.projectRuntimeTarget.findUnique({
         where: { projectId },
       });

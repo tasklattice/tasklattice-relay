@@ -48,3 +48,20 @@ it("follows queued resource operations without resubmitting the mutation or chan
   expect(fetcher.mock.calls[2]?.[0]).toBe(statusUrl);
   expect(fetcher.mock.calls.filter(([, options]) => options?.method === "DELETE")).toHaveLength(1);
 });
+
+
+it.each(["garden", "inventory", "definition"])("returns immediately for accepted A2A deletion from %s", async (entry) => {
+  const accepted = {
+    kind: "resource-operation", operationId: "delete-operation",
+    id: "demo-instance", status: "DESTROYING", background: true, accepted: true,
+    statusUrl: "/api/v1/projects/original/resource-operations/delete-operation",
+  };
+  const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify(accepted), { status: 202 }));
+  vi.stubGlobal("fetch", fetcher);
+  const result = entry === "garden"
+    ? api.removeGardenInstance("demo-instance")
+    : entry === "definition" ? api.removeGardenAgent("demo-agent") : api.deleteInstance("demo-instance");
+  await expect(result).resolves.toEqual(accepted);
+  expect(fetcher).toHaveBeenCalledTimes(1);
+  expect(fetcher.mock.calls[0]?.[1]).toMatchObject({ method: "DELETE" });
+});

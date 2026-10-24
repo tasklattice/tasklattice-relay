@@ -45,6 +45,75 @@ function readyDeployment(): V1Deployment {
 }
 
 describe("KubernetesManagedAgentRuntimeClient", () => {
+  it("stops waiting for an unpullable image when deletion cancels creation", async () => {
+    let cancelled = false;
+    const objects = { patch: vi.fn(async () => undefined) };
+    const client = new KubernetesManagedAgentRuntimeClient(
+      { readNamespacedDeployment: vi.fn().mockRejectedValueOnce({ code: 404 }).mockResolvedValue({}) } as never,
+      {
+        readNamespacedService: vi.fn(notFound),
+        listNamespacedPod: vi.fn(async () => { cancelled = true; return { items: [] }; }),
+      } as never,
+      objects as never, 120_000, 1,
+    );
+    await expect(client.onboard({ ...input, assertActive: async () => {
+      if (cancelled) throw new Error("Instance creation cancelled by deletion.");
+    } })).rejects.toThrow("cancelled by deletion");
+    expect(objects.patch).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not apply a Deployment after deletion races Service creation", async () => {
+    let cancelled = false;
+    const objects = { patch: vi.fn(async (_resource: unknown) => { cancelled = true; }) };
+    const client = new KubernetesManagedAgentRuntimeClient(
+      { readNamespacedDeployment: vi.fn(notFound) } as never,
+      { readNamespacedService: vi.fn(notFound) } as never,
+      objects as never,
+    );
+    await expect(client.onboard({ ...input, assertActive: async () => {
+      if (cancelled) throw new Error("Instance creation cancelled by deletion.");
+    } })).rejects.toThrow("cancelled by deletion");
+    expect(objects.patch).toHaveBeenCalledTimes(1);
+    expect(objects.patch.mock.calls[0]?.[0]).toMatchObject({ kind: "Service" });
+  });
+
+  it("treats resources concurrently removed after ownership reads as deleted", async () => {
+    const metadata = { name: "demo", annotations: {
+      "tali.io/project-id": input.projectId,
+      "tali.io/agent-id": input.agentId,
+      "tali.io/instance-id": input.instanceId,
+    } };
+    const removeDeployment = vi.fn().mockRejectedValue({ code: 404 });
+    const removeService = vi.fn().mockRejectedValue({ code: 404 });
+    const client = new KubernetesManagedAgentRuntimeClient(
+      { readNamespacedDeployment: vi.fn(async () => ({ metadata })), deleteNamespacedDeployment: removeDeployment },
+      { readNamespacedService: vi.fn(async () => ({ metadata })), deleteNamespacedService: removeService } as never,
+      { patch: vi.fn() } as never,
+    );
+    await expect(client.remove(input)).resolves.toBeUndefined();
+    expect(removeDeployment).toHaveBeenCalledOnce();
+    expect(removeService).toHaveBeenCalledOnce();
+  });
+
+  it("passes creation cancellation through OCP pull credential preparation", async () => {
+    let cancelled = false;
+    vi.spyOn(imagePull, "prepareRuntimeImagePull").mockImplementation(async (target) => {
+      cancelled = true;
+      await target.assertCurrent?.();
+      return [];
+    });
+    const objects = { patch: vi.fn() };
+    const client = new KubernetesManagedAgentRuntimeClient(
+      { readNamespacedDeployment: vi.fn(notFound) } as never,
+      { readNamespacedService: vi.fn(notFound) } as never,
+      objects as never,
+    );
+    await expect(client.onboard({ ...input, prepareImagePull: true, assertActive: async () => {
+      if (cancelled) throw new Error("Creation cancelled");
+    } })).rejects.toThrow("Creation cancelled");
+    expect(objects.patch).not.toHaveBeenCalled();
+  });
+
   it("does not deploy a Demo before its pull credentials are ready", async () => {
     vi.spyOn(imagePull, "prepareRuntimeImagePull").mockRejectedValue(new Error("Pull credentials not ready"));
     const objects = { patch: vi.fn() };

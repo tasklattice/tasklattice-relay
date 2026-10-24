@@ -553,7 +553,9 @@ function Instances() {
     onSuccess: async (result) => {
       setRetainedMemory(result.retainedMemory);
       setDeletingInstance(undefined);
-      await queryClient.invalidateQueries({ queryKey: scope.key("agents") });
+      await Promise.all(["agents", "agent-garden", "runtime-inventory"].map((key) =>
+        queryClient.invalidateQueries({ queryKey: scope.key(key) }),
+      ));
     },
   });
 

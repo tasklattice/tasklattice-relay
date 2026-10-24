@@ -223,10 +223,10 @@ function AgentGarden() {
     onSuccess: async () => {
       setDetailId("");
       setRemovingId("");
-      setNotice("The Project-registered Agent was removed.");
-      await queryClient.invalidateQueries({
-        queryKey: scope.key("agent-garden"),
-      });
+      setNotice("Agent deletion accepted. Runtime cleanup continues in the background.");
+      await Promise.all(["agent-garden", "agents", "runtime-inventory"].map((key) =>
+        queryClient.invalidateQueries({ queryKey: scope.key(key) }),
+      ));
     },
   });
   const instantiate = useMutation({

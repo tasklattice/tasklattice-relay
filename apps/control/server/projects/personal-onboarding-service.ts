@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { personalConnectSchema, personalPrepareSchema, personalSetupStateSchema, createProviderConnectionSchema, createModelRoutingSchema, type PersonalSetupState, type PersonalOnboardingStatus } from "@tali/contracts";
 import type { PrismaClient } from "../generated/prisma/client";
 import { prisma } from "../db/prisma";
+import { lockProjectRow } from "./project-row-lock";
 import { ownsPersonalProject, requirePersonalProject } from "./personal-project-access";
 import { ProviderService } from "../providers/provider-service";
 import { ModelRoutingService } from "../model-routings/model-routing-service";
@@ -46,7 +47,7 @@ export class PersonalOnboardingService {
   private async claim(projectId: string, userId: string, revision: number, status: string) {
     return this.db.$transaction(async (db) => {
       await requirePersonalProject(db, projectId, userId);
-      await db.$queryRaw`SELECT id FROM tasklattice.projects WHERE id=${projectId} FOR UPDATE`;
+      await lockProjectRow(db, projectId);
       const row = await db.personalOnboardingRecord.upsert({ where: { projectId }, create: { projectId }, update: {} });
       if (row.revision !== revision || (row.leaseUntil && row.leaseUntil > new Date())) throw new WorkError("设置已更新或正在准备，请刷新后继续。", 409, "onboarding_conflict");
       if (row.status === "READY") throw new WorkError("团队已准备完成，无需重复初始化。");

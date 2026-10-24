@@ -47,6 +47,7 @@ export interface ManagedAgentRuntimeInput
   imagePullPolicy?: "Always" | "IfNotPresent" | "Never";
   imagePullSecrets?: Array<{ name: string }>;
   prepareImagePull?: boolean;
+  assertActive?: () => Promise<void>;
 }
 
 export interface ManagedAgentRuntimeResult {
@@ -435,14 +436,17 @@ export class KubernetesManagedAgentRuntimeClient
   async onboard(
     input: ManagedAgentRuntimeInput,
   ): Promise<ManagedAgentRuntimeResult> {
+    await input.assertActive?.();
     await this.assertExistingOwnership(input);
     const owner = await readProjectNamespaceOwner(input.namespace, input.projectId);
     if (input.prepareImagePull) {
       input = { ...input, imagePullSecrets: await prepareRuntimeImagePull(
-        input, input.image, input.imagePullSecrets ?? [],
+        { ...input, ...(input.assertActive ? { assertCurrent: input.assertActive } : {}) }, input.image, input.imagePullSecrets ?? [],
       ) };
     }
+    await input.assertActive?.();
     await this.apply(withNamespaceOwner(serviceResource(input), owner));
+    await input.assertActive?.();
     await this.apply(withNamespaceOwner(deploymentResource(input, input.image), owner));
     let readyPod = await this.waitUntilReady(input, input.image);
     const imageId = imageIdFromPod(readyPod);
@@ -457,6 +461,7 @@ export class KubernetesManagedAgentRuntimeClient
       );
     }
     if (pinnedImage !== input.image) {
+      await input.assertActive?.();
       await this.apply(withNamespaceOwner(deploymentResource(input, pinnedImage), owner));
       readyPod = await this.waitUntilReady(input, pinnedImage);
     }
@@ -499,13 +504,13 @@ export class KubernetesManagedAgentRuntimeClient
         name: deploymentName,
         namespace: input.namespace,
         propagationPolicy: "Foreground",
-      });
+      }).catch((error) => { if (kubernetesStatusCode(error) !== 404) throw error; });
     }
     if (serviceName) {
       await this.core.deleteNamespacedService({
         name: serviceName,
         namespace: input.namespace,
-      });
+      }).catch((error) => { if (kubernetesStatusCode(error) !== 404) throw error; });
     }
   }
 
@@ -579,6 +584,7 @@ export class KubernetesManagedAgentRuntimeClient
     const name = managedAgentResourceName(input.instanceId);
     const deadline = Date.now() + this.timeoutMs;
     while (Date.now() < deadline) {
+      await input.assertActive?.();
       const [deployment, pods] = await Promise.all([
         this.apps.readNamespacedDeployment({
           name,

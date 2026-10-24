@@ -256,6 +256,14 @@ export class AgentGardenService {
     private readonly operationId?: string,
   ) {}
 
+  private saveAgent(agent: AgentGardenEntry, ownerUserId?: string) {
+    return this.store.saveAgent(agent, ownerUserId, this.operationId);
+  }
+
+  private saveManagedInstance(instance: A2aAgentInstance, ownerUserId?: string) {
+    return this.store.saveManagedInstance(instance, ownerUserId, this.operationId);
+  }
+
   async snapshot(ownerUserId?: string): Promise<AgentGardenSnapshot> {
     const [, managedInstances, developedInstances, developedAgents] = await Promise.all([
       this.store.ensureAgents(databaseAgentCatalog),
@@ -583,7 +591,7 @@ export class AgentGardenService {
       lastDiscoveredAt: null,
       lastDiscoveryError: null,
     });
-    await this.store.saveAgent(agent, ownerUserId);
+    await this.saveAgent(agent, ownerUserId);
     return this.discover(agent.id, ownerUserId);
   }
 
@@ -608,15 +616,15 @@ export class AgentGardenService {
     if (!agent.endpoint || !agent.agentCardUrl || !agent.a2a) {
       throw new Error("A validated A2A Agent Card is required before creating an Instance.");
     }
-    const managedCatalogAgent =
-      agent.source === "BUILT_IN"
-      && agent.configuration.onboardingSource === CONTAINER_IMAGE_SOURCE;
+    const managedCatalogAgent = agent.configuration.onboardingSource === CONTAINER_IMAGE_SOURCE;
     const existing = await this.store.getManagedInstanceForAgent(agent.id);
+    if (existing && (!managedCatalogAgent ||
+      (existing.runtime === "kubernetes" && existing.status === "READY"))) return existing;
     if (managedCatalogAgent) {
-      return this.instantiateManagedCatalogAgent(agent, ownerUserId, existing);
+      return this.instantiateManagedAgent(agent, ownerUserId, existing);
     }
     if (existing) return existing;
-    return this.store.saveManagedInstance(
+    return this.saveManagedInstance(
       externalInstance(agent, this.operationId ?? randomUUID()),
       ownerUserId,
     );
@@ -665,7 +673,7 @@ export class AgentGardenService {
       lastDiscoveredAt: null,
       lastDiscoveryError: null,
     });
-    await this.store.saveAgent(agent, ownerUserId);
+    await this.saveAgent(agent, ownerUserId);
     return this.discover(agent.id);
   }
 
@@ -674,7 +682,7 @@ export class AgentGardenService {
     ownerUserId?: string,
   ): Promise<AgentGardenEntry> {
     const current = await this.requireProjectRegisteredAgent(id);
-    let checking = await this.store.saveAgent({
+    let checking = await this.saveAgent({
       ...current,
       status: "UNCHECKED",
       updatedAt: new Date().toISOString(),
@@ -686,9 +694,14 @@ export class AgentGardenService {
       if (checking.configuration.onboardingSource === CONTAINER_IMAGE_SOURCE) {
         const input = containerInputFromAgent(checking);
         const target = await this.requireRuntimeTarget();
-        const instanceId = checking.configuration.managedInstanceId || kubernetesResourceName("instance", randomUUID());
-        if (!checking.configuration.managedInstanceId) {
-          checking = await this.store.saveAgent({
+        const previous = await this.store.getManagedInstanceForAgent(checking.id);
+        const configuredId = checking.configuration.managedInstanceId;
+        const retired = configuredId && !previous
+          ? await this.store.getManagedInstance(configuredId, true) : undefined;
+        const instanceId = previous?.id ?? (retired ? undefined : configuredId)
+          ?? kubernetesResourceName("instance", this.operationId ?? randomUUID());
+        if (checking.configuration.managedInstanceId !== instanceId) {
+          checking = await this.saveAgent({
             ...checking,
             configuration: managedConfiguration(
               input,
@@ -703,7 +716,6 @@ export class AgentGardenService {
         if (!ownerUserId) {
           throw new Error("Managed A2A Instance ownership could not be resolved.");
         }
-        const previous = await this.store.getManagedInstanceForAgent(checking.id);
         runtimeInstance = managedInstance(
           checking,
           input,
@@ -711,13 +723,14 @@ export class AgentGardenService {
           target.namespace,
           previous,
         );
-        await this.store.saveManagedInstance(runtimeInstance, ownerUserId);
+        await this.saveManagedInstance(runtimeInstance, ownerUserId);
         const runtime = await this.runtime.onboard({
           ...input,
           agentId: checking.id,
           instanceId,
           namespace: target.namespace,
           projectId: this.store.projectId,
+          assertActive: () => this.store.assertManagedInstanceActive(instanceId, this.operationId),
         });
         runtimeResult = runtime;
         runtimeInstance = managedInstance(
@@ -728,8 +741,8 @@ export class AgentGardenService {
           runtimeInstance,
           runtime,
         );
-        await this.store.saveManagedInstance(runtimeInstance);
-        checking = await this.store.saveAgent({
+        await this.saveManagedInstance(runtimeInstance);
+        checking = await this.saveAgent({
           ...checking,
           endpoint: runtime.endpoint,
           agentCardUrl: runtime.agentCardUrl,
@@ -748,7 +761,7 @@ export class AgentGardenService {
       const result = runtimeResult
         ? await this.discoverManagedAgent(checking, credential)
         : await this.discovery.discover(checking, credential);
-      const ready = await this.store.saveAgent({
+      const ready = await this.saveAgent({
         ...checking,
         endpoint: result.endpoint,
         agentCardUrl: result.agentCardUrl,
@@ -766,7 +779,7 @@ export class AgentGardenService {
         if (!instanceId) {
           throw new Error("Managed A2A Instance identifier was not persisted.");
         }
-        await this.store.saveManagedInstance(managedInstance(
+        await this.saveManagedInstance(managedInstance(
           ready,
           input,
           instanceId,
@@ -778,7 +791,7 @@ export class AgentGardenService {
       } else if (checking.configuration.onboardingSource === EXISTING_AGENT_SOURCE) {
         const previous = await this.store.getManagedInstanceForAgent(ready.id);
         if (previous || ownerUserId) {
-          await this.store.saveManagedInstance(
+          await this.saveManagedInstance(
             externalInstance(ready, previous?.id ?? this.operationId ?? randomUUID(), previous),
             previous ? undefined : ownerUserId,
           );
@@ -792,7 +805,7 @@ export class AgentGardenService {
         if (!runtimeInstance.runtimeNamespace) {
           throw new Error("Managed A2A Instance Runtime Namespace is missing.");
         }
-        await this.store.saveManagedInstance(managedInstance(
+        await this.saveManagedInstance(managedInstance(
           checking,
           input,
           runtimeInstance.id,
@@ -805,12 +818,12 @@ export class AgentGardenService {
       } else if (checking.configuration.onboardingSource === EXISTING_AGENT_SOURCE) {
         const previous = await this.store.getManagedInstanceForAgent(checking.id);
         if (previous) {
-          await this.store.saveManagedInstance(
+          await this.saveManagedInstance(
             externalInstance(checking, previous.id, previous, message),
           );
         }
       }
-      return this.store.saveAgent({
+      return this.saveAgent({
         ...checking,
         status: "UNAVAILABLE",
         updatedAt: new Date().toISOString(),
@@ -820,36 +833,29 @@ export class AgentGardenService {
   }
 
   async remove(id: string): Promise<boolean> {
-    const agent = await this.store.getAgent(id);
-    // A durable job may replay after deletion committed but before its result did.
+    const agent = await this.store.getAgent(id, true);
     if (!agent) return false;
     if (agent.source !== "PROJECT_REGISTERED") {
       throw new Error("Built-in Agents are managed by TaskLattice Relay.");
     }
-    if (agent.configuration.onboardingSource === CONTAINER_IMAGE_SOURCE) {
-      const target = await this.requireRuntimeTarget();
-      const instance = await this.store.getManagedInstanceForAgent(agent.id);
-      const instanceId = instance?.id ?? agent.configuration.managedInstanceId;
-      if (!instanceId) {
-        throw new Error(
-          "Managed A2A Instance metadata is missing. Reconcile the Agent before removal.",
-        );
-      }
-      await this.runtime.remove({
-        agentId: agent.id,
-        instanceId,
-        namespace: target.namespace,
-        projectId: this.store.projectId,
+    const instances = await this.store.managedInstancesForCleanup(agent.id);
+    for (const instance of instances) await this.removeInstance(instance.id);
+    if (!instances.length && agent.configuration.onboardingSource === CONTAINER_IMAGE_SOURCE) {
+      // Legacy registrations can have runtime metadata only on the definition.
+      const target = await this.store.database().projectRuntimeTarget.findUnique({
+        where: { projectId: this.store.projectId }, select: { namespace: true },
       });
-      await this.store.deleteManagedInstanceForAgent(agent.id);
-    } else {
-      await this.store.deleteManagedInstanceForAgent(agent.id);
+      const instanceId = agent.configuration.managedInstanceId;
+      if (!target || !instanceId) throw new Error("Managed A2A Instance metadata is missing. Reconcile the Agent before removal.");
+      await this.runtime.remove({
+        agentId: agent.id, instanceId, namespace: target.namespace, projectId: this.store.projectId,
+      });
     }
     return this.store.deleteAgent(id);
   }
 
   async removeInstance(id: string): Promise<boolean> {
-    const instance = await this.store.getManagedInstance(id);
+    const instance = await this.store.getManagedInstance(id, true);
     if (!instance) {
       const database = this.store.database();
       const projectAgent = await database.agentRecord.findFirst({
@@ -893,13 +899,8 @@ export class AgentGardenService {
       });
       return removed.count === 1;
     }
+    if (instance.deletionCompletedAt) return false;
     if (instance.runtime !== "external") {
-      const agent = await this.store.getAgent(instance.agentId);
-      if (agent?.source !== "BUILT_IN") {
-        throw new Error(
-          "Remove the managed Agent definition to delete its Kubernetes runtime.",
-        );
-      }
       if (!instance.runtimeNamespace) {
         throw new Error("Managed A2A Instance Runtime Namespace is missing.");
       }
@@ -910,10 +911,11 @@ export class AgentGardenService {
         projectId: this.store.projectId,
       });
     }
-    return this.store.deleteManagedInstance(id);
+    await this.store.completeManagedInstanceDeletion(instance);
+    return true;
   }
 
-  private async instantiateManagedCatalogAgent(
+  private async instantiateManagedAgent(
     agent: AgentGardenEntry,
     ownerUserId: string,
     previous?: A2aAgentInstance,
@@ -928,16 +930,19 @@ export class AgentGardenService {
       target.namespace,
       previous,
     );
-    await this.store.saveManagedInstance(
+    await this.saveManagedInstance(
       instance,
       previous ? undefined : ownerUserId,
     );
     try {
       const runtime = await this.runtime.onboard({
         ...input,
-        imagePullPolicy: getControlConfig().demo_agents.imagePullPolicy,
-        imagePullSecrets: getControlConfig().demo_agents.imagePullSecrets,
-        prepareImagePull: true,
+        ...(agent.source === "BUILT_IN" ? {
+          imagePullPolicy: getControlConfig().demo_agents.imagePullPolicy,
+          imagePullSecrets: getControlConfig().demo_agents.imagePullSecrets,
+          prepareImagePull: true,
+        } : {}),
+        assertActive: () => this.store.assertManagedInstanceActive(instanceId, this.operationId),
         agentId: agent.id,
         instanceId,
         namespace: target.namespace,
@@ -951,13 +956,28 @@ export class AgentGardenService {
         instance,
         runtime,
       );
-      await this.store.saveManagedInstance(instance);
+      await this.saveManagedInstance(instance);
       const discovery = await this.discoverManagedAgent({
         ...agent,
         endpoint: runtime.endpoint,
         agentCardUrl: runtime.agentCardUrl,
       });
-      return this.store.saveManagedInstance(managedInstance(
+      if (agent.source === "PROJECT_REGISTERED") {
+        await this.saveAgent({
+          ...agent,
+          endpoint: discovery.endpoint,
+          agentCardUrl: discovery.agentCardUrl,
+          a2a: discovery.a2a,
+          skills: discovery.skills,
+          configuration: managedConfiguration(
+            input, instanceId, runtime, agent.configuration.imageReference ?? input.image,
+          ),
+          updatedAt: new Date().toISOString(),
+          lastDiscoveredAt: new Date().toISOString(),
+          lastDiscoveryError: null,
+        });
+      }
+      return this.saveManagedInstance(managedInstance(
         agent,
         input,
         instanceId,
@@ -967,7 +987,7 @@ export class AgentGardenService {
         discovery,
       ));
     } catch (error) {
-      return this.store.saveManagedInstance(managedInstance(
+      return this.saveManagedInstance(managedInstance(
         agent,
         input,
         instanceId,
@@ -996,6 +1016,7 @@ export class AgentGardenService {
     credential?: string,
   ) {
     for (let attempt = 1; ; attempt += 1) {
+      if (this.operationId) await this.store.assertOperationActive(this.operationId);
       try {
         return await this.discovery.discover(agent, credential);
       } catch (error) {
@@ -1036,6 +1057,6 @@ export class AgentGardenService {
     if (developed) return developed;
     const seeded = databaseAgentCatalog.find((candidate) => candidate.id === id);
     if (!seeded) throw new Error("Agent Garden entry was not found.");
-    return configuredDemoAgent(await this.store.saveAgent(seeded));
+    return configuredDemoAgent(await this.saveAgent(seeded));
   }
 }

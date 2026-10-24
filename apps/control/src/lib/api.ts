@@ -125,6 +125,20 @@ import type {
   ExpertAgentDefinitionInput,
 } from "@/features/expert-agents/expert-agent-types";
 
+interface ResourceDeletionAccepted {
+  kind: "resource-operation";
+  operationId: string;
+  statusUrl: string;
+  background: true;
+  accepted: true;
+  id: string;
+  status: "DESTROYING";
+}
+
+type ResourceDeletionResult = ResourceDeletionAccepted
+  | { id: string; status: "DESTROYING"; accepted: true }
+  | { message: string };
+
 export class ApiError extends Error {
   constructor(message: string, readonly status: number) {
     super(message);
@@ -169,7 +183,8 @@ async function request<T>(path: string, init?: RequestInit, preserveProject = fa
       response.status,
     );
   if (response.status === 202 && payload && typeof payload === "object"
-    && "kind" in payload && payload.kind === "resource-operation") {
+    && "kind" in payload && payload.kind === "resource-operation"
+    && !("background" in payload && payload.background === true)) {
     const accepted = payload as { statusUrl?: string };
     if (!accepted.statusUrl?.startsWith("/api/v1/projects/")) throw new Error("Missing resource operation status URL.");
     const deadline = Date.now() + 30 * 60 * 1000;
@@ -390,12 +405,12 @@ export const api = {
       { method: "POST", body: JSON.stringify({ versionId }) },
     ),
   removeGardenInstance: (id: string) =>
-    request<{ message: string }>(
+    request<ResourceDeletionResult>(
       `/api/v1/agent-garden/instances/${encodeURIComponent(id)}`,
       { method: "DELETE" },
     ),
   removeGardenAgent: (id: string) =>
-    request<{ message: string }>(
+    request<ResourceDeletionResult>(
       `/api/v1/agent-garden/agents/${encodeURIComponent(id)}`,
       { method: "DELETE" },
     ),
