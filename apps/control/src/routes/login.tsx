@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Building2, Eye, EyeOff, LoaderCircle, LockKeyhole, ShieldCheck } from "lucide-react";
+import { Building2, Eye, EyeOff, LoaderCircle, LockKeyhole } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { z } from "zod";
 import { useAuth } from "@/components/auth/auth-provider";
@@ -129,15 +129,6 @@ function LoginPage() {
                 <p id="sso-login-description" className="mt-3 text-center text-xs leading-5 text-muted-foreground">{t("sso.continue", { providerName: config.providerName })}</p>
               </div>
             ) : null}
-            <div className="mt-8 flex gap-3 rounded-xl border border-border bg-muted/35 p-4">
-              <ShieldCheck aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-primary" />
-              <div>
-                <p className="text-sm font-medium">{config?.developmentDefaults ? t("developmentAccount.title") : t("access.title")}</p>
-                <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                  {config?.developmentDefaults ? <>{t("developmentAccount.before")} <strong>admin / password</strong>. {t("developmentAccount.after")}</> : t("footer")}
-                </p>
-              </div>
-            </div>
           </div>
         </div>
       </section>
