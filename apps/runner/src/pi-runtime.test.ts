@@ -14,7 +14,7 @@ describe("Pi native runtime", () => {
   it("uses the native terminal without advertising unsupported capabilities", () => {
     const definition = getAgentPlatformDefinition("pi");
     expect(definition.interactionSurface).toBe("terminal");
-    expect(definition.capabilities).toEqual({ interactive: true, memory: "none", canDelegate: false, acceptsDelegation: false, embeddedRunTelemetry: false });
+    expect(definition.capabilities).toEqual({ interactive: true, memory: "native", canDelegate: false, acceptsDelegation: false, embeddedRunTelemetry: false });
     const runtime = getAgentPlatformRuntime("pi");
     expect(runtime.endpointKind).toBeUndefined();
     expect(openShellNemoClawProbeArguments("pi-test", "pi")).toContain("/bin/bash");
@@ -27,7 +27,9 @@ describe("Pi native runtime", () => {
   it("rejects unsupported bindings before provisioning", () => {
     const input = { name: "pi-test", runtime: "openshell", agentPlatform: "pi", accessPolicyIds: ["00000000-0000-4000-8000-000000000001"], modelRoutingId: "routing", systemPrompt: "You are a coding agent." };
     expect(createInstanceSchema.safeParse(input).success).toBe(true);
-    for (const binding of [{ memory: { mode: "native" } }, { durableMemoryId: "00000000-0000-4000-8000-000000000002" }, { mcpServerIds: ["mcp"] }, { skillIds: ["skill"] }, { knowledgeSourceIds: ["knowledge"] }]) {
+    expect(createInstanceSchema.safeParse({ ...input, memory: { mode: "native" } }).success).toBe(true);
+    expect(createInstanceSchema.safeParse({ ...input, durableMemoryId: "00000000-0000-4000-8000-000000000002", skillIds: ["hindsight-coding-agent"] }).success).toBe(true);
+    for (const binding of [{ mcpServerIds: ["mcp"] }, { skillIds: ["skill"] }, { knowledgeSourceIds: ["knowledge"] }]) {
       expect(createInstanceSchema.safeParse({ ...input, ...binding }).success).toBe(false);
     }
   });

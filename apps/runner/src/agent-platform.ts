@@ -351,12 +351,24 @@ exec env "NEMOCLAW_DASHBOARD_PORT=$webui_upstream_port" "NEMOCLAW_MODEL_OVERRIDE
 `;
 };
 
+function codingMemoryBootstrap(harness: "dcode" | "pi", url?: string, instanceId?: string, bridgeEnabled = false, memoryEnabled = false): string {
+  if (memoryEnabled && (!bridgeEnabled || !url || !instanceId)) throw new Error("Hindsight requires an Instance-scoped Runtime Bridge.");
+  const payload = Buffer.from(JSON.stringify({ harness, enabled: memoryEnabled,
+    ...(memoryEnabled ? { endpoint: `${url!.replace(/\/$/, "")}/v1/hindsight/coordinators/${encodeURIComponent(instanceId!)}`, bankId: instanceId } : {}),
+  })).toString("base64");
+  return `/usr/local/bin/tali-hindsight '${payload}'`;
+}
+
 const deepAgentsBootstrapScript = (
   _dashboardOrigin: string,
   _dashboardPort: string,
   inferenceEndpoint: string,
   model: string,
   _memory?: RuntimeMemoryConfiguration,
+  projectRuntimeBridgeUrl?: string,
+  instanceId?: string,
+  bridgeEnabled = false,
+  memoryEnabled = false,
 ) => {
   const modelPayload = Buffer.from(model, "utf8").toString("base64");
   const endpointPayload = Buffer.from(inferenceEndpoint, "utf8").toString(
@@ -386,17 +398,19 @@ env \
 
 chown sandbox:sandbox "$config_file"
 chmod 0660 "$config_file"
+${codingMemoryBootstrap("dcode", projectRuntimeBridgeUrl, instanceId, bridgeEnabled, memoryEnabled)}
 exec /usr/local/bin/nemoclaw-start
 `;
 };
 
 const piBootstrapScript: AgentPlatformRuntime["bootstrapScript"] = (
-  _origin, _port, endpoint, model,
+  _origin, _port, endpoint, model, _memory, bridgeUrl, instanceId, bridgeEnabled, memoryEnabled,
 ) => {
   const payload = Buffer.from(JSON.stringify({ endpoint, model }), "utf8").toString("base64");
   return `#!/usr/bin/env bash
 set -euo pipefail
 /usr/local/bin/tali-pi configure '${payload}'
+${codingMemoryBootstrap("pi", bridgeUrl, instanceId, bridgeEnabled, memoryEnabled)}
 exec /usr/local/bin/nemoclaw-start
 `;
 };

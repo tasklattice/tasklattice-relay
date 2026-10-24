@@ -25,4 +25,9 @@ RUN --mount=type=bind,source=scripts/testing/pi-runtime.test.py,target=/tmp/pi-r
     TALI_PI_RUNTIME_PATH=/usr/local/bin/tali-pi python3 /tmp/pi-runtime.test.py \
     && pi --version | grep -Fx '0.84.1' \
     && python3 -m py_compile /usr/local/bin/tali-pi
+# The official bundle includes its runtime dependencies. Startup uses only local files.
+COPY infra/npm/hindsight-coding-agents/package.json infra/npm/hindsight-coding-agents/package-lock.json /opt/tali/hindsight/
+RUN cd /opt/tali/hindsight && npm ci --omit=dev --ignore-scripts --no-audit --no-fund \
+    && node -e 'const p=require("./node_modules/@vectorize-io/hindsight-coding-agents/package.json"); if(p.version!=="0.8.2") process.exit(1)'
+COPY --chmod=0555 scripts/hindsight-coding-runtime.py /usr/local/bin/tali-hindsight
 USER sandbox

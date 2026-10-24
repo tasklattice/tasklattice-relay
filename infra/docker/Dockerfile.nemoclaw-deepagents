@@ -13,4 +13,12 @@ ARG OPENSHELL_SANDBOX_GID=1000
 USER root
 RUN --mount=type=bind,source=scripts/align-openshell-sandbox-identity.sh,target=/tmp/align-sandbox.sh \
     sh /tmp/align-sandbox.sh
+# The official bundle includes its runtime dependencies. Startup uses only local files.
+COPY infra/npm/hindsight-coding-agents/package.json infra/npm/hindsight-coding-agents/package-lock.json /opt/tali/hindsight/
+RUN cd /opt/tali/hindsight && npm ci --omit=dev --ignore-scripts --no-audit --no-fund \
+    && node -e 'const p=require("./node_modules/@vectorize-io/hindsight-coding-agents/package.json"); if(p.version!=="0.8.2") process.exit(1)'
+COPY --chmod=0555 scripts/hindsight-coding-runtime.py /usr/local/bin/tali-hindsight
+COPY --chmod=0444 scripts/dcode-hindsight-mcp.py /opt/venv/lib/python3.13/site-packages/deepagents_code/_tali_hindsight_mcp.py
+RUN --mount=type=bind,source=scripts/patch-dcode-hindsight-mcp.py,target=/tmp/patch-hindsight.py \
+    /opt/venv/bin/python /tmp/patch-hindsight.py /opt/venv/lib/python3.13/site-packages/deepagents_code
 USER sandbox

@@ -1,0 +1,8 @@
+{
+  "name": "tali-hindsight-coding-runtime",
+  "private": true,
+  "version": "0.8.2",
+  "dependencies": {
+    "@vectorize-io/hindsight-coding-agents": "0.8.2"
+  }
+}
