@@ -120,10 +120,10 @@ def _set_policy_value(config: dict, dotted_path: str, value: object) -> None:
 '''
 
 VALIDATION_ANCHOR = '''    try:
-        relay_memory = _normalized_relay_memory(gateway)
+        native_memory = _normalized_memory(gateway)
     except InvalidDashboardSeedDocumentError:
         print(
-            "[SECURITY] Refusing to seed dashboard config because Relay Memory is invalid",
+            "[SECURITY] Refusing to seed dashboard config because Memory is invalid",
             file=sys.stderr,
         )
         return 1
@@ -132,10 +132,10 @@ VALIDATION_ANCHOR = '''    try:
 '''
 
 VALIDATION_REPLACEMENT = '''    try:
-        relay_memory = _normalized_relay_memory(gateway)
+        native_memory = _normalized_memory(gateway)
     except InvalidDashboardSeedDocumentError:
         print(
-            "[SECURITY] Refusing to seed dashboard config because Relay Memory is invalid",
+            "[SECURITY] Refusing to seed dashboard config because Memory is invalid",
             file=sys.stderr,
         )
         return 1
@@ -151,18 +151,18 @@ VALIDATION_REPLACEMENT = '''    try:
     dashboard: dict = {}
 '''
 
-MERGE_ANCHOR = '''    if relay_memory is None:
+MERGE_ANCHOR = '''    if native_memory is None:
         dashboard.pop("memory", None)
     else:
-        dashboard["memory"] = relay_memory
+        dashboard["memory"] = native_memory
 
     import yaml
 '''
 
-MERGE_REPLACEMENT = '''    if relay_memory is None:
+MERGE_REPLACEMENT = '''    if native_memory is None:
         dashboard.pop("memory", None)
     else:
-        dashboard["memory"] = relay_memory
+        dashboard["memory"] = native_memory
 
     existing_toolsets = dashboard.get("toolsets")
     retained_toolsets = (
@@ -209,7 +209,7 @@ MERGE_REPLACEMENT = '''    if relay_memory is None:
     import yaml
 '''
 
-MESSAGE_ANCHOR = '''        f"[dashboard] seeded model routing, Relay Memory, and reviewed policy into {dst}",
+MESSAGE_ANCHOR = '''        f"[dashboard] seeded model routing, Memory, and reviewed policy into {dst}",
 '''
 MESSAGE_REPLACEMENT = '''        f"[dashboard] seeded model routing, Relay integrations, and reviewed policy into {dst}",
 '''

@@ -228,14 +228,14 @@ const hermesBootstrapScript = (
     projectRuntimeBridgeUrl && coordinatorInstanceId && projectRuntimeBridgeToken,
   );
   const durableMemoryEndpoint = durableMemoryEnabled
-    ? `${projectRuntimeBridgeUrl!.replace(/\/$/, "")}/v1/memory/coordinators/${encodeURIComponent(coordinatorInstanceId!)}`
+    ? `${projectRuntimeBridgeUrl!.replace(/\/$/, "")}/v1/hindsight/coordinators/${encodeURIComponent(coordinatorInstanceId!)}`
     : "";
   const durableMemoryEndpointPayload = Buffer.from(
     durableMemoryEndpoint,
     "utf8",
   ).toString("base64");
   const durableMemoryProviderArgument = durableMemoryEnabled
-    ? " \\\n  --durable-memory-provider tali_relay \\\n  --durable-memory-endpoint \"$TALI_DURABLE_MEMORY_ENDPOINT\""
+    ? " \\\n  --durable-memory-provider hindsight \\\n  --durable-memory-endpoint \"$HINDSIGHT_API_URL\""
     : "";
   return `#!/usr/bin/env bash
 set -euo pipefail
@@ -255,11 +255,13 @@ readonly webui_secret_file=/tmp/tali-hermes-webui-secret
 readonly webui_public_port=${dashboardPort}
 readonly webui_upstream_port=${upstreamDashboardPort}
 readonly webui_secure_cookie=${secureCookie ? "1" : "0"}
-export TALI_DURABLE_MEMORY_ENDPOINT="$(printf '%s' '${durableMemoryEndpointPayload}' | base64 -d)"
-if [ -n "$TALI_DURABLE_MEMORY_ENDPOINT" ] && [ -n "\${TALI_PROJECT_RUNTIME_BRIDGE_TOKEN:-}" ]; then
-  export TALI_DURABLE_MEMORY_TOKEN="$TALI_PROJECT_RUNTIME_BRIDGE_TOKEN"
+export HINDSIGHT_API_URL="$(printf '%s' '${durableMemoryEndpointPayload}' | base64 -d)"
+if [ -n "$HINDSIGHT_API_URL" ] && [ -n "\${TALI_PROJECT_RUNTIME_BRIDGE_TOKEN:-}" ]; then
+  export HINDSIGHT_API_KEY="$TALI_PROJECT_RUNTIME_BRIDGE_TOKEN"
+  export HINDSIGHT_MODE=local_external
+  export HINDSIGHT_BANK_ID="${coordinatorInstanceId ?? ""}"
 else
-  unset TALI_DURABLE_MEMORY_TOKEN
+  unset HINDSIGHT_API_KEY
 fi
 
 # OpenShell provisions the persistent workspace root with a setgid, writable
@@ -387,7 +389,7 @@ const agentPlatformRuntimeRegistry = {
     id: "hermes",
     instructionsPath: "/sandbox/.hermes/SOUL.md",
     terminalCommand:
-      'export TALI_DURABLE_MEMORY_TOKEN="${TALI_DURABLE_MEMORY_TOKEN:-${TALI_PROJECT_RUNTIME_BRIDGE_TOKEN:-}}"; exec hermes --tui',
+      'export HINDSIGHT_API_KEY="${HINDSIGHT_API_KEY:-${TALI_PROJECT_RUNTIME_BRIDGE_TOKEN:-}}"; exec hermes --tui',
     inferenceBinaries: [
       "/usr/local/bin/hermes",
       "/usr/local/bin/python",

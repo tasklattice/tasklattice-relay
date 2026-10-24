@@ -86,7 +86,6 @@ export class ProjectMemoryRuntimeService {
   ): Promise<MemoryRuntimeRecallResponse> {
     const input = memoryRuntimeRecallInputSchema.parse(rawInput);
     const { memory } = await this.requireBoundMemory(identity);
-    await assertDurableMemoryAvailableForProject(this.projectId, this.models);
     const query = sanitizeRuntimeMemoryText(input.query, 8_000).trim();
     if (!query) return { context: null, degraded: false, itemCount: 0 };
     try {
@@ -116,7 +115,6 @@ export class ProjectMemoryRuntimeService {
   ): Promise<MemoryRuntimeRetainResponse> {
     const input = memoryRuntimeRetainInputSchema.parse(rawInput);
     const { binding, memory } = await this.requireBoundMemory(identity);
-    await assertDurableMemoryAvailableForProject(this.projectId, this.models);
     const occurredAt = input.occurredAt ?? new Date().toISOString();
     const conversationId = `runtime:${identity.coordinatorInstanceId}:${input.conversationId}`;
     const messages: MemoryConversation["messages"] = [
@@ -156,7 +154,11 @@ export class ProjectMemoryRuntimeService {
     return { accepted: true, conversationId };
   }
 
-  private async requireBoundMemory(
+  async recordNativeActivity(memoryId: string): Promise<void> {
+    await this.repository.setMemoryActivity(memoryId, new Date());
+  }
+
+  async requireBoundMemory(
     identity: ProjectRuntimeCoordinatorIdentity,
   ): Promise<BoundRuntimeMemory> {
     if (identity.projectId !== this.projectId || !identity.memoryId) {
@@ -175,6 +177,7 @@ export class ProjectMemoryRuntimeService {
     ) {
       throw new MemoryRuntimeAccessDeniedError();
     }
+    await assertDurableMemoryAvailableForProject(this.projectId, this.models);
     return { binding, memory };
   }
 }

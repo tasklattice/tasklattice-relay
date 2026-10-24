@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Mirror Relay's managed Hermes Memory provider into the dashboard profile."""
+"""Mirror Hermes' native Memory selection into the dashboard profile."""
 
 from __future__ import annotations
 
@@ -16,14 +16,14 @@ def _set_policy_value(config: dict, dotted_path: str, value: object) -> None:
 FUNCTION_REPLACEMENT = '''    return sections
 
 
-def _normalized_relay_memory(gateway: dict) -> dict | None:
-    """Return the non-secret Relay Memory selection owned by the gateway config."""
+def _normalized_memory(gateway: dict) -> dict | None:
+    """Return the non-secret Memory selection owned by the gateway config."""
     memory = gateway.get("memory")
     if memory is None:
         return None
-    if not isinstance(memory, dict) or memory.get("provider") not in (None, "", "tali_relay"):
+    if not isinstance(memory, dict) or memory.get("provider") not in (None, "", "hindsight"):
         raise InvalidDashboardSeedDocumentError(
-            "gateway config has an invalid Relay Memory provider"
+            "gateway config has an invalid Memory provider"
         )
 
     # An empty provider selects Hermes' built-in text stores. Keep the same
@@ -35,7 +35,7 @@ def _normalized_relay_memory(gateway: dict) -> dict | None:
         value = memory[flag]
         if not isinstance(value, bool):
             raise InvalidDashboardSeedDocumentError(
-                "gateway config has an invalid Relay Memory flag"
+                "gateway config has an invalid Memory flag"
             )
         normalized[flag] = value
     return normalized
@@ -65,10 +65,10 @@ VALIDATION_REPLACEMENT = '''    try:
         )
         return 1
     try:
-        relay_memory = _normalized_relay_memory(gateway)
+        native_memory = _normalized_memory(gateway)
     except InvalidDashboardSeedDocumentError:
         print(
-            "[SECURITY] Refusing to seed dashboard config because Relay Memory is invalid",
+            "[SECURITY] Refusing to seed dashboard config because Memory is invalid",
             file=sys.stderr,
         )
         return 1
@@ -84,10 +84,10 @@ MERGE_ANCHOR = '''    dashboard.update(routing)
 
 MERGE_REPLACEMENT = '''    dashboard.update(routing)
     _merge_policy(dashboard, policy_sections)
-    if relay_memory is None:
+    if native_memory is None:
         dashboard.pop("memory", None)
     else:
-        dashboard["memory"] = relay_memory
+        dashboard["memory"] = native_memory
 
     import yaml
 '''
@@ -96,7 +96,7 @@ MESSAGE_ANCHOR = '''    print(f"[dashboard] seeded model routing and reviewed po
 '''
 
 MESSAGE_REPLACEMENT = '''    print(
-        f"[dashboard] seeded model routing, Relay Memory, and reviewed policy into {dst}",
+        f"[dashboard] seeded model routing, Memory, and reviewed policy into {dst}",
         file=sys.stderr,
     )
 '''

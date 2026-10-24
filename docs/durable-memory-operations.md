@@ -22,9 +22,9 @@ Disabling the flag removes Memory navigation and rejects new Project Memory API
 traffic with a generic 404. Existing bound runtime credentials and Agent paths
 continue to work so a rollout change does not break running Agents.
 
-For `secrets.existingSecrets.metrics`, supply `metrics-token` for ServiceMonitor
-authentication. Keep it consistent with `[metrics].token` in the Control Secret
-shared by Control and Worker. Hindsight has its own independent config Secret.
+The bootstrap Job generates `metrics-token` for ServiceMonitor authentication
+and `[metrics].token` in the Control Secret from the same credential-store key.
+Control and Worker share that configuration; Hindsight has its own config Secret.
 
 ## Metrics and alerts
 
@@ -160,3 +160,19 @@ content-free audit/tombstone evidence required by policy.
 | Retain succeeds but recall finds nothing | `hindsight_retain_documents_total{outcome="no_facts"}` | Review retain mission/model, then re-extract the Conversation |
 | Memory cannot be deleted | Active binding or `deletion_failed` status | Detach first; retry only after provider access is restored |
 | Memory UI disappears after rollout | Environment flag and Project allowlist | Add the Project deliberately; running bound Agents remain intact |
+
+## Hermes native Hindsight
+
+The native Hermes provider is bundled in the pinned runtime image and uses
+`hindsight-client==0.6.1`. Frontend Native selects builtin memory; selecting a
+Project Memory configures `hindsight` in both CLI and Dashboard. The existing
+Project Runtime Bridge carries the native Hindsight protocol with a scoped
+Instance credential. No additional service or custom Hermes MemoryProvider is
+installed. Retain uses Hindsight's native async queue, so Relay outbox replay
+applies to the OpenClaw integration only.
+
+For NVIDIA hosted embeddings, `nvidia/nemotron-3.5-embed-1b` is configured with
+1536 dimensions, matching the default Hindsight schema. A successful model
+catalog discovery alone is insufficient: validate embeddings through LiteLLM
+and complete a real Hindsight retain/recall round trip. Do not change dimensions
+on a populated Hindsight schema without a migration/re-index plan.

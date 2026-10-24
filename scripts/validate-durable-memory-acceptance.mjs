@@ -62,6 +62,7 @@ const controlTests = [
   "server/memories/memory-service.test.ts",
   "server/projects/project-deletion-service.test.ts",
   "server/runtime-bridge/project-memory-runtime-service.test.ts",
+  "server/runtime-bridge/project-hindsight-runtime.test.ts",
   "server/runtime-bridge/project-runtime-bridge-token.test.ts",
   "server/audit-logs/audit-request.test.ts",
   "server/audit-logs/audit-log-service.test.ts",

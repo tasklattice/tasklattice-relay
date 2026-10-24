@@ -150,7 +150,7 @@ def validate_durable_memory_endpoint(value: str) -> urllib.parse.ParseResult:
         or endpoint.password
         or endpoint.query
         or endpoint.fragment
-        or path_parts[:4] != ["", "v1", "memory", "coordinators"]
+        or path_parts[:4] != ["", "v1", "hindsight", "coordinators"]
         or len(path_parts) != 5
         or not path_parts[4]
     ):
@@ -319,8 +319,8 @@ def configure_vector_databases(
 
 
 def configure_durable_memory(validated: dict, provider: str) -> None:
-    """Select Relay's bundled scoped MemoryProvider without persisting credentials."""
-    if provider != "tali_relay":
+    """Select Hermes' upstream Hindsight provider without persisting credentials."""
+    if provider != "hindsight":
         raise RuntimeError("Unsupported Hermes Durable Memory provider")
     memory = validated.get("memory")
     if not isinstance(memory, dict):
@@ -513,18 +513,18 @@ def main() -> None:
         )
     updated_env = original_env
     if args.durable_memory_provider:
-        validate_durable_memory_endpoint(args.durable_memory_endpoint)
+        endpoint = validate_durable_memory_endpoint(args.durable_memory_endpoint)
         configure_durable_memory(validated, args.durable_memory_provider)
-        updated_env = set_environment_value(
-            original_env,
-            "TALI_DURABLE_MEMORY_ENDPOINT",
-            args.durable_memory_endpoint,
-        )
+        settings = {
+            "HINDSIGHT_MODE": "local_external",
+            "HINDSIGHT_API_URL": args.durable_memory_endpoint,
+            "HINDSIGHT_BANK_ID": endpoint.path.split("/")[-1],
+        }
     else:
         configure_native_memory(validated)
-        updated_env = set_environment_value(
-            original_env, "TALI_DURABLE_MEMORY_ENDPOINT", "",
-        )
+        settings = {"HINDSIGHT_MODE": "", "HINDSIGHT_API_URL": "", "HINDSIGHT_BANK_ID": ""}
+    for name, value in settings.items():
+        updated_env = set_environment_value(updated_env, name, value)
     updated = yaml.safe_dump(
         validated,
         allow_unicode=True,

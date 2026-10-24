@@ -39,7 +39,7 @@ or Durable Memory attachment still requires Embedding.
 
 - Hermes Native Memory enables both built-in text stores and clears the external
   `memory.provider`. An empty provider is Hermes' native selection.
-- The Dashboard seeder accepts native and `tali_relay` memory, while still
+- The Dashboard seeder accepts native and `hindsight` memory, while still
   rejecting unknown providers and malformed flags. Previously it rejected native
   memory and repeatedly prevented Dashboard readiness.
 - Without optional Relay registries, the Dashboard uses Hermes' default

@@ -317,7 +317,7 @@ const nvidiaNim: ProviderAdapter = {
     ...(model.modelType === "text-embedding"
       ? { input_type: "passage" }
       : {}),
-    ...(model.modelId === "nvidia/llama-nemotron-embed-vl-1b-v2"
+    ...(["nvidia/llama-nemotron-embed-vl-1b-v2", "nvidia/nemotron-3.5-embed-1b"].includes(model.modelId)
       ? { dimensions: 1536 }
       : {}),
   }),

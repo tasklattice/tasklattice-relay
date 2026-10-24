@@ -55,8 +55,8 @@ for toolsets in (None, [], ["unapproved"]):
     expect(result.status, result.stderr).toBe(0);
   });
 
-  it("allows native and Relay Dashboard memory while rejecting unknown providers and invalid flags", () => {
-    const patch = resolve(import.meta.dirname, "../../../scripts/patch-hermes-dashboard-relay-memory.py");
+  it("allows builtin and Hindsight Dashboard memory while rejecting unknown providers and invalid flags", () => {
+    const patch = resolve(import.meta.dirname, "../../../scripts/patch-hermes-dashboard-memory.py");
     const program = `
 from __future__ import annotations
 import importlib.util
@@ -66,10 +66,10 @@ module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 scope = {"InvalidDashboardSeedDocumentError": ValueError}
 source = module.FUNCTION_REPLACEMENT
-exec(source[source.index("def _normalized_relay_memory"):source.index("def _set_policy_value")], scope)
-normalize = scope["_normalized_relay_memory"]
+exec(source[source.index("def _normalized_memory"):source.index("def _set_policy_value")], scope)
+normalize = scope["_normalized_memory"]
 assert normalize({}) is None
-for provider in (None, "", "tali_relay"):
+for provider in (None, "", "hindsight"):
     memory = {"memory_enabled": True, "user_profile_enabled": True}
     if provider is not None:
         memory["provider"] = provider
@@ -150,7 +150,7 @@ import sys
 spec = importlib.util.spec_from_file_location("tali_bootstrap", sys.argv[1])
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
-document = {"memory": {"provider": "tali_relay", "memory_enabled": False, "memory_char_limit": 4000}}
+document = {"memory": {"provider": "hindsight", "memory_enabled": False, "memory_char_limit": 4000}}
 module.configure_native_memory(document)
 print(json.dumps(document))
 `;
@@ -161,7 +161,7 @@ print(json.dumps(document))
     } });
   });
 
-  it("selects Relay's scoped MemoryProvider without persisting Runtime credentials", () => {
+  it("selects Hermes' upstream Hindsight provider without persisting Runtime credentials", () => {
     const program = `
 import importlib.util
 import json
@@ -170,7 +170,7 @@ spec = importlib.util.spec_from_file_location("tali_bootstrap", sys.argv[1])
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 document = {"memory": {"existing": True}}
-module.configure_durable_memory(document, "tali_relay")
+module.configure_durable_memory(document, "hindsight")
 print(json.dumps(document))
 `;
     const result = spawnSync("python3", ["-c", program, bootstrap], {
@@ -178,7 +178,7 @@ print(json.dumps(document))
     });
     expect(result.status, result.stderr).toBe(0);
     expect(JSON.parse(result.stdout)).toEqual({
-      memory: { existing: true, provider: "tali_relay" },
+      memory: { existing: true, provider: "hindsight" },
     });
     expect(result.stdout).not.toContain("token");
     expect(result.stdout).not.toContain("bank");
@@ -191,9 +191,9 @@ import sys
 spec = importlib.util.spec_from_file_location("tali_bootstrap", sys.argv[1])
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
-endpoint = "http://runtime-bridge.project.svc.cluster.local:8080/v1/memory/coordinators/agent-a"
+endpoint = "http://runtime-bridge.project.svc.cluster.local:8080/v1/hindsight/coordinators/agent-a"
 module.validate_durable_memory_endpoint(endpoint)
-print(module.set_environment_value(b"HERMES_HOME=/sandbox/.hermes\\n", "TALI_DURABLE_MEMORY_ENDPOINT", endpoint).decode(), end="")
+print(module.set_environment_value(b"HERMES_HOME=/sandbox/.hermes\\n", "HINDSIGHT_API_URL", endpoint).decode(), end="")
 `;
     const result = spawnSync("python3", ["-c", program, bootstrap], {
       encoding: "utf8",
@@ -201,7 +201,7 @@ print(module.set_environment_value(b"HERMES_HOME=/sandbox/.hermes\\n", "TALI_DUR
     expect(result.status, result.stderr).toBe(0);
     expect(result.stdout).toContain("HERMES_HOME=/sandbox/.hermes");
     expect(result.stdout).toContain(
-      "TALI_DURABLE_MEMORY_ENDPOINT=http://runtime-bridge.project.svc.cluster.local:8080/v1/memory/coordinators/agent-a",
+      "HINDSIGHT_API_URL=http://runtime-bridge.project.svc.cluster.local:8080/v1/hindsight/coordinators/agent-a",
     );
     expect(result.stdout).not.toContain("TOKEN=");
   });
@@ -353,9 +353,9 @@ custom_providers:
       "--template-model",
       "deepseek-chat",
       "--durable-memory-provider",
-      "tali_relay",
+      "hindsight",
       "--durable-memory-endpoint",
-      "http://runtime-bridge.project.svc.cluster.local:8080/v1/memory/coordinators/agent-a",
+      "http://runtime-bridge.project.svc.cluster.local:8080/v1/hindsight/coordinators/agent-a",
       "--mcp-digest-builder",
       builder,
       "--runtime-config-guard",
@@ -373,12 +373,14 @@ custom_providers:
     expect(document.providers.deepseek.api_key).toBe(managedCredentialPlaceholder);
     expect(document.custom_providers[0].api_key).toBe(managedCredentialPlaceholder);
     expect(document.plugins.enabled).toContain("tali-run-telemetry");
-    expect(document.memory.provider).toBe("tali_relay");
+    expect(document.memory.provider).toBe("hindsight");
     const migratedEnvironment = await readFile(environment, "utf8");
     expect(migratedEnvironment).toContain(
-      "TALI_DURABLE_MEMORY_ENDPOINT=http://runtime-bridge.project.svc.cluster.local:8080/v1/memory/coordinators/agent-a",
+      "HINDSIGHT_API_URL=http://runtime-bridge.project.svc.cluster.local:8080/v1/hindsight/coordinators/agent-a",
     );
-    expect(migratedEnvironment).not.toContain("TALI_DURABLE_MEMORY_TOKEN");
+    expect(migratedEnvironment).toContain("HINDSIGHT_MODE=local_external");
+    expect(migratedEnvironment).toContain("HINDSIGHT_BANK_ID=agent-a");
+    expect(migratedEnvironment).not.toContain("HINDSIGHT_API_KEY");
     expect(migratedEnvironment).not.toContain("TALI_PROJECT_RUNTIME_BRIDGE_TOKEN");
 
     const rotatedPlaceholder =

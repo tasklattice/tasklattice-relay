@@ -15,18 +15,21 @@ The controls are:
   primary binding for each Memory and Agent.
 - Browser and administrative routes use capability admission. Runtime tokens
   are signed for one Project, coordinator Instance, and Memory; callers cannot
-  submit or replace a Bank ID.
+  select another Bank. Native Hindsight receives an Instance alias; Control
+  resolves its current binding and rejects every other alias.
 - Hindsight's root credential is read only by Control/Worker from a Secret and
   is never sent to a browser or Agent. The provider URL is operator-managed
   configuration, not user input, and defaults to an internal ClusterIP Service.
 - Hindsight uses a dedicated PostgreSQL role/database/schema and a tokenless
   ServiceAccount. NetworkPolicy limits provider ingress/egress; no Control
   Plane or public provider route is exposed.
-- Recall text is bounded, sanitized, and fenced as untrusted context. It cannot
+- OpenClaw recall text is bounded, sanitized, and fenced as untrusted context. It cannot
   alter Runtime Policy, Access Policy, tools, or credentials. Provider failure
   is fail-open for Agent inference.
 - Retain payloads are sanitized before persistence and encrypted with
-  AES-256-GCM while queued. Project, Memory, and idempotency key are associated
+  AES-256-GCM while queued by Relay (OpenClaw). Hermes uses native Hindsight
+  retain and its async operation queue; no Relay outbox copy is created.
+  Project, Memory, and idempotency key are associated
   data. Provider append and Bank creation/deletion use stable idempotency keys.
 - Logs and audits store safe status/identifier summaries rather than content,
   ciphertext, provider references, URLs, headers, or credentials. Relay metrics
@@ -37,6 +40,15 @@ The controls are:
 - Bank deletion is reported only after the provider verifies absence. Project
   deletion performs the same verified cleanup and keeps a retryable tombstone
   on failure.
+
+Hermes native Hindsight transport is limited to version, retain, recall, reflect
+and async operation status. Bank administration, arbitrary URLs, query strings,
+redirects and cross-Instance aliases are denied. Each call checks the current
+Project feature gate, embedding availability and active binding; detach/rebind
+revokes the old credential immediately. Requests and responses have byte limits,
+request text is sanitized, and upstream errors are replaced with opaque errors.
+The service root key stays in Control. Native recall formatting and background
+retry behavior belong to the upstream Hermes provider.
 
 ## Secret and content handling
 

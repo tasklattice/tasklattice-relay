@@ -218,6 +218,39 @@ app.post(
   },
 );
 
+// Native Hindsight SDK transport over the existing authenticated Project bridge.
+for (const route of [
+  { method: "get", path: "version" },
+  { method: "post", path: "v1/default/banks/:bankId/memories" },
+  { method: "post", path: "v1/default/banks/:bankId/memories/recall" },
+  { method: "post", path: "v1/default/banks/:bankId/reflect" },
+  { method: "get", path: "v1/default/banks/:bankId/operations/:operationId" },
+] as const) {
+  app[route.method](
+    `/v1/hindsight/coordinators/:coordinatorInstanceId/${route.path}`,
+    async (request, response, next) => {
+      try {
+        const instanceId = z.string().regex(/^[a-zA-Z0-9_-]+$/).parse(request.params.coordinatorInstanceId);
+        if (Object.keys(request.query).length) { response.sendStatus(400); return; }
+        let path = route.path as string;
+        for (const name of ["bankId", "operationId"] as const) {
+          if (path.includes(`:${name}`)) {
+            path = path.replace(`:${name}`, z.string().regex(/^[a-zA-Z0-9_-]+$/).parse((request.params as Record<string, string>)[name]));
+          }
+        }
+        await relay(await controlRequest(
+          `/api/v1/runtime-bridge/coordinators/${instanceId}/hindsight/${path}`,
+          coordinatorToken(request),
+          { method: route.method.toUpperCase(),
+            headers: { "content-type": "application/json" },
+            ...(route.method === "post" ? { body: JSON.stringify(request.body) } : {}),
+          },
+        ), response);
+      } catch (error) { next(error); }
+    },
+  );
+}
+
 for (const operation of ["recall", "retain"] as const) {
   app.post(
     `/v1/memory/coordinators/:coordinatorInstanceId/${operation}`,

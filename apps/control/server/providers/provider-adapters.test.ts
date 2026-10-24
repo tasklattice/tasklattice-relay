@@ -132,7 +132,7 @@ describe("providerAdapterRegistry", () => {
     }, model)).toMatchObject({ model: "huggingface/tgi", api_base: "https://dedicated.endpoints.huggingface.cloud", api_key: "hf-secret" });
   });
 
-  it("adds Hindsight-compatible defaults for the NVIDIA memory embedding model", () => {
+  it.each(["nvidia/llama-nemotron-embed-vl-1b-v2", "nvidia/nemotron-3.5-embed-1b"])("adds Hindsight-compatible defaults for %s", (modelId) => {
     const draft = {
       provider: "nvidia-nim",
       name: "NVIDIA NIM",
@@ -141,11 +141,11 @@ describe("providerAdapterRegistry", () => {
     } satisfies ProviderConnectionDraft;
 
     expect(providerAdapterRegistry["nvidia-nim"].toLiteLLMParams(draft, {
-      modelId: "nvidia/llama-nemotron-embed-vl-1b-v2",
+      modelId,
       displayName: "Llama Nemotron Embed VL 1B v2",
       modelType: "text-embedding",
     })).toMatchObject({
-      model: "nvidia_nim/nvidia/llama-nemotron-embed-vl-1b-v2",
+      model: `nvidia_nim/${modelId}`,
       input_type: "passage",
       dimensions: 1536,
     });

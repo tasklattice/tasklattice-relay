@@ -14,7 +14,7 @@ of truth.
 | Project and Agent lifecycle | `apps/control/server/instances`, `ProjectStore`, Prisma `AgentRecord` | Add Memory records and primary binding orchestration; Agent deletion detaches only |
 | Durable work | pg-boss Control Worker in `apps/control/server/jobs` and `workers` | Provision/delete provider banks and drain retain outbox |
 | Runtime identity | Project Runtime Bridge signed Project and Coordinator tokens | Extend claims and routes with fixed Memory and provider-bank scope |
-| Runtime bootstrap | `apps/runner` adapters for Hermes and OpenClaw | Inject only the scoped Relay Memory Gateway endpoint/token |
+| Runtime bootstrap | `apps/runner` adapters for Hermes and OpenClaw | Configure builtin or native Hindsight for Hermes; scoped hooks for OpenClaw |
 | API and authorization | Nitro project routes, contracts, capability admission, built-in `CAP_AGENT_MEMORY_*` capabilities | Add `/memories` resources and map every action to an existing or explicit capability |
 | Audit | request audit plugin and route descriptors | Record Memory operation metadata; suppress retained/recalled content and secrets |
 | UI | Project Memory route, Agent create/delete sheets, shadcn-based console | Replace Instance-local configuration with Memory list/detail/curation and binding choices |
@@ -171,18 +171,30 @@ do not remove the index until every in-flight create request has expired.
   has a configurable latency budget and fails open while marking provider health
   degraded. Recalled text is fenced as untrusted background context and cannot
   change Runtime Policy, Access Policy, tools, or credentials.
-- Retain is never performed on the synchronous response path. OpenClaw and
-  Hermes send sanitized turns to the Gateway, which encrypts and enqueues one
+- OpenClaw retain is never performed on the synchronous response path. It
+  sends sanitized turns to the Gateway, which encrypts and enqueues one
   idempotent outbox event for the existing worker. Secret, authorization, cookie,
   database URL, email, phone, and prompt-boundary markers are filtered before
   durable storage or provider delivery.
 - Added the OpenClaw plugin using its supported `before_prompt_build` and
   `agent_end` hooks. The plugin prepends bounded recall context and submits a
   fire-and-forget retain event after the final turn.
-- Added the Hermes `MemoryProvider` plugin against the pinned Nemoclaw Hermes
-  `v0.0.114` ABI. `prefetch` performs fail-open recall and `sync_turn` schedules
-  bounded background retain. A build-time verifier imports the provider inside
-  the pinned image and exercises both Gateway calls.
+- Hermes uses the unmodified upstream `hindsight` provider bundled in the
+  pinned NemoClaw v0.0.123 image, with `hindsight-client==0.6.1` installed at
+  build time. The custom `tali_relay` provider has been removed. The frontend
+  Native selection configures builtin memory (`memory.provider: ""`); selecting
+  a platform Memory sets `memory.provider: hindsight` in CLI and Dashboard.
+- Native Hindsight uses `HINDSIGHT_MODE=local_external`, the existing Project
+  Runtime Bridge as `HINDSIGHT_API_URL`, the Instance ID as `HINDSIGHT_BANK_ID`,
+  and the scoped runtime credential as `HINDSIGHT_API_KEY`. The key remains an
+  OpenShell environment placeholder and is not persisted in Hermes config.
+  The bridge and Control preserve the upstream SDK protocol, validate the live
+  Memory binding on every call and map the Instance alias to the platform Bank.
+  Only version, retain, recall, reflect and operation polling are exposed.
+- Hermes uses native background retain, append semantics and Hindsight async
+  operation polling. It does not use Relay's retain outbox; rejected/unavailable
+  calls follow the native provider's error behavior and have no Relay replay
+  guarantee. The image verifier exercises the real bundled provider and SDK.
 - Runtime replacement keeps the same Relay Memory ID and opaque provider
   reference. Automated coverage exercises OpenClaw to OpenClaw, OpenClaw to
   Hermes, and Hermes to OpenClaw continuity without creating a second Bank.

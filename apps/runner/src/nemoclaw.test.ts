@@ -505,7 +505,7 @@ describe("OpenShell Kubernetes command contract", () => {
       hermesInput.agentPlatform,
     ).at(-1);
     expect(openShellTerminal).toContain(
-      "TALI_DURABLE_MEMORY_TOKEN=\"${TALI_DURABLE_MEMORY_TOKEN:-${TALI_PROJECT_RUNTIME_BRIDGE_TOKEN:-}}\"",
+      "HINDSIGHT_API_KEY=\"${HINDSIGHT_API_KEY:-${TALI_PROJECT_RUNTIME_BRIDGE_TOKEN:-}}\"",
     );
     expect(openShellTerminal).toContain("exec hermes --tui");
     expect(nemoClawTerminal).toBe(openShellTerminal);
@@ -532,12 +532,12 @@ describe("OpenShell Kubernetes command contract", () => {
     expect(bootstrap).toContain(
       '--vector-database-registry-token "$TALI_PROJECT_RUNTIME_BRIDGE_TOKEN"',
     );
-    expect(bootstrap).toContain("--durable-memory-provider tali_relay");
+    expect(bootstrap).toContain("--durable-memory-provider hindsight");
     expect(bootstrap).toContain("--durable-memory-endpoint");
-    expect(bootstrap).toContain("TALI_DURABLE_MEMORY_ENDPOINT");
+    expect(bootstrap).toContain("HINDSIGHT_API_URL");
     expect(bootstrap).not.toContain("tali_prc_v1.test-payload.test-signature");
     expect(bootstrap).toContain(
-      'export TALI_DURABLE_MEMORY_TOKEN="$TALI_PROJECT_RUNTIME_BRIDGE_TOKEN"',
+      'export HINDSIGHT_API_KEY="$TALI_PROJECT_RUNTIME_BRIDGE_TOKEN"',
     );
     expect(bootstrap).not.toContain("\n+");
 
@@ -554,7 +554,7 @@ describe("OpenShell Kubernetes command contract", () => {
     );
     expect(nativeBootstrap).toContain("--a2a-registry-url");
     expect(nativeBootstrap).toContain("--vector-database-registry-url");
-    expect(nativeBootstrap).not.toContain("--durable-memory-provider tali_relay");
+    expect(nativeBootstrap).not.toContain("--durable-memory-provider hindsight");
     expect(agentMemoryInstructions(
       { mode: "native", citations: "auto" },
       "hermes",
