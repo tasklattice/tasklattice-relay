@@ -22,3 +22,11 @@ The OpenClaw Avatar is kept unmodified and is used only to identify the Agent.
 
 The Hermes Agent Avatar is used only to identify the Agent option. Keep it
 unmodified and do not imply Nous Research endorsement.
+
+## Pi
+
+- File: `pi-logo-on-dark.svg`
+- Source: original SVG supplied by the user on 2026-10-24
+
+The Pi mark is kept unmodified. Agent Garden, creation selectors, and Instance
+pages share the same platform asset mapping.

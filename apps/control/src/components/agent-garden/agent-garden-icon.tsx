@@ -18,6 +18,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { agentPlatformBrandAssets } from "@/lib/agent-platforms";
 
 const icons: Partial<Record<AgentGardenIntegrationType, LucideIcon>> = {
   a2a: Waypoints,
@@ -38,8 +39,7 @@ const catalogIcons: Record<string, LucideIcon> = {
 };
 
 const brandAssets: Partial<Record<AgentGardenIntegrationType, string>> = {
-  openclaw: "/assets/brands/openclaw-lobehub.webp",
-  hermes: "/assets/brands/hermesagent-lobehub.webp",
+  ...agentPlatformBrandAssets,
   "claude-code": "/assets/providers/anthropic.webp",
   a2a: "/assets/agent-providers/a2a-agent.png",
 };

@@ -4,10 +4,11 @@ import {
   type AgentPlatformId,
 } from "@tali/contracts";
 
-const platformBrandAssets: Partial<Record<AgentPlatformId, string>> = {
+export const agentPlatformBrandAssets: Record<AgentPlatformId, string> = {
   openclaw: "/assets/brands/openclaw-lobehub.webp",
   hermes: "/assets/brands/hermesagent-lobehub.webp",
   deepagents: "/assets/agent-providers/langgraph.png",
+  pi: "/assets/brands/pi-logo-on-dark.svg",
 };
 
 export const agentRuntimePresentation = {
@@ -22,7 +23,7 @@ export const agentConfigurationPresentation = {
 
 export const agentPlatformPresentations = agentPlatforms.map((platform) => ({
   ...platform,
-  brandAsset: platformBrandAssets[platform.id],
+  brandAsset: agentPlatformBrandAssets[platform.id],
   configurationLabel: `${agentConfigurationPresentation.name} configuration`,
   configurationName: agentConfigurationPresentation.name,
   consoleLabel: `${platform.name} Console`,
