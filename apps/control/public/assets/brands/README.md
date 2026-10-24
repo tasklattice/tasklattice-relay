@@ -30,3 +30,12 @@ unmodified and do not imply Nous Research endorsement.
 
 The Pi mark is kept unmodified. Agent Garden, creation selectors, and Instance
 pages share the same platform asset mapping.
+
+## Hindsight
+
+- File: `hindsight-favicon.png`
+- Source: https://github.com/vectorize-io/hindsight/blob/main/hindsight-favicon.png
+- Downloaded: 2026-10-24
+- SHA-256: `6a9f82908ded489a9b86777e9bde54efb3652384abf87dc299616b45fdc915cb`
+
+The original icon is kept unmodified and identifies Memory resources.

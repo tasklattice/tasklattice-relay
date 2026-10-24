@@ -260,7 +260,9 @@ export function MemoryListPage() {
                   params={{ projectId, memoryId: memory.id }}
                   className="group flex min-h-11 min-w-0 items-center gap-3 rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/35"
                 >
-                  <span className="grid size-11 shrink-0 place-items-center rounded-lg border bg-muted/30 text-muted-foreground group-hover:text-foreground"><BrainCircuit className="size-5" /></span>
+                  <span aria-hidden="true" className="grid size-11 shrink-0 place-items-center rounded-lg border bg-muted/30">
+                    <img src="/assets/brands/hindsight-favicon.png" alt="" className="size-8 object-contain" />
+                  </span>
                   <span className="min-w-0">
                     <span className="flex flex-wrap items-center gap-2"><strong className="truncate text-sm">{memory.displayName}</strong><MemoryStatus status={memory.status} /></span>
                     <span className="mt-1 block truncate font-mono text-[11px] text-muted-foreground">{memory.id}</span>
