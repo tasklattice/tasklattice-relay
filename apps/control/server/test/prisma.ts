@@ -1,3 +1,4 @@
+import codingMemoryMigration from "../../prisma/migrations/20261024220000_coding_agent_memory/migration.sql?raw";
 import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 import { PrismaPg } from "@prisma/adapter-pg";
@@ -88,6 +89,8 @@ export function createTestPrisma(): PrismaClient {
   memory.public.none(testMigration.replace(/^CREATE (?:UNIQUE )?INDEX[^;]+ WHERE [^;]+;/gm, ""));
   memory.public.none(partialIndexes.join("\n"));
   memory.public.none(workCostMigration);
+  // pg-mem supports ADD VALUE but not its PostgreSQL idempotency clause.
+  memory.public.none(codingMemoryMigration.replaceAll(" IF NOT EXISTS", ""));
   memory.public.none("UPDATE tasklattice.projects SET name = 'admin' WHERE id = 'individual';");
   for (const skill of developmentResourceCatalog.skills) {
     const payload = JSON.stringify(skill).replaceAll("'", "''");

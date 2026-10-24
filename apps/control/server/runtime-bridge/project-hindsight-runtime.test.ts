@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { hindsightRuntimePath, proxyHindsightRuntime } from "./project-hindsight-runtime";
+import { hindsightRuntimePath, hindsightRuntimeQuery, proxyHindsightRuntime } from "./project-hindsight-runtime";
 import { MemoryRuntimeAccessDeniedError, type ProjectMemoryRuntimeService } from "./project-memory-runtime-service";
 
 const identity = { projectId: "project-a", namespace: "ns-a", coordinatorInstanceId: "agent-a", memoryId: "memory-a" };
@@ -43,12 +43,34 @@ describe("native Hindsight runtime transport", () => {
     ["POST", "v1/default/banks/private-bank-a/memories"],
     ["DELETE", `${prefix}/memories`],
     ["GET", "v1/default/banks"],
-    ["GET", `${prefix}/config`],
+    ["PATCH", `${prefix}/config`],
+    ["POST", `${prefix}/import`],
+    ["DELETE", `${prefix}/knowledge-base/nodes/page-a`],
     ["POST", `${prefix}/../agent-b/memories`],
     ["POST", `${prefix}/%2e%2e/memories`],
     ["POST", `${prefix}/memories?bank_id=other`],
   ])("rejects unauthorized %s %s", (method, path) => {
     expect(() => hindsightRuntimePath(method, path, "agent-a", "private-bank-a")).toThrow(MemoryRuntimeAccessDeniedError);
+  });
+  it("allows bounded native content queries but rejects Bank/tenant overrides", () => {
+    expect(hindsightRuntimeQuery(`${prefix}/documents`, new URLSearchParams("tags=source%3Agit&limit=10"))).toBe("?tags=source%3Agit&limit=10");
+    expect(hindsightRuntimeQuery(`${prefix}/documents`, new URLSearchParams("tags=source%3Agit&tags_match=all_strict"))).toBe("?tags=source%3Agit&tags_match=all_strict");
+    for (const query of ["bank_id=other", "tenant_id=other", "limit=501", "limit=2&limit=3", "offset=-1", "tags_match=unknown"]) {
+      expect(() => hindsightRuntimeQuery(`${prefix}/documents`, new URLSearchParams(query))).toThrow(MemoryRuntimeAccessDeniedError);
+    }
+    expect(() => hindsightRuntimeQuery(`${prefix}/memories`, new URLSearchParams("q=secret"))).toThrow();
+  });
+  it("never forwards server configuration secrets to the plugin", async () => {
+    const deps = setup();
+    deps.fetch.mockResolvedValueOnce(Response.json({ config: { store_document_text: false, api_key: "secret" }, overrides: { llm_api_key: "secret" } }));
+    const response = await proxyHindsightRuntime(request(`${prefix}/config`), identity, `${prefix}/config`, deps);
+    expect(await response.json()).toEqual({ config: { store_document_text: false }, overrides: {} });
+  });
+  it.each(["documents", "operations", "knowledge-base/tree", "knowledge-base/search", "knowledge-base/pages/page-a"])("scopes native %s reads to the bound Bank", async operation => {
+    const deps = setup();
+    await proxyHindsightRuntime(request(`${prefix}/${operation}`), identity, `${prefix}/${operation}`, deps);
+    expect(deps.fetch.mock.calls[0]![0]).toBe(`${config.baseUrl}/v1/default/banks/private-bank-a/${operation}`);
+    expect(() => hindsightRuntimePath("GET", `v1/default/banks/agent-b/${operation}`, "agent-a", "private-bank-a")).toThrow();
   });
   it("checks revocation before any upstream call, including version", async () => {
     const deps = setup();

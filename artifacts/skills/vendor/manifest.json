@@ -166,6 +166,17 @@
       "compressedSizeBytes": 1174,
       "unpackedSizeBytes": 2008,
       "fileCount": 2
+    },
+    {
+      "skillId": "hindsight-coding-agent",
+      "version": "0.8.2",
+      "archive": "hindsight-coding-agent-0.8.2.tar.gz",
+      "archiveFormat": "tar+gzip",
+      "contentType": "application/gzip",
+      "digest": "sha256:8fd4643aad653d9beeed49e7452966e188335071d7ebc53418e84deeb8cb6ef7",
+      "compressedSizeBytes": 20955,
+      "unpackedSizeBytes": 82447,
+      "fileCount": 1
     }
   ]
 }

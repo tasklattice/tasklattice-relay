@@ -1,7 +1,7 @@
 import { getAgentPlatformDefinition, type AgentPlatformId, type MemoryResourceView } from "@tali/contracts";
 
 export function supportsDurableMemoryPlatform(agentPlatform: AgentPlatformId): boolean {
-  return agentPlatform === "openclaw" || agentPlatform === "hermes";
+  return ["openclaw", "hermes", "deepagents", "pi"].includes(agentPlatform);
 }
 
 export const nativeMemorySelection = "native";

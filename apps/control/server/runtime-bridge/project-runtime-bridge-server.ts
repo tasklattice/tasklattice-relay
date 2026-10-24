@@ -221,6 +221,16 @@ app.post(
 // Native Hindsight SDK transport over the existing authenticated Project bridge.
 for (const route of [
   { method: "get", path: "version" },
+  { method: "get", path: "v1/version" },
+  { method: "get", path: "v1/default/banks/:bankId/config" },
+  { method: "get", path: "v1/default/banks/:bankId/documents" },
+  { method: "get", path: "v1/default/banks/:bankId/operations" },
+  { method: "get", path: "v1/default/banks/:bankId/knowledge-base/tree" },
+  { method: "get", path: "v1/default/banks/:bankId/knowledge-base/search" },
+  { method: "get", path: "v1/default/banks/:bankId/knowledge-base/pages/:pageId" },
+  { method: "post", path: "v1/default/banks/:bankId/knowledge-base/pages" },
+  { method: "post", path: "v1/default/banks/:bankId/knowledge-base/folders" },
+  { method: "patch", path: "v1/default/banks/:bankId/knowledge-base/nodes/:nodeId" },
   { method: "post", path: "v1/default/banks/:bankId/memories" },
   { method: "post", path: "v1/default/banks/:bankId/memories/recall" },
   { method: "post", path: "v1/default/banks/:bankId/reflect" },
@@ -231,19 +241,23 @@ for (const route of [
     async (request, response, next) => {
       try {
         const instanceId = z.string().regex(/^[a-zA-Z0-9_-]+$/).parse(request.params.coordinatorInstanceId);
-        if (Object.keys(request.query).length) { response.sendStatus(400); return; }
+        const query = new URLSearchParams();
+        for (const [key, value] of Object.entries(request.query)) {
+          if (typeof value !== "string") { response.sendStatus(400); return; }
+          query.set(key, value);
+        }
         let path = route.path as string;
-        for (const name of ["bankId", "operationId"] as const) {
+        for (const name of ["bankId", "operationId", "pageId", "nodeId"] as const) {
           if (path.includes(`:${name}`)) {
             path = path.replace(`:${name}`, z.string().regex(/^[a-zA-Z0-9_-]+$/).parse((request.params as Record<string, string>)[name]));
           }
         }
         await relay(await controlRequest(
-          `/api/v1/runtime-bridge/coordinators/${instanceId}/hindsight/${path}`,
+          `/api/v1/runtime-bridge/coordinators/${instanceId}/hindsight/${path}${query.size ? `?${query}` : ""}`,
           coordinatorToken(request),
           { method: route.method.toUpperCase(),
             headers: { "content-type": "application/json" },
-            ...(route.method === "post" ? { body: JSON.stringify(request.body) } : {}),
+            ...(["post", "patch"].includes(route.method) ? { body: JSON.stringify(request.body) } : {}),
           },
         ), response);
       } catch (error) { next(error); }

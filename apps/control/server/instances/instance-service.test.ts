@@ -332,7 +332,7 @@ describe("Instance Access Policy lifecycle", () => {
     }, "local-admin")).rejects.toThrow("not enabled for this Project");
   });
 
-  it.each(["openclaw", "hermes", "deepagents"] as const)(
+  it.each(["openclaw", "hermes", "deepagents", "pi"] as const)(
     "falls back to Native text Memory for %s when the Project has no embedding model",
     async (agentPlatform) => {
       const setup = await configuredService({
@@ -356,7 +356,7 @@ describe("Instance Access Policy lifecycle", () => {
     },
   );
 
-  it.each(["openclaw", "hermes", "deepagents"] as const)(
+  it.each(["openclaw", "hermes", "deepagents", "pi"] as const)(
     "honors explicit Native Memory for %s even when embedding models are available",
     async (agentPlatform) => {
       const setup = await configuredService();
@@ -373,6 +373,15 @@ describe("Instance Access Policy lifecycle", () => {
       }));
     },
   );
+
+  it.each(["deepagents", "pi"] as const)("binds %s to durable Hindsight and its bundled Skill", async agentPlatform => {
+    const setup = await configuredService();
+    const agent = await createConfiguredInstance(setup, { agentPlatform, knowledgeSourceIds: [], skillIds: [], mcpServerIds: [] });
+    expect(agent.durableMemoryId).toBeTruthy();
+    expect(agent.skillIds).toContain("hindsight-coding-agent");
+    expect(setup.runner.createSandbox).toHaveBeenCalledWith(expect.objectContaining({ durableMemoryEnabled: true }));
+    expect(setup.memoryProvider.bankCount()).toBe(1);
+  });
 
   it("rejects assigning a Vector Database when the Project has no embedding model", async () => {
     const setup = await configuredService({

@@ -1166,7 +1166,11 @@ export const skillTrustLevels = [
   "UNSAFE",
 ] as const;
 
+export const hindsightCodingSkillId = "hindsight-coding-agent";
+
 export const skillCompatibilityTargets = [
+  "deepagents",
+  "pi",
   "hermes",
   "openclaw",
   "claude-code",
@@ -2077,10 +2081,10 @@ export const createInstanceSchema = z.object({
   durableMemoryId: z.string().uuid().optional(),
 }).strict().superRefine((value, context) => {
   if (value.agentPlatform === "pi") {
-    for (const field of ["skillIds", "mcpServerIds", "knowledgeSourceIds"] as const) {
+    for (const field of ["mcpServerIds", "knowledgeSourceIds"] as const) {
       if (value[field]?.length) context.addIssue({ code: "custom", path: [field], message: "Pi currently supports native terminal tools only." });
     }
-    if (value.durableMemoryId) context.addIssue({ code: "custom", path: ["durableMemoryId"], message: "Pi does not support Project Durable Memory." });
+    if (value.skillIds?.some(id => id !== hindsightCodingSkillId)) context.addIssue({ code: "custom", path: ["skillIds"], message: "Pi currently supports only the bundled Hindsight Skill." });
   }
   if (value.memory && value.durableMemoryId) {
     context.addIssue({

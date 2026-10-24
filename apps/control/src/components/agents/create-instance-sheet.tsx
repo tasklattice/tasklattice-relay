@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import {
   defaultAgentPlatformId,
   hasValidatedEmbeddingModel,
+  hindsightCodingSkillId,
   isAgentPlatformId,
   type AccessPolicy,
   type AgentPlatformId,
@@ -343,6 +344,10 @@ export function CreateInstanceSheet({
     : [];
   const durableMemoryAvailable = durableMemoryFeatureEnabled
     && embeddingModelReady;
+  const bundledMemorySkill = durableMemoryAvailable
+    && durableMemoryId !== nativeMemorySelection
+    && ["deepagents", "pi"].includes(draftFormValues.agentPlatform);
+  const reviewSkills = selectedSkills.filter((item) => item.id !== hindsightCodingSkillId);
   const durableMemories = useQuery({
     queryKey: scope.key("durable-memories", "agent-create"),
     queryFn: () => api.listMemories({ limit: 100, statuses: ["ready", "unbound"] }),
@@ -393,7 +398,7 @@ export function CreateInstanceSheet({
         runtime: "openshell",
         systemPrompt: currentSystemPrompt,
         specializationId,
-        skillIds: value.agentPlatform === "pi" ? [] : selectedIds(selectedSkills),
+        skillIds: value.agentPlatform === "pi" ? [] : selectedIds(reviewSkills),
         mcpServerIds: value.agentPlatform === "pi" ? [] : selectedIds(selectedMcps),
         knowledgeSourceIds: value.agentPlatform !== "pi" && embeddingModelReady
           ? selectedIds(selectedKnowledgeSources)
@@ -1110,7 +1115,7 @@ export function CreateInstanceSheet({
                 canManageProject={permissions.canManageProject}
                 specialization={specialization}
                 specializations={draftFormValues.agentPlatform === "pi" ? specializations.filter((item) => item.id === "custom") : specializations}
-                skills={skills}
+                skills={skills.filter((item) => item.id !== hindsightCodingSkillId)}
                 mcpServers={mcpServers}
                 knowledgeSources={knowledgeSources}
                 embeddingModelReady={embeddingModelReady}
@@ -1743,10 +1748,13 @@ export function CreateInstanceSheet({
                         </dl>
                         <div className="grid gap-5 md:grid-cols-3">
                           <ReviewSection
-                            title={`Skills (${selectedSkills.length})`}
+                            title={`Skills (${reviewSkills.length + Number(bundledMemorySkill)})`}
                           >
-                            {selectedSkills.length ? (
-                              selectedSkills.map((item) => (
+                            {bundledMemorySkill && (
+                              <ReviewPill label="Hindsight Coding Agent Memory" source="memory" />
+                            )}
+                            {reviewSkills.length ? (
+                              reviewSkills.map((item) => (
                                 <ReviewPill
                                   key={item.id}
                                   label={capabilityName(
@@ -1758,9 +1766,9 @@ export function CreateInstanceSheet({
                                   source={item.source}
                                 />
                               ))
-                            ) : (
+                            ) : !bundledMemorySkill ? (
                               <EmptyReview label="No Skills selected" />
-                            )}
+                            ) : null}
                           </ReviewSection>
                           <ReviewSection
                             title={`MCP Servers (${selectedMcps.length})`}
@@ -2069,13 +2077,13 @@ function ReviewPill({
   source,
 }: {
   label: string;
-  source: SelectedCapability["source"];
+  source: SelectedCapability["source"] | "memory";
 }) {
   return (
     <span className="mb-1.5 mr-1.5 inline-flex min-h-8 items-center gap-2 rounded-sm border bg-muted/40 px-2.5 text-xs font-medium">
       {label}
       <span className="text-[10px] font-normal text-muted-foreground">
-        {source === "specialization" ? "Preset" : "Added"}
+        {source === "memory" ? "Memory" : source === "specialization" ? "Preset" : "Added"}
       </span>
     </span>
   );

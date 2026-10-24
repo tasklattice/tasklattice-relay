@@ -123,6 +123,8 @@ enum MemoryBindingStatus {
 enum MemoryRuntimeType {
   openclaw
   hermes
+  deepagents
+  pi
 
   @@map("memory_runtime_type")
   @@schema("tasklattice")

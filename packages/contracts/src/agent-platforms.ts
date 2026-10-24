@@ -123,7 +123,7 @@ export const agentPlatforms = [
       canDelegate: false,
       acceptsDelegation: false,
       embeddedRunTelemetry: false,
-      memory: "none",
+      memory: "native",
     },
     catalog: {
       id: "pi-coding-agent",

@@ -15,6 +15,7 @@
     { "id": "skill-web-research", "version": "2.1.0" },
     { "id": "helm-chart-developer", "version": "1.0.0" },
     { "id": "kubernetes-expert", "version": "1.0.0" },
-    { "id": "ocp-expert", "version": "1.0.0" }
+    { "id": "ocp-expert", "version": "1.0.0" },
+    { "id": "hindsight-coding-agent", "version": "0.8.2" }
   ]
 }

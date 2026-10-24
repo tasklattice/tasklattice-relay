@@ -1,3 +1,5 @@
+import { developmentResourceCatalog } from "./development-resource-catalog";
+import { hindsightCodingSkillId } from "@tali/contracts";
 import { createHash, randomUUID } from "node:crypto";
 import {
   hasValidatedEmbeddingModel,
@@ -95,7 +97,7 @@ export class ResourceCatalogService {
 
   async catalog(): Promise<ResourceCatalog> {
     return {
-      skills: await this.store.listSkillDefinitions(),
+      skills: [developmentResourceCatalog.skills.find(skill => skill.id === hindsightCodingSkillId)!, ...(await this.store.listSkillDefinitions()).filter(skill => skill.id !== hindsightCodingSkillId)],
       mcpServers: await this.store.listMcpServerDefinitions(),
       mcpServerTemplates,
       vectorDatabases: await this.store.listKnowledgeSourceDefinitions(),
@@ -123,7 +125,9 @@ export class ResourceCatalogService {
   }
 
   async verifySkillArtifact(id: string): Promise<SkillDefinition> {
-    const skill = await this.store.getSkillDefinition(id);
+    const skill = id === hindsightCodingSkillId
+      ? developmentResourceCatalog.skills.find(skill => skill.id === id)
+      : await this.store.getSkillDefinition(id);
     if (!skill) throw new Error("Skill was not found.");
     const artifact = await this.store.getSkillArtifact(skill.id, skill.version);
     if (!artifact) throw new Error("Skill artifact was not found.");

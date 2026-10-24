@@ -11,7 +11,7 @@ export const memoryStatuses = [
 ] as const;
 
 export const memoryBindingStatuses = ["pending", "active", "detached"] as const;
-export const memoryRuntimeTypes = ["openclaw", "hermes"] as const;
+export const memoryRuntimeTypes = ["openclaw", "hermes", "deepagents", "pi"] as const;
 export const memoryItemStatuses = ["active", "invalidated"] as const;
 
 export type MemoryStatus = (typeof memoryStatuses)[number];

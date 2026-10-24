@@ -1,3 +1,4 @@
+import { hindsightCodingSkillId } from "@tali/contracts";
 import { getWorkerConfig } from "../config/worker-config";
 import { createHash } from "node:crypto";
 import { generateKubernetesResourceId, kubernetesResourceName } from "@tali/contracts/resource-identity";
@@ -258,11 +259,7 @@ export class InstanceService {
       throw new Error(
         "The selected Routing LiteLLM Gateway is unavailable.",
       );
-    const durableRuntime = input.agentPlatform === "openclaw"
-      ? "openclaw"
-      : input.agentPlatform === "hermes"
-        ? "hermes"
-        : undefined;
+    const durableRuntime = input.agentPlatform;
     const durableMemoryEnabled = durableMemoryEnabledForProject(
       this.store.projectId,
     );
@@ -284,6 +281,10 @@ export class InstanceService {
     }
     const durableMemoryAvailable = durableMemoryEnabled
       && embeddingModelAvailable;
+    if (input.skillIds?.includes(hindsightCodingSkillId) && (
+      !["deepagents", "pi"].includes(input.agentPlatform)
+      || input.memory?.mode === "native" || !durableMemoryAvailable
+    )) throw new Error("The bundled Hindsight Skill requires Memory on a Deep Agents Code or Pi Instance.");
     const memoryConfiguration = input.memory
       ?? ((!durableRuntime || !durableMemoryAvailable)
         && getAgentPlatformDefinition(input.agentPlatform).capabilities.memory !== "none"
@@ -315,6 +316,11 @@ export class InstanceService {
       id,
       ...input,
       ...(resolvedMemory ? { durableMemoryId: resolvedMemory.memory.id } : {}),
+      ...(["deepagents", "pi"].includes(input.agentPlatform) ? {
+        skillIds: resolvedMemory
+          ? [...new Set([...(input.skillIds ?? []), hindsightCodingSkillId])]
+          : (input.skillIds ?? []).filter(id => id !== hindsightCodingSkillId),
+      } : {}),
       ...(memoryConfiguration ? { memory: memoryConfiguration } : {}),
       policyId: policy.id,
       modelDeploymentId: `model-routing:${routing.id}`,
@@ -1025,7 +1031,7 @@ export class InstanceService {
       target
       && (
         input.agentPlatform === "hermes"
-        || (input.agentPlatform === "openclaw" && Boolean(durableMemoryId))
+        || Boolean(durableMemoryId)
       )
       && getWorkerConfig().project_runtime_bridge.enabled
         ? signProjectRuntimeCoordinatorToken(

@@ -530,11 +530,11 @@ function MemoryCapabilityRow({
               <p className="mt-2 text-xs leading-5 text-muted-foreground">
                 {!supportsNative ? "Pi keeps its native sessions in this Instance workspace." : usesDurable
                   ? "Economy uses the Project's managed low-cost Memory defaults. A new Memory is prepared automatically unless you select an existing one."
-                  : "Native Memory stores text inside this Supervisor's Sandbox and does not require an embedding model."}
+                  : "Native keeps files and sessions inside this Instance and does not enable Hindsight."}
               </p>
               <p className="mt-2 text-xs leading-5 text-muted-foreground">
                 {!supportsNative ? "Resume a conversation from the terminal. Project Memory is not enabled for this Agent." : usesDurable
-                  ? "Durable Memory remains available after Instance deletion and can be attached to another supported Instance."
+                  ? "Durable Memory remains available after Instance deletion and can be attached to another supported Instance. Deep Agents Code and Pi automatically load the bundled Hindsight plugin and Skill."
                   : "Native Memory is deleted with the Instance and cannot be attached to a replacement Agent."}
               </p>
               {usesDurable ? (
@@ -603,7 +603,7 @@ function MemoryCapabilityRow({
       ) : supportsNative ? (
         <div className="mt-3 space-y-3">
           <p className="text-xs leading-5 text-muted-foreground">
-            This Agent will use built-in Native text Memory inside its Sandbox.
+            This Agent will use its native files and sessions inside its Sandbox.
             Native Memory is removed with the Instance and cannot be reattached.
           </p>
           {embeddingModelsPending ? (

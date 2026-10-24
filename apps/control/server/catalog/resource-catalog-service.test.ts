@@ -110,7 +110,7 @@ describe("ResourceCatalogService", () => {
     const service = new ResourceCatalogService(createTestStore());
     const catalog = await service.catalog();
 
-    expect(catalog.skills).toHaveLength(15);
+    expect(catalog.skills).toHaveLength(16);
     expect(catalog.skills[0]).not.toHaveProperty("bindings");
     expect(
       catalog.skills.filter((skill) =>

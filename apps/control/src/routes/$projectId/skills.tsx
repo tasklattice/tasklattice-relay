@@ -75,6 +75,8 @@ const compatibilityLabels = {
   openclaw: "OpenClaw",
   "claude-code": "Claude Code",
   openai: "OpenAI",
+  deepagents: "Deep Agents Code",
+  pi: "Pi",
 } satisfies Record<SkillCompatibilityTarget, string>;
 
 const emptyDraft: SkillDraft = {

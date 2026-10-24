@@ -36,6 +36,24 @@ function skillInformation(
 export const developmentResourceCatalog: ResourceCatalog = {
   skills: [
     {
+      id: "hindsight-coding-agent",
+      name: "Hindsight Coding Agent Memory",
+      description: "Native Hindsight memory tools and session recall for Deep Agents Code and Pi. Bundled with the Agent image and enabled by Memory.",
+      problemStatement: "Coding decisions and conversations need to survive sessions and Agent restarts without downloading plugins at runtime.",
+      useCases: ["Recall decisions across coding sessions", "Retain conversations in Project Memory"],
+      usageGuide: "Create a Deep Agents Code or Pi Instance and enable Memory. Relay binds this bundled Skill and its native plugin automatically. The plugin connects only to the Instance's bound Hindsight Memory. Selecting the Skill alone does not enable Memory. Plugin version and Skill version are upgraded together with the image.",
+      author: "Vectorize",
+      category: "Developer Tools",
+      trustLevel: "BUILT_IN",
+      compatibleAgents: ["deepagents", "pi"],
+      version: "0.8.2",
+      ...vendorArtifact("hindsight-coding-agent", "0.8.2"),
+      owner: "Platform",
+      permissions: 1,
+      status: "PUBLISHED",
+      updatedAt: "2026-10-24T00:00:00.000Z",
+    },
+    {
       id: "employee-policy-search",
       name: "Employee Policy Search",
       description: "Find and answer questions about company HR policies.",
