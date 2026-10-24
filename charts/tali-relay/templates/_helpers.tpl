@@ -400,6 +400,7 @@ installationId = {{ .Values.projectRuntimeNamespaces.argocd.installationId | toJ
 enabled = {{ .Values.openshift.enabled }}
 imageSourceNamespace = {{ include "tali.imageSourceNamespace" . | toJson }}
 imagePullReadyTimeoutMs = {{ .Values.openshift.imagePullReadyTimeoutMs | default 120000 }}
+manageTenantScc = {{ include "tali.manageTenantScc" . }}
 {{- with .Values.openshift.imageRegistryHost }}
 imageRegistryHost = {{ . | toJson }}
 {{- end }}
@@ -466,6 +467,13 @@ resources = {{ include "tali.tomlValue" .Values.expertAgentRuntime.resources }}
 {{- end }}
 
 {{/* Exact resource APIs required to install the pinned official OpenShell chart. */}}
+{{- define "tali.manageTenantScc" -}}
+{{- if kindIs "invalid" .Values.openshift.manageTenantScc -}}true
+{{- else if not (kindIs "bool" .Values.openshift.manageTenantScc) -}}
+{{- fail "openshift.manageTenantScc must be a boolean" -}}
+{{- else -}}{{ .Values.openshift.manageTenantScc }}{{- end -}}
+{{- end -}}
+
 {{- define "tali.projectOpenShellControllerRules" -}}
 - apiGroups: [""]
   resources: ["configmaps", "persistentvolumeclaims", "secrets", "serviceaccounts", "services"]

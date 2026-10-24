@@ -76,6 +76,14 @@ rules:
     verbs: ["get", "create", "patch", "delete"]
   {{- end }}
   {{- if and .Values.openshift.enabled .Values.projectRuntimeNamespaces.enabled }}
+  {{- if eq (include "tali.manageTenantScc" .) "true" }}
+  # Tenant namespaces are dynamic. Worker can bind only these two SCC roles;
+  # it is not itself granted use of privileged SCC or arbitrary bind/escalate.
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    resources: ["clusterroles"]
+    resourceNames: ["system:openshift:scc:privileged", "system:openshift:scc:anyuid"]
+    verbs: ["bind"]
+  {{- end }}
   - apiGroups: [""]
     resources: ["serviceaccounts"]
     verbs: ["get", "create"]

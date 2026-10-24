@@ -186,13 +186,14 @@ export class ProjectRuntimeTargetService implements ProjectRuntimeNamespaceProvi
       await stillCurrent();
       if (runtime.enabled) {
         validateWorkerImageSources();
+        const imagePullFence = getWorkerConfig().openshift.enabled ? { assertCurrent: stillCurrent } : {};
         await namespaces.reconcile({
+          ...imagePullFence,
           namespace: target.namespace,
           projectId: project.id,
           projectName: project.name,
         });
         await stillCurrent();
-        const imagePullFence = getWorkerConfig().openshift.enabled ? { assertCurrent: stillCurrent } : {};
         await gateways.reconcile({
           ...imagePullFence,
           namespace: target.namespace,

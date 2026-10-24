@@ -62,6 +62,8 @@ const workerConfigSchema = z
       .prefault({}),
     openshift: z.object({
       enabled: z.boolean().default(false),
+      // Missing on older configurations: automatically repair tenant SCC grants.
+      manageTenantScc: z.boolean().optional(),
       imagePullReadyTimeoutMs: z.number().int().positive().max(600000).optional(),
       imageRegistryHost: z.string().regex(/^[a-zA-Z0-9.-]+(?::[0-9]+)?$/).optional(),
       imageSourceNamespace: z.string().max(63).regex(/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/).optional(),

@@ -1,7 +1,7 @@
 # OpenShift profile for clusters where the administrator permits anyuid.
 #
-# This profile configures the Control namespace. Business OpenShell SCC grants
-# are managed separately by the platform in each Project Namespace.
+# This profile configures the Control namespace and enables Worker's automatic
+# per-Project SCC bindings before Gateway hooks and runtime Pods start.
 openshift:
   enabled: true
   # Tenant Gateway/certgen, Supervisor, default/platform Sandboxes, runtime bridge

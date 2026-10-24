@@ -71,6 +71,43 @@ afterEach(() => {
 });
 
 describe("ProjectRuntimeTargetService", () => {
+  it("reconciles existing ready tenants after upgrade and fences authorization before Gateway", async () => {
+    setControlConfigForTests(enabledConfig());
+    const config = developmentWorkerConfig();
+    config.openshift = { enabled: true, imageSourceNamespace: "images" };
+    setWorkerConfigForTests(config);
+    const db = createTestPrisma();
+    const namespaces = namespaceClient(); const gateway = gatewayClient(); const bridge = bridgeClient();
+    const service = new ProjectRuntimeTargetService(db, namespaces.client, gateway.client, bridge.client);
+    await service.ensureProjectNamespace("individual");
+    const before = await db.projectRuntimeTarget.findUniqueOrThrow({ where: { projectId: "individual" } });
+    await db.projectRuntimeTarget.update({ where: { projectId: "individual" }, data: { lastReconciledAt: new Date(0) } });
+    expect(await service.reconciliationCandidateIds()).toContain("individual");
+    await service.ensureProjectNamespace("individual");
+    expect(namespaces.reconcile).toHaveBeenCalledTimes(2);
+    expect(namespaces.reconcile).toHaveBeenLastCalledWith(expect.objectContaining({ assertCurrent: expect.any(Function) }));
+    expect(namespaces.reconcile.mock.invocationCallOrder[1]).toBeLessThan(gateway.reconcile.mock.invocationCallOrder[1]!);
+    expect(await db.projectRuntimeTarget.findUniqueOrThrow({ where: { projectId: "individual" } }))
+      .toMatchObject({ namespace: before.namespace, generation: before.generation, status: "ready" });
+  });
+
+  it("keeps SCC-denied initialization retryable and never starts Gateway or Bridge", async () => {
+    setControlConfigForTests(enabledConfig());
+    const config = developmentWorkerConfig();
+    config.openshift = { enabled: true, imageSourceNamespace: "images" };
+    setWorkerConfigForTests(config);
+    const db = createTestPrisma();
+    const namespaces = namespaceClient({ reconcileError: new Error("OpenShift SCC authorization failed (HTTP 403)") });
+    const gateway = gatewayClient(); const bridge = bridgeClient();
+    const service = new ProjectRuntimeTargetService(db, namespaces.client, gateway.client, bridge.client);
+    await expect(service.ensureProjectNamespace("individual")).rejects.toThrow("SCC authorization failed");
+    expect(gateway.reconcile).not.toHaveBeenCalled();
+    expect(bridge.reconcile).not.toHaveBeenCalled();
+    expect(await db.projectRuntimeTarget.findUniqueOrThrow({ where: { projectId: "individual" } }))
+      .toMatchObject({ status: "retry", leaseOwner: null });
+    expect(await service.reconciliationCandidateIds()).toContain("individual");
+  });
+
   it("reuses the Project ID when recovering a missing Namespace target and on reconciliation", async () => {
     setControlConfigForTests(enabledConfig());
     const db = createTestPrisma();

@@ -11,11 +11,15 @@ export function projectPullServiceAccounts(serviceName: string) {
   if (!/^[a-z]([-a-z0-9]*[a-z0-9])?$/.test(serviceName) || serviceName.length > 63) {
     throw new Error("Invalid Project OpenShell service name.");
   }
-  return {
+  const accounts = {
     gateway: serviceName,
     sandbox: `${serviceName}-sandbox`.slice(0, 63).replace(/-$/, ""),
     certgen: `${serviceName}-certgen`,
   };
+  if (accounts.gateway === accounts.sandbox) {
+    throw new Error("Project OpenShell service name is too long: Gateway and Sandbox ServiceAccounts would collide. Shorten serviceNamePrefix.");
+  }
+  return accounts;
 }
 
 function status(error: unknown): number {

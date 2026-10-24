@@ -19,7 +19,12 @@ OpenShift Control route:
   oc -n {{ .Release.Namespace }} get route {{ include "tali.componentName" (dict "root" . "component" "control") }}
 
 Static workloads use their image-defined non-root IDs through the anyuid SCC.
-OpenShell sandbox pods are bound to the privileged SCC by this release.
+{{- if eq (include "tali.manageTenantScc" .) "true" }}
+Worker prepares SCC bindings in each Project namespace before runtime initialization:
+  OpenShell Sandbox SA: privileged; Gateway/certgen and enabled Bridge/Expert runtime SAs: anyuid.
+{{- else }}
+Tenant SCC authorization is platform-managed (openshift.manageTenantScc=false).
+{{- end }}
 Use this profile only in a dedicated, trusted OpenShift project.
 {{- end }}
 

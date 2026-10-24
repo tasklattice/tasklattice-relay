@@ -1,8 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { execFileSync, spawnSync } from "node:child_process";
+import { execFile, execFileSync, spawnSync } from "node:child_process";
+import { createServer } from "node:http";
+import { promisify } from "node:util";
 import { parseAllDocuments, parse as parseYaml } from "yaml";
-import { mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync } from "node:fs";
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { parse as parseToml } from "smol-toml";
@@ -297,13 +299,154 @@ test("Kubernetes and OCP bootstrap pods need no fixed UID or SCC grant", () => {
   assert.doesNotThrow(() => render(["--set", "openshift.enabled=true", "--set", "global.imageRegistry=image-registry.openshift-image-registry.svc.example.test/team"]));
 });
 
-test("OCP internal bootstrap image requires existing authentication before starting the Job", () => {
-  const args=["--set","openshift.enabled=true","--set","global.imageRegistry=image-registry.openshift-image-registry.svc:5000/tali"];
-  assert.throws(() => render(args), /ready pull credentials/);
-  const ocp=render([...args,"--set","credentialBootstrap.serviceAccountName=prepared-bootstrap"]);
+const internalBootstrapArgs = ["--set", "openshift.enabled=true", "--set", "global.imageRegistry=image-registry.openshift-image-registry.svc:5000/control-images"];
+const bootstrapJob = resources => resources.find(o => o.kind === "Job" && o.metadata.name === "relay-credential-bootstrap");
+const bootstrapPullBinding = resources => resources.find(o => o.kind === "RoleBinding" && o.roleRef.name === "system:image-puller");
+
+test("OCP internal bootstrap automatically prepares authentication before the Job with or without runtime image remapping", () => {
+  for (const extra of [[], ["--set", "openshift.runtimeImages.enabled=true"]]) {
+    const ocp = render([...internalBootstrapArgs, "--set", "openshift.imageSourceNamespace=runtime-images", ...extra]);
+    const job = bootstrapJob(ocp);
+    const sa = ocp.find(o => o.kind === "ServiceAccount" && o.metadata.name === job.spec.template.spec.serviceAccountName);
+    const pull = bootstrapPullBinding(ocp);
+    const secret = sa.metadata.annotations["openshift.io/internal-registry-pull-secret-ref"];
+    assert.deepEqual(job.spec.template.spec.imagePullSecrets, [{name:secret}]);
+    assert(!ocp.some(o => o.kind === "Secret" && o.metadata.name === secret), "OCP owns token generation and rotation");
+    assert.notEqual(sa.metadata.name, job.metadata.name, "do not reuse the legacy recreated hook SA");
+    assert.equal(sa.automountServiceAccountToken, false);
+    assert.equal(sa.metadata.namespace, "tali");
+    assert.equal(sa.metadata.annotations["helm.sh/hook"], "pre-install,pre-upgrade");
+    assert.equal(sa.metadata.annotations["helm.sh/hook-delete-policy"], "hook-failed");
+    assert.equal(sa.metadata.annotations["helm.sh/resource-policy"], "keep");
+    assert.equal(pull.metadata.namespace, "control-images", "use the bootstrap image source, not runtime source");
+    assert.deepEqual(pull.subjects, [{kind:"ServiceAccount", name:sa.metadata.name, namespace:"tali"}]);
+    assert.equal(pull.roleRef.kind, "ClusterRole");
+    assert.equal(pull.metadata.annotations["helm.sh/hook"], "pre-install,pre-upgrade,pre-rollback");
+    assert(+sa.metadata.annotations["helm.sh/hook-weight"] < +pull.metadata.annotations["helm.sh/hook-weight"]);
+    assert(+pull.metadata.annotations["helm.sh/hook-weight"] < +job.metadata.annotations["helm.sh/hook-weight"]);
+    for (const binding of ocp.filter(o => ["RoleBinding", "ClusterRoleBinding"].includes(o.kind) && o.metadata.annotations?.["helm.sh/hook"])) {
+      assert.equal(binding.subjects[0].name, sa.metadata.name);
+    }
+  }
+});
+
+test("OCP explicit SA and pull Secrets keep their authentication configuration and receive source pull permission", () => {
+  const ocp=render([...internalBootstrapArgs,"--set","credentialBootstrap.serviceAccountName=prepared-bootstrap"]);
   const job=ocp.find(o => o.kind==="Job" && o.metadata.name==="relay-credential-bootstrap");
   assert.equal(job.spec.template.spec.serviceAccountName,"prepared-bootstrap");
   assert(!ocp.some(o => o.kind==="ServiceAccount" && o.metadata.name==="prepared-bootstrap"));
+  assert.equal(job.spec.template.spec.imagePullSecrets, undefined);
+  assert.equal(bootstrapPullBinding(ocp).subjects[0].name, "prepared-bootstrap");
+  const explicit = render([...internalBootstrapArgs, "--set", "global.imagePullSecrets[0].name=site-pull"]);
+  assert.deepEqual(bootstrapJob(explicit).spec.template.spec.imagePullSecrets, [{name:"site-pull"}]);
+  assert.equal(bootstrapPullBinding(explicit).subjects[0].name, "relay-credential-bootstrap");
+  assert(!explicit.some(o => o.metadata.annotations?.["openshift.io/internal-registry-pull-secret-ref"]));
+});
+
+test("bootstrap internal registry detection handles cluster DNS, custom routes, global opt-out and namespace validation", () => {
+  for (const host of ["image-registry.openshift-image-registry.svc.cluster.local:5000", "registry.apps.example.test"]) {
+    const resources = render([...internalBootstrapArgs, "--set", `openshift.imageRegistryHost=${host}`,
+      "--set", "images.control.useGlobalRegistry=false", "--set", `images.control.repository=${host}/offline-images/custom-control`, "--set", "images.control.tag=release-1"]);
+    assert.equal(bootstrapPullBinding(resources).metadata.namespace, "offline-images");
+    assert.equal(bootstrapJob(resources).spec.template.spec.containers[0].image, `${host}/offline-images/custom-control:release-1`);
+  }
+  for (const namespace of ["bad.namespace", "Uppercase", "a".repeat(64)]) {
+    assert.throws(() => render([...internalBootstrapArgs, "--set", `global.imageRegistry=image-registry.openshift-image-registry.svc:5000/${namespace}`]), /source namespace must be a DNS label/);
+  }
+  assert.throws(() => render([...internalBootstrapArgs, "--set", "images.control.repository=nested/control"]), /must have the form/);
+  for (const args of [[], [...internalBootstrapArgs, "--set", "openshift.enabled=false"],
+    [...internalBootstrapArgs, "--set", "images.control.useGlobalRegistry=false", "--set", "images.control.repository=private.example.test/team/control"],
+    [...internalBootstrapArgs, "--set", "global.imageRegistry=image-registry.openshift-image-registry.svc.example.test/team"]]) {
+    const resources = render(args);
+    assert.equal(bootstrapPullBinding(resources), undefined);
+    assert.equal(bootstrapJob(resources).spec.template.spec.serviceAccountName, "relay-credential-bootstrap");
+    assert.equal(bootstrapJob(resources).spec.template.spec.imagePullSecrets, undefined);
+  }
+});
+
+test("OCP bootstrap identities stay bounded and source bindings are distinct across release namespaces", () => {
+  const a = render(internalBootstrapArgs);
+  const b = render([...internalBootstrapArgs, "--namespace", "other-control"]);
+  assert.notEqual(bootstrapPullBinding(a).metadata.name, bootstrapPullBinding(b).metadata.name);
+  const long = render([...internalBootstrapArgs, "--set", `fullnameOverride=${"x".repeat(35)}`]);
+  const sa = long.find(o => o.kind === "ServiceAccount" && o.metadata.annotations?.["openshift.io/internal-registry-pull-secret-ref"]);
+  assert(sa.metadata.name.length <= 63);
+  assert(sa.metadata.annotations["openshift.io/internal-registry-pull-secret-ref"].length <= 63);
+});
+
+test("fully external component Secrets do not create bootstrap pull identities or permissions", () => {
+  const args = ["control", "runner", "postgresql", "litellm", "hindsight", "metrics", "keycloak", "exampleMcp"]
+    .flatMap(component => ["--set", `secrets.existingSecrets.${component}=external-${component.toLowerCase()}`]);
+  const resources = render([...internalBootstrapArgs, ...args]);
+  assert.equal(bootstrapJob(resources), undefined);
+  assert.equal(bootstrapPullBinding(resources), undefined);
+  assert(!resources.some(o => o.metadata.annotations?.["openshift.io/internal-registry-pull-secret-ref"]));
+});
+
+test("server rendering reuses the OCP SA without recreating it, and rejects foreign or terminating identities", async () => {
+  const initial = render(internalBootstrapArgs);
+  const name = bootstrapJob(initial).spec.template.spec.serviceAccountName;
+  let existing = {...structuredClone(initial.find(o => o.kind === "ServiceAccount" && o.metadata.name === name))};
+  existing.metadata.uid = "preserved-sa-uid";
+  let forbidden = false;
+  const requests = [];
+  const api = createServer((req, res) => {
+    const path = req.url.split("?")[0]; requests.push(`${req.method} ${path}`);
+    res.setHeader("Content-Type", "application/json");
+    if (forbidden && path.endsWith(`/serviceaccounts/${name}`)) {
+      res.statusCode = 403;
+      res.end(JSON.stringify({kind:"Status", apiVersion:"v1", status:"Failure", reason:"Forbidden", message:"serviceaccount lookup forbidden", code:403}));
+      return;
+    }
+    const bodies = {
+      "/version": {major:"1", minor:"29", gitVersion:"v1.29.0"},
+      "/api": {kind:"APIVersions", apiVersion:"v1", versions:["v1"]},
+      "/apis": {kind:"APIGroupList", apiVersion:"v1", groups:[]},
+      "/api/v1": {kind:"APIResourceList", apiVersion:"v1", groupVersion:"v1", resources:[{name:"serviceaccounts", singularName:"serviceaccount", namespaced:true, kind:"ServiceAccount", verbs:["get"]}]},
+      [`/api/v1/namespaces/tali/serviceaccounts/${name}`]: existing,
+    };
+    const body = bodies[path];
+    if (!body) res.statusCode = 404;
+    res.end(JSON.stringify(body ?? {kind:"Status", apiVersion:"v1", status:"Failure", reason:"NotFound", code:404}));
+  });
+  const directory = mkdtempSync(join(tmpdir(), "relay-bootstrap-lookup-"));
+  try {
+    await new Promise(resolve => api.listen(0, "127.0.0.1", resolve));
+    const config = join(directory, "kubeconfig.json");
+    writeFileSync(config, JSON.stringify({apiVersion:"v1", kind:"Config", clusters:[{name:"test", cluster:{server:`http://127.0.0.1:${api.address().port}`}}], contexts:[{name:"test", context:{cluster:"test", namespace:"tali", user:"test"}}], "current-context":"test", users:[{name:"test", user:{}}]}), {mode:0o600});
+    // Exercise the real bootstrap template with server-side lookup, without unrelated
+    // business workloads that would require a complete Kubernetes discovery server.
+    const chart = join(directory, "chart");
+    mkdirSync(join(chart, "templates"), {recursive:true});
+    writeFileSync(join(chart, "Chart.yaml"), "apiVersion: v2\nname: bootstrap-lookup-test\nversion: 0.0.0\nappVersion: dev\n");
+    cpSync("charts/tali-relay/values.yaml", join(chart, "values.yaml"));
+    cpSync("charts/tali-relay/files", join(chart, "files"), {recursive:true});
+    for (const file of ["_helpers.tpl", "_bootstrap.tpl", "credential-bootstrap.yaml"]) cpSync(`charts/tali-relay/templates/${file}`, join(chart, "templates", file));
+    const args = ["template", "relay", chart, "--namespace", "tali", "--set", "fullnameOverride=relay", "--kube-version", "1.29.0", "--dry-run=server", "--disable-openapi-validation", "--kubeconfig", config, ...internalBootstrapArgs];
+    const run = () => promisify(execFile)("helm", args, {maxBuffer:8*1024*1024});
+    const reused = parseAllDocuments((await run()).stdout).map(d => d.toJSON()).filter(Boolean);
+    assert(!reused.some(o => o.kind === "ServiceAccount" && o.metadata.name === name));
+    assert.equal(bootstrapJob(reused).spec.template.spec.serviceAccountName, name);
+    assert.deepEqual(bootstrapJob(reused).spec.template.spec.imagePullSecrets, bootstrapJob(initial).spec.template.spec.imagePullSecrets);
+    existing.metadata.deletionTimestamp = "2026-01-01T00:00:00Z";
+    await assert.rejects(run(), /refusing to replace/);
+    delete existing.metadata.deletionTimestamp;
+    existing.metadata.annotations["meta.helm.sh/release-name"] = "foreign";
+    await assert.rejects(run(), /refusing to replace/);
+    existing.metadata.annotations["meta.helm.sh/release-name"] = "relay";
+    existing.metadata.annotations["openshift.io/internal-registry-pull-secret-ref"] = "unexpected";
+    await assert.rejects(run(), /refusing to replace/);
+    existing = undefined;
+    const recovered = parseAllDocuments((await run()).stdout).map(d => d.toJSON()).filter(Boolean);
+    assert(recovered.some(o => o.kind === "ServiceAccount" && o.metadata.name === name), "retry after missing SA creates it");
+    forbidden = true;
+    await assert.rejects(run(), /forbidden/i, "inaccessible SA must not be mistaken for absent");
+    assert(requests.some(r => r.endsWith(`/serviceaccounts/${name}`)));
+    assert(requests.every(r => r.startsWith("GET ")), "Helm rendering must never mutate the cluster");
+  } finally {
+    await new Promise(resolve => api.close(resolve));
+    rmSync(directory, {recursive:true, force:true});
+  }
 });
 
 test("local login reads generated credentials without a fixed fallback or logging them", () => {

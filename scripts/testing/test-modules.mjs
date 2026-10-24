@@ -345,6 +345,7 @@ export const testModules = [
     label: "Data / OpenShell multi-tenant isolation",
     sourcePatterns: [
       "apps/control/server/kubernetes/project-namespace-client*",
+      "apps/control/server/kubernetes/project-scc*",
       "apps/control/server/kubernetes/project-image-pull*",
       "apps/control/server/kubernetes/project-openshell-gateway-client*",
       "apps/control/server/projects/project-runtime-target-service*",
@@ -372,6 +373,7 @@ export const testModules = [
     controlTestPatterns: [
       "apps/control/server/kubernetes/project-namespace-client.test.ts",
       "apps/control/server/kubernetes/project-image-puller.test.ts",
+      "apps/control/server/kubernetes/project-scc.test.ts",
       "apps/control/server/kubernetes/project-image-pull-readiness.test.ts",
       "apps/control/server/kubernetes/project-openshell-gateway-client.test.ts",
       "apps/control/server/projects/project-runtime-target-service.test.ts",

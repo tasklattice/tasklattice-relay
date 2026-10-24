@@ -80,7 +80,7 @@ The pre-install/pre-upgrade credential Job generates random credentials and stor
 them in Kubernetes Secrets. Helm values and rendered manifests contain no initial
 credential values. Repeated initialization preserves credentials. See
 [credential initialization](../../docs/helm-credential-bootstrap.md) for retrieval,
-external Secret contracts and the OCP bootstrap-image prerequisite.
+external Secret contracts and automatic OCP bootstrap image-pull preparation.
 
 Before publishing, run `npm run test:chart-credentials` and
 `npm run helm:validate:credentials`. Packaging checks the exact `.tgz`, including
@@ -390,12 +390,31 @@ release's dedicated Runtime, Control, and Control Worker ServiceAccounts to
 edge-terminated Control Route, and applies restrictive security contexts to
 the Agent Sandbox controller.
 
-Business OpenShell SCC grants belong in each Project Namespace and must be
-provided there by the OpenShift platform. The Control Chart creates no Gateway
-or Sandbox SCC binding in its own namespace. Set
+With `openshift.enabled=true`, Worker prepares SCC grants in each Project
+Namespace before installing Gateway/certgen or starting runtime Pods:
+
+- The pinned OpenShell 0.0.106 Sandbox SA receives `system:openshift:scc:privileged`
+  for its supervisor capabilities (including init containers in the same Pod).
+- Gateway and certgen SAs receive `system:openshift:scc:anyuid`; enabled Bridge
+  and Expert runtimes currently use the tenant `default` SA, which also receives anyuid.
+- Only Worker gets `bind` authority for these two named ClusterRoles. This does
+  not grant Worker itself privileged SCC use. Image-puller authorization remains separate.
+
+Existing tenants receive the same bindings during periodic reconciliation; missing
+bindings are recreated without replacing SAs, Secrets or PVCs. Bindings belong to
+the Namespace, not the tenant Helm release, so interrupted Gateway install recovery
+does not remove them. Foreign bindings or immutable roleRef conflicts fail explicitly.
+Set `openshift.manageTenantScc=false` when the platform provides these grants;
+this disables further management but does not revoke existing bindings. Old values
+without this setting default to automatic management. Ordinary Kubernetes does not
+receive SCC bindings or Worker SCC bind authority. Upgrade the shared Control/Worker
+image and Control Chart together for this feature. See the
+[OCP acceptance guide](../../docs/ocp-image-pull-upgrade-acceptance.md#6-两类租户的-rolebindingsascc-与工作负载).
+
+The Control Chart creates no Gateway or Sandbox SCC binding in its own namespace. Set
 `openshift.anyuidScc.createRoleBinding=false` when the platform manages the
 Control namespace's grant separately. This profile validates the static Control
-Plane; it does not certify dynamically provisioned Project workloads for OpenShift.
+Plane; real OCP admission and Sandbox startup still require cluster acceptance.
 
 The Chart also installs CRDs, ClusterRoles, ClusterRoleBindings, and the Agent
 Sandbox controller in the release namespace. A cluster administrator must perform the first

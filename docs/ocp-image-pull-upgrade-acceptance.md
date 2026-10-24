@@ -1,6 +1,6 @@
 # OCP 共享 ImageStream：部署、升级、验收与回退
 
-本手册针对本次 Chart：Gateway/certgen、Supervisor、默认 Sandbox、OpenClaw/Hermes/DeepAgents、Runtime Bridge 和 Expert Runtime 统一复用**控制面 namespace** 的 ImageStream。使用包含修复的 Control/Worker 镜像；它必须内置更新后的 `/opt/tali/helm/openshell.tgz`。
+本手册针对本次 Chart 和配套 Control/Worker 镜像（包含租户 SCC reconcile）：Gateway/certgen、Supervisor、默认 Sandbox、OpenClaw/Hermes/DeepAgents、Runtime Bridge 和 Expert Runtime 统一复用**控制面 namespace** 的 ImageStream。使用包含修复的 Control/Worker 镜像；它必须内置更新后的 `/opt/tali/helm/openshell.tgz`。
 
 命令使用 **Bash**，从仓库根目录、同一个 shell 按顺序执行。需要 `oc`、Helm 3、`jq`、`curl`、Node.js 22+、`skopeo` 及仓库 npm 依赖。已 `oc login`，操作账号可管理本次 namespace/RBAC；冷拉取节点检查需 `oc debug node` 权限。下列为操作手册，未在真实 OCP 执行。
 
@@ -100,28 +100,13 @@ done < "$EVIDENCE/tenants.before.txt"
 
 先渲染“原始源地址”和“统一内部地址”两份清单，由只读工具解析 Worker/Runner 的真实配置。自定义镜像名、tag 和 digest 均保留，不手写八套默认值。渲染文件可能包含其他组件的环境配置，仍留在受限证据目录内。
 
-若 Control/Worker 本身使用内部镜像且没有显式 pull Secret，必须先准备 bootstrap SA。这里预建专用 SA；授权不依赖初始化 Job 能否启动。
+Control 镜像使用内部 registry 时，新 Chart 自动准备 bootstrap SA、OCP 拉取 Secret 引用及源 namespace 的 `system:image-puller` 绑定。OCP 4.16+ 的控制器负责生成凭据，无需手工预建 SA；执行 Helm 的身份仍需具备源 namespace 的授权权限。`credentialBootstrap.serviceAccountName` 留空使用自动模式；已有显式覆盖继续按原配置使用。
 
 ```bash
-BOOTSTRAP_SA='relay-credential-bootstrap'
-oc -n "$CONTROL_NS" create sa "$BOOTSTRAP_SA" --dry-run=client -o yaml | oc apply -f -
-oc -n "$IMAGE_SOURCE_NS" create rolebinding "relay-bootstrap-pull-$RELEASE" \
-  --clusterrole=system:image-puller --serviceaccount="$CONTROL_NS:$BOOTSTRAP_SA" \
-  --dry-run=client -o yaml | oc apply -f -
-bootstrap_ready=false
-for ((i=0;i<120;i++)); do
-  if oc -n "$CONTROL_NS" get sa "$BOOTSTRAP_SA" -o json | jq -e '(.imagePullSecrets//[])|length>0' >/dev/null; then
-    bootstrap_ready=true; break
-  fi
-  sleep 2
- done
-[[ "$bootstrap_ready" == true ]]
-
-jq -n --arg ns "$IMAGE_SOURCE_NS" --arg host "$REGISTRY" --arg sa "$BOOTSTRAP_SA" \
+jq -n --arg ns "$IMAGE_SOURCE_NS" --arg host "$REGISTRY" \
   --arg repo "$CONTROL_IMAGE_REPOSITORY" --arg tag "$CONTROL_TAG" '{
     openshift:{enabled:true,imageSourceNamespace:$ns,imageRegistryHost:$host,
       runtimeImages:{enabled:true},imagePullReadyTimeoutMs:120000},
-    credentialBootstrap:{serviceAccountName:$sa},
     images:{control:{repository:$repo,tag:$tag,useGlobalRegistry:false}}
   }' > "$EVIDENCE/values.shared.json"
 helm template "$RELEASE" "$FIXED_CHART" -n "$CONTROL_NS" --kube-version 1.29.0 \
@@ -430,6 +415,14 @@ done
 
 ## 6. 两类租户的 RoleBinding、SA、SCC 与工作负载
 
+`openshift.enabled=true` 时，新增 `openshift.manageTenantScc` 默认 true（旧 values 缺失时也为 true）。Control Chart 授予 Worker 对 `system:openshift:scc:privileged` 和 `system:openshift:scc:anyuid` 的限定 bind 权限；新 Worker 在租户 Namespace 初始化时，先补 ImageStream 拉取授权，再补 SCC 绑定，最后执行 Gateway Helm/certgen 和 Runtime Bridge。
+
+升级必须同时更新 Control Chart 和包含新 Worker 的共享 Control 镜像；只更新 Chart 不会执行租户 SCC reconcile。已有 ready 租户会在周期性 reconcile（默认约 5 分钟）补齐，新租户在首次初始化时准备。SCC 授权失败记录为 retry，不会继续启动 Gateway；已经进入终止重试的 failed 状态需在平台发起初始化重试。补建不替换 SA、Secret、Pod 或 PVC。这里专指 SCC reconcile 的行为，配套 Helm/业务升级仍按其正常滚动更新策略执行。
+
+默认 SA 映射：Sandbox SA → privileged；Gateway/certgen SA → anyuid；Bridge/Expert 目前使用 default SA → anyuid。授权绑定由 Namespace 持有，不归属租户 Helm release；恢复未完成的 Gateway release 不会移除它们。与其他租户、控制面及镜像源 Namespace 的 SCC 授权互不混用。
+
+平台自管 SCC 时显式设置 `openshift.manageTenantScc=false`，并跳过下面自动绑定的断言。关闭开关、回滚或卸载控制面不会主动撤销已经生效的租户 SCC 绑定，以免现有 Sandbox 无法重启；需要收回权限时由平台在确认工作负载后清理。自动模式不会接管同名的外部绑定。
+
 ```bash
 for ns in "${TENANT_NAMES[@]}"; do
   uid=$(oc get ns "$ns" -o jsonpath='{.metadata.uid}')
@@ -444,6 +437,26 @@ for ns in "${TENANT_NAMES[@]}"; do
 
   gateway="$SA_PREFIX$ns"
   sandbox=$(printf '%s' "$gateway-sandbox" | cut -c1-63 | sed 's/-$//')
+  # 自动 SCC 管理模式：检查实际绑定和 SCC use 权限，不读取凭据。
+  for scc in privileged anyuid; do
+    oc -n "$ns" get rolebinding "tali-project-scc-$scc" -o json \
+      > "$EVIDENCE/$ns-scc-$scc.json"
+    jq -e --arg ns "$ns" --arg uid "$uid" --arg scc "$scc" '
+      .roleRef.kind=="ClusterRole" and .roleRef.name==("system:openshift:scc:"+$scc) and
+      all(.subjects[]; .kind=="ServiceAccount" and .namespace==$ns) and
+      any(.metadata.ownerReferences[]; .kind=="Namespace" and .name==$ns and .uid==$uid)
+    ' "$EVIDENCE/$ns-scc-$scc.json"
+  done
+  jq -e --arg sandbox "$sandbox" '.subjects|length==1 and .[0].name==$sandbox' \
+    "$EVIDENCE/$ns-scc-privileged.json"
+  expect_can yes "$ns" "$sandbox" use securitycontextconstraints.security.openshift.io/privileged -n "$ns"
+  for sa in "$gateway" "$gateway-certgen"; do
+    expect_can yes "$ns" "$sa" use securitycontextconstraints.security.openshift.io/anyuid -n "$ns"
+  done
+  # default SA 仅在 Bridge/Expert 启用时由 Worker 加入 anyuid。
+  if jq -e 'any(.subjects[]; .name=="default")' "$EVIDENCE/$ns-scc-anyuid.json" >/dev/null; then
+    expect_can yes "$ns" default use securitycontextconstraints.security.openshift.io/anyuid -n "$ns"
+  fi
   for sa in default "$gateway" "$gateway-certgen" "$sandbox"; do
     expect_can yes "$ns" "$sa" get imagestreams.image.openshift.io --subresource=layers -n "$IMAGE_SOURCE_NS"
     expect_can no "$ns" "$sa" update imagestreams.image.openshift.io --subresource=layers -n "$IMAGE_SOURCE_NS"
@@ -473,7 +486,7 @@ oc create namespace "$NEGATIVE_NS"
 expect_can no "$NEGATIVE_NS" default get imagestreams.image.openshift.io --subresource=layers -n "$IMAGE_SOURCE_NS"
 ```
 
-验收要求：Gateway/Bridge Ready，已有 Sandbox 与 Expert Runtime（若启用）仍正常；SA 名称及 UID 保持，Pod 使用原有的 SCC。不能以给整个租户新增 `anyuid`/`privileged` 来解决镜像拉取问题。certgen 成功 Job 会被 hook 清理，Job 不存在本身不是失败；结合租户 Helm `deployed`、初始化代次和 Worker 日志判断。
+验收要求：Gateway/Bridge Ready，已有 Sandbox 与 Expert Runtime（若启用）仍正常；SCC reconcile 保持 SA 名称及 UID，不修改运行中 Pod 的 SCC。新 Sandbox Pod 应使用 privileged；Gateway/certgen/Expert 的实际 SCC 应满足其上下文。重复初始化后比较两份 SCC RoleBinding 的 roleRef、subjects 和 ownerReferences，应一致；删除一个自动管理的绑定后重试初始化应补回，且 SA UID、凭据摘要和 PVC UID 不变。仅在可销毁测试租户执行删除测试。SCC 与镜像拉取是独立授权，不能通过扩大 SCC 修复 registry 401/403。certgen 成功 Job 会被 hook 清理，Job 不存在本身不是失败；结合租户 Helm `deployed`、初始化代次和 Worker 日志判断。
 
 ## 7. 冷拉取：按实际镜像和实际 SA 逐项测试
 
@@ -640,11 +653,11 @@ rm -f "$COOKIE_JAR" "${AUTH_FILE:-$EVIDENCE/registry-auth.json}"
 | `source mismatch` | Worker 的 `imageSourceNamespace` 与所有内部镜像 URL 的路径一致 |
 | pull readiness 超时 | 实际 SA 的 pull-secret 引用、Secret 是否存在、registry key 是否匹配；不要只增加 timeout |
 | `ImagePullBackOff` / 401 / 403 | 第 6 节 `imagestreams/layers` 授权、Pod 的实际 imagePullSecrets 和 SA；明确认证与授权分别是否成功 |
-| `FailedCreate` / SCC denied | 保留旧 SCC 配置，检查 Pod 的 SA/安全上下文；拉取授权不授予 SCC |
+| `FailedCreate` / SCC denied | 检查租户 SCC 绑定、Worker 对两个 SCC 角色的 bind 权限和实际 Pod SA；确认 Chart 与 Worker 同步升级。拉取授权不授予 SCC |
 | 冷拉取 probe Pending | 检查节点 taint、调度、配额；Pending 不算镜像拉取通过 |
 | negative check 返回 yes | 源可能被其他 RoleBinding/ClusterRoleBinding 广泛授权，隔离验收失败 |
 
-最终记录：已有和新建 Project 均 `ready` 且代次一致；正常已有租户及重复 reconcile 的 SA UID 未变；源 RoleBinding/Worker 权限符合预期；未授权 Namespace 被拒绝；矩阵中的内部镜像冷拉取有证据；真实业务 Pod Ready 且 SCC 未扩大。禁用的运行时或外部镜像明确标记为未覆盖，不算通过。
+最终记录：已有和新建 Project 均 `ready` 且代次一致；正常已有租户及重复 reconcile 的 SA UID 未变；源 RoleBinding/Worker 权限符合预期；未授权 Namespace 被拒绝；矩阵中的内部镜像冷拉取有证据；真实业务 Pod Ready，privileged 仅授予 Sandbox 专用 SA，anyuid 仅授予已启用工作负载对应 SA。禁用的运行时或外部镜像明确标记为未覆盖，不算通过。
 
 ## 9. 失败回退
 

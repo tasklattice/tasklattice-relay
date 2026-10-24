@@ -39,6 +39,11 @@ openshift:
     # Requires Chart-managed worker/runner configuration Secrets.
     enabled: false
   imagePullReadyTimeoutMs: 120000
+  # Worker prepares tenant SCC bindings before Gateway hooks and runtime Pods:
+  # privileged for the pinned OpenShell Sandbox SA; anyuid for Gateway/certgen
+  # and the default SA used by Bridge/Expert runtimes. No effect outside OCP.
+  # false delegates this to the platform; existing grants are not revoked.
+  manageTenantScc: true
   anyuidScc:
     # Static Control Plane pods use their image-defined
     # non-root IDs. Enable this binding only when the cluster permits anyuid.
@@ -466,9 +471,11 @@ secrets:
 credentialBootstrap:
   # Optional existing credential store with the documented complete key set.
   existingSecret: ""
-  # For private registries, provision this SA and its pull credentials before install.
-  # Empty creates a dedicated bootstrap SA. On OCP with no explicit pull secrets,
-  # use an existing, registry-ready SA to avoid the initial SA credential race.
+  # Empty creates a dedicated bootstrap SA. For OCP 4.16+ internal images, the
+  # Chart automatically prepares a stable SA, pull-secret reference and source
+  # namespace pull permission; OCP generates/rotates the registry credentials.
+  # Optional override: an existing SA with ready pull credentials (never recreated).
+  # Other private registries still need existing SA credentials or global.imagePullSecrets.
   serviceAccountName: ""
   activeDeadlineSeconds: 300
   resources:

@@ -73,6 +73,31 @@ describe("KubernetesProjectNamespaceClient", () => {
     expect(fake.objects.patch).toHaveBeenCalledTimes(2);
   });
 
+  it.each([true, false])("prepares SCC grants for new=%s tenants before returning to Gateway initialization", async fresh => {
+    const config = getWorkerConfig();
+    config.openshift = { enabled: true, imageSourceNamespace: "images" };
+    config.project_openshell.enabled = true;
+    config.project_runtime_bridge.enabled = true;
+    const fake = client(fresh ? { readNamespace: vi.fn().mockRejectedValue(apiError(404, "missing")) } : undefined);
+    const fence = vi.fn(async () => undefined);
+    await fake.client.reconcile({ ...input, assertCurrent: fence });
+    const bindings = fake.objects.patch.mock.calls.map(args => args[0] as unknown as { kind: string; roleRef?: { name: string } });
+    expect(bindings.filter(b => b.kind === "RoleBinding").map(b => b.roleRef!.name)).toEqual([
+      "system:image-puller", "system:openshift:scc:privileged", "system:openshift:scc:anyuid",
+    ]);
+    expect(fence).toHaveBeenCalled();
+    expect(fake.core.deleteNamespace).not.toHaveBeenCalled();
+  });
+
+  it("propagates SCC failures for existing tenants instead of reporting initialization success", async () => {
+    const config = getWorkerConfig();
+    config.openshift = { enabled: true, imageSourceNamespace: "images" };
+    config.project_openshell.enabled = true;
+    const fake = client({ patch: vi.fn().mockResolvedValueOnce(namespace("project-a"))
+      .mockResolvedValueOnce({}).mockRejectedValueOnce(apiError(403, "forbidden")) });
+    await expect(fake.client.reconcile(input)).rejects.toThrow("OpenShift SCC authorization failed");
+  });
+
   it("records the originating release so dev cleanup can distinguish Relay installations", async () => {
     getWorkerConfig().resource_ownership.controlRelease = "relay-dev";
     getWorkerConfig().resource_ownership.controlNamespace = "tali";

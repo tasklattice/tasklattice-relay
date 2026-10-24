@@ -22,6 +22,12 @@ function configure(settings: string, section = "project_openshell") {
   setWorkerConfigForTests();
 }
 describe("OpenShift image source configuration", () => {
+  it("preserves explicit platform-managed SCC mode and rejects invalid flags", () => {
+    configure('enabled = true\nimageSourceNamespace = "images"\nmanageTenantScc = false', "openshift");
+    expect(getWorkerConfig().openshift.manageTenantScc).toBe(false);
+    configure('enabled = true\nimageSourceNamespace = "images"\nmanageTenantScc = "false"', "openshift");
+    expect(() => getWorkerConfig()).toThrow("Invalid Worker configuration");
+  });
   it("requires an explicit valid source when enabled", () => {
     configure("enabled = true", "openshift");
     expect(() => getWorkerConfig()).toThrow("requires imageSourceNamespace");

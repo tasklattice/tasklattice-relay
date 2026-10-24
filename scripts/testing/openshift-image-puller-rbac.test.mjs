@@ -27,12 +27,28 @@ test("OpenShift grants only the Worker scoped image-puller binding authority", (
   assert.equal(binding.subjects.length, 1);
   const worker = resources.find(r => r.kind === "ServiceAccount" && r.metadata.name.endsWith("control-worker"));
   assert.deepEqual(binding.subjects[0], { kind: "ServiceAccount", name: worker.metadata.name, namespace: "control-images" });
-  assert(!resources.some(r => r.kind === "ClusterRole" && r.rules?.some(rule => rule.verbs.includes("bind"))));
+  const sccBind = resources.filter(r => r.kind === "ClusterRole").flatMap(r => r.rules.filter(rule => rule.verbs.includes("bind")));
+  assert.deepEqual(sccBind, [{ apiGroups:["rbac.authorization.k8s.io"], resources:["clusterroles"],
+    resourceNames:["system:openshift:scc:privileged", "system:openshift:scc:anyuid"], verbs:["bind"] }]);
   const toml = resources.flatMap(r => Object.values(r.stringData ?? {})).find(s => s.includes("[worker.openshift]"));
   assert.match(toml, /\[worker.openshift\]\nenabled = true\nimageSourceNamespace = "control-images"/);
 });
 test("ordinary Kubernetes does not render OpenShift binding authority", () => {
   assert(!render().some(isPuller));
+  assert(!render().some(r => r.rules?.some(rule => rule.verbs.includes("bind") || rule.resources.includes("securitycontextconstraints"))));
+});
+
+test("tenant SCC flag agrees between Worker config and RBAC, including old values upgrades", () => {
+  for (const value of ["true", "false", "null"]) {
+    const resources = render(["openshift.enabled=true", `openshift.manageTenantScc=${value}`]);
+    const toml = resources.flatMap(r => Object.values(r.stringData ?? {})).find(s => s.includes("[worker.openshift]"));
+    const expected = value !== "false";
+    assert.equal(parseToml(toml).worker.openshift.manageTenantScc, expected);
+    const worker = resources.find(r => r.kind === "ClusterRole" && r.metadata.name.includes("control-worker"));
+    assert.equal(worker.rules.some(r => r.verbs.includes("bind") && r.resourceNames.includes("system:openshift:scc:privileged")), expected);
+    assert(!resources.some(r => /Binding$/.test(r.kind) && r.roleRef.name === "system:openshift:scc:privileged"), "do not grant privileged to control-plane SAs");
+  }
+  assert.throws(() => render(["openshift.manageTenantScc=invalid"]), /must be a boolean/);
 });
 
 test("old reused values without new OpenShift settings render valid Worker TOML", () => {
@@ -41,7 +57,7 @@ test("old reused values without new OpenShift settings render valid Worker TOML"
       "openshift.imageRegistryHost=null", "openshift.imagePullReadyTimeoutMs=null"]);
     const toml = resources.flatMap(r => Object.values(r.stringData ?? {})).find(s => s.includes("[worker.openshift]"));
     assert.deepEqual({ ...parseToml(toml).worker.openshift }, {
-      enabled, imageSourceNamespace: "control-images", imagePullReadyTimeoutMs: 120000,
+      enabled, imageSourceNamespace: "control-images", imagePullReadyTimeoutMs: 120000, manageTenantScc: true,
     });
     if (enabled) {
       // The default source must keep the existing Helm-managed RBAC names on upgrade.
@@ -51,12 +67,13 @@ test("old reused values without new OpenShift settings render valid Worker TOML"
   }
 });
 
-test("pull preparation only adds Worker SA create/get and Secret get; Kubernetes RBAC is unchanged", () => {
+test("OCP preparation adds scoped Worker SCC bind, SA create/get and Secret get; Kubernetes RBAC is unchanged", () => {
   const enabled = render(["openshift.enabled=true"]);
   const disabled = render();
   const workerRules = resources => resources.find(r => r.kind === "ClusterRole" && r.metadata.name.includes("control-worker")).rules;
   const ordinaryRules = workerRules(disabled).map(rule => JSON.stringify(rule));
   assert.deepEqual(workerRules(enabled).filter(rule => !ordinaryRules.includes(JSON.stringify(rule))), [
+    {apiGroups:["rbac.authorization.k8s.io"],resources:["clusterroles"],resourceNames:["system:openshift:scc:privileged","system:openshift:scc:anyuid"],verbs:["bind"]},
     {apiGroups:[""],resources:["serviceaccounts"],verbs:["get","create"]},
     {apiGroups:[""],resources:["secrets"],verbs:["get"]},
   ]);

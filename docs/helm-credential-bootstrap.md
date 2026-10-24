@@ -51,36 +51,40 @@ kubectl -n tali get secret tali-relay-credentials \
 
 新生成的 `<fullname>-credentials` 为未来启用的可选组件也保存独立凭据，启用组件不需要重新生成现有密钥。
 
-## OCP 内部 registry 的启动前提
+## OCP 内部 registry 自动启动准备
 
-初始化 Job 自己必须先能拉取 Control 镜像。如果使用内部 registry 且没有显式 `global.imagePullSecrets`，配置一个**预先创建并且凭据已就绪**的 `credentialBootstrap.serviceAccountName`。Chart 不会创建或重建该外部 SA；Job 的专用 RBAC 仍只绑定这个 SA。不满足该前提时 Helm 在渲染阶段失败，避免新 SA 的自动拉取凭据与 Job 创建发生竞态。
+使用 OCP 4.16+（Kubernetes 1.29+，与 Chart 的最低 Kubernetes 版本一致）且启用内部 Image Registry 时，默认不需要预建 bootstrap SA 或手动绑定拉取权限。`openshift.enabled=true` 且 Control 镜像指向内部 registry 时，Chart 会：
+
+1. 在安装 namespace 创建专用 bootstrap SA，写入 `openshift.io/internal-registry-pull-secret-ref`，指定稳定的拉取 Secret 名称。
+2. 在 **Control 镜像地址实际包含的 namespace** 创建 `system:image-puller` RoleBinding，授权该 SA 拉取。这里不使用 runtime 的 `openshift.imageSourceNamespace`；两者可以不同。授权先于初始化 Job 执行，也不依赖 Worker 是否启用。
+3. 让初始化 Job 从创建时就显式引用该 Secret。OCP 控制器异步生成并轮换内部 registry 凭据；即使 Pod 先创建，kubelet 后续拉取重试也会读取到 Secret，无须重建 Pod。短暂的 `FailedToRetrieveImagePullSecret` 或 `ImagePullBackOff` 可以自动恢复；默认 Job 总时限为 300 秒，可通过 `credentialBootstrap.activeDeadlineSeconds` 调整。
+
+Chart 不生成 registry token、不复制管理员凭据，也不创建额外的准备 Job。这个机制依赖 OCP 4.16+ 的 [ServiceAccount 控制器](https://github.com/openshift/openshift-controller-manager/blob/release-4.16/pkg/internalregistry/controllers/service_account_controller.go)。镜像仍需已导入或离线复制到内部 registry；执行 Helm 的身份必须能在安装 namespace 创建 SA，并在镜像源 namespace 绑定 `system:image-puller`。Chart 无法为安装者提升其自身权限。
 
 ```bash
 CONTROL_NS=tali
 SOURCE_NS=relay-images
-BOOTSTRAP_SA=relay-credential-bootstrap
+REGISTRY=image-registry.openshift-image-registry.svc:5000
+CONTROL_TAG=0.2.8-rc.3 # 替换为本次实际导入的镜像 tag
 
-oc get namespace "$CONTROL_NS"
-oc create serviceaccount "$BOOTSTRAP_SA" -n "$CONTROL_NS" --dry-run=client -o yaml | oc apply -f -
-oc -n "$SOURCE_NS" create rolebinding "relay-bootstrap-pull-$CONTROL_NS" \
-  --clusterrole=system:image-puller --serviceaccount="$CONTROL_NS:$BOOTSTRAP_SA" \
-  --dry-run=client -o yaml | oc apply -f -
-
-ready=false
-for i in $(seq 1 60); do
-  if oc -n "$CONTROL_NS" get sa "$BOOTSTRAP_SA" -o json \
-    | jq -e '(.imagePullSecrets // []) | length > 0' >/dev/null; then ready=true; break; fi
-  sleep 2
-done
-test "$ready" = true
-oc -n "$CONTROL_NS" get sa "$BOOTSTRAP_SA" -o json | jq '{name:.metadata.name,imagePullSecrets}'
-
-helm upgrade --install tali-relay ./tali-relay.tgz -n "$CONTROL_NS" \
-  -f site-values.yaml --set credentialBootstrap.serviceAccountName="$BOOTSTRAP_SA" \
+helm upgrade --install tali-relay ./tali-relay.tgz -n "$CONTROL_NS" --create-namespace \
+  -f site-values.yaml --set openshift.enabled=true \
+  --set-string images.control.repository="$REGISTRY/$SOURCE_NS/tali-control" \
+  --set-string images.control.tag="$CONTROL_TAG" --set images.control.useGlobalRegistry=false \
   --wait --wait-for-jobs --timeout 30m
+
+# 只查看引用和 UID，不输出 token。
+oc -n "$CONTROL_NS" get sa -o json | jq '[.items[] |
+  select(.metadata.annotations["meta.helm.sh/release-name"]=="tali-relay" and
+    .metadata.annotations["openshift.io/internal-registry-pull-secret-ref"]!=null) |
+  {name:.metadata.name,uid:.metadata.uid,imagePullSecrets}]'
 ```
 
-自定义内部 route 还需设置 `openshift.imageRegistryHost`。如果使用显式 pull-secret 名称，先在安装 Namespace 创建它们，并保证凭据有源镜像权限。初始化 Secret Job 无法解决自己的 registry 认证，也不会给 SA 增加 SCC 权限。
+自定义内部 registry route 需设置 `openshift.imageRegistryHost`，用于识别内部镜像。普通 Kubernetes、外部 registry 不生成 OCP 注解或 `system:image-puller` 绑定；外部私有 registry 仍需已有凭据。显式 `credentialBootstrap.serviceAccountName` 和 `global.imagePullSecrets` 继续优先使用：外部 SA 不被创建或替换，显式 Secret 必须预先存在。即使使用这些覆盖项，内部镜像的 SA 拉取权限绑定仍由 Chart 准备。
+
+自动 OCP SA 使用不同于旧 bootstrap SA 的名称，升级时通过 Helm `lookup` 复用，保留 UID 和 OCP token。已有 SA 正在删除、归属或拉取 Secret 注解不匹配时停止，不接管或替换它。SA 创建 Hook 仅在缺失时运行 `pre-install,pre-upgrade`，不参加使用缓存清单的 `pre-rollback`；回滚复用原 SA，重建对应拉取权限绑定并执行初始化 Job。若 SA 被人为删除，应先用目标 Chart 执行 upgrade 恢复，不能依赖 rollback 补建 SA。回退到旧 Chart 则按旧版本的认证配置执行。
+
+执行真实 `helm upgrade --install` 才能查询并复用已有 SA；只读预览可用 `helm template --dry-run=server`。离线 `helm template` 无法查询集群，会包含 SA 创建 Hook；其删除策略不允许在执行前删除已有 SA，避免旧渲染清单使 token 失效。不要将反复执行离线渲染清单视为 Helm 升级验收；GitOps 工具的 Hook 生命周期需要单独验证。
 
 ## RBAC、排错与验收
 
@@ -90,7 +94,7 @@ helm upgrade --install tali-relay ./tali-relay.tgz -n "$CONTROL_NS" \
 
 使用专用 bootstrap SA，不与业务 Pod 共用。Chart 创建的 SA 默认不自动挂载 token，只有 bootstrap Pod 显式启用。Job 使用非 root、只读根文件系统、RuntimeDefault seccomp 和 drop ALL；不指定 UID/GID，不依赖后续业务资源的 anyuid SCC 绑定，适用于普通 Kubernetes 和 OCP 分配的 UID。
 
-SA、RBAC 和 ConfigMap 使用 `before-hook-creation`，成功后保留，下一次执行时重建；外部 SA 不重建。它们不是普通 Helm release 资源，卸载后不会自动清理，不能假定 Job 删除即撤销权限。仅 Job 使用 `hook-succeeded` 清理。保持这个顺序也避免 Argo CD 提前清理 Job 所需的被动资源；参见 [Helm hook 生命周期](https://docs.helm.sh/docs/topics/charts_hooks/) 和 [Argo CD hook 删除语义](https://argo-cd.readthedocs.io/en/stable/user-guide/helm/#helm-hooks)。
+普通 bootstrap SA、RBAC 和 ConfigMap 使用 `before-hook-creation`，成功后保留，下一次执行时重建；自动 OCP SA 通过 lookup 复用，外部 SA 不重建。自动 OCP SA 只设置 `hook-failed` 删除策略，不在成功或下次 Hook 前删除。它们不是普通 Helm release 资源，卸载后不会自动清理，不能假定 Job 删除即撤销权限。仅 Job 使用 `hook-succeeded` 清理。保持这个顺序也避免 Argo CD 提前清理 Job 所需的被动资源；参见 [Helm hook 生命周期](https://docs.helm.sh/docs/topics/charts_hooks/) 和 [Argo CD hook 删除语义](https://argo-cd.readthedocs.io/en/stable/user-guide/helm/#helm-hooks)。
 
 同一组输出的配置发布应由一个 Helm/Argo CD 操作串行管理；测试覆盖相同配置的并发初始化与冲突重试，不提供不同版本之间的多 Secret 原子事务。任一步骤中断后应使用目标版本重跑，使全部组件配置收敛。
 
@@ -104,6 +108,8 @@ kubectl -n tali get secret tali-relay-credentials -o json \
   | jq -cS .data | shasum -a 256
 # 使用相同 values 再执行 helm upgrade 后，重复上面的命令，摘要应完全相同。
 ```
+
+OCP 升级验收应额外确认自动 SA UID 和拉取 Secret UID 不变，并在禁用缓存的节点进行实际镜像拉取。本地模拟 API 测试覆盖 SA lookup、归属检查和缺失补建；不等价于真实 OCP 控制器与 registry 验收。
 
 普通 Kubernetes 和 OCP 的密码生成/重入逻辑相同。验收包括：新安装能启动全部启用组件；重复安装和配置更新后凭据摘要不变；中断后恢复；并发初始化不产生分裂凭据；错误归属和缺失字段明确失败；日志、渲染清单、Helm release values 不出现生成的密码。
 
