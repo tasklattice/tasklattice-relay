@@ -63,6 +63,7 @@ function liteLLMAdapter(): LiteLLMAdminClient {
     updateInstanceObjectPermissions: vi.fn(async () => undefined),
     blockKey: vi.fn(async () => undefined),
     revokeKey: vi.fn(async () => undefined),
+    revokeUnboundInstanceKey: vi.fn(async () => undefined),
     listSpendLogs: vi.fn(async () => []),
   };
 }

@@ -489,6 +489,66 @@ describe("Instance Access Policy lifecycle", () => {
     expect(recovered).not.toHaveProperty("error");
   });
 
+  it.each(["PROVISIONING", "READY"] as const)("keeps a %s runtime with a revoked provisioning key pending", async (status) => {
+    const setup = await configuredService();
+    const agent = await createConfiguredInstance(setup);
+    const { liteLLMTokenId: _token, liteLLMTeamId: _team, ...withoutKey } = agent;
+    await setup.store.save({ ...withoutKey, status, modelRoutingKeyFingerprint: `pending:${agent.id}` });
+    vi.mocked(setup.runner.getSandbox).mockResolvedValue({
+      name: agent.sandboxName, agentPlatform: agent.agentPlatform, phase: "READY", logs: [],
+    });
+    expect(await setup.service.get(agent.id)).toMatchObject({ status: "PROVISIONING" });
+    expect(await setup.store.get(agent.id)).toMatchObject({ status: "PROVISIONING" });
+  });
+
+  it("recovers an unrecorded key before retrying Instance provisioning", async () => {
+    const setup = await configuredService();
+    const agent = await createConfiguredInstance(setup);
+    const { liteLLMTokenId: _token, liteLLMTeamId: _team, ...withoutKey } = agent;
+    await setup.store.save({
+      ...withoutKey,
+      status: "PROVISIONING",
+      modelRoutingKeyFingerprint: `pending:${agent.id}`,
+    });
+    vi.mocked(setup.litellm.revokeUnboundInstanceKey!).mockClear();
+    vi.mocked(setup.litellm.createInstanceServiceAccountKey!).mockClear();
+
+    expect(await setup.service.provision(agent.id)).toMatchObject({ status: "READY" });
+    expect(setup.litellm.revokeUnboundInstanceKey).toHaveBeenCalledWith({
+      alias: agent.costKeyAlias, projectId: setup.store.projectId, instanceId: agent.id,
+    });
+    expect(vi.mocked(setup.litellm.revokeUnboundInstanceKey!).mock.invocationCallOrder[0])
+      .toBeLessThan(vi.mocked(setup.litellm.createInstanceServiceAccountKey!).mock.invocationCallOrder[0]!);
+  });
+
+  it("preserves the key of an already running Instance on duplicate delivery", async () => {
+    const setup = await configuredService();
+    const agent = await createConfiguredInstance(setup);
+    vi.mocked(setup.litellm.revokeUnboundInstanceKey!).mockClear();
+    vi.mocked(setup.litellm.createInstanceServiceAccountKey!).mockClear();
+    await setup.service.provision(agent.id);
+    expect(setup.litellm.revokeUnboundInstanceKey).not.toHaveBeenCalled();
+    expect(setup.litellm.createInstanceServiceAccountKey).not.toHaveBeenCalled();
+  });
+
+  it("does not recover keys until the previous runtime has been removed", async () => {
+    const setup = await configuredService();
+    const agent = await createConfiguredInstance(setup);
+    await setup.store.save({ ...agent, status: "FAILED" });
+    vi.mocked(setup.runner.getSandbox).mockResolvedValue({
+      name: agent.sandboxName, agentPlatform: agent.agentPlatform, phase: "FAILED", logs: [],
+    });
+    vi.mocked(setup.runner.destroySandbox).mockResolvedValue({
+      name: agent.sandboxName, agentPlatform: agent.agentPlatform, phase: "FAILED", logs: [],
+    });
+    vi.mocked(setup.litellm.revokeUnboundInstanceKey!).mockClear();
+    vi.mocked(setup.litellm.createInstanceServiceAccountKey!).mockClear();
+    await expect(setup.service.provision(agent.id)).rejects.toThrow("previous Instance runtime");
+    expect(setup.litellm.revokeKey).not.toHaveBeenCalled();
+    expect(setup.litellm.revokeUnboundInstanceKey).not.toHaveBeenCalled();
+    expect(setup.litellm.createInstanceServiceAccountKey).not.toHaveBeenCalled();
+  });
+
   it("discovers READY callable A2A Instances from the Project registry", async () => {
     const setup = await configuredService();
     const garden = new AgentGardenService(

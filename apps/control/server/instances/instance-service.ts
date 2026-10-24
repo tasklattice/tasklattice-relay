@@ -407,7 +407,7 @@ export class InstanceService {
     if (operationId) await this.lifecycle.start(operationId);
     let agent = await this.store.get(id);
     if (!agent || agent.status === "DESTROYING") return agent;
-    if (agent.status === "READY") return agent;
+    if (agent.status === "READY" && agent.liteLLMTokenId) return agent;
 
     const {
       error: _previousError,
@@ -454,7 +454,10 @@ export class InstanceService {
       }
     }
     if (observed.phase !== "NOT_FOUND") {
-      await this.destroyRunnerSandbox(agent);
+      const removed = await this.destroyRunnerSandbox(agent);
+      if (removed.phase !== "NOT_FOUND") {
+        throw new Error("Waiting for the previous Instance runtime to be removed.");
+      }
     }
     if (agent.liteLLMTokenId) {
       await this.litellm.revokeKey(agent.liteLLMTokenId);
@@ -490,6 +493,11 @@ export class InstanceService {
     );
     let instanceKey: LiteLLMVirtualKey | undefined;
     try {
+      await this.litellm.revokeUnboundInstanceKey?.({
+        alias: agent.costKeyAlias,
+        projectId: this.store.projectId,
+        instanceId: id,
+      });
       const created = await this.quotas.createInstanceKey({
         alias: agent.costKeyAlias,
         models: memory.keyModel
@@ -949,6 +957,13 @@ export class InstanceService {
 
   private async refresh(agent: Agent): Promise<Agent> {
     if (agent.status === "DESTROYING") return agent;
+    // Runtime readiness alone must not complete a provisioning retry whose
+    // failed attempt already revoked the Instance's inference credential.
+    if (!agent.liteLLMTokenId && agent.modelRoutingKeyFingerprint.startsWith("pending:")) {
+      return agent.status === "READY"
+        ? this.store.save({ ...agent, status: "PROVISIONING" })
+        : agent;
+    }
     if (agent.status === "FAILED" && agent.runtimePhase !== "NOT_FOUND" && !agent.liteLLMTokenId) {
       return agent;
     }

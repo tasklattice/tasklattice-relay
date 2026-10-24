@@ -220,6 +220,11 @@ export interface LiteLLMAdminClient {
   createInstanceKey(input: { agentId: string; alias: string; modelName: string }): Promise<LiteLLMVirtualKey>;
   blockKey(tokenId: string): Promise<void>;
   revokeKey(tokenId: string): Promise<void>;
+  revokeUnboundInstanceKey?(input: {
+    alias: string;
+    projectId: string;
+    instanceId: string;
+  }): Promise<void>;
   listSpendLogs(from: string, to: string, teamId?: string): Promise<LiteLLMSpendLog[]>;
   inspectModelRouting?(modelAlias: string): Promise<LiteLLMModelRoutingInspection>;
   reconcileModelRoutingRoute?(input: LiteLLMModelRoutingRouteInput): Promise<void>;
@@ -959,6 +964,48 @@ export class LiteLLMClient implements LiteLLMAdminClient {
       configurationHash: stableConfigurationHash({ matching, effectiveModels }),
       ...(autoRouterUnsupported ? { unsupportedReason: `LiteLLM ${version} does not support the managed Complexity Router; version 1.86.2 or newer is required.` } : {}),
     };
+  }
+
+  // Only call after the Instance's previous runtime and recorded key have
+  // been removed. A worker may die between key creation and saving its ID.
+  async revokeUnboundInstanceKey(input: {
+    alias: string;
+    projectId: string;
+    instanceId: string;
+  }): Promise<void> {
+    this.assertConfigured();
+    if (input.alias !== `tali-instance-${input.instanceId}`) {
+      throw new Error("Unexpected Instance key alias.");
+    }
+    const query = new URLSearchParams({
+      key_alias: input.alias,
+      return_full_object: "true",
+      size: "100",
+    });
+    const response = await this.request<{
+      keys: Array<{
+        key_alias?: string;
+        token?: string;
+        metadata?: Record<string, unknown>;
+      }>;
+      total_pages: number;
+    }>(`/key/list?${query}`);
+    // LiteLLM's alias filter is a case-insensitive substring search. Fail
+    // closed on an incomplete result and never delete by the search string.
+    if (!Array.isArray(response.keys) || response.total_pages > 1) {
+      throw new Error("Unable to identify the unbound Instance key safely.");
+    }
+    const matches = response.keys.filter((key) => key.key_alias === input.alias);
+    if (!matches.length) return;
+    const key = matches[0]!;
+    if (matches.length !== 1
+      || key.metadata?.managed_by !== "tali"
+      || key.metadata.tali_project_id !== input.projectId
+      || key.metadata.tali_instance_id !== input.instanceId
+      || typeof key.token !== "string" || !/^[a-f0-9]{64}$/.test(key.token)) {
+      throw new Error("The existing Instance key ownership could not be verified.");
+    }
+    await this.revokeKey(key.token);
   }
 
   async revokeKey(tokenId: string): Promise<void> {
