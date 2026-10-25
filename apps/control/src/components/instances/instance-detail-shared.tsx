@@ -19,7 +19,13 @@ import type { Instance as Agent } from "@tali/contracts";
 
 export function InstanceStatusBadge({ status }: { status: Agent["status"] }) {
   const config = instanceStatusConfig[getInstanceDisplayStatus(status)];
-  return <StatusBadge label={config.label} tone={config.tone} pulse={config.tone === "info"} />;
+  return (
+    <StatusBadge
+      label={config.label}
+      tone={config.tone}
+      pulse={config.tone === "info"}
+    />
+  );
 }
 
 export function RelativeTime({ value }: { value: string }) {
@@ -46,7 +52,9 @@ export function DetailCardHeader({
     <CardHeader className="border-b">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <CardTitle>{title}</CardTitle>
+          <CardTitle>
+            <h2>{title}</h2>
+          </CardTitle>
           {description ? (
             <p className="mt-1 text-xs leading-5 text-muted-foreground">
               {description}
@@ -56,28 +64,6 @@ export function DetailCardHeader({
         {action}
       </div>
     </CardHeader>
-  );
-}
-
-export function DetailTabIntro({
-  title,
-  description,
-  action,
-}: {
-  title: string;
-  description: string;
-  action?: ReactNode;
-}) {
-  return (
-    <div className="flex flex-col gap-3 border-b pb-4 sm:flex-row sm:items-end sm:justify-between">
-      <div>
-        <h2 className="text-lg font-semibold tracking-tight">{title}</h2>
-        <p className="mt-1 max-w-3xl text-xs leading-5 text-muted-foreground">
-          {description}
-        </p>
-      </div>
-      {action}
-    </div>
   );
 }
 

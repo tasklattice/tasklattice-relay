@@ -1,3 +1,4 @@
+import { PageHeader } from "@/components/layout/page-header";
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import type { CostBreakdownItem, CostFilters, CostGroupBy, CostQueryParams } from "@tali/contracts";
@@ -195,14 +196,7 @@ function ModelCostPage() {
 
   return (
     <div className="space-y-3 font-sans">
-      <header className="pb-1">
-        <h1 className="font-display text-2xl font-semibold leading-tight tracking-[-0.02em]">Model cost</h1>
-        <p className="mt-1 max-w-3xl text-[13px] leading-5 text-muted-foreground">
-          Gateway usage is attributed to Work, Task and Agent instances through dedicated virtual keys.
-          <br className="hidden sm:block" />
-          Planning belongs to Work; execution belongs to its Task. Gateway costs may differ from provider invoices.
-        </p>
-      </header>
+      <PageHeader title="Model cost" description="Gateway costs attributed to Work, Tasks, and Agents. Amounts may differ from provider invoices." />
 
       {isPending ? <CostSkeleton /> : error ? (
         <>
@@ -223,7 +217,6 @@ function ModelCostPage() {
         </>
       ) : summary.data && activity.data && insights.data && ranking.data && trend.data && breakdown.data ? (
         <div className="space-y-3">
-          <CostSummaryStrip summary={summary.data} priorLabel={`${priorDays} days`} />
           <div className="flex flex-col gap-3 py-1 lg:flex-row lg:items-center lg:justify-between">
             <CostGroupBySelector value={groupBy} onValueChange={(value) => setSearch({ groupBy: value })} />
             <div className="flex flex-wrap items-center justify-end gap-2">
@@ -241,6 +234,7 @@ function ModelCostPage() {
               />
             </div>
           </div>
+          <CostSummaryStrip summary={summary.data} priorLabel={`${priorDays} days`} />
           <SpendActivityHeatmap activity={activity.data} from={dates.from} to={dates.to} groupBy={groupBy} />
           <div className="grid items-stretch gap-3 xl:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
             <CostInsights insights={insights.data} />

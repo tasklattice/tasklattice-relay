@@ -1,3 +1,4 @@
+import { ListToolbar } from "@/components/layout/list-toolbar";
 import { useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
@@ -17,7 +18,7 @@ import {
 import { EntitySheet } from "@/components/shared/entity-sheet";
 import { StatusDot } from "@/components/shared/status-dot";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -53,6 +54,8 @@ function VectorDatabases() {
   const catalog = useQuery({ queryKey: scope.key("resource-catalog"), queryFn: api.getResourceCatalog });
   const models = useQuery({ queryKey: scope.key("model-deployments"), queryFn: api.listModelDeployments });
   const items = catalog.data?.vectorDatabases ?? [];
+  const [search, setSearch] = useState("");
+  const visible = items.filter((item) => `${item.name} ${item.description} ${getVectorStoreProvider(item.provider).label}`.toLowerCase().includes(search.trim().toLowerCase()));
   const embeddingModels = (models.data ?? []).filter(
     (model) => model.status === "VALIDATED" && model.modelType === "text-embedding",
   );
@@ -95,7 +98,6 @@ function VectorDatabases() {
     <div className="space-y-6">
       <PageHeader
         title="Vector Databases"
-        description="Create a built-in PostgreSQL Vector Database or connect an advanced provider for Project-scoped Agent recall."
         actions={!permissions.canCreateVectorDatabases && !permissions.canManageProject ? undefined : models.isPending ? (
           <Button className="h-11" disabled>Checking embedding…</Button>
         ) : models.error ? (
@@ -134,13 +136,13 @@ function VectorDatabases() {
       {catalog.isPending ? (
         <div className="space-y-3"><Skeleton className="h-28 w-full" /><Skeleton className="h-28 w-full" /></div>
       ) : (
-        <Card>
-          <CardHeader className="border-b">
-            <CardTitle>Project Vector Databases</CardTitle>
-            <CardDescription>Built-in storage includes Docling document ingestion. Advanced providers remain managed through their native service.</CardDescription>
-          </CardHeader>
-          <CardContent className="px-0">
-            {items.length ? items.map((item) => (
+        <Card variant="data">
+          <ListToolbar search={search} onSearchChange={setSearch} searchLabel="Search Vector Databases" count={visible.length} />
+          <div className="hidden grid-cols-[minmax(0,1fr)_11rem_8rem_2.75rem] gap-4 border-b bg-muted/20 px-5 py-3 text-xs text-muted-foreground lg:grid" aria-hidden="true">
+            <span>Database</span><span>Provider</span><span>Status</span><span />
+          </div>
+          <CardContent className="p-0">
+            {visible.length ? visible.map((item) => (
               <button
                 key={item.id}
                 type="button"
@@ -148,14 +150,14 @@ function VectorDatabases() {
                   to: "/$projectId/vector-databases/$databaseId",
                   params: { projectId, databaseId: item.id },
                 })}
-                className="grid min-h-28 w-full gap-4 border-b px-5 py-4 text-left transition-colors last:border-b-0 hover:bg-muted/45 focus-visible:outline-2 focus-visible:outline-offset-[-2px] sm:grid-cols-[minmax(0,1fr)_11rem_8rem_2.75rem] sm:items-center"
+                className="grid min-h-28 w-full gap-4 border-b px-5 py-4 text-left transition-colors last:border-b-0 hover:bg-muted/45 focus-visible:outline-2 focus-visible:outline-offset-[-2px] lg:grid-cols-[minmax(0,1fr)_11rem_8rem_2.75rem] sm:items-center"
               >
                 <span className="flex min-w-0 items-start gap-3">
                   <VectorStoreProviderIcon provider={item.provider} />
                   <span className="min-w-0 pt-0.5">
                     <strong className="block truncate">{item.name}</strong>
                     <span className="mt-1 block text-xs leading-5 text-muted-foreground">{item.description}</span>
-                    <span className="mt-1 block truncate font-mono text-[11px] text-muted-foreground">{item.vectorStoreId}</span>
+
                   </span>
                 </span>
                 <Fact label="Provider" value={getVectorStoreProvider(item.provider).label} />
@@ -165,8 +167,8 @@ function VectorDatabases() {
             )) : (
               <div className="px-6 py-16 text-center">
                 <Database className="mx-auto size-7 text-muted-foreground" />
-                <strong className="mt-3 block">No Vector Databases</strong>
-                <p className="mx-auto mt-1 max-w-md text-xs leading-5 text-muted-foreground">Start with the built-in PostgreSQL option to upload documents, parse them with Docling, and expose recall through LiteLLM.</p>
+                <strong className="mt-3 block">{items.length ? "No matching Vector Databases" : "No Vector Databases"}</strong>
+                <p className="mx-auto mt-1 max-w-md text-xs leading-5 text-muted-foreground">{items.length ? "Try another database name or provider." : "Create a database to upload documents and make them available to Agents."}</p>
               </div>
             )}
           </CardContent>

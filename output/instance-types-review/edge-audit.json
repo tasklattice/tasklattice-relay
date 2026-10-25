@@ -1,0 +1,106 @@
+{
+  "narrow": [
+    {
+      "mainScrollWidth": 760,
+      "mainWidth": 760,
+      "scenario": "a2a-managed",
+      "tab": "Overview"
+    },
+    {
+      "mainScrollWidth": 760,
+      "mainWidth": 760,
+      "scenario": "a2a-managed",
+      "tab": "Configuration"
+    },
+    {
+      "mainScrollWidth": 760,
+      "mainWidth": 760,
+      "scenario": "a2a-managed",
+      "tab": "Capabilities"
+    },
+    {
+      "mainScrollWidth": 760,
+      "mainWidth": 760,
+      "scenario": "a2a-external",
+      "tab": "Overview"
+    },
+    {
+      "mainScrollWidth": 760,
+      "mainWidth": 760,
+      "scenario": "a2a-external",
+      "tab": "Configuration"
+    },
+    {
+      "mainScrollWidth": 760,
+      "mainWidth": 760,
+      "scenario": "a2a-external",
+      "tab": "Capabilities"
+    },
+    {
+      "mainScrollWidth": 760,
+      "mainWidth": 760,
+      "scenario": "project-agent",
+      "tab": "Overview"
+    },
+    {
+      "mainScrollWidth": 760,
+      "mainWidth": 760,
+      "scenario": "project-agent",
+      "tab": "Configuration"
+    },
+    {
+      "mainScrollWidth": 760,
+      "mainWidth": 760,
+      "scenario": "project-agent",
+      "tab": "Capabilities"
+    },
+    {
+      "mainScrollWidth": 760,
+      "mainWidth": 760,
+      "scenario": "openclaw",
+      "tab": "Overview"
+    },
+    {
+      "mainScrollWidth": 760,
+      "mainWidth": 760,
+      "scenario": "openclaw",
+      "tab": "Configuration"
+    },
+    {
+      "mainScrollWidth": 760,
+      "mainWidth": 760,
+      "scenario": "openclaw",
+      "tab": "Capabilities"
+    }
+  ],
+  "emptyAndMissing": [
+    {
+      "mainScrollWidth": 990,
+      "mainWidth": 990,
+      "scenario": "a2a-empty",
+      "tab": "Configuration",
+      "text": "\n  \"direction\": [\n    \"SERVER\"\n  ],\n  \"binding\": \"HTTP+JSON\",\n  \"endpoint\": \"https://agent.example.test/a2a\",\n  \"agentCardUrl\": \"https://agent.example.test/.well-known/agent-card.json\",\n  \"agentCardStatus\": \"VALID\",\n  \"lastDiscoveredAt\": \"2026-10-25T01:00:00.000Z\",\n  \"capabilities\": {\n    \"streaming\": true,\n    \"pushNotifications\": false,\n    \"extendedAgentCard\": false,\n    \"defaultInputModes\": [\n      \"text/plain\"\n    ],\n    \"defaultOutputModes\": [\n      \"text/plain\"\n    ]\n  },\n  \"skills\": []\n}"
+    },
+    {
+      "mainScrollWidth": 990,
+      "mainWidth": 990,
+      "scenario": "a2a-empty",
+      "tab": "Capabilities",
+      "text": "Runtime featuresWork profilePlans workUnavailableInteractive workspaceUnavailableCoordinationCan delegateUnavailableAccepts delegationAvailableOperationsLive runtime logsAvailableExecutable terminalUnavailableProtocolStreamingAvailablePush notificationsUnavailableAdvertised capabilitiesSpecialist skillsNo skills advertised."
+    },
+    {
+      "mainScrollWidth": 990,
+      "mainWidth": 990,
+      "scenario": "a2a-no-protocol",
+      "tab": "Configuration",
+      "text": "IdentityInstance IDa2a-no-protocolProduct formService AgentCollaboration roleSpecialistDefinition IDfixture-a2a-no-protocolRuntime configurationImageexample.test/agents/triage:v3Image digestsha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaNamespacepreview-projectWorkloadpreview-triage-agentPodpreview-triage-agent-7bcdf8A2A configurationNo A2A protocol has been advertised."
+    },
+    {
+      "mainScrollWidth": 990,
+      "mainWidth": 990,
+      "scenario": "a2a-no-protocol",
+      "tab": "Capabilities",
+      "text": "Runtime featuresWork profilePlans workUnavailableInteractive workspaceUnavailableCoordinationCan delegateUnavailableAccepts delegationAvailableOperationsLive runtime logsAvailableExecutable terminalUnavailableProtocolStreamingUnavailablePush notificationsUnavailableAdvertised capabilitiesSpecialist skillsNo skills advertised."
+    }
+  ]
+}

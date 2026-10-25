@@ -169,8 +169,8 @@ export function PlatformPeopleTable({
 
   return (
     <div className="border-y">
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[72rem] table-fixed text-left">
+      <div className="relative overflow-x-auto">
+        <table aria-label="Platform people and administrative access" className="w-full min-w-[72rem] table-fixed text-left">
           <colgroup>
             <col className="w-[18rem]" />
             <col className="w-[17rem]" />

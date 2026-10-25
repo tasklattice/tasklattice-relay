@@ -215,10 +215,10 @@ export function MemoryListPage() {
       ) : null}
 
       <form
-        className="flex flex-col gap-3 rounded-xl border bg-card p-3 sm:flex-row"
+        className="flex flex-wrap items-center gap-3 border-b pb-4"
         onSubmit={(event) => { event.preventDefault(); applyFilters(); }}
       >
-        <div className="relative min-w-0 flex-1">
+        <div className="relative min-w-0 flex-[1_1_18rem] sm:max-w-xl">
           <Search className="pointer-events-none absolute left-3 top-3.5 size-4 text-muted-foreground" />
           <Input
             aria-label="Search Memory resources"
@@ -247,7 +247,7 @@ export function MemoryListPage() {
       ) : memories.error ? (
         <MemoryErrorState error={memories.error} onRetry={() => void memories.refetch()} />
       ) : items.length ? (
-        <Card className="overflow-hidden">
+        <Card variant="data">
           <CardContent className="p-0">
             <div className="hidden grid-cols-[minmax(15rem,1.4fr)_10rem_minmax(13rem,1fr)_10rem_3rem] gap-4 border-b bg-muted/20 px-5 py-3 text-xs text-muted-foreground lg:grid">
               <span>Memory</span><span>Binding</span><span>Content</span><span>Last activity</span><span className="sr-only">Actions</span>

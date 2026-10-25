@@ -1,0 +1,38 @@
+[
+  {
+    "h1Count": 1,
+    "scrollWidth": 1270,
+    "tab": "Overview",
+    "width": 1270
+  },
+  {
+    "h1Count": 1,
+    "scrollWidth": 1270,
+    "tab": "Configuration",
+    "width": 1270
+  },
+  {
+    "h1Count": 1,
+    "scrollWidth": 1270,
+    "tab": "Capabilities",
+    "width": 1270
+  },
+  {
+    "h1Count": 1,
+    "scrollWidth": 1270,
+    "tab": "Activity",
+    "width": 1270
+  },
+  {
+    "h1Count": 1,
+    "scrollWidth": 1270,
+    "tab": "Logs",
+    "width": 1270
+  },
+  {
+    "h1Count": 1,
+    "scrollWidth": 1270,
+    "tab": "Terminal",
+    "width": 1270
+  }
+]

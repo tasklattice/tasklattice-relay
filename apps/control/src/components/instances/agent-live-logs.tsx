@@ -117,7 +117,9 @@ export function AgentLiveLogs({
       } catch (error) {
         if (disposed) return;
         setState("error");
-        setMessage(error instanceof Error ? error.message : "Live logs unavailable");
+        setMessage(
+          error instanceof Error ? error.message : "Live logs unavailable",
+        );
       }
     };
     void start();
@@ -134,11 +136,16 @@ export function AgentLiveLogs({
     <div className="overflow-hidden rounded-lg border bg-[#0b0f0e]">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 bg-[#111715] px-4 py-3 text-white">
         <div className="flex min-w-0 items-center gap-2">
-          <Badge variant="outline" className="border-white/15 bg-white/5 text-white">
+          <Badge
+            variant="outline"
+            className="border-white/15 bg-white/5 text-white"
+          >
             <Radio className={active ? "text-emerald-400" : "text-amber-400"} />
             {state === "connected" ? "Live" : state}
           </Badge>
-          <span className="truncate font-mono text-xs text-white/65">{podName} / agent</span>
+          <span className="truncate font-mono text-xs text-white/65">
+            {podName} / agent
+          </span>
         </div>
         <div className="flex items-center gap-2">
           <span className="hidden items-center gap-1.5 text-[11px] text-white/55 sm:flex">
@@ -158,8 +165,11 @@ export function AgentLiveLogs({
         </div>
       </div>
       <div ref={host} className="h-[34rem] overflow-hidden p-3" />
-      <p role="status" className="border-t border-white/10 px-4 py-2 text-[11px] text-white/55">
-        {message}. Input is disabled; this view follows Kubernetes Pod stdout/stderr only.
+      <p
+        role="status"
+        className="border-t border-white/10 px-4 py-2 text-[11px] text-white/55"
+      >
+        {message}
       </p>
     </div>
   );

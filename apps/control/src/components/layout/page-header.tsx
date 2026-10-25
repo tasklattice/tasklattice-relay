@@ -14,8 +14,8 @@ export function PageHeader({
   title,
 }: PageHeaderProps) {
   return (
-    <header className="flex flex-col items-stretch gap-4 sm:flex-row sm:items-end sm:justify-between">
-      <div className="min-w-0 flex-1">
+    <header className="flex flex-wrap items-start justify-between gap-x-6 gap-y-4">
+      <div className="min-w-0 flex-[1_1_18rem]">
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="font-display text-2xl font-semibold leading-8 tracking-[-0.025em]">{title}</h1>
           {badge}
@@ -26,7 +26,7 @@ export function PageHeader({
           </p>
         ) : null}
       </div>
-      {actions}
+      {actions ? <div className="flex max-w-full flex-wrap items-center gap-2">{actions}</div> : null}
     </header>
   );
 }

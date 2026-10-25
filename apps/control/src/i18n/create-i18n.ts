@@ -25,6 +25,7 @@ function platformI18nOptions(language: SupportedLanguage): InitOptions {
       "createInstance",
       "breadcrumbs",
       "help",
+      "skills",
     ],
     resources: i18nResources,
     returnNull: false,

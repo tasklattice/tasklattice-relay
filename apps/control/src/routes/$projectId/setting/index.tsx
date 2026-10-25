@@ -19,7 +19,6 @@ import {
 } from "@/components/layout/context-settings-navigation";
 import { PageHeader } from "@/components/layout/page-header";
 import { ProjectModelRoutingsSettings } from "@/components/project/project-model-routing-settings";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ProjectMembers } from "@/components/project/project-members";
 import { ProjectQuotaSettings } from "@/components/project/project-quota-settings";
@@ -155,19 +154,8 @@ function ProjectSettingsPage() {
   }
 
   return renderLayout(
-    <div className="mx-auto w-full max-w-[1600px] space-y-7 p-5 sm:p-6 lg:p-8">
-      <PageHeader
-        title="Project Setting"
-        badge={(
-          <Badge className="border-primary/20 bg-primary/7 text-link" variant="outline">
-            <ShieldCheck />
-            Project Administrator
-          </Badge>
-        )}
-        description="Manage Project identity, human membership, Providers, models, routing, and quota."
-      />
-
-      <section className="min-w-0 overflow-hidden border-b">
+    <div className="mx-auto w-full max-w-[1440px] space-y-6 p-5 sm:p-6 lg:p-8">
+      <section className="min-w-0">
         {section === "settings" ? (
           <ProjectGeneralSettings
             project={project}
@@ -205,36 +193,24 @@ function ProjectGeneralSettings({
   const [deleteOpen, setDeleteOpen] = useState(false);
 
   return (
-    <div className="divide-y">
+    <div className="space-y-6">
+      <PageHeader title="General" />
+      <dl className="divide-y rounded-lg border bg-card px-5 text-sm">
+        <div className="grid grid-cols-[10rem_minmax(0,1fr)] gap-4 py-4">
+          <dt className="text-muted-foreground">Project name</dt>
+          <dd className="flex min-w-0 flex-wrap items-center gap-2 font-medium">
+            {project.name}<LockKeyhole className="size-3.5 text-muted-foreground" aria-label="Immutable" />
+          </dd>
+        </div>
+        <div className="grid grid-cols-[10rem_minmax(0,1fr)] gap-4 py-4">
+          <dt className="text-muted-foreground">Project ID</dt>
+          <dd className="break-all font-mono text-xs">{project.id}</dd>
+        </div>
+      </dl>
       <ProjectInitializationSettings key={project.id} project={project} />
-      <div className="flex flex-col justify-between gap-3 p-5 sm:flex-row sm:items-start">
-        <div>
-          <h2 className="text-lg font-semibold">Project profile</h2>
-          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            Review the immutable Project identity used by URLs, audit records, and resource ownership.
-          </p>
-        </div>
-      </div>
-
-      <div className="space-y-3 p-5">
-        <span className="text-sm font-medium">Project name</span>
-        <div className="flex min-h-12 max-w-lg items-center gap-3 border bg-muted/20 px-4">
-          <LockKeyhole className="size-4 shrink-0 text-muted-foreground" />
-          <strong className="min-w-0 flex-1 truncate text-sm">{project.name}</strong>
-          <span className="shrink-0 text-xs font-medium text-muted-foreground">Immutable</span>
-        </div>
-        <p className="max-w-2xl text-xs leading-5 text-muted-foreground">
-          Project names are unique inside their Department and are permanently fixed at creation. This protects stable URLs, audit records, and resource ownership.
-        </p>
-      </div>
-
-      <div className="grid gap-1 p-5 text-sm">
-        <span className="font-medium">Project ID</span>
-        <code className="text-xs text-muted-foreground">{project.id}</code>
-      </div>
 
       {permissions.canDeleteProject ? (
-        <div className="flex flex-col justify-between gap-4 p-5 sm:flex-row sm:items-center">
+        <div className="flex flex-col justify-between gap-4 border-t pt-6 sm:flex-row sm:items-center">
           <div>
             <h3 className="text-sm font-semibold text-destructive">
               Delete Project

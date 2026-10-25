@@ -8,7 +8,8 @@ import type {
 } from "@tali/contracts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { Eye, ShieldCheck } from "lucide-react";
+import { Eye, Pencil, ShieldCheck } from "lucide-react";
+import { EntitySheet } from "@/components/shared/entity-sheet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -16,27 +17,30 @@ import {
   MultiSelectCombobox,
   type MultiSelectOption,
 } from "@/components/ui/multi-select-combobox";
-import type { AgentPlatformPresentation } from "@/lib/agent-platforms";
 import { api } from "@/lib/api";
 import { useProjectQueryScope } from "@/hooks/use-project-query-scope";
-import { useCurrentProjectId } from "@/hooks/use-project";
+import { useCurrentProjectId, useProject } from "@/hooks/use-project";
 import { DefinitionList, DetailCardHeader } from "./instance-detail-shared";
 import { InstanceInstructionsDialog } from "./instance-instructions-dialog";
 
 export function InstanceConfigurationTab({
   agent,
   form,
-  platform,
   protocol,
   role: collaborationRole,
 }: {
   agent: Agent;
   form: AgentProductForm;
-  platform: AgentPlatformPresentation;
   protocol?: AgentProtocolView;
   role: AgentInstanceRole;
 }) {
   const projectId = useCurrentProjectId();
+  const { currentProject } = useProject();
+  const canEditPolicies =
+    currentProject?.effectiveCapabilities.includes(
+      "CAP_AGENT_INSTANCE_ACCESS_POLICY_ASSIGN",
+    ) ?? false;
+  const [policiesOpen, setPoliciesOpen] = useState(false);
   const [instructionsOpen, setInstructionsOpen] = useState(false);
   const [selectedAccessPolicyIds, setSelectedAccessPolicyIds] = useState(
     agent.accessPolicyIds,
@@ -51,8 +55,13 @@ export function InstanceConfigurationTab({
     queryKey: scope.key("access-policies"),
     queryFn: api.listAccessPolicies,
   });
-  const currentAccessPolicies = (accessPolicies.data ?? []).filter((policy) =>
-    agent.accessPolicyIds.includes(policy.id),
+  const currentAccessPolicies = agent.accessPolicyIds.map(
+    (id) =>
+      accessPolicies.data?.find((policy) => policy.id === id) ?? {
+        id,
+        name: id,
+        status: undefined,
+      },
   );
   const accessPolicyOptions: MultiSelectOption[] = (
     accessPolicies.data ?? []
@@ -92,9 +101,8 @@ export function InstanceConfigurationTab({
     },
   });
   useEffect(() => {
-    if (!updateAccessPolicies.isPending)
-      setSelectedAccessPolicyIds(agent.accessPolicyIds);
-  }, [agent.accessPolicyIds, updateAccessPolicies.isPending]);
+    if (!policiesOpen) setSelectedAccessPolicyIds(agent.accessPolicyIds);
+  }, [agent.accessPolicyIds, policiesOpen]);
   const role = catalog.data?.specializations.find(
     (item) => item.id === agent.specializationId,
   );
@@ -104,22 +112,42 @@ export function InstanceConfigurationTab({
     <div
       role="tabpanel"
       aria-label="Configuration"
-      className="grid gap-4 pt-5 lg:grid-cols-2"
+      className="grid items-start gap-4 pt-5 lg:grid-cols-2"
     >
       <Card>
-        <DetailCardHeader
-          title="Identity"
-          description="Identity captured when this Instance was created."
-        />
+        <DetailCardHeader title="Identity" />
         <CardContent>
           <DefinitionList
             items={[
-              { label: "Agent name", value: agent.name },
-              { label: "Description", value: agent.description || "—" },
-              { label: "Product form", value: form === "INTERACTIVE" ? "Interactive Agent" : form === "SERVICE" ? "Service Agent" : "Hybrid Agent" },
-              { label: "Collaboration role", value: collaborationRole === "SUPERVISOR" ? "Supervisor" : collaborationRole === "SPECIALIST" ? "Specialist" : "Hybrid" },
-              { label: "Execution strategy", value: "Runtime-defined" },
-              { label: "A2A role", value: protocol?.direction.join(" + ") ?? "Not exposed" },
+              {
+                label: "Instance ID",
+                value: <span className="font-mono">{agent.id}</span>,
+              },
+              ...(agent.description
+                ? [{ label: "Description", value: agent.description }]
+                : []),
+              {
+                label: "Product form",
+                value:
+                  form === "INTERACTIVE"
+                    ? "Interactive Agent"
+                    : form === "SERVICE"
+                      ? "Service Agent"
+                      : "Hybrid Agent",
+              },
+              {
+                label: "Collaboration role",
+                value:
+                  collaborationRole === "SUPERVISOR"
+                    ? "Supervisor"
+                    : collaborationRole === "SPECIALIST"
+                      ? "Specialist"
+                      : "Hybrid",
+              },
+              {
+                label: "A2A role",
+                value: protocol?.direction.join(" + ") ?? "Not exposed",
+              },
               { label: "Work profile", value: managedBy },
             ]}
           />
@@ -128,11 +156,9 @@ export function InstanceConfigurationTab({
       <Card>
         <DetailCardHeader
           title="Instructions"
-          description={
-            agent.specializationId === "custom"
-              ? "Custom instructions"
-              : `Instructions managed by ${managedBy}`
-          }
+          {...(agent.specializationId === "custom"
+            ? {}
+            : { description: `Managed by ${managedBy}` })}
         />
         <CardContent className="flex min-h-36 flex-col items-start justify-between gap-4">
           <p className="line-clamp-3 text-xs leading-6 text-muted-foreground">
@@ -152,7 +178,20 @@ export function InstanceConfigurationTab({
       <Card className="lg:col-span-2">
         <DetailCardHeader
           title="Access Policies"
-          description="This Instance references one or more reusable MCP authorization policies directly. Deny overrides allow when rules overlap."
+          action={
+            <Button
+              type="button"
+              variant="outline"
+              disabled={!canEditPolicies}
+              onClick={() => {
+                setSelectedAccessPolicyIds(agent.accessPolicyIds);
+                updateAccessPolicies.reset();
+                setPoliciesOpen(true);
+              }}
+            >
+              <Pencil /> Edit policies
+            </Button>
+          }
         />
         <CardContent className="space-y-5">
           <div className="flex flex-wrap gap-2">
@@ -166,16 +205,123 @@ export function InstanceConfigurationTab({
                 >
                   <ShieldCheck className="size-3.5 text-link" />
                   {policy.name}
-                  <Badge variant="outline">{policy.status}</Badge>
+                  <Badge variant="outline">
+                    {policy.status ?? "Metadata unavailable"}
+                  </Badge>
                 </Link>
               ))
             ) : (
               <p className="text-xs text-muted-foreground">
-                No available policy metadata for the current references.
+                No Access Policies attached.
               </p>
             )}
           </div>
-          <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
+          {accessPolicies.isPending ? (
+            <p role="status" className="text-xs text-muted-foreground">
+              Loading Access Policies…
+            </p>
+          ) : accessPolicies.isError ? (
+            <div role="alert" className="space-y-2 text-xs text-destructive">
+              <p>{accessPolicies.error.message}</p>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => void accessPolicies.refetch()}
+              >
+                Try again
+              </Button>
+            </div>
+          ) : null}
+          {!canEditPolicies ? (
+            <p className="text-xs text-muted-foreground">
+              You do not have permission to change this Instance's Access
+              Policies.
+            </p>
+          ) : null}
+        </CardContent>
+      </Card>
+      <Card className="lg:col-span-2">
+        <DetailCardHeader title="Managed inference" />
+        <CardContent>
+          <DefinitionList
+            columns={2}
+            items={[
+              { label: "Inference mode", value: "Platform managed" },
+              {
+                label: "Inference status",
+                value:
+                  agent.modelRoutingStatus?.replaceAll("_", " ") ??
+                  "Unavailable",
+              },
+              {
+                label: "Data boundary",
+                value:
+                  complianceDomainCatalog.find(
+                    (domain) =>
+                      domain.id === agent.modelRoutingComplianceDomain,
+                  )?.label ?? agent.modelRoutingComplianceDomain,
+              },
+              {
+                label: "Automatic routing",
+                value:
+                  agent.modelRoutingCapabilities?.automaticRouting === "ENABLED"
+                    ? "Enabled"
+                    : "Not enabled",
+              },
+              {
+                label: "Failover",
+                value:
+                  agent.modelRoutingCapabilities?.failover === "ENABLED"
+                    ? "Enabled"
+                    : "Not enabled",
+              },
+              {
+                label: "Key fingerprint",
+                value: agent.modelRoutingKeyFingerprint ?? "Unavailable",
+              },
+            ]}
+          />
+        </CardContent>
+      </Card>
+      <EntitySheet
+        open={policiesOpen}
+        onOpenChange={setPoliciesOpen}
+        pending={updateAccessPolicies.isPending}
+        width="md"
+        eyebrow="Instance access"
+        title="Edit Access Policies"
+        description={`${agent.name} · ${agent.status}. Applying changes updates this Instance's MCP tool permissions.`}
+        footer={
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={updateAccessPolicies.isPending}
+              onClick={() => setPoliciesOpen(false)}
+            >
+              {updateAccessPolicies.isSuccess ? "Done" : "Cancel"}
+            </Button>
+            <Button
+              type="button"
+              variant="edit"
+              disabled={
+                !canEditPolicies ||
+                !selectionChanged ||
+                !selectedAccessPolicyIds.length ||
+                Boolean(invalidSelectedPolicyIds.length) ||
+                accessPolicies.isPending ||
+                accessPolicies.isError ||
+                updateAccessPolicies.isPending
+              }
+              onClick={() => updateAccessPolicies.mutate()}
+            >
+              {updateAccessPolicies.isPending ? "Applying…" : "Apply policies"}
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-5">
+          <div className="space-y-3">
             <div className="space-y-2">
               <label
                 className="text-xs font-medium"
@@ -189,7 +335,11 @@ export function InstanceConfigurationTab({
                 value={selectedAccessPolicyIds}
                 options={accessPolicyOptions}
                 maxSelected={64}
-                disabled={accessPolicies.isPending || accessPolicies.isError}
+                disabled={
+                  accessPolicies.isPending ||
+                  accessPolicies.isError ||
+                  updateAccessPolicies.isPending
+                }
                 placeholder={
                   accessPolicies.isPending
                     ? "Loading Access Policies…"
@@ -203,23 +353,12 @@ export function InstanceConfigurationTab({
                 }}
               />
             </div>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={
-                !selectionChanged ||
-                !selectedAccessPolicyIds.length ||
-                Boolean(invalidSelectedPolicyIds.length) ||
-                accessPolicies.isPending ||
-                accessPolicies.isError ||
-                updateAccessPolicies.isPending
-              }
-              onClick={() => updateAccessPolicies.mutate()}
-            >
-              {updateAccessPolicies.isPending ? "Applying…" : "Apply policies"}
-            </Button>
           </div>
-          {accessPolicies.isError ? (
+          {accessPolicies.isPending ? (
+            <p role="status" className="text-xs text-muted-foreground">
+              Loading Access Policies…
+            </p>
+          ) : accessPolicies.isError ? (
             <div
               className="border-l-2 border-destructive bg-destructive/5 px-3 py-2 text-xs text-destructive"
               role="alert"
@@ -235,7 +374,7 @@ export function InstanceConfigurationTab({
               </Button>
             </div>
           ) : !accessPolicies.isPending && !accessPolicies.data?.length ? (
-            <p className="border-l-2 border-amber-500 bg-amber-500/5 px-3 py-2 text-xs">
+            <p className="border-l-2 border-warning-border bg-warning-surface px-3 py-2 text-xs">
               <Link
                 to="/$projectId/access-policies"
                 params={{ projectId }}
@@ -279,14 +418,14 @@ export function InstanceConfigurationTab({
               At least one active Access Policy is required.
             </p>
           ) : selectedAccessPolicyIds.length >= 64 ? (
-            <p className="border-l-2 border-amber-500 bg-amber-500/5 px-3 py-2 text-xs">
+            <p className="border-l-2 border-warning-border bg-warning-surface px-3 py-2 text-xs">
               Maximum of 64 Access Policies reached. Remove one before selecting
               another.
             </p>
           ) : (
             <p className="text-xs text-muted-foreground">
-              Changes reconcile this Instance&apos;s LiteLLM MCP permissions
-              without changing its Agent workbench or Runtime Policy.
+              Only active policies are enforced. Deny overrides allow when rules
+              overlap.
             </p>
           )}
           {updateAccessPolicies.error ? (
@@ -294,56 +433,13 @@ export function InstanceConfigurationTab({
               {updateAccessPolicies.error.message}
             </p>
           ) : null}
-        </CardContent>
-      </Card>
-      <Card className="lg:col-span-2">
-        <DetailCardHeader
-          title="Managed inference"
-          description="TaskLattice Relay resolved this access contract automatically when the Instance was created."
-        />
-        <CardContent>
-          <DefinitionList
-            columns={2}
-            items={[
-              { label: "Inference mode", value: "Platform managed" },
-              {
-                label: "Inference status",
-                value:
-                  agent.modelRoutingStatus?.replaceAll("_", " ") ??
-                  "Unavailable",
-              },
-              {
-                label: "Data boundary",
-                value:
-                  complianceDomainCatalog.find(
-                    (domain) =>
-                      domain.id === agent.modelRoutingComplianceDomain,
-                  )?.label ?? agent.modelRoutingComplianceDomain,
-              },
-              {
-                label: "Automatic routing",
-                value:
-                  agent.modelRoutingCapabilities?.automaticRouting === "ENABLED"
-                    ? "Enabled"
-                    : "Not enabled",
-              },
-              {
-                label: "Failover",
-                value:
-                  agent.modelRoutingCapabilities?.failover === "ENABLED"
-                    ? "Enabled"
-                    : "Not enabled",
-              },
-              {
-                label: "Key fingerprint",
-                value: agent.modelRoutingKeyFingerprint ?? "Unavailable",
-              },
-              { label: "Agent framework", value: platform.name },
-              { label: "Runtime", value: platform.runtimeName },
-            ]}
-          />
-        </CardContent>
-      </Card>
+          {updateAccessPolicies.isSuccess ? (
+            <p role="status" className="text-sm text-success">
+              Access Policies updated.
+            </p>
+          ) : null}
+        </div>
+      </EntitySheet>
       <InstanceInstructionsDialog
         managedBy={managedBy}
         prompt={agent.systemPrompt}

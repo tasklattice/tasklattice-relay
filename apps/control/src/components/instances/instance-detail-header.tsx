@@ -1,9 +1,6 @@
-import type {
-  Instance as Agent,
-} from "@tali/contracts";
+import type { Instance as Agent } from "@tali/contracts";
 import { Link } from "@tanstack/react-router";
 import {
-  ArrowLeft,
   ExternalLink,
   FileText,
   MoreHorizontal,
@@ -26,7 +23,8 @@ import {
 } from "@/components/ui/tooltip";
 import type { AgentPlatformPresentation } from "@/lib/agent-platforms";
 import type { InstanceAccessState } from "./instance-detail-model";
-import { InstanceStatusBadge, RelativeTime } from "./instance-detail-shared";
+import { RelativeTime } from "./instance-detail-shared";
+import { InstanceDetailHeader } from "./instance-detail-layout";
 import { useCurrentProjectId } from "@/hooks/use-project";
 
 function DisabledAction({
@@ -61,46 +59,29 @@ export function InstanceHeader({
 }) {
   const projectId = useCurrentProjectId();
   return (
-    <header className="border-b">
-      <div className="flex flex-col gap-5 pb-5 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex min-w-0 items-center gap-3 sm:gap-4">
-          <Button
-            asChild
-            variant="ghost"
-            size="icon"
-            className="size-11 shrink-0"
-          >
-            <Link
-              to="/$projectId/instances"
-              params={{ projectId }}
-              aria-label="Back to Instances"
-            >
-              <ArrowLeft />
-            </Link>
-          </Button>
-          <AgentPlatformIcon
-            platform={platform}
-            className="size-14"
-            imageClassName="size-10"
-          />
-          <div className="min-w-0">
-            <div className="flex min-w-0 flex-wrap items-center gap-2">
-              <h1 className="min-w-0 max-w-full break-words font-display text-2xl font-semibold tracking-[-0.02em] sm:text-3xl">
-                {agent.name}
-              </h1>
-              <InstanceStatusBadge status={agent.status} />
-            </div>
-            <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-              <span>{platform.name} · {platform.runtimeName}</span>
-              <span aria-hidden="true">·</span>
-              <span>
-                Updated <RelativeTime value={agent.updatedAt} />
-              </span>
-            </p>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2 pl-14 sm:pl-[7.5rem] lg:pl-0">
+    <InstanceDetailHeader
+      name={agent.name}
+      status={agent.status}
+      icon={
+        <AgentPlatformIcon
+          platform={platform}
+          className="size-11 shrink-0"
+          imageClassName="size-8"
+        />
+      }
+      metadata={
+        <>
+          <span>
+            {platform.name} · {platform.runtimeName}
+          </span>
+          <span aria-hidden="true">·</span>
+          <span>
+            Updated <RelativeTime value={agent.updatedAt} />
+          </span>
+        </>
+      }
+      actions={
+        <>
           {platform.interactionSurface === "terminal" &&
           access.terminal.enabled ? (
             <Button asChild className="min-h-11">
@@ -174,8 +155,8 @@ export function InstanceHeader({
               ) : null}
             </DropdownMenuContent>
           </DropdownMenu>
-        </div>
-      </div>
-    </header>
+        </>
+      }
+    />
   );
 }

@@ -1,3 +1,4 @@
+import { PageHeader } from "@/components/layout/page-header";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -319,94 +320,50 @@ function ModelRoutingsSettingsContent({
         />
       ) : view === "models" ? (
         <div className="divide-y">
-          <section aria-labelledby="registered-models-title">
-            <div className="flex flex-col gap-4 p-5 pb-4 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <h3
-                    id="registered-models-title"
-                    className="text-sm font-semibold"
-                  >
-                    Registered models
-                  </h3>
-                  <Badge variant="outline">
-                    {
-                      models.filter(
-                        (model) => model.status === "VALIDATED",
-                      ).length
-                    }{" "}
-                    ready
-                  </Badge>
-                  <Tip content="A registered model is one callable Provider endpoint. The same model can appear more than once when supplied by different Providers or regions." />
-                </div>
-                <p className="mt-1 max-w-2xl text-xs leading-5 text-muted-foreground">
-                  Callable models registered for or inherited by this {scopeLabel}.
-                  Every model is supplied by a Provider.
-                </p>
-              </div>
-              <div className="flex w-full flex-col gap-2 sm:w-auto sm:items-end">
-                {canOpenModelRegistration || project ? (
-                  <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:justify-end">
+          <section aria-label="Models">
+            <div className="pb-6">
+              <PageHeader
+                title="Models"
+                badge={<Badge variant="outline">{models.filter((model) => model.status === "VALIDATED").length} ready</Badge>}
+                actions={canOpenModelRegistration || project ? (
+                  <div className="flex flex-wrap gap-2">
                     {project ? (
-                      <Button
-                        className="h-11"
-                        variant="outline"
-                        onClick={() => setInheritanceOpen(true)}
-                      >
-                        <Building2 />
-                        Department models
+                      <Button variant="outline" onClick={() => setInheritanceOpen(true)}>
+                        <Building2 />Department models
                       </Button>
                     ) : null}
                     {canOpenModelRegistration ? (
-                      <Button
-                        className="h-11"
-                        onClick={() => openModelRegistration()}
-                      >
-                        <Plus />
-                        Register models
+                      <Button variant="create" onClick={() => openModelRegistration()}>
+                        <Plus />Register models
                       </Button>
                     ) : null}
                   </div>
-                ) : null}
-                {models.length ? (
-                  <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
-                    <div className="relative sm:w-64">
-                      <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                      <Input
-                        className="pl-9"
-                        aria-label="Search registered models"
-                        placeholder="Search models…"
-                        value={modelSearch}
-                        onChange={(event) => setModelSearch(event.target.value)}
-                      />
-                    </div>
-                    <Select
-                      value={modelType}
-                      onValueChange={(value) =>
-                        setModelType(value as ModelTypeFilter)
-                      }
-                    >
-                      <SelectTrigger
-                        className="w-full sm:w-44"
-                        aria-label="Filter by model type"
-                      >
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All model types</SelectItem>
-                        <SelectItem value="llm">Text generation</SelectItem>
-                        <SelectItem value="text-embedding">
-                          Embedding
-                        </SelectItem>
-                        <SelectItem value="speech-to-text">
-                          Speech to text
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                ) : null}
-              </div>
+                ) : undefined}
+              />
             </div>
+            {models.length ? (
+              <div className="flex flex-wrap gap-3 border-t px-5 py-4">
+                <div className="relative sm:w-64">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    className="pl-9"
+                    aria-label="Search registered models"
+                    placeholder="Search models…"
+                    value={modelSearch}
+                    onChange={(event) => setModelSearch(event.target.value)}
+                  />
+                </div>
+                <Select value={modelType} onValueChange={(value) => setModelType(value as ModelTypeFilter)}>
+                  <SelectTrigger className="w-full sm:w-44" aria-label="Filter by model type"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All model types</SelectItem>
+                    <SelectItem value="llm">Text generation</SelectItem>
+                    <SelectItem value="text-embedding">Embedding</SelectItem>
+                    <SelectItem value="speech-to-text">Speech to text</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : null}
 
             {removeModel.error ? (
               <p
@@ -456,47 +413,31 @@ function ModelRoutingsSettingsContent({
           </section>
         </div>
       ) : (
-        <section aria-labelledby="routings-title">
-            <div className="flex flex-col gap-4 p-5 pb-4 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <h3 id="routings-title" className="text-sm font-semibold">
-                    Routing
-                  </h3>
-                  <Badge variant="outline">{routingItems.length}</Badge>
-                  <Tip content="Instances reference a stable routing configuration while LiteLLM applies model selection, retries, and fallback policy." />
-                </div>
-                <p className="mt-1 max-w-2xl text-xs leading-5 text-muted-foreground">
-                  Reusable routing configurations that Instances reference directly.
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-2 self-start sm:self-auto">
-                {project ? (
-                  <Button
-                    className="h-11"
-                    variant="outline"
-                    onClick={() => setInheritanceOpen(true)}
-                  >
-                    <Building2 />
-                    Department routing
-                  </Button>
-                ) : null}
-                {canCreateRouting ? (
-                  <Button
-                    className="h-11"
-                    disabled={!readyChatModels.length}
-                    title={
-                      readyChatModels.length
-                        ? undefined
-                        : "Register or inherit a validated text generation model first."
-                    }
-                    onClick={() => setCreateOpen(true)}
-                  >
-                    <Plus />
-                    Create Routing
-                  </Button>
-                ) : null}
-              </div>
+        <section aria-label="Routing">
+            <div className="pb-6">
+              <PageHeader
+                title="Routing"
+                badge={<Badge variant="outline">{routingItems.length}</Badge>}
+                actions={(
+                  <div className="flex flex-wrap gap-2">
+                    {project ? (
+                      <Button variant="outline" onClick={() => setInheritanceOpen(true)}>
+                        <Building2 />Department routing
+                      </Button>
+                    ) : null}
+                    {canCreateRouting ? (
+                      <Button
+                        variant="create"
+                        disabled={!readyChatModels.length}
+                        title={readyChatModels.length ? undefined : "Register or inherit a validated text generation model first."}
+                        onClick={() => setCreateOpen(true)}
+                      >
+                        <Plus />Create Routing
+                      </Button>
+                    ) : null}
+                  </div>
+                )}
+              />
             </div>
 
             {routings.isPending ? (

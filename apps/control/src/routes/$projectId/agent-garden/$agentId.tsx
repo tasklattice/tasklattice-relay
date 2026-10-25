@@ -1,3 +1,4 @@
+import { PageHeader } from "@/components/layout/page-header";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -222,7 +223,7 @@ function AgentMarketplaceDetail() {
           <AgentGardenIcon
             type={agent.integrationType}
             catalogIcon={agent.configuration.icon}
-            className="size-16 shrink-0"
+            className="size-11 shrink-0"
           />
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
@@ -243,12 +244,7 @@ function AgentMarketplaceDetail() {
                 tone={statusTone}
               />
             </div>
-            <h1 className="mt-4 font-display text-3xl font-semibold tracking-[-0.02em] sm:text-4xl">
-              {agent.name}
-            </h1>
-            <p className="mt-3 max-w-3xl text-base leading-7 text-muted-foreground">
-              {brief.tagline}
-            </p>
+            <div className="mt-3"><PageHeader title={agent.name} description={brief.tagline} /></div>
             <p className="mt-4 text-xs text-muted-foreground">
               Published by{" "}
               <strong className="font-medium text-foreground">
@@ -280,7 +276,7 @@ function AgentMarketplaceDetail() {
       </header>
 
       <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_19rem]">
-        <main className="min-w-0 space-y-9">
+        <div className="min-w-0 space-y-9">
           <MarketplaceSection
             icon={Sparkles}
             title="About this Agent"
@@ -298,6 +294,7 @@ function AgentMarketplaceDetail() {
             ) : null}
           </MarketplaceSection>
 
+          {brief.useCases.length ? (
           <MarketplaceSection
             icon={CircleCheck}
             title="What teams use it for"
@@ -315,6 +312,7 @@ function AgentMarketplaceDetail() {
               ))}
             </ul>
           </MarketplaceSection>
+          ) : null}
 
           {workflow.length ? (
             <MarketplaceSection
@@ -392,6 +390,7 @@ function AgentMarketplaceDetail() {
             </div>
           </MarketplaceSection>
 
+          {exampleTasks.length ? (
           <MarketplaceSection
             icon={Play}
             title="Example tasks"
@@ -412,7 +411,8 @@ function AgentMarketplaceDetail() {
               ))}
             </div>
           </MarketplaceSection>
-        </main>
+          ) : null}
+        </div>
 
         <aside className="space-y-5 xl:sticky xl:top-20 xl:self-start">
           <MarketplaceFactCard agent={agent} />

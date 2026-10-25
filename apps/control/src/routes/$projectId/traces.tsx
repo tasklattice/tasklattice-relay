@@ -113,7 +113,7 @@ function TracesPage() {
     <div className="space-y-4">
       <PageHeader
         title="Traces"
-        description="Inspect relation-scoped Agent and Playbook runs, including branch outcomes, retries, evidence, latency, and failures."
+        description="Execution timelines, outcomes, and failures for Agent runs."
       />
 
       {traces.isPending ? (
@@ -129,9 +129,6 @@ function TracesPage() {
               </span>
               <div className="min-w-0">
                 <p className="text-xs font-medium">Agent execution</p>
-                <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
-                  Select one owned or maintained Agent run to inspect its exact execution evidence.
-                </p>
               </div>
             </div>
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">

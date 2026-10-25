@@ -1,0 +1,123 @@
+{
+  "scope": "Skill source classification and risk presentation",
+  "mode": "prototype",
+  "date": "2026-10-25",
+  "dimensions": [
+    {
+      "name": "Product Intent",
+      "weight": 0.22,
+      "checks": [
+        {
+          "score": 2,
+          "max": 2,
+          "evidence": "UNSAFE renders as Unverified / 未验证 in cards, search and the edit form."
+        },
+        {
+          "score": 2,
+          "max": 2,
+          "evidence": "Risk is Not assessed when there is no attached assessment evidence."
+        }
+      ],
+      "score": 10.0
+    },
+    {
+      "name": "Information Architecture",
+      "weight": 0.22,
+      "checks": [
+        {
+          "score": 2,
+          "max": 2,
+          "evidence": "One source badge on the card; a separately labelled Source and risk section in the detail drawer."
+        },
+        {
+          "score": 2,
+          "max": 2,
+          "evidence": "Source marker, source verification and risk assessment have separate labelled rows."
+        }
+      ],
+      "score": 10.0
+    },
+    {
+      "name": "System Craft",
+      "weight": 0.14,
+      "checks": [
+        {
+          "score": 2,
+          "max": 2,
+          "evidence": "Neutral shared theme tokens replace red danger and green verification cues."
+        },
+        {
+          "score": 1,
+          "max": 2,
+          "evidence": "English and Simplified Chinese browser paths verified; all three locales pass structural parity tests.",
+          "deduction": "No new full zoom or assistive-technology acceptance run."
+        }
+      ],
+      "score": 7.5
+    },
+    {
+      "name": "Trust & Domain Fit",
+      "weight": 0.18,
+      "checks": [
+        {
+          "score": 2,
+          "max": 2,
+          "evidence": "A typed presentation adapter keeps legacy source markers separate from verification and risk evidence."
+        },
+        {
+          "score": 2,
+          "max": 2,
+          "evidence": "Built-in and Marked trusted detail drawers do not claim recorded verification or passing scans. Four regression cases cover the evidence boundary."
+        }
+      ],
+      "score": 10.0
+    },
+    {
+      "name": "Interaction Readiness",
+      "weight": 0.16,
+      "checks": [
+        {
+          "score": 2,
+          "max": 2,
+          "evidence": "Searching 未验证 returns the Code Generation card; its source and risk drawer opens successfully."
+        },
+        {
+          "score": 2,
+          "max": 2,
+          "evidence": "Changing the source selector to TRUSTED_SOURCE in an unsaved form leaves Risk assessment: Not assessed; cancel restores the catalog without a resource write."
+        }
+      ],
+      "score": 10.0
+    },
+    {
+      "name": "Visual & Brand Expression",
+      "weight": 0.08,
+      "checks": [
+        {
+          "score": 2,
+          "max": 2,
+          "evidence": "Existing card geometry, typography, icons and neutral semantic tokens retained."
+        },
+        {
+          "score": 2,
+          "max": 2,
+          "evidence": "No extra card risk badge or alarm styling for an unverified source."
+        }
+      ],
+      "score": 10.0
+    }
+  ],
+  "weightedScore": 9.65,
+  "validation": {
+    "typecheck": "passed",
+    "frontendTestFiles": 52,
+    "frontendTests": 273,
+    "productionBuild": "passed",
+    "resourceWrites": "none"
+  },
+  "notes": [
+    "Historical UNSAFE values remain compatible; their user-facing label is Unverified / 未验证.",
+    "No security scanner or source-verification workflow was added. Without evidence, the UI reports no verification record and no risk assessment.",
+    "Unsaved language changes used for browser review were restored to the original en-US preference."
+  ]
+}

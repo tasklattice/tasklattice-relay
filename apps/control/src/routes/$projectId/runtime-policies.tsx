@@ -1,8 +1,9 @@
+import { ListToolbar } from "@/components/layout/list-toolbar";
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { SandboxPolicy } from "@tali/contracts";
-import { AlertTriangle, FileLock2, LockKeyhole, Pencil, Plus, ShieldCheck, Trash2 } from "lucide-react";
+import { AlertTriangle, LockKeyhole, Pencil, Plus, ShieldCheck, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { RuntimePolicyEditorDrawer } from "@/components/runtime-policies/runtime-policy-editor-drawer";
 import { DeleteEntitySheet } from "@/components/shared/delete-entity-sheet";
@@ -10,7 +11,7 @@ import { EntityDetailList, EntitySheet } from "@/components/shared/entity-sheet"
 import { StatusDot } from "@/components/shared/status-dot";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
 import { useProjectQueryScope } from "@/hooks/use-project-query-scope";
@@ -25,6 +26,8 @@ function PolicyPage() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [editor, setEditor] = useState<{ open: boolean; policy?: SandboxPolicy }>({ open: false });
   const catalog = useQuery({ queryKey: scope.key("runtime-policies"), queryFn: api.listRuntimePolicies });
+  const [search, setSearch] = useState("");
+  const visible = (catalog.data?.policies ?? []).filter((policy) => `${policy.name} ${policy.description} ${policy.source}`.toLowerCase().includes(search.trim().toLowerCase()));
   const selected = catalog.data?.policies.find((policy) => policy.id === selectedId);
   const remove = useMutation({
     mutationFn: api.deleteRuntimePolicy,
@@ -56,7 +59,7 @@ function PolicyPage() {
     <div className="space-y-6">
       <PageHeader
         title="Runtime Policies"
-        description="Manage reusable OpenShell boundaries. Built-in policies come from the deployment ConfigMap; custom policies are managed here."
+        description="Reusable Sandbox boundaries for Agent Instances."
         actions={<Button variant="create" className="h-11" onClick={openCreate}><Plus />Create Policy</Button>}
       />
       {catalog.error ? (
@@ -67,13 +70,14 @@ function PolicyPage() {
       ) : catalog.isPending ? (
         <div className="flex min-h-64 items-center justify-center gap-3 border text-sm text-muted-foreground"><Spinner />Loading Policy catalog…</div>
       ) : (
-        <Card>
-          <CardHeader className="border-b">
-            <CardTitle>Available policies</CardTitle>
-            <CardDescription>Each Instance resolves a catalog entry, then passes the validated YAML to OpenShell at Sandbox creation.</CardDescription>
-          </CardHeader>
-          <CardContent className="px-0">
-            {catalog.data?.policies.map((policy) => (
+        <Card variant="data">
+          <ListToolbar search={search} onSearchChange={setSearch} searchLabel="Search Runtime Policies" count={visible.length} />
+          <div className="hidden grid-cols-[minmax(0,1fr)_8rem_8rem] gap-4 border-b bg-muted/20 px-5 py-3 text-xs text-muted-foreground lg:grid" aria-hidden="true">
+            <span>Policy</span><span>Source</span><span>Enforcement</span>
+          </div>
+          <CardContent className="p-0">
+            {!visible.length ? <div className="py-16 text-center text-sm text-muted-foreground">{search ? "No matching policies. Try another name." : "No Runtime Policies available."}</div> : null}
+            {visible.map((policy) => (
               <button
                 key={policy.id}
                 type="button"
@@ -83,17 +87,16 @@ function PolicyPage() {
                   setSelectedId(policy.id);
                   setDetailOpen(true);
                 }}
-                className="grid min-h-20 w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 border-b px-4 py-3 text-left transition-colors last:border-b-0 hover:bg-muted/45 focus-visible:outline-2 focus-visible:outline-offset-[-2px]"
+                className="grid min-h-20 w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-b px-5 lg:grid-cols-[minmax(0,1fr)_8rem_8rem] py-3 text-left transition-colors last:border-b-0 hover:bg-muted/45 focus-visible:outline-2 focus-visible:outline-offset-[-2px]"
               >
-                <FileLock2 className="size-4 text-muted-foreground" />
                 <span className="min-w-0">
                   <span className="flex flex-wrap items-center gap-2">
                     <strong className="text-sm">{policy.name}</strong>
                     {policy.id === catalog.data.defaultPolicyId ? <Badge variant="secondary">Default</Badge> : null}
-                    <Badge variant="outline">{policy.source === "BUILT_IN" ? "Built-in" : "Custom"}</Badge>
                   </span>
                   <span className="mt-1 block text-xs leading-5 text-muted-foreground">{policy.description}</span>
                 </span>
+                <span className="text-xs text-muted-foreground">{policy.source === "BUILT_IN" ? "Built-in" : "Custom"}</span>
                 <StatusDot label={policy.enforcement} tone="success" />
               </button>
             ))}

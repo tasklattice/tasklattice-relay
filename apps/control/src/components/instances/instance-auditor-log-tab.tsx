@@ -13,7 +13,6 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { formatPlatformDateTime } from "@/lib/platform-preferences";
-import { DetailTabIntro } from "./instance-detail-shared";
 import {
   auditorLogLevels,
   formatAuditorLogTime,
@@ -125,97 +124,116 @@ function AuditorLogToolbar({
   wrapLines: boolean;
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-2 px-4 py-3 sm:px-5">
-      <Select
-        value={stream}
-        onValueChange={(value) => onStreamChange(value as AuditorLogStream)}
-      >
-        <SelectTrigger aria-label="Filter by log stream" className="min-w-40">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {auditorLogStreams.map((value) => (
-            <SelectItem key={value} value={value}>
-              {streamLabels[value]}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      <Select
-        value={level}
-        onValueChange={(value) => onLevelChange(value as AuditorLogLevelFilter)}
-      >
-        <SelectTrigger aria-label="Filter by log level" className="min-w-36">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {(["all", ...auditorLogLevels] as AuditorLogLevelFilter[]).map(
-            (value) => (
-              <SelectItem key={value} value={value}>
-                {levelLabels[value]}
-              </SelectItem>
-            ),
-          )}
-        </SelectContent>
-      </Select>
-      <Select
-        value={timeRange}
-        onValueChange={(value) =>
-          onTimeRangeChange(value as AuditorLogTimeRange)
-        }
-      >
-        <SelectTrigger aria-label="Filter by time range" className="min-w-36">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="15m">Last 15 minutes</SelectItem>
-          <SelectItem value="1h">Last 1 hour</SelectItem>
-          <SelectItem value="24h">Last 24 hours</SelectItem>
-          <SelectItem value="all">All time</SelectItem>
-        </SelectContent>
-      </Select>
-      <label className="relative min-w-52 flex-[1_1_16rem]">
-        <span className="sr-only">Search logs</span>
-        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          value={search}
-          onChange={(event) => onSearchChange(event.target.value)}
-          placeholder="Search logs..."
-          className="pl-9"
-        />
-      </label>
-      <LiveSwitch checked={live} onCheckedChange={onLiveChange} />
-      <Button
-        type="button"
-        variant="outline"
-        size="icon"
-        aria-label="Download visible logs"
-        title="Download visible logs"
-        onClick={onDownload}
-      >
-        <Download />
-      </Button>
-      <Button
-        type="button"
-        variant="outline"
-        size="icon"
-        aria-label={`${wrapLines ? "Disable" : "Enable"} line wrapping`}
-        title={`${wrapLines ? "Disable" : "Enable"} line wrapping`}
-        aria-pressed={wrapLines}
-        onClick={() => onWrapLinesChange(!wrapLines)}
-      >
-        <WrapText />
-      </Button>
-      <Button
-        type="button"
-        variant="outline"
-        size="icon"
-        aria-label={fullScreen ? "Exit full screen" : "Enter full screen"}
-        title={fullScreen ? "Exit full screen" : "Enter full screen"}
-        onClick={onFullScreen}
-      >
-        {fullScreen ? <Minimize2 /> : <Maximize2 />}
-      </Button>
+    <div className="space-y-3 px-4 py-3 sm:px-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <Select
+            value={stream}
+            onValueChange={(value) => onStreamChange(value as AuditorLogStream)}
+          >
+            <SelectTrigger
+              aria-label="Filter by log stream"
+              className="min-w-40"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {auditorLogStreams.map((value) => (
+                <SelectItem key={value} value={value}>
+                  {streamLabels[value]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select
+            value={level}
+            onValueChange={(value) =>
+              onLevelChange(value as AuditorLogLevelFilter)
+            }
+          >
+            <SelectTrigger
+              aria-label="Filter by log level"
+              className="min-w-36"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {(["all", ...auditorLogLevels] as AuditorLogLevelFilter[]).map(
+                (value) => (
+                  <SelectItem key={value} value={value}>
+                    {levelLabels[value]}
+                  </SelectItem>
+                ),
+              )}
+            </SelectContent>
+          </Select>
+          <Select
+            value={timeRange}
+            onValueChange={(value) =>
+              onTimeRangeChange(value as AuditorLogTimeRange)
+            }
+          >
+            <SelectTrigger
+              aria-label="Filter by time range"
+              className="min-w-36"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="15m">Last 15 minutes</SelectItem>
+              <SelectItem value="1h">Last 1 hour</SelectItem>
+              <SelectItem value="24h">Last 24 hours</SelectItem>
+              <SelectItem value="all">All time</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <LiveSwitch checked={live} onCheckedChange={onLiveChange} />
+      </div>
+      <div className="flex items-center gap-2">
+        <label className="relative min-w-0 flex-1">
+          <span className="sr-only">Search logs</span>
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={search}
+            onChange={(event) => onSearchChange(event.target.value)}
+            placeholder="Search logs..."
+            className="pl-9"
+          />
+        </label>
+        <div className="flex shrink-0 items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            aria-label="Download visible logs"
+            title="Download visible logs"
+            onClick={onDownload}
+          >
+            <Download />
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            aria-label={`${wrapLines ? "Disable" : "Enable"} line wrapping`}
+            title={`${wrapLines ? "Disable" : "Enable"} line wrapping`}
+            aria-pressed={wrapLines}
+            onClick={() => onWrapLinesChange(!wrapLines)}
+          >
+            <WrapText />
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            aria-label={fullScreen ? "Exit full screen" : "Enter full screen"}
+            title={fullScreen ? "Exit full screen" : "Enter full screen"}
+            onClick={onFullScreen}
+          >
+            {fullScreen ? <Minimize2 /> : <Maximize2 />}
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -231,12 +249,16 @@ function LogLine({
 }) {
   return (
     <div
-      className="grid min-h-7 min-w-[48rem] items-start gap-3 border-b border-white/[0.035] px-4 py-1 text-[12px] leading-5 hover:bg-white/[0.035]"
+      className="grid min-h-7 min-w-[40rem] items-start gap-3 border-b border-white/[0.035] px-4 py-1 text-[12px] leading-5 hover:bg-white/[0.035]"
       style={{ gridTemplateColumns }}
     >
-      <span className="text-zinc-500">
+      <time
+        dateTime={entry.timestamp}
+        title={formatPlatformDateTime(entry.timestamp)}
+        className="text-zinc-500"
+      >
         {formatAuditorLogTime(entry.timestamp)}
-      </span>
+      </time>
       <span className={cn("font-medium", levelStyles[entry.level])}>
         {entry.level.toUpperCase()}
       </span>
@@ -252,13 +274,6 @@ function LogLine({
       >
         {entry.message}
       </span>
-      <time
-        dateTime={entry.timestamp}
-        className="text-right text-zinc-500"
-        title={formatPlatformDateTime(entry.timestamp)}
-      >
-        {formatAuditorLogTime(entry.timestamp, false)}
-      </time>
     </div>
   );
 }
@@ -284,13 +299,13 @@ function AuditorLogViewer({
 }) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const gridTemplateColumns = useMemo(() => {
-    if (wrapLines) return "7rem 4.75rem 6.5rem minmax(16rem, 1fr) 6.25rem";
+    if (wrapLines) return "7rem 4.75rem 6.5rem minmax(16rem, 1fr)";
     const longestMessage = entries.reduce(
       (length, entry) => Math.max(length, entry.message.length),
       0,
     );
     const messageWidth = Math.max(256, Math.min(1600, longestMessage * 7.2));
-    return `7rem 4.75rem 6.5rem ${messageWidth}px 6.25rem`;
+    return `7rem 4.75rem 6.5rem ${messageWidth}px`;
   }, [entries, wrapLines]);
 
   useEffect(() => {
@@ -349,16 +364,15 @@ function AuditorLogViewer({
           }}
         >
           <div
-            className="sticky top-0 z-10 grid min-w-[48rem] gap-3 border-b border-zinc-700 bg-[#17181d] px-4 py-2 text-[10px] font-medium tracking-[0.08em] text-zinc-400"
+            className="sticky top-0 z-10 grid min-w-[40rem] gap-3 border-b border-zinc-700 bg-[#17181d] px-4 py-2 text-[10px] font-medium tracking-[0.08em] text-zinc-400"
             style={{ gridTemplateColumns }}
           >
             <span>TIME</span>
             <span>LEVEL</span>
             <span>SOURCE</span>
             <span>MESSAGE</span>
-            <span className="text-right">TIMESTAMP</span>
           </div>
-          <div className="min-w-[48rem]">
+          <div className="min-w-[40rem]">
             {isLoading ? (
               <div aria-label="Loading logs" className="space-y-2 p-4">
                 <span className="sr-only">Loading logs...</span>
@@ -460,14 +474,11 @@ export function InstanceAuditorLogTab({
 
   return (
     <div role="tabpanel" aria-label="Logs" className="space-y-4 pt-5">
-      <DetailTabIntro
-        title="Agent logs"
-        description="Inspect runtime, sandbox, system, and control-plane evidence with one set of filters."
-      />
       <Card
         ref={moduleRef}
+        variant="data"
         className={cn(
-          "gap-0 overflow-hidden py-0",
+          "overflow-hidden",
           fullScreen && "h-dvh w-dvw bg-background",
         )}
       >

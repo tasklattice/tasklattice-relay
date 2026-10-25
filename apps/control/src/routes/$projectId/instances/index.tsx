@@ -579,7 +579,7 @@ function Instances() {
       ) : null}
 
       <TooltipProvider>
-      <Card>
+      <Card variant="data">
         <CardHeader className="border-b">
           <div className="flex flex-wrap items-center gap-3">
             <label className="w-full sm:w-72">

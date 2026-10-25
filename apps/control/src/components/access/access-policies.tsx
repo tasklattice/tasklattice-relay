@@ -3,7 +3,6 @@ import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import {
   ArrowRight,
-  Boxes,
   Clock3,
   Plus,
   ServerCog,
@@ -18,9 +17,6 @@ import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
 } from "@/components/ui/card";
 import { useProjectQueryScope } from "@/hooks/use-project-query-scope";
 import { api } from "@/lib/api";
@@ -37,39 +33,12 @@ export function AccessPolicies({ projectId }: { projectId: string }) {
     <div className="space-y-6">
       <PageHeader
         title="Access Policies"
-        description="Define reusable MCP tool permissions that Agent Instances select directly. Active revisions are enforced by LiteLLM."
-        actions={
-          <div className="flex flex-wrap gap-2">
-            <Button asChild variant="outline">
-              <Link to="/$projectId/mcp-servers" params={{ projectId }}>
-                <ServerCog /> MCP Servers
-              </Link>
-            </Button>
-            <Button asChild variant="outline">
-              <Link
-                to="/$projectId/instances"
-                params={{ projectId }}
-                search={{}}
-              >
-                <Boxes /> Instances
-              </Link>
-            </Button>
-            <Button onClick={() => setCreating(true)}>
-              <Plus /> Create policy
-            </Button>
-          </div>
-        }
+        description="Active revisions control MCP tools. Deny rules take precedence over allow rules."
+        actions={<Button variant="create" onClick={() => setCreating(true)}><Plus />Create policy</Button>}
       />
 
-      <Card>
-        <CardHeader className="border-b">
-          <CardTitle>Policies</CardTitle>
-          <CardDescription>
-            Draft revisions are inert. Active policies are combined with deny
-            taking precedence over allow.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="px-0">
+      <Card variant="data">
+        <CardContent className="p-0">
           {policies.isLoading ? (
             <div className="px-5 py-16 text-center text-sm text-muted-foreground">
               Loading Access Policies from PostgreSQL…

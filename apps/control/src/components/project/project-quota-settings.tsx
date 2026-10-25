@@ -1,3 +1,4 @@
+import { PageHeader } from "@/components/layout/page-header";
 import { useEffect, useState, type FormEvent } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import type { ProjectQuota, UpdateProjectQuotaInput } from "@tali/contracts";
@@ -79,16 +80,8 @@ export function ProjectQuotaSettings({ project }: { project: Project }) {
 
   return (
     <form className="divide-y" onSubmit={submit}>
-      <div className="space-y-5 p-5">
-        <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
-          <div>
-            <h3 className="font-sans text-lg font-semibold">Project quota</h3>
-            <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-              LiteLLM enforces spend and throughput for the Project Team. TALI blocks new resources when a configured capacity is reached.
-            </p>
-          </div>
-          <SyncStatus quota={quota.data} />
-        </div>
+      <div className="space-y-6 pb-6">
+        <PageHeader title="Quota" description="Spend, throughput, and resource limits for this Project." actions={<SyncStatus quota={quota.data} />} />
 
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <UsageCard

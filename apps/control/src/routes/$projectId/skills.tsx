@@ -1,6 +1,7 @@
 import { type ReactNode, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 import {
   skillCategories,
   skillCompatibilityTargets,
@@ -12,18 +13,20 @@ import {
 } from "@tali/contracts";
 import {
   ChevronDown,
+  CircleHelp,
   Cloud,
   Database,
   Download,
   Pencil,
   Plus,
   Search,
-  ShieldCheck,
+  Package,
+  Shield,
   Sparkles,
   Trash2,
-  TriangleAlert,
 } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
+import { formatPlatformDate } from "@/lib/platform-preferences";
 import { EmptyState } from "@/components/shared/empty-state";
 import { EntityDetailList, EntitySheet } from "@/components/shared/entity-sheet";
 import { DeleteEntitySheet } from "@/components/shared/delete-entity-sheet";
@@ -43,7 +46,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api";
 import { useProjectQueryScope } from "@/hooks/use-project-query-scope";
 import { downloadBlob } from "@/lib/file-download";
-import { formatPlatformDate } from "@/lib/platform-preferences";
+import { getSkillAssurance } from "@/features/skills/skill-assurance";
 
 export const Route = createFileRoute("/$projectId/skills")({ component: SkillCatalog });
 
@@ -63,12 +66,6 @@ type SkillDraft = Pick<
 > & {
   useCasesText: string;
 };
-
-const trustLevelLabels = {
-  BUILT_IN: "Built-in",
-  TRUSTED_SOURCE: "Trusted source",
-  UNSAFE: "Unsafe",
-} satisfies Record<SkillTrustLevel, string>;
 
 const compatibilityLabels = {
   hermes: "Hermes",
@@ -116,6 +113,12 @@ function toggleFilter<T extends string>(current: T[], value: T): T[] {
 }
 
 function SkillCatalog() {
+  const { t } = useTranslation("skills");
+  const sourceLabels = useMemo(() => ({
+    BUILT_IN: t("assurance.source.builtIn"),
+    TRUSTED_SOURCE: t("assurance.source.markedTrusted"),
+    UNSAFE: t("assurance.source.unverified"),
+  }) satisfies Record<SkillTrustLevel, string>, [t]);
   const queryClient = useQueryClient();
   const scope = useProjectQueryScope();
   const catalog = useQuery({ queryKey: scope.key("resource-catalog"), queryFn: api.getResourceCatalog });
@@ -144,7 +147,7 @@ function SkillCatalog() {
             (!categories.length || categories.includes(item.category)) &&
             (!trustLevels.length || trustLevels.includes(item.trustLevel)) &&
             (!compatibilities.length || compatibilities.some((target) => item.compatibleAgents.includes(target))) &&
-            `${item.name} ${item.description} ${item.problemStatement} ${item.useCases.join(" ")} ${item.usageGuide} ${item.author} ${item.owner} ${item.category} ${item.version} ${item.status} ${trustLevelLabels[item.trustLevel]} ${item.compatibleAgents.map((target) => compatibilityLabels[target]).join(" ")}`
+            `${item.name} ${item.description} ${item.problemStatement} ${item.useCases.join(" ")} ${item.usageGuide} ${item.author} ${item.owner} ${item.category} ${item.version} ${item.status} ${sourceLabels[item.trustLevel]} ${item.compatibleAgents.map((target) => compatibilityLabels[target]).join(" ")}`
               .toLowerCase()
               .includes(normalizedQuery),
         )
@@ -155,7 +158,7 @@ function SkillCatalog() {
           return left.name.localeCompare(right.name);
         });
     },
-    [categories, compatibilities, items, query, sort, trustLevels],
+    [categories, compatibilities, items, query, sort, trustLevels, sourceLabels],
   );
   const categoryOptions = useMemo(
     () =>
@@ -191,7 +194,7 @@ function SkillCatalog() {
       setSelectedId(skill.id);
       setFormOpen(false);
       setFormError("");
-      setNotice(variables.id ? "Skill metadata saved to PostgreSQL." : "Skill registered in the PostgreSQL catalog.");
+      setNotice(variables.id ? "Skill metadata updated." : "Skill registered.");
       await queryClient.invalidateQueries({ queryKey: scope.key("resource-catalog") });
     },
   });
@@ -208,7 +211,7 @@ function SkillCatalog() {
       setDeleteOpen(false);
       setDetailOpen(false);
       setSelectedId("");
-      setNotice("Skill removed from the PostgreSQL catalog.");
+      setNotice("Skill removed.");
       await queryClient.invalidateQueries({ queryKey: scope.key("resource-catalog") });
     },
   });
@@ -298,7 +301,6 @@ function SkillCatalog() {
     <div className="space-y-6">
       <PageHeader
         title="Skills"
-        description="Manage reusable agent capabilities stored in the current Project catalog."
         actions={<Button className="h-11" onClick={openCreate}><Plus /> Register Skill</Button>}
       />
 
@@ -333,7 +335,7 @@ function SkillCatalog() {
         </Select>
       </div>
 
-      <div className="grid gap-5 lg:grid-cols-[248px_minmax(0,1fr)] xl:grid-cols-[280px_minmax(0,1fr)]">
+      <div className="grid gap-5 lg:grid-cols-[208px_minmax(0,1fr)]">
         <aside className="self-start border-b pb-5 lg:sticky lg:top-24 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-5">
           <div className="flex min-h-11 items-center justify-between gap-3">
             <Button
@@ -377,7 +379,7 @@ function SkillCatalog() {
             }`}
           >
             <SkillCategoryGroup title="Capability domains">
-              <div className="flex flex-wrap gap-2 pt-1">
+              <div className="grid gap-1 pt-1">
                 {categoryOptions.map(({ category, count }) => (
                   <SkillCategoryOption
                     key={category}
@@ -389,22 +391,21 @@ function SkillCatalog() {
                 ))}
               </div>
             </SkillCategoryGroup>
-            <SkillCategoryGroup title="Trust">
-              <div className="flex flex-wrap gap-2 pt-1">
+            <SkillCategoryGroup title={t("assurance.sourceFilter")}>
+              <div className="grid gap-1 pt-1">
                 {trustOptions.map(({ trustLevel, count }) => (
                   <SkillCategoryOption
                     key={trustLevel}
                     active={trustLevels.includes(trustLevel)}
                     count={count}
-                    label={trustLevelLabels[trustLevel]}
-                    tone={trustLevel === "UNSAFE" ? "danger" : "default"}
+                    label={sourceLabels[trustLevel]}
                     onClick={() => setTrustLevels(toggleFilter(trustLevels, trustLevel))}
                   />
                 ))}
               </div>
             </SkillCategoryGroup>
             <SkillCategoryGroup title="Compatibility">
-              <div className="flex flex-wrap gap-2 pt-1">
+              <div className="grid gap-1 pt-1">
                 {compatibilityOptions.map(({ target, count }) => (
                   <SkillCategoryOption
                     key={target}
@@ -419,15 +420,15 @@ function SkillCatalog() {
           </div>
         </aside>
 
-        <main>
+        <section aria-label="Skill catalog">
           {catalog.isPending ? (
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3" aria-label="Loading Skills">
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,19rem),1fr))] gap-4" aria-label="Loading Skills">
               {Array.from({ length: 6 }, (_, index) => (
                 <Skeleton key={index} className="h-64 rounded-lg" />
               ))}
             </div>
           ) : visible.length ? (
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,19rem),1fr))] gap-4">
               {visible.map((skill) => (
                 <SkillCard
                   key={skill.id}
@@ -448,7 +449,7 @@ function SkillCatalog() {
               description="Adjust the domain, trust, or compatibility filters, or try a different search."
             />
           )}
-        </main>
+        </section>
       </div>
 
       <EntitySheet
@@ -489,6 +490,7 @@ function SkillCatalog() {
             <div className="flex items-center gap-3">
               <StatusDot label={selected.status} tone={selected.status === "PUBLISHED" ? "success" : "neutral"} />
             </div>
+            <SkillAssuranceDetails skill={selected} />
             <div className="divide-y border-y">
               <SkillInformationSection title="What problem does it solve?">
                 <p>{selected.problemStatement}</p>
@@ -510,7 +512,6 @@ function SkillCatalog() {
             <h3 className="text-sm font-semibold">Package metadata</h3>
             <EntityDetailList items={[
               { label: "Category", value: selected.category },
-              { label: "Trust", value: trustLevelLabels[selected.trustLevel] },
               {
                 label: "Compatibility",
                 value: selected.compatibleAgents.map((target) => compatibilityLabels[target]).join(", "),
@@ -524,32 +525,15 @@ function SkillCatalog() {
                   ? "Artifact storage"
                   : "Source endpoint",
                 value: selected.endpoint.startsWith("tali+postgresql:")
-                  ? "PostgreSQL · Vendor Skill archive"
+                  ? "Stored Skill archive"
                   : selected.endpoint,
                 mono: !selected.endpoint.startsWith("tali+postgresql:"),
               },
               { label: "Content digest", value: selected.digest, mono: true },
             ]} />
-            <div
-              className={
-                selected.trustLevel === "UNSAFE"
-                  ? "space-y-4 border-l-2 border-destructive bg-destructive/5 px-4 py-3 text-sm leading-6"
-                  : "space-y-4 border-l-2 border-primary bg-muted/30 px-4 py-3 text-sm leading-6"
-              }
-            >
-              {selected.trustLevel === "UNSAFE" ? (
-                <p className="flex gap-3">
-                  <TriangleAlert className="mt-1 size-4 shrink-0 text-destructive" />
-                  <span><strong className="block text-destructive">Untrusted source</strong>This package has not passed source verification. Do not bind it to a production Agent.</span>
-                </p>
-              ) : (
-                <p className="flex gap-3">
-                  <ShieldCheck className="mt-1 size-4 shrink-0 text-link" />
-                  <span><strong className="block">{selected.trustLevel === "BUILT_IN" ? "Built into TaskLattice Relay" : "Trusted source"}</strong>{selected.trustLevel === "BUILT_IN" ? "This Skill ships with the platform catalog." : "TaskLattice Relay recorded a successful source verification."}</span>
-                </p>
-              )}
+            <div className="border-l-2 border-border bg-muted/30 px-4 py-3 text-sm leading-6">
               {selected.endpoint.startsWith("tali+postgresql:") ? (
-                <p className="flex gap-3"><Database className="mt-1 size-4 shrink-0 text-link" /><span><strong className="block">Stored in PostgreSQL</strong>The immutable Vendor Skill archive is stored as BYTEA and verified by SHA-256.</span></p>
+                <p className="flex gap-3"><Database className="mt-1 size-4 shrink-0 text-link" /><span><strong className="block">Stored package</strong>The stored Skill archive is available for download.</span></p>
               ) : (
                 <p className="flex gap-3"><Cloud className="mt-1 size-4 shrink-0 text-link" /><span><strong className="block">Remote package</strong>The package remains external until it is imported into the artifact store.</span></p>
               )}
@@ -622,7 +606,7 @@ function SkillCatalog() {
 
           <SkillFormSection
             title="Distribution"
-            description="Package location, runtime support, and trust classification."
+            description={t("assurance.distribution")}
           >
             <div className="space-y-2"><Label htmlFor="skill-endpoint" required>Remote package endpoint</Label><Input id="skill-endpoint" className="h-11" required value={draft.endpoint} onChange={(event) => setDraft({ ...draft, endpoint: event.target.value })} placeholder="https://…/bundle.tar.zst" /></div>
             <div className="grid gap-3 sm:grid-cols-2">
@@ -630,22 +614,19 @@ function SkillCatalog() {
               <div className="space-y-2"><Label htmlFor="skill-category" required>Category</Label><select id="skill-category" required className="flex h-11 w-full rounded-md border border-input bg-background px-3 text-sm" value={draft.category} onChange={(event) => setDraft({ ...draft, category: event.target.value as SkillDefinition["category"] })}>{skillCategories.map((item) => <option key={item}>{item}</option>)}</select></div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="skill-trust" required>Trust</Label>
+              <Label htmlFor="skill-source" required>{t("assurance.sourceLabel")}</Label>
               <select
-                id="skill-trust"
+                id="skill-source"
+                aria-describedby="skill-source-help"
                 required
                 className="flex h-11 w-full rounded-md border border-input bg-background px-3 text-sm"
                 value={draft.trustLevel}
                 onChange={(event) => setDraft({ ...draft, trustLevel: event.target.value as SkillTrustLevel })}
               >
-                {skillTrustLevels.map((level) => <option key={level} value={level}>{trustLevelLabels[level]}</option>)}
+                {skillTrustLevels.map((level) => <option key={level} value={level}>{sourceLabels[level]}</option>)}
               </select>
-              {draft.trustLevel === "UNSAFE" ? (
-                <p className="flex items-start gap-2 text-xs leading-5 text-destructive">
-                  <TriangleAlert className="mt-0.5 size-3.5 shrink-0" />
-                  Unsafe Skills remain visible for review but should not be attached to production Agents.
-                </p>
-              ) : null}
+              <p id="skill-source-help" className="text-xs leading-5 text-muted-foreground">{t("assurance.editHelp")}</p>
+              <p className="text-xs text-muted-foreground">{t("assurance.riskAssessment")}: <span className="font-medium text-foreground">{t("assurance.risk.notAssessed")}</span></p>
             </div>
             <fieldset className="space-y-2">
               <legend className="flex items-center gap-1 text-sm font-medium">Agent compatibility <RequiredMark /></legend>
@@ -690,49 +671,23 @@ function SkillCard({
   skill: SkillDefinition;
 }) {
   return (
-    <article className="flex min-h-64 flex-col rounded-lg border border-border/70 bg-card p-4 text-sm">
-      <header className="flex items-start justify-between gap-3">
-        <span className="grid size-10 shrink-0 place-items-center rounded-md border border-border/70 bg-background">
-          <Sparkles className="size-4 text-muted-foreground" />
-        </span>
-        <StatusDot
-          label={skill.status}
-          tone={skill.status === "PUBLISHED" ? "success" : "neutral"}
-        />
-      </header>
-      <div className="mt-4">
-        <h2 className="font-semibold">{skill.name}</h2>
-        <p className="mt-1 line-clamp-3 text-xs leading-5 text-muted-foreground">
-          {skill.description}
-        </p>
+    <article className="group flex min-h-64 flex-col rounded-lg border bg-card p-5 transition-colors hover:border-primary-border">
+      <div className="flex items-center justify-between gap-3">
+        <span className="grid size-9 shrink-0 place-items-center rounded-md bg-muted text-muted-foreground" aria-hidden="true"><Sparkles className="size-4" /></span>
+        <StatusDot label={skill.status} tone={skill.status === "PUBLISHED" ? "success" : "neutral"} />
       </div>
-      <div className="mt-3 flex flex-wrap gap-1.5">
-        <SkillTrustBadge trustLevel={skill.trustLevel} />
-        {skill.compatibleAgents.map((target) => (
-          <span key={target} className="rounded-sm border border-border/70 px-2 py-1 text-[11px] text-muted-foreground">
-            {compatibilityLabels[target]}
-          </span>
-        ))}
-        <span className="rounded-sm bg-muted px-2 py-1 text-[11px] font-medium">
-          {skill.category}
-        </span>
-        <span className="rounded-sm bg-muted px-2 py-1 font-mono text-[11px] text-muted-foreground">
-          v{skill.version}
-        </span>
+      <button type="button" onClick={onDetails} aria-haspopup="dialog" className="mt-4 min-w-0 rounded-sm text-left outline-none focus-visible:ring-2 focus-visible:ring-ring">
+        <h2 className="text-sm font-semibold group-hover:text-link">{skill.name}</h2>
+        <span className="mt-2 line-clamp-2 block min-h-10 text-xs leading-5 text-muted-foreground">{skill.description}</span>
+      </button>
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        <SkillSourceBadge source={skill.trustLevel} />
+        <span className="text-xs text-muted-foreground">{skill.category}</span>
       </div>
-      <div className="mt-4 grid grid-cols-[minmax(0,1fr)_auto] gap-3 border-t pt-3 text-[11px] text-muted-foreground">
-        <span className="truncate">By {skill.author}</span>
-        <time dateTime={skill.updatedAt}>Updated {formatPlatformDate(skill.updatedAt)}</time>
-      </div>
-      <footer className="mt-auto flex min-h-11 items-end pt-5">
-        <Button
-          type="button"
-          variant="link"
-          className="-ml-2 h-11 px-2"
-          onClick={onDetails}
-        >
-          Details
-        </Button>
+      <p className="mt-2 text-xs leading-5 text-muted-foreground">{skill.compatibleAgents.map((target) => compatibilityLabels[target]).join(" · ")}</p>
+      <footer className="mt-auto flex items-center justify-between gap-3 border-t pt-3 text-xs text-muted-foreground">
+        <span className="min-w-0 truncate" title={skill.author}>{skill.author} <span className="ml-1 font-mono">v{skill.version}</span></span>
+        <Button type="button" variant="ghost" size="sm" onClick={onDetails} aria-label={`Details for ${skill.name}`}>Details</Button>
       </footer>
     </article>
   );
@@ -796,13 +751,11 @@ function SkillCategoryOption({
   count,
   label,
   onClick,
-  tone = "default",
 }: {
   active: boolean;
   count: number;
   label: string;
   onClick: () => void;
-  tone?: "danger" | "default";
 }) {
   return (
     <button
@@ -810,35 +763,47 @@ function SkillCategoryOption({
       aria-pressed={active}
       className={
         active
-          ? tone === "danger"
-            ? "flex min-h-11 items-center gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-left text-xs font-medium text-destructive outline-none focus-visible:ring-2 focus-visible:ring-destructive/30"
-            : "flex min-h-11 items-center gap-2 rounded-md border border-primary bg-primary px-3 py-2 text-left text-xs font-medium text-primary-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
-          : "flex min-h-11 items-center gap-2 rounded-md border border-transparent bg-muted/70 px-3 py-2 text-left text-xs text-foreground outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/30"
+          ? "flex min-h-11 items-center gap-2 rounded-md border border-primary-border bg-primary-surface px-3 py-2 text-left text-xs font-medium text-accent-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          : "flex min-h-11 items-center gap-2 rounded-md border border-transparent bg-transparent px-3 py-2 text-left text-xs text-foreground outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
       }
       onClick={onClick}
     >
       <span>{label}</span>
-      <span className={active && tone === "default" ? "ml-auto tabular-nums text-primary-foreground/75" : "ml-auto tabular-nums text-muted-foreground"}>
+      <span className={active ? "ml-auto tabular-nums text-accent-foreground" : "ml-auto tabular-nums text-muted-foreground"}>
         {count}
       </span>
     </button>
   );
 }
 
-function SkillTrustBadge({ trustLevel }: { trustLevel: SkillTrustLevel }) {
-  const Icon = trustLevel === "UNSAFE" ? TriangleAlert : ShieldCheck;
+function SkillSourceBadge({ source }: { source: SkillTrustLevel }) {
+  const { t } = useTranslation("skills");
+  const assurance = getSkillAssurance(source);
+  const Icon = source === "BUILT_IN" ? Package : source === "TRUSTED_SOURCE" ? Shield : CircleHelp;
+  const label = t(`assurance.source.${assurance.source}`);
   return (
     <span
-      className={
-        trustLevel === "UNSAFE"
-          ? "inline-flex items-center gap-1 rounded-sm bg-destructive/10 px-2 py-1 text-[11px] font-medium text-destructive"
-          : trustLevel === "BUILT_IN"
-            ? "inline-flex items-center gap-1 rounded-sm bg-primary/10 px-2 py-1 text-[11px] font-medium text-link"
-            : "inline-flex items-center gap-1 rounded-sm bg-emerald-500/10 px-2 py-1 text-[11px] font-medium text-emerald-600 dark:text-emerald-400"
-      }
+      title={`${t("assurance.sourceLabel")}: ${label}`}
+      className="inline-flex items-center gap-1 rounded-sm bg-muted px-2 py-1 text-[11px] font-medium text-muted-foreground"
     >
-      <Icon className="size-3" />
-      {trustLevelLabels[trustLevel]}
+      <Icon className="size-3" aria-hidden="true" />
+      {label}
     </span>
+  );
+}
+
+function SkillAssuranceDetails({ skill }: { skill: SkillDefinition }) {
+  const { t } = useTranslation("skills");
+  const assurance = getSkillAssurance(skill.trustLevel);
+  return (
+    <section aria-labelledby="skill-assurance-title" className="space-y-3">
+      <h3 id="skill-assurance-title" className="text-sm font-semibold">{t("assurance.title")}</h3>
+      <EntityDetailList items={[
+        { label: t("assurance.sourceLabel"), value: t(`assurance.source.${assurance.source}`) },
+        { label: t("assurance.sourceVerification"), value: t(`assurance.verification.${assurance.sourceVerification}`) },
+        { label: t("assurance.riskAssessment"), value: t(`assurance.risk.${assurance.riskAssessment}`) },
+      ]} />
+      <p className="text-xs leading-5 text-muted-foreground">{t("assurance.explanation")}</p>
+    </section>
   );
 }

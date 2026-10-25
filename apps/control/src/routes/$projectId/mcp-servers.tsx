@@ -1,3 +1,4 @@
+import { ListToolbar } from "@/components/layout/list-toolbar";
 import { useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
@@ -27,7 +28,7 @@ import { EntityDetailList, EntitySheet } from "@/components/shared/entity-sheet"
 import { DeleteEntitySheet } from "@/components/shared/delete-entity-sheet";
 import { StatusDot } from "@/components/shared/status-dot";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -99,6 +100,8 @@ function McpServers() {
   const scope = useProjectQueryScope();
   const catalog = useQuery({ queryKey: scope.key("resource-catalog"), queryFn: api.getResourceCatalog });
   const items = catalog.data?.mcpServers ?? [];
+  const [search, setSearch] = useState("");
+  const visible = items.filter((item) => `${item.name} ${item.category} ${item.endpoint ?? item.command ?? ""}`.toLowerCase().includes(search.trim().toLowerCase()));
   const templates = catalog.data?.mcpServerTemplates ?? [];
   const [selectedId, setSelectedId] = useState("");
   const [detailOpen, setDetailOpen] = useState(false);
@@ -188,20 +191,19 @@ function McpServers() {
     <div className="space-y-6">
       <PageHeader
         title="MCP Servers"
-        description="Project-isolated MCP connections, tools, and LiteLLM access controls."
         actions={<Button className="h-11" onClick={() => setCatalogOpen(true)}><Plus /> Register MCP</Button>}
       />
-      {catalog.isPending ? <p className="border p-4 text-sm text-muted-foreground">Loading MCP servers from PostgreSQL and LiteLLM…</p> : null}
-      {catalog.error ? <p role="alert" className="border-l-2 border-destructive bg-destructive/5 p-4 text-sm text-destructive">{catalog.error.message}</p> : null}
+      {catalog.isPending ? <p className="border p-4 text-sm text-muted-foreground">Loading MCP servers…</p> : null}
+      {catalog.error ? <div role="alert" className="flex items-center justify-between gap-4 border-l-2 border-destructive bg-destructive/5 p-4 text-sm text-destructive"><span>{catalog.error.message}</span><Button variant="outline" onClick={() => void catalog.refetch()}>Retry</Button></div> : null}
       {checkServer.error || deleteServer.error ? <p role="alert" className="border-l-2 border-destructive bg-destructive/5 p-4 text-sm text-destructive">{(checkServer.error ?? deleteServer.error)?.message}</p> : null}
       {notice ? <p role="status" className="border-l-2 border-primary bg-muted/40 px-4 py-3 text-sm">{notice}</p> : null}
-      <Card>
-        <CardHeader className="border-b">
-          <CardTitle>Registered servers</CardTitle>
-          <CardDescription>{items.length} Project-owned LiteLLM MCP integrations.</CardDescription>
-        </CardHeader>
-        <CardContent className="px-0">
-          {items.length ? items.map((item) => (
+      {!catalog.isPending && !catalog.error ? <Card variant="data">
+        <ListToolbar search={search} onSearchChange={setSearch} searchLabel="Search MCP servers" count={visible.length} />
+        <div className="hidden grid-cols-[minmax(0,1fr)_150px_120px_8rem] gap-3 border-b bg-muted/20 px-5 py-3 text-xs text-muted-foreground lg:grid" aria-hidden="true">
+          <span>Server</span><span>Category</span><span>Tools</span><span>Status</span>
+        </div>
+        <CardContent className="p-0">
+          {visible.length ? visible.map((item) => (
             <button
               key={item.id}
               type="button"
@@ -213,7 +215,7 @@ function McpServers() {
                 setDetailOpen(true);
                 setNotice("");
               }}
-              className="grid min-h-24 w-full gap-3 border-b px-5 py-4 text-left transition-colors last:border-b-0 hover:bg-muted/45 focus-visible:outline-2 focus-visible:outline-offset-[-2px] sm:grid-cols-[minmax(0,1fr)_150px_120px_auto] sm:items-center"
+              className="grid min-h-24 w-full gap-3 border-b px-5 py-4 text-left transition-colors last:border-b-0 hover:bg-muted/45 focus-visible:outline-2 focus-visible:outline-offset-[-2px] lg:grid-cols-[minmax(0,1fr)_150px_120px_8rem] sm:items-center"
             >
               <span className="flex min-w-0 items-center gap-3">
                 <span className="grid size-11 shrink-0 place-items-center rounded-md border border-border bg-card shadow-xs">
@@ -228,20 +230,20 @@ function McpServers() {
                   <span className="mt-1 block truncate font-mono text-xs text-muted-foreground">{item.endpoint ?? `${item.command} ${item.args.join(" ")}`}</span>
                 </span>
               </span>
-              <span className="text-xs"><span className="block text-muted-foreground">Category</span><strong className="mt-1 block">{item.category}</strong></span>
-              <span className="text-xs"><span className="block text-muted-foreground">Tools</span><strong className="mt-1 block">{item.tools.length}</strong></span>
+              <span className="text-xs"><span className="block text-muted-foreground lg:sr-only">Category</span><strong className="mt-1 block">{item.category}</strong></span>
+              <span className="text-xs"><span className="block text-muted-foreground lg:sr-only">Tools</span><strong className="mt-1 block">{item.tools.length}</strong></span>
               <StatusDot label={item.status} tone={item.status === "HEALTHY" ? "success" : item.status === "UNAVAILABLE" ? "danger" : "neutral"} />
             </button>
           )) : (
             <div className="px-6 py-16 text-center">
               <ServerCog className="mx-auto size-6 text-muted-foreground" />
-              <strong className="mt-3 block">No MCP servers</strong>
-              <p className="mt-1 text-xs text-muted-foreground">Choose a built-in integration or register a custom server.</p>
+              <strong className="mt-3 block">{items.length ? "No matching MCP servers" : "No MCP servers"}</strong>
+              <p className="mt-1 text-xs text-muted-foreground">{items.length ? "Try another server name or category." : "Choose a built-in integration or register a custom server."}</p>
               <Button className="mt-5" variant="outline" onClick={() => setCatalogOpen(true)}>Browse integrations <ChevronRight /></Button>
             </div>
           )}
         </CardContent>
-      </Card>
+      </Card> : null}
 
       <EntitySheet
         open={catalogOpen}

@@ -1160,6 +1160,8 @@ export const skillCategories = [
   "Research",
 ] as const;
 
+// Historical source markers: UNSAFE means unverified in the UI. These values
+// contain no source-verification evidence or risk-assessment result.
 export const skillTrustLevels = [
   "BUILT_IN",
   "TRUSTED_SOURCE",

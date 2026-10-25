@@ -1,3 +1,4 @@
+import { PageHeader } from "@/components/layout/page-header";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -64,20 +65,13 @@ export function ProjectMembers({ project }: { project: Project }) {
 
   return (
     <div>
-      <div className="flex min-h-16 flex-col justify-between gap-3 border-b px-4 py-3 sm:flex-row sm:items-center">
-        <div>
-          <h2 className="text-sm font-semibold">Human members</h2>
-          <p className="text-xs text-muted-foreground">
-            {members.isLoading
-              ? "Loading members…"
-              : `${people.length} ${people.length === 1 ? "person" : "people"} with Project access`}
-          </p>
-        </div>
-        {permissions.canInviteMembers && permissions.canAssignRoles ? (
+      <div className="border-b pb-6">
+        <PageHeader title="Members" description={members.isLoading ? "Loading members…" : `${people.length} ${people.length === 1 ? "person" : "people"} with Project access`} actions={
+        permissions.canInviteMembers && permissions.canAssignRoles ? (
           <Button
             className="h-11"
             size="sm"
-            variant="outline"
+            variant="create"
             onClick={() => setInviteOpen(true)}
           >
             <UserPlus />
@@ -86,6 +80,7 @@ export function ProjectMembers({ project }: { project: Project }) {
         ) : (
           <span className="text-xs text-muted-foreground">View only</span>
         )}
+        />
       </div>
 
       {members.isLoading ? (

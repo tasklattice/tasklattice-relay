@@ -50,12 +50,12 @@ export function ProjectInitializationSettings({ project }: { project: Project })
   };
 
   return (
-    <section className="space-y-4 p-5" aria-labelledby="project-initialization-title">
+    <section className="space-y-4 border-t pt-6" aria-labelledby="project-initialization-title">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0 flex-1 basis-80">
           <h2 id="project-initialization-title" className="text-lg font-semibold">Project initialization</h2>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            Check Project isolation resources and repair missing or outdated infrastructure through the background Worker.
+            Inspect the Project runtime boundary and repair missing or outdated resources.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">

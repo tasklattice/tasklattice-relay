@@ -1,0 +1,239 @@
+{
+  "before": [
+    {
+      "tab": "Overview",
+      "buttons": [
+        "More "
+      ],
+      "headings": [
+        "cxvbcbcvb",
+        "Capabilities",
+        "Purpose & instructions",
+        "Skills \u00b7 0",
+        "Approved tools \u00b7 0",
+        "Vector Databases & memory \u00b7 1",
+        "Access & runtime",
+        "Callable A2A Instances"
+      ],
+      "scrollWidth": 1246,
+      "width": 1270
+    },
+    {
+      "tab": "Configuration",
+      "buttons": [
+        "More ",
+        "View instructions",
+        "Remove Default",
+        "Open options for Select Access Policies",
+        "Apply policies"
+      ],
+      "headings": [
+        "cxvbcbcvb",
+        "Identity",
+        "Instructions",
+        "Access Policies",
+        "Managed inference"
+      ],
+      "scrollWidth": 1270,
+      "width": 1270
+    },
+    {
+      "tab": "Capabilities",
+      "buttons": [
+        "More "
+      ],
+      "headings": [
+        "cxvbcbcvb",
+        "Capability matrix",
+        "Work profile",
+        "Coordination",
+        "Operations",
+        "Protocol",
+        "Effective MCP access1 active policies",
+        "Skills",
+        "MCP Servers",
+        "Vector Databases",
+        "Memory",
+        "Native memory"
+      ],
+      "scrollWidth": 1246,
+      "width": 1270
+    },
+    {
+      "tab": "Activity",
+      "buttons": [
+        "More "
+      ],
+      "headings": [
+        "cxvbcbcvb",
+        "Agent activity",
+        "Coordination",
+        "Delegated work"
+      ],
+      "scrollWidth": 1270,
+      "width": 1270
+    },
+    {
+      "tab": "Logs",
+      "buttons": [
+        "More ",
+        "Filter by log stream",
+        "Filter by log level",
+        "Filter by time range",
+        "Live on",
+        "Download visible logs",
+        "Disable line wrapping",
+        "Enter full screen"
+      ],
+      "headings": [
+        "cxvbcbcvb",
+        "Agent logs"
+      ],
+      "scrollWidth": 1270,
+      "width": 1270
+    },
+    {
+      "tab": "Terminal",
+      "buttons": [
+        "More ",
+        "Open full-screen terminal"
+      ],
+      "headings": [
+        "cxvbcbcvb"
+      ],
+      "scrollWidth": 1270,
+      "width": 1270
+    }
+  ],
+  "after": [
+    {
+      "brokenImages": 0,
+      "headingCount": 1,
+      "headings": [
+        "Attached resources",
+        "Operating context",
+        "Callable A2A Instances"
+      ],
+      "panelHeight": 492.5843200683594,
+      "scrollWidth": 1270,
+      "tab": "Overview",
+      "url": "http://localhost:5173/tp-yhe34of3ynipr/instances/ti-zlo2a2ovsrb4m?tab=overview",
+      "width": 1270
+    },
+    {
+      "brokenImages": 0,
+      "headingCount": 1,
+      "headings": [
+        "Identity",
+        "Instructions",
+        "Access Policies",
+        "Managed inference"
+      ],
+      "panelHeight": 770.9573364257812,
+      "scrollWidth": 1270,
+      "tab": "Configuration",
+      "url": "http://localhost:5173/tp-yhe34of3ynipr/instances/ti-zlo2a2ovsrb4m?tab=configuration",
+      "width": 1270
+    },
+    {
+      "brokenImages": 0,
+      "headingCount": 1,
+      "headings": [
+        "Runtime features",
+        "Attached resources"
+      ],
+      "panelHeight": 760.4910888671875,
+      "scrollWidth": 1270,
+      "tab": "Capabilities",
+      "url": "http://localhost:5173/tp-yhe34of3ynipr/instances/ti-zlo2a2ovsrb4m?tab=capabilities",
+      "width": 1270
+    },
+    {
+      "brokenImages": 0,
+      "headingCount": 1,
+      "headings": [
+        "Lifecycle"
+      ],
+      "panelHeight": 739.2733154296875,
+      "scrollWidth": 1270,
+      "tab": "Activity",
+      "url": "http://localhost:5173/tp-yhe34of3ynipr/instances/ti-zlo2a2ovsrb4m?tab=activity",
+      "width": 1270
+    },
+    {
+      "brokenImages": 0,
+      "headingCount": 1,
+      "headings": [],
+      "panelHeight": 683.12255859375,
+      "scrollWidth": 1270,
+      "tab": "Logs",
+      "url": "http://localhost:5173/tp-yhe34of3ynipr/instances/ti-zlo2a2ovsrb4m?tab=logs",
+      "width": 1270
+    },
+    {
+      "brokenImages": 0,
+      "headingCount": 1,
+      "headings": [],
+      "panelHeight": 779.985107421875,
+      "scrollWidth": 1270,
+      "tab": "Terminal",
+      "url": "http://localhost:5173/tp-yhe34of3ynipr/instances/ti-zlo2a2ovsrb4m?tab=terminal",
+      "width": 1270
+    }
+  ],
+  "light": [
+    {
+      "scrollWidth": 1270,
+      "tab": "Overview",
+      "unnamedButtons": 0,
+      "width": 1270
+    },
+    {
+      "scrollWidth": 1270,
+      "tab": "Configuration",
+      "unnamedButtons": 0,
+      "width": 1270
+    },
+    {
+      "scrollWidth": 1270,
+      "tab": "Activity",
+      "unnamedButtons": 0,
+      "width": 1270
+    },
+    {
+      "scrollWidth": 1270,
+      "tab": "Logs",
+      "unnamedButtons": 0,
+      "width": 1270
+    },
+    {
+      "scrollWidth": 1270,
+      "tab": "Terminal",
+      "unnamedButtons": 0,
+      "width": 1270
+    }
+  ],
+  "logReview": {
+    "columns": [
+      "TIME",
+      "LEVEL",
+      "SOURCE",
+      "MESSAGE"
+    ],
+    "searchEmptyAndRecovery": true,
+    "wrappingToggleBothWays": true,
+    "fullDateOnTimeElement": true,
+    "darkAndLightWidth": 1270,
+    "pageOverflow": false
+  },
+  "interactions": {
+    "overviewMemoryLink": true,
+    "policyDraftValidationAndCancel": true,
+    "policyDraftResetOnReopen": true,
+    "policyDrawerFocusRestore": true,
+    "tabArrowFocusAndEnterActivation": true,
+    "persistedPolicySubmit": false,
+    "terminalCommandsEntered": false,
+    "systemThemeRestored": true
+  }
+}

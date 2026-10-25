@@ -1,13 +1,7 @@
 import type { AgentInstanceDetail } from "@tali/contracts";
 import { Link } from "@tanstack/react-router";
-import {
-  Activity,
-  CheckCircle2,
-  MessagesSquare,
-  Network,
-  Radio,
-} from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { Activity, Clock3 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useCurrentProjectId } from "@/hooks/use-project";
 import { DetailCardHeader, RelativeTime } from "./instance-detail-shared";
@@ -20,8 +14,14 @@ function readableLifecycleEvent(value: string) {
 
 export function AgentInstanceActivityTab({
   detail,
+  error,
+  loading = false,
+  onRetry,
 }: {
   detail: AgentInstanceDetail;
+  error?: Error;
+  loading?: boolean;
+  onRetry?: () => void;
 }) {
   const projectId = useCurrentProjectId();
   const lifecycleLogs = detail.instance.logs
@@ -30,20 +30,29 @@ export function AgentInstanceActivityTab({
     .map(readableLifecycleEvent);
   const hasMoreLifecycleLogs =
     detail.instance.logs.length > lifecycleLogs.length;
-  const discoverable =
-    detail.status === "READY" && detail.capabilities.acceptsDelegation;
   return (
-    <div
-      role="tabpanel"
-      aria-label="Activity"
-      className="grid gap-4 pt-5 xl:grid-cols-[minmax(0,1.4fr)_minmax(19rem,.6fr)]"
-    >
+    <div role="tabpanel" aria-label="Activity" className="pt-5">
       <Card className="min-w-0">
-        <DetailCardHeader
-          title="Agent activity"
-          description="Lifecycle evidence for this Agent Instance. Coordination and invocation events use the same work model when available."
-        />
+        <DetailCardHeader title="Lifecycle" />
         <CardContent>
+          {loading ? (
+            <p role="status" className="pb-3 text-sm text-muted-foreground">
+              Loading lifecycle events…
+            </p>
+          ) : null}
+          {error ? (
+            <div
+              role="alert"
+              className="mb-3 space-y-2 border-l-2 border-destructive bg-destructive/5 p-3 text-sm text-destructive"
+            >
+              <p>Lifecycle events could not be loaded. {error.message}</p>
+              {onRetry ? (
+                <Button variant="outline" size="sm" onClick={onRetry}>
+                  Try again
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
           <ol className="space-y-0">
             <li className="relative flex gap-3 border-b py-4">
               <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-link">
@@ -63,14 +72,11 @@ export function AgentInstanceActivityTab({
                     key={`${index}-${entry}`}
                     className="relative flex gap-3 border-b py-4 last:border-b-0"
                   >
-                    <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
-                      <CheckCircle2 className="size-4" />
+                    <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                      <Clock3 className="size-4" />
                     </span>
                     <div className="min-w-0">
-                      <strong className="text-sm">Lifecycle event</strong>
-                      <p className="mt-1 break-words text-xs leading-5 text-muted-foreground">
-                        {entry}
-                      </p>
+                      <p className="break-words text-xs leading-5">{entry}</p>
                     </div>
                   </li>
                 ))
@@ -98,65 +104,6 @@ export function AgentInstanceActivityTab({
           ) : null}
         </CardContent>
       </Card>
-
-      <div className="space-y-4">
-        <Card>
-          <DetailCardHeader
-            title="Coordination"
-            description="Whether this Agent can plan and delegate work to other Agents."
-            action={<Network className="size-5 text-link" />}
-          />
-          <CardContent>
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <strong className="text-sm">
-                  {detail.capabilities.canDelegate
-                    ? "Coordinates work"
-                    : detail.capabilities.canPlan
-                      ? "Plans its own work"
-                      : "Focused execution"}
-                </strong>
-                <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                  {detail.capabilities.canDelegate
-                    ? "Delegation and child-run evidence will appear in this activity stream."
-                    : "This Agent does not delegate work to other Agent Instances."}
-                </p>
-              </div>
-              <Badge variant="outline">
-                {detail.capabilities.canDelegate ? "Enabled" : "Not enabled"}
-              </Badge>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <DetailCardHeader
-            title="Delegated work"
-            description="Whether compatible Agents can discover and invoke this Instance."
-            action={
-              detail.capabilities.acceptsDelegation ? (
-                <MessagesSquare className="size-5 text-link" />
-              ) : (
-                <Radio className="size-5 text-muted-foreground" />
-              )
-            }
-          />
-          <CardContent>
-            <strong className="text-sm">
-              {discoverable
-                ? "Discoverable in this Project"
-                : detail.capabilities.acceptsDelegation
-                  ? "Temporarily unavailable for delegation"
-                  : "Does not accept delegated work"}
-            </strong>
-            <p className="mt-1 text-xs leading-5 text-muted-foreground">
-              {detail.capabilities.acceptsDelegation
-                ? "Discovery also requires a READY Instance, a valid protocol profile, and a reachable endpoint."
-                : "This work profile is used directly rather than through the Project callable registry."}
-            </p>
-          </CardContent>
-        </Card>
-      </div>
     </div>
   );
 }

@@ -1,0 +1,642 @@
+[
+  {
+    "page": "people",
+    "alerts": [],
+    "h1": [
+      "People"
+    ],
+    "scrollWidth": 2032,
+    "width": 2032
+  },
+  {
+    "page": "roles",
+    "alerts": [],
+    "h1": [
+      "Roles & Capabilities"
+    ],
+    "scrollWidth": 2032,
+    "width": 2032
+  },
+  {
+    "page": "infrastructure",
+    "alerts": [],
+    "h1": [
+      "Infrastructure"
+    ],
+    "scrollWidth": 2032,
+    "width": 2032
+  },
+  {
+    "page": "runtime",
+    "alerts": [],
+    "h1": [
+      "Runtime sandbox images"
+    ],
+    "scrollWidth": 2032,
+    "width": 2032
+  },
+  {
+    "page": "sandbox",
+    "alerts": [],
+    "h1": [
+      "Sandbox"
+    ],
+    "scrollWidth": 2008,
+    "width": 2032
+  },
+  {
+    "page": "providers",
+    "alerts": [],
+    "h1": [
+      "Model Provider admission"
+    ],
+    "scrollWidth": 2008,
+    "width": 2032
+  },
+  {
+    "page": "security",
+    "alerts": [],
+    "h1": [
+      "Authentication & SSO"
+    ],
+    "scrollWidth": 2032,
+    "width": 2032
+  },
+  {
+    "page": "email",
+    "alerts": [],
+    "h1": [
+      "Email delivery"
+    ],
+    "scrollWidth": 2032,
+    "width": 2032
+  },
+  {
+    "page": "departments",
+    "alerts": [],
+    "h1": [
+      "Departments"
+    ],
+    "scrollWidth": 2032,
+    "width": 2032
+  },
+  {
+    "scope": "department",
+    "page": "overview",
+    "alerts": [],
+    "h1": [
+      "Department overview"
+    ],
+    "scrollWidth": 2032,
+    "width": 2032
+  },
+  {
+    "scope": "department",
+    "page": "projects",
+    "alerts": [],
+    "h1": [
+      "Projects"
+    ],
+    "scrollWidth": 2032,
+    "width": 2032
+  },
+  {
+    "scope": "department",
+    "page": "people",
+    "alerts": [],
+    "h1": [
+      "People"
+    ],
+    "scrollWidth": 2032,
+    "width": 2032
+  },
+  {
+    "scope": "department",
+    "page": "providers",
+    "alerts": [],
+    "h1": [
+      "Providers"
+    ],
+    "scrollWidth": 2032,
+    "width": 2032
+  },
+  {
+    "scope": "department",
+    "page": "models",
+    "alerts": [],
+    "h1": [
+      "Models"
+    ],
+    "scrollWidth": 2032,
+    "width": 2032
+  },
+  {
+    "scope": "department",
+    "page": "routing",
+    "alerts": [],
+    "h1": [
+      "Routing"
+    ],
+    "scrollWidth": 2032,
+    "width": 2032
+  },
+  {
+    "scope": "department",
+    "page": "quota",
+    "alerts": [],
+    "h1": [
+      "Department quota"
+    ],
+    "scrollWidth": 2032,
+    "width": 2032
+  },
+  {
+    "scope": "project",
+    "page": "instances",
+    "alerts": [],
+    "h1": [
+      "Instances"
+    ],
+    "scrollWidth": 2032,
+    "width": 2032
+  },
+  {
+    "scope": "project",
+    "page": "memory",
+    "alerts": [],
+    "h1": [
+      "Memory"
+    ],
+    "scrollWidth": 2032,
+    "width": 2032
+  },
+  {
+    "scope": "project",
+    "page": "agent-garden",
+    "alerts": [],
+    "h1": [
+      "Agent Garden"
+    ],
+    "scrollWidth": 2008,
+    "width": 2032
+  },
+  {
+    "scope": "project",
+    "page": "skills",
+    "alerts": [],
+    "h1": [
+      "Skills"
+    ],
+    "scrollWidth": 2008,
+    "width": 2032
+  },
+  {
+    "scope": "project",
+    "page": "mcp",
+    "alerts": [],
+    "h1": [
+      "MCP Servers"
+    ],
+    "scrollWidth": 2032,
+    "width": 2032
+  },
+  {
+    "scope": "project",
+    "page": "vector-databases",
+    "alerts": [],
+    "h1": [
+      "Vector Databases"
+    ],
+    "scrollWidth": 2032,
+    "width": 2032
+  },
+  {
+    "scope": "project",
+    "page": "access-policies",
+    "alerts": [],
+    "h1": [
+      "Access Policies"
+    ],
+    "scrollWidth": 2032,
+    "width": 2032
+  },
+  {
+    "scope": "project",
+    "page": "runtime-policies",
+    "alerts": [],
+    "h1": [
+      "Runtime Policies"
+    ],
+    "scrollWidth": 2032,
+    "width": 2032
+  },
+  {
+    "scope": "project",
+    "page": "traces",
+    "alerts": [],
+    "h1": [
+      "Traces"
+    ],
+    "scrollWidth": 2032,
+    "width": 2032
+  },
+  {
+    "scope": "project",
+    "page": "audit",
+    "alerts": [],
+    "h1": [
+      "Audit Logs"
+    ],
+    "scrollWidth": 2032,
+    "width": 2032
+  },
+  {
+    "scope": "project",
+    "page": "cost",
+    "alerts": [],
+    "h1": [
+      "Model cost"
+    ],
+    "scrollWidth": 2008,
+    "width": 2032
+  },
+  {
+    "scope": "project-settings",
+    "page": "general",
+    "alerts": [],
+    "h1": [
+      "General"
+    ],
+    "scrollWidth": 2032,
+    "width": 2032
+  },
+  {
+    "scope": "project-settings",
+    "page": "members",
+    "alerts": [],
+    "h1": [
+      "Members"
+    ],
+    "scrollWidth": 2032,
+    "width": 2032
+  },
+  {
+    "scope": "project-settings",
+    "page": "providers",
+    "alerts": [],
+    "h1": [
+      "Providers"
+    ],
+    "scrollWidth": 2032,
+    "width": 2032
+  },
+  {
+    "scope": "project-settings",
+    "page": "models",
+    "alerts": [],
+    "h1": [
+      "Models"
+    ],
+    "scrollWidth": 2032,
+    "width": 2032
+  },
+  {
+    "scope": "project-settings",
+    "page": "routing",
+    "alerts": [],
+    "h1": [
+      "Routing"
+    ],
+    "scrollWidth": 2032,
+    "width": 2032
+  },
+  {
+    "scope": "project-settings",
+    "page": "quota",
+    "alerts": [],
+    "h1": [
+      "Quota"
+    ],
+    "scrollWidth": 2032,
+    "width": 2032
+  },
+  {
+    "scope": "project-desktop-window",
+    "page": "instances",
+    "h1": [
+      "Instances"
+    ],
+    "scrollWidth": 1270,
+    "width": 1270
+  },
+  {
+    "scope": "project-desktop-window",
+    "page": "memory",
+    "h1": [
+      "Memory"
+    ],
+    "scrollWidth": 1270,
+    "width": 1270
+  },
+  {
+    "scope": "project-desktop-window",
+    "page": "agent-garden",
+    "h1": [
+      "Agent Garden"
+    ],
+    "scrollWidth": 1246,
+    "width": 1270
+  },
+  {
+    "scope": "project-desktop-window",
+    "page": "skills",
+    "h1": [
+      "Skills"
+    ],
+    "scrollWidth": 1246,
+    "width": 1270
+  },
+  {
+    "scope": "project-desktop-window",
+    "page": "mcp",
+    "h1": [
+      "MCP Servers"
+    ],
+    "scrollWidth": 1270,
+    "width": 1270
+  },
+  {
+    "scope": "project-desktop-window",
+    "page": "vector-databases",
+    "h1": [
+      "Vector Databases"
+    ],
+    "scrollWidth": 1270,
+    "width": 1270
+  },
+  {
+    "scope": "project-desktop-window",
+    "page": "access-policies",
+    "h1": [
+      "Access Policies"
+    ],
+    "scrollWidth": 1270,
+    "width": 1270
+  },
+  {
+    "scope": "project-desktop-window",
+    "page": "runtime-policies",
+    "h1": [
+      "Runtime Policies"
+    ],
+    "scrollWidth": 1270,
+    "width": 1270
+  },
+  {
+    "scope": "project-desktop-window",
+    "page": "traces",
+    "h1": [
+      "Traces"
+    ],
+    "scrollWidth": 1270,
+    "width": 1270
+  },
+  {
+    "scope": "project-desktop-window",
+    "page": "audit",
+    "h1": [
+      "Audit Logs"
+    ],
+    "scrollWidth": 1270,
+    "width": 1270
+  },
+  {
+    "scope": "project-desktop-window",
+    "page": "cost",
+    "h1": [
+      "Model cost"
+    ],
+    "scrollWidth": 1246,
+    "width": 1270
+  },
+  {
+    "scope": "settings-desktop-window",
+    "page": "general",
+    "h1": [
+      "General"
+    ],
+    "scrollWidth": 1270,
+    "tables": [],
+    "width": 1270
+  },
+  {
+    "scope": "settings-desktop-window",
+    "page": "members",
+    "h1": [
+      "Members"
+    ],
+    "scrollWidth": 1270,
+    "tables": [],
+    "width": 1270
+  },
+  {
+    "scope": "settings-desktop-window",
+    "page": "providers",
+    "h1": [
+      "Providers"
+    ],
+    "scrollWidth": 1270,
+    "tables": [],
+    "width": 1270
+  },
+  {
+    "scope": "settings-desktop-window",
+    "page": "models",
+    "h1": [
+      "Models"
+    ],
+    "scrollWidth": 1270,
+    "tables": [],
+    "width": 1270
+  },
+  {
+    "scope": "settings-desktop-window",
+    "page": "routing",
+    "h1": [
+      "Routing"
+    ],
+    "scrollWidth": 1270,
+    "tables": [],
+    "width": 1270
+  },
+  {
+    "scope": "settings-desktop-window",
+    "page": "quota",
+    "h1": [
+      "Quota"
+    ],
+    "scrollWidth": 1270,
+    "tables": [],
+    "width": 1270
+  },
+  {
+    "scope": "platform-desktop-window",
+    "page": "departments",
+    "h1": [
+      "Departments"
+    ],
+    "scrollWidth": 1270,
+    "unnamedTables": 0,
+    "width": 1270
+  },
+  {
+    "scope": "platform-desktop-window",
+    "page": "people",
+    "h1": [
+      "People"
+    ],
+    "scrollWidth": 1270,
+    "unnamedTables": 0,
+    "width": 1270
+  },
+  {
+    "scope": "platform-desktop-window",
+    "page": "roles",
+    "h1": [
+      "Roles & Capabilities"
+    ],
+    "scrollWidth": 1270,
+    "unnamedTables": 0,
+    "width": 1270
+  },
+  {
+    "scope": "platform-desktop-window",
+    "page": "infrastructure",
+    "h1": [
+      "Infrastructure"
+    ],
+    "scrollWidth": 1270,
+    "unnamedTables": 0,
+    "width": 1270
+  },
+  {
+    "scope": "platform-desktop-window",
+    "page": "runtime",
+    "h1": [
+      "Runtime sandbox images"
+    ],
+    "scrollWidth": 1270,
+    "unnamedTables": 0,
+    "width": 1270
+  },
+  {
+    "scope": "platform-desktop-window",
+    "page": "sandbox",
+    "h1": [
+      "Sandbox"
+    ],
+    "scrollWidth": 1270,
+    "unnamedTables": 0,
+    "width": 1270
+  },
+  {
+    "scope": "platform-desktop-window",
+    "page": "providers",
+    "h1": [
+      "Model Provider admission"
+    ],
+    "scrollWidth": 1246,
+    "unnamedTables": 0,
+    "width": 1270
+  },
+  {
+    "scope": "platform-desktop-window",
+    "page": "security",
+    "h1": [
+      "Authentication & SSO"
+    ],
+    "scrollWidth": 1270,
+    "unnamedTables": 0,
+    "width": 1270
+  },
+  {
+    "scope": "platform-desktop-window",
+    "page": "email",
+    "h1": [
+      "Email delivery"
+    ],
+    "scrollWidth": 1270,
+    "unnamedTables": 0,
+    "width": 1270
+  },
+  {
+    "scope": "department-desktop-window",
+    "page": "overview",
+    "h1": [
+      "Department overview"
+    ],
+    "scrollWidth": 1270,
+    "unnamedTables": 0,
+    "width": 1270
+  },
+  {
+    "scope": "department-desktop-window",
+    "page": "projects",
+    "h1": [
+      "Projects"
+    ],
+    "scrollWidth": 1270,
+    "unnamedTables": 0,
+    "width": 1270
+  },
+  {
+    "scope": "department-desktop-window",
+    "page": "people",
+    "h1": [
+      "People"
+    ],
+    "scrollWidth": 1270,
+    "unnamedTables": 0,
+    "width": 1270
+  },
+  {
+    "scope": "department-desktop-window",
+    "page": "providers",
+    "h1": [
+      "Providers"
+    ],
+    "scrollWidth": 1270,
+    "unnamedTables": 0,
+    "width": 1270
+  },
+  {
+    "scope": "department-desktop-window",
+    "page": "models",
+    "h1": [
+      "Models"
+    ],
+    "scrollWidth": 1270,
+    "unnamedTables": 0,
+    "width": 1270
+  },
+  {
+    "scope": "department-desktop-window",
+    "page": "routing",
+    "h1": [
+      "Routing"
+    ],
+    "scrollWidth": 1270,
+    "unnamedTables": 0,
+    "width": 1270
+  },
+  {
+    "scope": "department-desktop-window",
+    "page": "quota",
+    "h1": [
+      "Department quota"
+    ],
+    "scrollWidth": 1270,
+    "unnamedTables": 0,
+    "width": 1270
+  }
+]

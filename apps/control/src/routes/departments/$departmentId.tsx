@@ -23,7 +23,6 @@ import {
   Search,
   ServerCog,
   ShieldAlert,
-  ShieldCheck,
   TriangleAlert,
   Users,
 } from "lucide-react";
@@ -35,7 +34,7 @@ import {
   ContextSettingsSidebar,
   type ContextSettingsSectionGroup,
 } from "@/components/layout/context-settings-navigation";
-import { PageHeader } from "@/components/layout/page-header";
+import { SettingsSection } from "@/components/layout/settings-section";
 import { CreateProjectSheet } from "@/components/project/create-project-sheet";
 import { DepartmentModelRoutingsSettings } from "@/components/project/project-model-routing-settings";
 import { Badge } from "@/components/ui/badge";
@@ -169,18 +168,7 @@ function DepartmentSettingsPage() {
   }
 
   return renderLayout(
-    <div className="mx-auto w-full max-w-[1600px] space-y-7 p-5 sm:p-6 lg:p-8">
-      <PageHeader
-        title="Department Setting"
-        badge={(
-          <Badge className="border-primary/20 bg-primary/7 text-link" variant="outline">
-            <ShieldCheck />
-            Department Administrator
-          </Badge>
-        )}
-        description={`Manage ${department.data.name}, its Projects and people, inference policy, and resource boundaries.`}
-      />
-
+    <div className="mx-auto w-full max-w-[1440px] space-y-6 p-5 sm:p-6 lg:p-8">
       <section className="min-w-0">
         {section === "general" ? (
           <OverviewSection department={department.data} settings={settings.data} />
@@ -256,7 +244,7 @@ function OverviewSection({
   return (
     <SettingsSection
       title="Department overview"
-      description="Review this organizational boundary at a glance, then maintain its name and purpose."
+
       action={(
         <Button className="h-11" disabled={!dirty || !validatedName.success || save.isPending} onClick={() => save.mutate()}>
           {save.isPending ? <Spinner /> : <Save />}
@@ -292,10 +280,7 @@ function OverviewSection({
         </div>
         <dl className="grid content-start divide-y border-y text-sm">
           <Fact label="Department ID" value={department.id} />
-          <Fact label="Projects" value={String(department.projectCount)} />
-          <Fact label="People" value={String(department.memberCount)} />
           <Fact label="Created" value={new Intl.DateTimeFormat("en-US", { dateStyle: "medium" }).format(new Date(department.createdAt))} />
-          <Fact label="Settings ownership" value="Department" />
         </dl>
       </div>
     </SettingsSection>
@@ -327,7 +312,7 @@ function ProjectsSection({ department }: { department: DepartmentDetail }) {
   return (
     <SettingsSection
       title="Projects"
-      description="Query every Project in this Department and compare its people, Instances, inference assets, and connected resources."
+
       action={<Button className="h-11" onClick={() => setCreateOpen(true)}><Plus />New Project</Button>}
     >
       <dl className="grid border-y sm:grid-cols-2 xl:grid-cols-4">
@@ -346,8 +331,8 @@ function ProjectsSection({ department }: { department: DepartmentDetail }) {
       </div>
       {projects.length ? (
         <>
-          <div className="hidden overflow-x-auto md:block">
-            <table className="w-full min-w-[1080px] text-left">
+          <div className="relative hidden overflow-x-auto md:block">
+            <table aria-label="Department Projects" className="w-full min-w-[1080px] text-left">
               <thead className="border-b bg-muted/20 text-xs text-muted-foreground">
                 <tr>
                   <th className="px-5 py-2.5 font-medium">Project</th>
@@ -363,7 +348,7 @@ function ProjectsSection({ department }: { department: DepartmentDetail }) {
               <tbody className="divide-y">
                 {projects.map((project) => (
                   <tr key={project.id} className="hover:bg-muted/[0.12]">
-                    <td className="px-5 py-3"><strong className="block text-sm">{project.name}</strong><code className="mt-0.5 block text-[11px] text-muted-foreground">{project.id}</code></td>
+                    <td className="px-5 py-3"><Link to="/$projectId" params={{ projectId: project.id }} className="rounded-sm text-sm font-semibold text-link underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-ring">{project.name}</Link><code className="mt-0.5 block text-[11px] text-muted-foreground">{project.id}</code></td>
                     <td className="px-4 py-3 text-right font-mono text-sm tabular-nums">{project.memberCount}</td>
                     <td className="px-4 py-3 text-right font-mono text-sm tabular-nums">{project.instanceCount}</td>
                     <td className="px-4 py-3 text-xs"><strong className="font-mono">{project.modelCount}</strong> models <span className="text-muted-foreground">·</span> <strong className="font-mono">{project.routingCount}</strong> Routing</td>
@@ -432,7 +417,7 @@ function PeopleSection({ department }: { department: DepartmentDetail }) {
   return (
     <SettingsSection
       title="People"
-      description="See every Department member and the exact Roles they hold in each Project. Department access and Project permissions remain separate scopes."
+      description="Department access and Project roles are assigned separately."
     >
       <dl className="grid border-y sm:grid-cols-3">
         <SummaryStat label="People" value={department.members.length} detail="Unique Department members" />
@@ -457,8 +442,8 @@ function PeopleSection({ department }: { department: DepartmentDetail }) {
       </div>
       {members.length ? (
         <>
-          <div className="hidden overflow-x-auto md:block">
-            <table className="w-full min-w-[900px] text-left">
+          <div className="relative hidden overflow-x-auto md:block">
+            <table aria-label="Department people and Project roles" className="w-full min-w-[900px] text-left">
               <thead className="border-b bg-muted/20 text-xs text-muted-foreground"><tr><th className="px-5 py-2.5 font-medium">Person</th><th className="px-4 py-2.5 font-medium">Department role</th><th className="px-4 py-2.5 font-medium">Project access and Roles</th></tr></thead>
               <tbody className="divide-y">
                 {members.map((member) => (
@@ -536,7 +521,7 @@ function QuotaSection({ departmentId, settings }: SettingsSectionProps) {
   return (
     <SettingsSection
       title="Department quota"
-      description="Soft quotas warn before saturation. Hard quotas block both Project allocations and new resources across every Project in this Department."
+
       action={<Button className="h-11" disabled={!dirty || !parsed.success || save.isPending} onClick={() => save.mutate(input)}>{save.isPending ? <Spinner /> : <Save />}Save quota</Button>}
     >
       <SaveFeedback mutation={save} success={`Department quota saved as revision ${save.data?.revision ?? settings.revision}.`} />
@@ -588,9 +573,6 @@ function QuotaInput({ id, label, onChange, step, value }: { id: string; label: s
   return <div className="grid gap-2"><Label htmlFor={id}>{label}</Label><Input id={id} className="h-11 font-mono tabular-nums" type="number" min="0" step={step ?? "1"} value={value} placeholder="Unlimited" onChange={(event) => onChange(event.target.value)} /></div>;
 }
 
-function SettingsSection({ action, children, description, title }: { action?: ReactNode; children: ReactNode; description: string; title: string }) {
-  return <section><div className="flex flex-col justify-between gap-4 border-b pb-5 sm:flex-row sm:items-start"><div><h2 className="font-sans text-lg font-semibold">{title}</h2><p className="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">{description}</p></div>{action}</div><div className="pt-5">{children}</div></section>;
-}
 
 function SettingRow({ children, description, title }: { children: ReactNode; description: string; title: string }) {
   return <div className="grid gap-4 py-5 lg:grid-cols-[minmax(14rem,0.65fr)_minmax(24rem,1.35fr)]"><div><h3 className="text-sm font-semibold">{title}</h3><p className="mt-1 text-xs leading-5 text-muted-foreground">{description}</p></div><div>{children}</div></div>;
@@ -643,7 +625,7 @@ function field(value: number | null): string { return value === null ? "" : Stri
 function formatQuota(value: number, money: boolean): string { return money ? new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value) : new Intl.NumberFormat("en-US").format(value); }
 
 function DepartmentSettingsSkeleton() {
-  return <div className="mx-auto w-full max-w-[1600px] space-y-7 p-5 sm:p-6 lg:p-8" aria-label="Loading Department Setting"><div className="h-24 animate-pulse rounded-md bg-muted/60" /><div className="h-72 animate-pulse rounded-md bg-muted/40" /></div>;
+  return <div className="mx-auto w-full max-w-[1440px] space-y-6 p-5 sm:p-6 lg:p-8" aria-label="Loading Department Setting"><div className="h-24 animate-pulse rounded-md bg-muted/60" /><div className="h-72 animate-pulse rounded-md bg-muted/40" /></div>;
 }
 
 type SettingsSectionProps = { departmentId: string; settings: DepartmentSettingsView };

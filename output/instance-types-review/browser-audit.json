@@ -1,0 +1,930 @@
+[
+  {
+    "brokenImages": 0,
+    "h1Count": 1,
+    "headings": [
+      "Capabilities",
+      "Operating context"
+    ],
+    "mainWidth": 989.9925537109376,
+    "scenario": "a2a-managed",
+    "scrollWidth": 2032,
+    "tab": "Overview",
+    "theme": "light",
+    "width": 2032
+  },
+  {
+    "brokenImages": 0,
+    "h1Count": 1,
+    "headings": [
+      "Identity",
+      "Runtime configuration",
+      "A2A configuration"
+    ],
+    "mainWidth": 989.9925537109376,
+    "scenario": "a2a-managed",
+    "scrollWidth": 2032,
+    "tab": "Configuration",
+    "theme": "light",
+    "width": 2032
+  },
+  {
+    "brokenImages": 0,
+    "h1Count": 1,
+    "headings": [
+      "Runtime features",
+      "Advertised capabilities"
+    ],
+    "mainWidth": 989.9925537109376,
+    "scenario": "a2a-managed",
+    "scrollWidth": 2032,
+    "tab": "Capabilities",
+    "theme": "light",
+    "width": 2032
+  },
+  {
+    "brokenImages": 0,
+    "h1Count": 1,
+    "headings": [
+      "Lifecycle"
+    ],
+    "mainWidth": 989.9925537109376,
+    "scenario": "a2a-managed",
+    "scrollWidth": 2032,
+    "tab": "Activity",
+    "theme": "light",
+    "width": 2032
+  },
+  {
+    "brokenImages": 0,
+    "h1Count": 1,
+    "headings": [],
+    "mainWidth": 989.9925537109376,
+    "scenario": "a2a-managed",
+    "scrollWidth": 2032,
+    "tab": "Logs",
+    "theme": "light",
+    "width": 2032
+  },
+  {
+    "brokenImages": 0,
+    "h1Count": 1,
+    "headings": [
+      "Capabilities",
+      "Operating context"
+    ],
+    "mainWidth": 989.9925537109376,
+    "scenario": "a2a-external",
+    "scrollWidth": 2032,
+    "tab": "Overview",
+    "theme": "light",
+    "width": 2032
+  },
+  {
+    "brokenImages": 0,
+    "h1Count": 1,
+    "headings": [
+      "Identity",
+      "A2A configuration"
+    ],
+    "mainWidth": 989.9925537109376,
+    "scenario": "a2a-external",
+    "scrollWidth": 2032,
+    "tab": "Configuration",
+    "theme": "light",
+    "width": 2032
+  },
+  {
+    "brokenImages": 0,
+    "h1Count": 1,
+    "headings": [
+      "Runtime features",
+      "Advertised capabilities"
+    ],
+    "mainWidth": 989.9925537109376,
+    "scenario": "a2a-external",
+    "scrollWidth": 2032,
+    "tab": "Capabilities",
+    "theme": "light",
+    "width": 2032
+  },
+  {
+    "brokenImages": 0,
+    "h1Count": 1,
+    "headings": [
+      "Lifecycle"
+    ],
+    "mainWidth": 989.9925537109376,
+    "scenario": "a2a-external",
+    "scrollWidth": 2032,
+    "tab": "Activity",
+    "theme": "light",
+    "width": 2032
+  },
+  {
+    "brokenImages": 0,
+    "h1Count": 1,
+    "headings": [
+      "Capabilities",
+      "Operating context"
+    ],
+    "mainWidth": 989.9925537109376,
+    "scenario": "project-agent",
+    "scrollWidth": 2032,
+    "tab": "Overview",
+    "theme": "light",
+    "width": 2032
+  },
+  {
+    "brokenImages": 0,
+    "h1Count": 1,
+    "headings": [
+      "Identity",
+      "Runtime configuration",
+      "A2A configuration"
+    ],
+    "mainWidth": 989.9925537109376,
+    "scenario": "project-agent",
+    "scrollWidth": 2032,
+    "tab": "Configuration",
+    "theme": "light",
+    "width": 2032
+  },
+  {
+    "brokenImages": 0,
+    "h1Count": 1,
+    "headings": [
+      "Runtime features",
+      "Advertised capabilities"
+    ],
+    "mainWidth": 989.9925537109376,
+    "scenario": "project-agent",
+    "scrollWidth": 2032,
+    "tab": "Capabilities",
+    "theme": "light",
+    "width": 2032
+  },
+  {
+    "brokenImages": 0,
+    "h1Count": 1,
+    "headings": [
+      "Lifecycle"
+    ],
+    "mainWidth": 989.9925537109376,
+    "scenario": "project-agent",
+    "scrollWidth": 2032,
+    "tab": "Activity",
+    "theme": "light",
+    "width": 2032
+  },
+  {
+    "brokenImages": 0,
+    "h1Count": 1,
+    "headings": [],
+    "mainWidth": 989.9925537109376,
+    "scenario": "project-agent",
+    "scrollWidth": 2032,
+    "tab": "Logs",
+    "theme": "light",
+    "width": 2032
+  },
+  {
+    "brokenImages": 0,
+    "h1Count": 1,
+    "headings": [
+      "Attached resources",
+      "Operating context",
+      "Callable A2A Instances"
+    ],
+    "mainWidth": 989.9925537109376,
+    "scenario": "openclaw",
+    "scrollWidth": 2032,
+    "tab": "Overview",
+    "theme": "light",
+    "width": 2032
+  },
+  {
+    "brokenImages": 0,
+    "h1Count": 1,
+    "headings": [
+      "Identity",
+      "Instructions",
+      "Access Policies",
+      "Managed inference"
+    ],
+    "mainWidth": 989.9925537109376,
+    "scenario": "openclaw",
+    "scrollWidth": 2032,
+    "tab": "Configuration",
+    "theme": "light",
+    "width": 2032
+  },
+  {
+    "brokenImages": 0,
+    "h1Count": 1,
+    "headings": [
+      "Runtime features",
+      "Attached resources"
+    ],
+    "mainWidth": 989.9925537109376,
+    "scenario": "openclaw",
+    "scrollWidth": 2008,
+    "tab": "Capabilities",
+    "theme": "light",
+    "width": 2032
+  },
+  {
+    "brokenImages": 0,
+    "h1Count": 1,
+    "headings": [
+      "Lifecycle"
+    ],
+    "mainWidth": 989.9925537109376,
+    "scenario": "openclaw",
+    "scrollWidth": 2032,
+    "tab": "Activity",
+    "theme": "light",
+    "width": 2032
+  },
+  {
+    "brokenImages": 0,
+    "h1Count": 1,
+    "headings": [],
+    "mainWidth": 989.9925537109376,
+    "scenario": "openclaw",
+    "scrollWidth": 2032,
+    "tab": "Logs",
+    "theme": "light",
+    "width": 2032
+  },
+  {
+    "brokenImages": 0,
+    "h1Count": 1,
+    "headings": [
+      "Attached resources",
+      "Operating context",
+      "Callable A2A Instances"
+    ],
+    "mainWidth": 989.9925537109376,
+    "scenario": "deepagents",
+    "scrollWidth": 2032,
+    "tab": "Overview",
+    "theme": "light",
+    "width": 2032
+  },
+  {
+    "brokenImages": 0,
+    "h1Count": 1,
+    "headings": [
+      "Identity",
+      "Instructions",
+      "Access Policies",
+      "Managed inference"
+    ],
+    "mainWidth": 989.9925537109376,
+    "scenario": "deepagents",
+    "scrollWidth": 2032,
+    "tab": "Configuration",
+    "theme": "light",
+    "width": 2032
+  },
+  {
+    "brokenImages": 0,
+    "h1Count": 1,
+    "headings": [
+      "Runtime features",
+      "Attached resources"
+    ],
+    "mainWidth": 989.9925537109376,
+    "scenario": "deepagents",
+    "scrollWidth": 2008,
+    "tab": "Capabilities",
+    "theme": "light",
+    "width": 2032
+  },
+  {
+    "brokenImages": 0,
+    "h1Count": 1,
+    "headings": [
+      "Lifecycle"
+    ],
+    "mainWidth": 989.9925537109376,
+    "scenario": "deepagents",
+    "scrollWidth": 2032,
+    "tab": "Activity",
+    "theme": "light",
+    "width": 2032
+  },
+  {
+    "brokenImages": 0,
+    "h1Count": 1,
+    "headings": [],
+    "mainWidth": 989.9925537109376,
+    "scenario": "deepagents",
+    "scrollWidth": 2032,
+    "tab": "Logs",
+    "theme": "light",
+    "width": 2032
+  },
+  {
+    "brokenImages": 0,
+    "h1Count": 1,
+    "headings": [
+      "Attached resources",
+      "Operating context"
+    ],
+    "mainWidth": 989.9925537109376,
+    "scenario": "pi",
+    "scrollWidth": 2032,
+    "tab": "Overview",
+    "theme": "light",
+    "width": 2032
+  },
+  {
+    "brokenImages": 0,
+    "h1Count": 1,
+    "headings": [
+      "Identity",
+      "Instructions",
+      "Access Policies",
+      "Managed inference"
+    ],
+    "mainWidth": 989.9925537109376,
+    "scenario": "pi",
+    "scrollWidth": 2032,
+    "tab": "Configuration",
+    "theme": "light",
+    "width": 2032
+  },
+  {
+    "brokenImages": 0,
+    "h1Count": 1,
+    "headings": [
+      "Runtime features",
+      "Attached resources"
+    ],
+    "mainWidth": 989.9925537109376,
+    "scenario": "pi",
+    "scrollWidth": 2008,
+    "tab": "Capabilities",
+    "theme": "light",
+    "width": 2032
+  },
+  {
+    "brokenImages": 0,
+    "h1Count": 1,
+    "headings": [
+      "Lifecycle"
+    ],
+    "mainWidth": 989.9925537109376,
+    "scenario": "pi",
+    "scrollWidth": 2032,
+    "tab": "Activity",
+    "theme": "light",
+    "width": 2032
+  },
+  {
+    "brokenImages": 0,
+    "h1Count": 1,
+    "headings": [],
+    "mainWidth": 989.9925537109376,
+    "scenario": "pi",
+    "scrollWidth": 2032,
+    "tab": "Logs",
+    "theme": "light",
+    "width": 2032
+  },
+  {
+    "brokenImages": 0,
+    "h1Count": 1,
+    "headings": [
+      "Attached resources",
+      "Operating context",
+      "Callable A2A Instances"
+    ],
+    "mainWidth": 989.9925537109376,
+    "scenario": "hermes",
+    "scrollWidth": 2032,
+    "tab": "Overview",
+    "theme": "light",
+    "width": 2032
+  },
+  {
+    "brokenImages": 0,
+    "h1Count": 1,
+    "headings": [
+      "Identity",
+      "Instructions",
+      "Access Policies",
+      "Managed inference"
+    ],
+    "mainWidth": 989.9925537109376,
+    "scenario": "hermes",
+    "scrollWidth": 2032,
+    "tab": "Configuration",
+    "theme": "light",
+    "width": 2032
+  },
+  {
+    "brokenImages": 0,
+    "h1Count": 1,
+    "headings": [
+      "Runtime features",
+      "Attached resources"
+    ],
+    "mainWidth": 989.9925537109376,
+    "scenario": "hermes",
+    "scrollWidth": 2008,
+    "tab": "Capabilities",
+    "theme": "light",
+    "width": 2032
+  },
+  {
+    "brokenImages": 0,
+    "h1Count": 1,
+    "headings": [
+      "Lifecycle"
+    ],
+    "mainWidth": 989.9925537109376,
+    "scenario": "hermes",
+    "scrollWidth": 2032,
+    "tab": "Activity",
+    "theme": "light",
+    "width": 2032
+  },
+  {
+    "brokenImages": 0,
+    "h1Count": 1,
+    "headings": [],
+    "mainWidth": 989.9925537109376,
+    "scenario": "hermes",
+    "scrollWidth": 2032,
+    "tab": "Logs",
+    "theme": "light",
+    "width": 2032
+  },
+  {
+    "brokenImages": 0,
+    "h1Count": 1,
+    "headings": [
+      "Capabilities",
+      "Operating context"
+    ],
+    "mainWidth": 989.9925537109376,
+    "scenario": "a2a-managed",
+    "scrollWidth": 2032,
+    "tab": "Overview",
+    "theme": "dark",
+    "width": 2032
+  },
+  {
+    "brokenImages": 0,
+    "h1Count": 1,
+    "headings": [
+      "Identity",
+      "Runtime configuration",
+      "A2A configuration"
+    ],
+    "mainWidth": 989.9925537109376,
+    "scenario": "a2a-managed",
+    "scrollWidth": 2032,
+    "tab": "Configuration",
+    "theme": "dark",
+    "width": 2032
+  },
+  {
+    "brokenImages": 0,
+    "h1Count": 1,
+    "headings": [
+      "Runtime features",
+      "Advertised capabilities"
+    ],
+    "mainWidth": 989.9925537109376,
+    "scenario": "a2a-managed",
+    "scrollWidth": 2032,
+    "tab": "Capabilities",
+    "theme": "dark",
+    "width": 2032
+  },
+  {
+    "brokenImages": 0,
+    "h1Count": 1,
+    "headings": [
+      "Lifecycle"
+    ],
+    "mainWidth": 989.9925537109376,
+    "scenario": "a2a-managed",
+    "scrollWidth": 2032,
+    "tab": "Activity",
+    "theme": "dark",
+    "width": 2032
+  },
+  {
+    "brokenImages": 0,
+    "h1Count": 1,
+    "headings": [],
+    "mainWidth": 989.9925537109376,
+    "scenario": "a2a-managed",
+    "scrollWidth": 2032,
+    "tab": "Logs",
+    "theme": "dark",
+    "width": 2032
+  },
+  {
+    "brokenImages": 0,
+    "h1Count": 1,
+    "headings": [
+      "Capabilities",
+      "Operating context"
+    ],
+    "mainWidth": 989.9925537109376,
+    "scenario": "a2a-external",
+    "scrollWidth": 2032,
+    "tab": "Overview",
+    "theme": "dark",
+    "width": 2032
+  },
+  {
+    "brokenImages": 0,
+    "h1Count": 1,
+    "headings": [
+      "Identity",
+      "A2A configuration"
+    ],
+    "mainWidth": 989.9925537109376,
+    "scenario": "a2a-external",
+    "scrollWidth": 2032,
+    "tab": "Configuration",
+    "theme": "dark",
+    "width": 2032
+  },
+  {
+    "brokenImages": 0,
+    "h1Count": 1,
+    "headings": [
+      "Runtime features",
+      "Advertised capabilities"
+    ],
+    "mainWidth": 989.9925537109376,
+    "scenario": "a2a-external",
+    "scrollWidth": 2032,
+    "tab": "Capabilities",
+    "theme": "dark",
+    "width": 2032
+  },
+  {
+    "brokenImages": 0,
+    "h1Count": 1,
+    "headings": [
+      "Lifecycle"
+    ],
+    "mainWidth": 989.9925537109376,
+    "scenario": "a2a-external",
+    "scrollWidth": 2032,
+    "tab": "Activity",
+    "theme": "dark",
+    "width": 2032
+  },
+  {
+    "brokenImages": 0,
+    "h1Count": 1,
+    "headings": [
+      "Capabilities",
+      "Operating context"
+    ],
+    "mainWidth": 989.9925537109376,
+    "scenario": "project-agent",
+    "scrollWidth": 2032,
+    "tab": "Overview",
+    "theme": "dark",
+    "width": 2032
+  },
+  {
+    "brokenImages": 0,
+    "h1Count": 1,
+    "headings": [
+      "Identity",
+      "Runtime configuration",
+      "A2A configuration"
+    ],
+    "mainWidth": 989.9925537109376,
+    "scenario": "project-agent",
+    "scrollWidth": 2032,
+    "tab": "Configuration",
+    "theme": "dark",
+    "width": 2032
+  },
+  {
+    "brokenImages": 0,
+    "h1Count": 1,
+    "headings": [
+      "Runtime features",
+      "Advertised capabilities"
+    ],
+    "mainWidth": 989.9925537109376,
+    "scenario": "project-agent",
+    "scrollWidth": 2032,
+    "tab": "Capabilities",
+    "theme": "dark",
+    "width": 2032
+  },
+  {
+    "brokenImages": 0,
+    "h1Count": 1,
+    "headings": [
+      "Lifecycle"
+    ],
+    "mainWidth": 989.9925537109376,
+    "scenario": "project-agent",
+    "scrollWidth": 2032,
+    "tab": "Activity",
+    "theme": "dark",
+    "width": 2032
+  },
+  {
+    "brokenImages": 0,
+    "h1Count": 1,
+    "headings": [],
+    "mainWidth": 989.9925537109376,
+    "scenario": "project-agent",
+    "scrollWidth": 2032,
+    "tab": "Logs",
+    "theme": "dark",
+    "width": 2032
+  },
+  {
+    "brokenImages": 0,
+    "h1Count": 1,
+    "headings": [
+      "Attached resources",
+      "Operating context",
+      "Callable A2A Instances"
+    ],
+    "mainWidth": 989.9925537109376,
+    "scenario": "openclaw",
+    "scrollWidth": 2032,
+    "tab": "Overview",
+    "theme": "dark",
+    "width": 2032
+  },
+  {
+    "brokenImages": 0,
+    "h1Count": 1,
+    "headings": [
+      "Identity",
+      "Instructions",
+      "Access Policies",
+      "Managed inference"
+    ],
+    "mainWidth": 989.9925537109376,
+    "scenario": "openclaw",
+    "scrollWidth": 2032,
+    "tab": "Configuration",
+    "theme": "dark",
+    "width": 2032
+  },
+  {
+    "brokenImages": 0,
+    "h1Count": 1,
+    "headings": [
+      "Runtime features",
+      "Attached resources"
+    ],
+    "mainWidth": 989.9925537109376,
+    "scenario": "openclaw",
+    "scrollWidth": 2008,
+    "tab": "Capabilities",
+    "theme": "dark",
+    "width": 2032
+  },
+  {
+    "brokenImages": 0,
+    "h1Count": 1,
+    "headings": [
+      "Lifecycle"
+    ],
+    "mainWidth": 989.9925537109376,
+    "scenario": "openclaw",
+    "scrollWidth": 2032,
+    "tab": "Activity",
+    "theme": "dark",
+    "width": 2032
+  },
+  {
+    "brokenImages": 0,
+    "h1Count": 1,
+    "headings": [],
+    "mainWidth": 989.9925537109376,
+    "scenario": "openclaw",
+    "scrollWidth": 2032,
+    "tab": "Logs",
+    "theme": "dark",
+    "width": 2032
+  },
+  {
+    "brokenImages": 0,
+    "h1Count": 1,
+    "headings": [
+      "Attached resources",
+      "Operating context",
+      "Callable A2A Instances"
+    ],
+    "mainWidth": 989.9925537109376,
+    "scenario": "deepagents",
+    "scrollWidth": 2032,
+    "tab": "Overview",
+    "theme": "dark",
+    "width": 2032
+  },
+  {
+    "brokenImages": 0,
+    "h1Count": 1,
+    "headings": [
+      "Identity",
+      "Instructions",
+      "Access Policies",
+      "Managed inference"
+    ],
+    "mainWidth": 989.9925537109376,
+    "scenario": "deepagents",
+    "scrollWidth": 2032,
+    "tab": "Configuration",
+    "theme": "dark",
+    "width": 2032
+  },
+  {
+    "brokenImages": 0,
+    "h1Count": 1,
+    "headings": [
+      "Runtime features",
+      "Attached resources"
+    ],
+    "mainWidth": 989.9925537109376,
+    "scenario": "deepagents",
+    "scrollWidth": 2008,
+    "tab": "Capabilities",
+    "theme": "dark",
+    "width": 2032
+  },
+  {
+    "brokenImages": 0,
+    "h1Count": 1,
+    "headings": [
+      "Lifecycle"
+    ],
+    "mainWidth": 989.9925537109376,
+    "scenario": "deepagents",
+    "scrollWidth": 2032,
+    "tab": "Activity",
+    "theme": "dark",
+    "width": 2032
+  },
+  {
+    "brokenImages": 0,
+    "h1Count": 1,
+    "headings": [],
+    "mainWidth": 989.9925537109376,
+    "scenario": "deepagents",
+    "scrollWidth": 2032,
+    "tab": "Logs",
+    "theme": "dark",
+    "width": 2032
+  },
+  {
+    "brokenImages": 0,
+    "h1Count": 1,
+    "headings": [
+      "Attached resources",
+      "Operating context"
+    ],
+    "mainWidth": 989.9925537109376,
+    "scenario": "pi",
+    "scrollWidth": 2032,
+    "tab": "Overview",
+    "theme": "dark",
+    "width": 2032
+  },
+  {
+    "brokenImages": 0,
+    "h1Count": 1,
+    "headings": [
+      "Identity",
+      "Instructions",
+      "Access Policies",
+      "Managed inference"
+    ],
+    "mainWidth": 989.9925537109376,
+    "scenario": "pi",
+    "scrollWidth": 2032,
+    "tab": "Configuration",
+    "theme": "dark",
+    "width": 2032
+  },
+  {
+    "brokenImages": 0,
+    "h1Count": 1,
+    "headings": [
+      "Runtime features",
+      "Attached resources"
+    ],
+    "mainWidth": 989.9925537109376,
+    "scenario": "pi",
+    "scrollWidth": 2008,
+    "tab": "Capabilities",
+    "theme": "dark",
+    "width": 2032
+  },
+  {
+    "brokenImages": 0,
+    "h1Count": 1,
+    "headings": [
+      "Lifecycle"
+    ],
+    "mainWidth": 989.9925537109376,
+    "scenario": "pi",
+    "scrollWidth": 2032,
+    "tab": "Activity",
+    "theme": "dark",
+    "width": 2032
+  },
+  {
+    "brokenImages": 0,
+    "h1Count": 1,
+    "headings": [],
+    "mainWidth": 989.9925537109376,
+    "scenario": "pi",
+    "scrollWidth": 2032,
+    "tab": "Logs",
+    "theme": "dark",
+    "width": 2032
+  },
+  {
+    "brokenImages": 0,
+    "h1Count": 1,
+    "headings": [
+      "Attached resources",
+      "Operating context",
+      "Callable A2A Instances"
+    ],
+    "mainWidth": 989.9925537109376,
+    "scenario": "hermes",
+    "scrollWidth": 2032,
+    "tab": "Overview",
+    "theme": "dark",
+    "width": 2032
+  },
+  {
+    "brokenImages": 0,
+    "h1Count": 1,
+    "headings": [
+      "Identity",
+      "Instructions",
+      "Access Policies",
+      "Managed inference"
+    ],
+    "mainWidth": 989.9925537109376,
+    "scenario": "hermes",
+    "scrollWidth": 2032,
+    "tab": "Configuration",
+    "theme": "dark",
+    "width": 2032
+  },
+  {
+    "brokenImages": 0,
+    "h1Count": 1,
+    "headings": [
+      "Runtime features",
+      "Attached resources"
+    ],
+    "mainWidth": 989.9925537109376,
+    "scenario": "hermes",
+    "scrollWidth": 2008,
+    "tab": "Capabilities",
+    "theme": "dark",
+    "width": 2032
+  },
+  {
+    "brokenImages": 0,
+    "h1Count": 1,
+    "headings": [
+      "Lifecycle"
+    ],
+    "mainWidth": 989.9925537109376,
+    "scenario": "hermes",
+    "scrollWidth": 2032,
+    "tab": "Activity",
+    "theme": "dark",
+    "width": 2032
+  },
+  {
+    "brokenImages": 0,
+    "h1Count": 1,
+    "headings": [],
+    "mainWidth": 989.9925537109376,
+    "scenario": "hermes",
+    "scrollWidth": 2032,
+    "tab": "Logs",
+    "theme": "dark",
+    "width": 2032
+  }
+]

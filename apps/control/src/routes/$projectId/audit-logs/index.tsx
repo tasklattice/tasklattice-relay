@@ -19,7 +19,6 @@ import {
   ChevronRight,
   Download,
   Filter,
-  LockKeyhole,
   RefreshCw,
   Search,
   ShieldCheck,
@@ -406,7 +405,6 @@ function AuditLogsPage() {
       <PageHeader
         title="Audit Logs"
         description="Review who performed an action, what changed, and whether authorization allowed it."
-        badge={<Badge variant="outline" className="gap-1.5"><LockKeyhole />Admin only</Badge>}
         actions={
           <Button
             type="button"
@@ -421,15 +419,7 @@ function AuditLogsPage() {
         }
       />
 
-      <div className="flex items-start gap-3 border-l-2 border-primary bg-primary/5 px-4 py-3">
-        <ShieldCheck className="mt-0.5 size-4 shrink-0 text-link" />
-        <p className="text-xs leading-5 text-muted-foreground">
-          This is a read-only Project trail. Request bodies are stored as expandable
-          attachments with credentials and secrets excluded.
-        </p>
-      </div>
-
-      <Card>
+      <Card variant="data">
         <CardHeader className="border-b">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
             <label className="relative w-full lg:max-w-md lg:flex-1">

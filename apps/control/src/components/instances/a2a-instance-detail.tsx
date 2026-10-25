@@ -6,19 +6,18 @@ import type {
   ProjectAgentInstanceDetail,
 } from "@tali/contracts";
 import {
-  ArrowLeft,
   ArrowRight,
   FileJson,
   MoreHorizontal,
   PencilLine,
   RefreshCw,
-  ShieldCheck,
+  Sparkles,
   SquareTerminal,
   Trash2,
 } from "lucide-react";
 import { useState } from "react";
+import { EntitySheet } from "@/components/shared/entity-sheet";
 import { AgentGardenIcon } from "@/components/agent-garden/agent-garden-icon";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -39,25 +38,26 @@ import {
   CopyableValue,
   DefinitionList,
   DetailCardHeader,
-  DetailTabIntro,
-  InstanceStatusBadge,
   RelativeTime,
 } from "./instance-detail-shared";
 import { InstanceTabs } from "./instance-detail-tabs";
+import { AgentCapabilityMatrix } from "./instance-agent-profile";
 import {
-  AgentCapabilityMatrix,
-  AgentProfilePanel,
-  InstanceWorkModeBadges,
-} from "./instance-agent-profile";
+  InstanceDetailHeader,
+  InstanceResourceSection,
+  InstanceSummaryLink,
+  InstanceUnavailablePanel,
+} from "./instance-detail-layout";
 
 type ServiceAgentInstanceDetail =
-  | A2aStandardAgentInstanceDetail
-  | ProjectAgentInstanceDetail;
+  A2aStandardAgentInstanceDetail | ProjectAgentInstanceDetail;
 
 function workProfileLabel(role: AgentInstanceRole) {
-  if (role === "HYBRID") return "Coordination and specialist work profile";
-  if (role === "SUPERVISOR") return "Coordination work profile";
-  return "Specialist work profile";
+  return role === "SUPERVISOR"
+    ? "Supervisor"
+    : role === "HYBRID"
+      ? "Hybrid"
+      : "Specialist";
 }
 
 function A2aHeader({
@@ -75,61 +75,26 @@ function A2aHeader({
 }) {
   const projectId = useCurrentProjectId();
   return (
-    <header className="border-b">
-      <div className="flex flex-col gap-5 pb-5 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex min-w-0 items-center gap-3 sm:gap-4">
-          <Button
-            asChild
-            variant="ghost"
-            size="icon"
-            className="size-11 shrink-0"
-          >
-            <Link
-              to="/$projectId/instances"
-              params={{ projectId }}
-              aria-label="Back to Instances"
-            >
-              <ArrowLeft />
-            </Link>
-          </Button>
-          <AgentGardenIcon type="a2a" className="size-14" />
-          <div className="min-w-0">
-            <div className="flex min-w-0 flex-wrap items-center gap-2">
-              <h1 className="min-w-0 max-w-full break-words font-display text-2xl font-semibold tracking-[-0.02em] sm:text-3xl">
-                {detail.name}
-              </h1>
-              <InstanceStatusBadge status={detail.status} />
-            </div>
-            <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-              <span>{detail.form === "SERVICE" ? "Service Agent" : detail.form === "INTERACTIVE" ? "Interactive Agent" : "Hybrid Agent"}</span>
-              <span aria-hidden="true">·</span>
-              <span>{detail.role === "SUPERVISOR" ? "Supervisor role" : detail.role === "SPECIALIST" ? "Specialist role" : "Hybrid role"}</span>
-              <span aria-hidden="true">·</span>
-              <span>{detail.platform.name}</span>
-              <span aria-hidden="true">·</span>
-              <span>
-                {detail.instance.runtime === "kubernetes"
-                  ? "Kubernetes managed runtime"
-                  : "External runtime"}
-              </span>
-              <span aria-hidden="true">·</span>
-              <span>A2A {detail.protocols[0]?.direction.join(" + ") ?? "Server"}</span>
-              <span aria-hidden="true">·</span>
-              <span>
-                Updated <RelativeTime value={detail.updatedAt} />
-              </span>
-            </p>
-            <div className="mt-2">
-              <InstanceWorkModeBadges
-                capabilities={detail.capabilities}
-                compact
-              />
-            </div>
-          </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-2 pl-14 sm:pl-[7.5rem] lg:pl-0">
+    <InstanceDetailHeader
+      name={detail.name}
+      status={detail.status}
+      icon={<AgentGardenIcon type="a2a" className="size-11 shrink-0" />}
+      metadata={
+        <>
+          <span>
+            {detail.platform.name} ·{" "}
+            {detail.runtimeView.managed ? "Kubernetes" : "External runtime"}
+          </span>
+          <span aria-hidden="true">·</span>
+          <span>
+            Updated <RelativeTime value={detail.updatedAt} />
+          </span>
+        </>
+      }
+      actions={
+        <>
           {detail.kind === "PROJECT_AGENT" ? (
-            <Button asChild variant="outline" className="min-h-11">
+            <Button asChild className="min-h-11">
               <Link
                 to="/$projectId/agents/$agentId"
                 params={{ projectId, agentId: detail.definition.id }}
@@ -144,182 +109,115 @@ function A2aHeader({
               className="min-h-11"
               disabled={!canManage || refreshing}
               onClick={onRefresh}
+              title={
+                !canManage
+                  ? "You do not have permission to rediscover this Agent Card."
+                  : undefined
+              }
             >
-              <RefreshCw className={refreshing ? "animate-spin" : ""} />
+              <RefreshCw className={refreshing ? "animate-spin" : ""} />{" "}
               {refreshing ? "Rediscovering…" : "Rediscover Agent Card"}
             </Button>
           )}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="min-h-11">
-                More <MoreHorizontal />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              {detail.kind === "PROJECT_AGENT" ? (
+          {detail.kind === "A2A" ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="min-h-11">
+                  More <MoreHorizontal />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuItem asChild>
                   <Link
-                    to="/$projectId/agents/$agentId"
+                    to="/$projectId/agent-garden/$agentId"
                     params={{ projectId, agentId: detail.definition.id }}
                   >
-                    <PencilLine /> Open development workspace
+                    <FileJson /> View definition
                   </Link>
                 </DropdownMenuItem>
-              ) : (
-                <>
-                  <DropdownMenuItem asChild>
-                    <Link
-                      to="/$projectId/agent-garden/$agentId"
-                      params={{ projectId, agentId: detail.definition.id }}
-                    >
-                      <FileJson />
-                      View definition
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    className="text-destructive focus:text-destructive"
-                    disabled={!canManage}
-                    onSelect={onDelete}
-                  >
-                    <Trash2 /> Remove Instance
-                  </DropdownMenuItem>
-                </>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </div>
-    </header>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  className="text-destructive focus:text-destructive"
+                  disabled={!canManage}
+                  onSelect={onDelete}
+                >
+                  <Trash2 /> Remove Instance
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : null}
+        </>
+      }
+    />
   );
 }
 
 function A2aOverview({ detail }: { detail: ServiceAgentInstanceDetail }) {
   const projectId = useCurrentProjectId();
   const protocol = detail.protocols[0];
-  const discoverable =
-    detail.status === "READY" && detail.capabilities.acceptsDelegation;
   return (
     <div role="tabpanel" aria-label="Overview" className="space-y-5 pt-5">
-      <AgentProfilePanel
-        name={detail.name}
-        profileLabel={workProfileLabel(detail.role)}
-        description={
-          detail.description ||
-          "A callable Agent that performs focused work through a published A2A contract."
-        }
-        summary={
-          protocol?.skills.length
-            ? `It advertises ${protocol.skills.length} specialist skill${protocol.skills.length === 1 ? "" : "s"} through ${protocol.binding ?? "A2A"} and ${discoverable ? "is available for delegation in this Project" : "is not currently available for delegation"}.`
-            : "No specialist skills are currently advertised by its Agent Card."
-        }
-        actions={
-          <>
-            <Button asChild className="min-h-11">
-              <Link
-                to="/$projectId/instances/$instanceId"
-                params={{ projectId, instanceId: detail.id }}
-                search={{ tab: "capabilities" }}
-              >
-                Review capabilities <ArrowRight />
-              </Link>
-            </Button>
-            <Button asChild variant="outline" className="min-h-11">
+      {detail.description ? (
+        <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
+          {detail.description}
+        </p>
+      ) : null}
+      <div className="grid items-start gap-5 lg:grid-cols-2">
+        <Card variant="data">
+          <DetailCardHeader title="Capabilities" />
+          <div>
+            <InstanceSummaryLink
+              instanceId={detail.id}
+              icon={Sparkles}
+              label="Advertised skills"
+              value={protocol?.skills.length ?? 0}
+              hash="specialist-skills"
+            />
+            <InstanceSummaryLink
+              instanceId={detail.id}
+              icon={FileJson}
+              label="Agent Card"
+              value={protocol?.agentCardStatus ?? "Not advertised"}
+              tab="configuration"
+              hash="protocol"
+            />
+            {detail.kind === "PROJECT_AGENT" ? (
+              <InstanceSummaryLink
+                instanceId={detail.id}
+                icon={PencilLine}
+                label="Deployed version"
+                value={`v${detail.instance.versionNumber}`}
+                tab="configuration"
+                hash="identity"
+              />
+            ) : null}
+          </div>
+        </Card>
+        <Card>
+          <DetailCardHeader title="Operating context" />
+          <CardContent>
+            <DefinitionList
+              items={[
+                {
+                  label: "Collaboration role",
+                  value: workProfileLabel(detail.role),
+                },
+                {
+                  label: "Protocol",
+                  value: protocol
+                    ? `A2A ${protocol.version}`
+                    : "Not advertised",
+                },
+                { label: "Scope", value: "Current Project only" },
+              ]}
+            />
+            <Button asChild variant="link" className="mt-3 min-h-11 px-0">
               <Link
                 to="/$projectId/instances/$instanceId"
                 params={{ projectId, instanceId: detail.id }}
                 search={{ tab: "configuration" }}
               >
-                Inspect configuration
-              </Link>
-            </Button>
-          </>
-        }
-        facts={[
-          { label: "Profile", value: workProfileLabel(detail.role) },
-          { label: "Product form", value: detail.form === "SERVICE" ? "Service Agent" : detail.form === "INTERACTIVE" ? "Interactive Agent" : "Hybrid Agent" },
-          { label: "Advertised skills", value: protocol?.skills.length ?? 0 },
-          { label: "Runtime", value: detail.runtimeView.type },
-          { label: "Protocol", value: `A2A ${protocol?.version ?? "1.0"}` },
-          {
-            label: "Registry",
-            value: discoverable ? "Discoverable" : "Unavailable",
-          },
-        ]}
-      />
-
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(19rem,.55fr)]">
-        <Card>
-          <DetailCardHeader
-            title="Specialist capabilities"
-            description="The focused work this Agent advertises to users and coordinating Agents."
-          />
-          <CardContent className="divide-y">
-            {protocol?.skills.length ? (
-              protocol.skills.slice(0, 4).map((skill) => (
-                <article key={skill.id} className="py-4 first:pt-0 last:pb-0">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <h3 className="text-sm font-semibold">{skill.name}</h3>
-                    {skill.tags.length ? (
-                      <span className="flex flex-wrap gap-1">
-                        {skill.tags.slice(0, 3).map((tag) => (
-                          <Badge key={tag} variant="secondary">
-                            {tag}
-                          </Badge>
-                        ))}
-                      </span>
-                    ) : null}
-                  </div>
-                  <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                    {skill.description || "No description advertised."}
-                  </p>
-                </article>
-              ))
-            ) : (
-              <p className="py-10 text-center text-sm text-muted-foreground">
-                No specialist skills are advertised by the current Agent Card.
-              </p>
-            )}
-          </CardContent>
-        </Card>
-        <Card>
-          <DetailCardHeader
-            title="Operating boundary"
-            description="Runtime, protocol, and Project limits applied to this Agent."
-            action={<ShieldCheck className="size-5 text-link" />}
-          />
-          <CardContent>
-            <DefinitionList
-              items={[
-                { label: "Scope", value: "Current Project only" },
-                {
-                  label: "Runtime",
-                  value:
-                    detail.instance.runtime === "kubernetes"
-                      ? "Kubernetes managed"
-                      : "External",
-                },
-                {
-                  label: "Agent Card",
-                  value: protocol?.agentCardStatus ?? "UNCHECKED",
-                },
-                {
-                  label: "Accepts delegation",
-                  value: detail.capabilities.acceptsDelegation ? "Yes" : "No",
-                },
-                {
-                  label: "Registry visibility",
-                  value: discoverable ? "Discoverable" : "Filtered out",
-                },
-              ]}
-            />
-            <Button asChild variant="outline" className="mt-4 min-h-11 w-full">
-              <Link
-                to="/$projectId/instances/$instanceId"
-                params={{ projectId, instanceId: detail.id }}
-                search={{ tab: "activity" }}
-              >
-                View activity <ArrowRight />
+                View configuration <ArrowRight />
               </Link>
             </Button>
           </CardContent>
@@ -329,121 +227,166 @@ function A2aOverview({ detail }: { detail: ServiceAgentInstanceDetail }) {
   );
 }
 
-function A2aConfiguration({
-  detail,
-}: {
-  detail: ServiceAgentInstanceDetail;
-}) {
+function A2aConfiguration({ detail }: { detail: ServiceAgentInstanceDetail }) {
   const protocol = detail.protocols[0];
+  const runtimeFacts = [
+    { label: "Image", value: detail.runtimeView.imageReference },
+    { label: "Image digest", value: detail.runtimeView.imageDigest },
+    { label: "Namespace", value: detail.runtimeView.namespace },
+    { label: "Workload", value: detail.runtimeView.workloadName },
+    { label: "Pod", value: detail.runtimeView.podName },
+  ]
+    .filter(({ value }) => Boolean(value))
+    .map(({ label, value }) => ({
+      label,
+      value: <CopyableValue value={value} />,
+    }));
   return (
     <div
       role="tabpanel"
       aria-label="Configuration"
-      className="grid gap-4 pt-5 lg:grid-cols-2"
+      className="grid items-start gap-4 pt-5 lg:grid-cols-2"
     >
-      <Card>
-        <DetailCardHeader
-          title="Identity"
-          description="Stable identity and work profile for this Agent Instance."
-        />
+      <Card id="identity" className="scroll-mt-24">
+        <DetailCardHeader title="Identity" />
         <CardContent>
           <DefinitionList
             items={[
-              { label: "Agent name", value: detail.name },
-              { label: "Description", value: detail.description || "—" },
-              { label: "Work profile", value: workProfileLabel(detail.role) },
-              { label: "Product form", value: detail.form === "SERVICE" ? "Service Agent" : detail.form === "INTERACTIVE" ? "Interactive Agent" : "Hybrid Agent" },
-              { label: "Execution strategy", value: detail.executionStrategy ?? "Runtime-defined" },
+              {
+                label: "Instance ID",
+                value: <CopyableValue value={detail.id} />,
+              },
+              {
+                label: "Product form",
+                value:
+                  detail.form === "SERVICE"
+                    ? "Service Agent"
+                    : detail.form === "INTERACTIVE"
+                      ? "Interactive Agent"
+                      : "Hybrid Agent",
+              },
+              {
+                label: "Collaboration role",
+                value: workProfileLabel(detail.role),
+              },
+              ...(detail.executionStrategy
+                ? [
+                    {
+                      label: "Execution strategy",
+                      value: detail.executionStrategy.replaceAll("_", " "),
+                    },
+                  ]
+                : []),
               {
                 label: "Definition ID",
                 value: <CopyableValue value={detail.definition.id} />,
               },
+              ...(detail.kind === "PROJECT_AGENT"
+                ? [
+                    {
+                      label: "Deployed version",
+                      value: `v${detail.instance.versionNumber}`,
+                    },
+                    {
+                      label: "Content digest",
+                      value: (
+                        <CopyableValue value={detail.instance.contentDigest} />
+                      ),
+                    },
+                  ]
+                : []),
             ]}
           />
         </CardContent>
       </Card>
-      <Card>
-        <DetailCardHeader
-          title="Runtime configuration"
-          description="Immutable deployment evidence captured during managed onboarding."
-        />
-        <CardContent>
-          <DefinitionList
-            items={[
-              {
-                label: "Runtime",
-                value:
-                  detail.instance.runtime === "kubernetes"
-                    ? "Kubernetes · Project Main Space"
-                    : "External · Runtime Bridge",
-              },
-              {
-                label: "Image",
-                value: (
-                  <CopyableValue value={detail.runtimeView.imageReference} />
-                ),
-              },
-              {
-                label: "Image digest",
-                value: <CopyableValue value={detail.runtimeView.imageDigest} />,
-              },
-              {
-                label: "Namespace",
-                value: <CopyableValue value={detail.runtimeView.namespace} />,
-              },
-              {
-                label: "Workload",
-                value: (
-                  <CopyableValue value={detail.runtimeView.workloadName} />
-                ),
-              },
-              {
-                label: "Container",
-                value: <span className="font-mono text-[11px]">agent</span>,
-              },
-            ]}
-          />
-        </CardContent>
-      </Card>
-      <Card className="lg:col-span-2">
-        <DetailCardHeader
-          title="A2A configuration"
-          description="Discovered Agent Card and invocation surface used by Coordinator runtimes."
-        />
-        <CardContent>
-          <DefinitionList
-            items={[
-              { label: "Protocol", value: `A2A ${protocol?.version ?? "1.0"}` },
-              { label: "Binding", value: protocol?.binding ?? "—" },
-              {
-                label: "Direction",
-                value: protocol?.direction.join(", ") ?? "SERVER",
-              },
-              {
-                label: "Endpoint",
-                value: <CopyableValue value={protocol?.endpoint} />,
-              },
-              {
-                label: "Agent Card URL",
-                value: <CopyableValue value={protocol?.agentCardUrl} />,
-              },
-              {
-                label: "Discovery status",
-                value: protocol?.agentCardStatus ?? "UNCHECKED",
-              },
-            ]}
-          />
+      {detail.runtimeView.managed ? (
+        <Card>
+          <DetailCardHeader title="Runtime configuration" />
+          <CardContent>
+            {runtimeFacts.length ? (
+              <DefinitionList items={runtimeFacts} />
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Deployment details are not available.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      ) : null}
+      <Card
+        id="protocol"
+        className={
+          detail.runtimeView.managed
+            ? "scroll-mt-24 lg:col-span-2"
+            : "scroll-mt-24"
+        }
+      >
+        <DetailCardHeader title="A2A configuration" />
+        <CardContent className="space-y-4">
+          {protocol ? (
+            <>
+              <DefinitionList
+                columns={detail.runtimeView.managed ? 2 : 1}
+                items={[
+                  { label: "Protocol", value: `A2A ${protocol.version}` },
+                  {
+                    label: "Binding",
+                    value: protocol.binding ?? "Not advertised",
+                  },
+                  {
+                    label: "Direction",
+                    value: protocol.direction.join(", ") || "Not advertised",
+                  },
+                  {
+                    label: "Discovery status",
+                    value: protocol.agentCardStatus,
+                  },
+                  {
+                    label: "Endpoint",
+                    value: <CopyableValue value={protocol.endpoint} />,
+                  },
+                  {
+                    label: "Agent Card URL",
+                    value: <CopyableValue value={protocol.agentCardUrl} />,
+                  },
+                  ...(protocol.lastDiscoveredAt
+                    ? [
+                        {
+                          label: "Last discovered",
+                          value: (
+                            <RelativeTime value={protocol.lastDiscoveredAt} />
+                          ),
+                        },
+                      ]
+                    : []),
+                ]}
+              />
+              {protocol.lastDiscoveryError ? (
+                <p role="alert" className="text-sm text-destructive">
+                  {protocol.lastDiscoveryError}
+                </p>
+              ) : null}
+              <details className="rounded-md border">
+                <summary className="cursor-pointer px-4 py-3 text-xs font-medium focus-visible:outline-2 focus-visible:outline-ring">
+                  Normalized protocol JSON
+                </summary>
+                <pre className="max-h-96 overflow-auto border-t bg-muted/30 p-4 text-[11px] leading-5">
+                  {JSON.stringify(protocol, null, 2)}
+                </pre>
+              </details>
+            </>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              No A2A protocol has been advertised.
+            </p>
+          )}
         </CardContent>
       </Card>
     </div>
   );
 }
 
-function A2aCapabilities({
-  detail,
-}: {
-  detail: ServiceAgentInstanceDetail;
-}) {
+function A2aCapabilities({ detail }: { detail: ServiceAgentInstanceDetail }) {
   const protocol = detail.protocols[0];
   return (
     <div role="tabpanel" aria-label="Capabilities" className="space-y-4 pt-5">
@@ -451,49 +394,38 @@ function A2aCapabilities({
         capabilities={detail.capabilities}
         protocol={protocol}
       />
-      <Card>
-        <DetailCardHeader
+      <Card variant="data" className="@container/resources">
+        <DetailCardHeader title="Advertised capabilities" />
+        <InstanceResourceSection
+          id="specialist-skills"
           title="Specialist skills"
-          description={`${protocol?.skills.length ?? 0} skills advertised through the Agent Card.`}
-        />
-        <CardContent>
+          icon={Sparkles}
+        >
           {protocol?.skills.length ? (
-            <div className="grid gap-3 md:grid-cols-2">
-              {protocol.skills.map((skill) => (
-                <div key={skill.id} className="border bg-muted/15 p-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <strong className="text-sm">{skill.name}</strong>
-                    <Badge variant="outline">{skill.id}</Badge>
-                  </div>
-                  <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                    {skill.description || "No description advertised."}
+            protocol.skills.map((skill) => (
+              <article
+                key={skill.id}
+                className="min-w-0 border-b pb-4 last:border-b-0 last:pb-0"
+              >
+                <h4 className="text-sm font-medium">{skill.name}</h4>
+                {skill.description ? (
+                  <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                    {skill.description}
                   </p>
-                  {skill.tags.length ? (
-                    <div className="mt-3 flex flex-wrap gap-1.5">
-                      {skill.tags.map((tag) => (
-                        <Badge key={tag} variant="secondary">
-                          {tag}
-                        </Badge>
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
-              ))}
-            </div>
+                ) : null}
+                {skill.tags.length ? (
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    {skill.tags.join(" · ")}
+                  </p>
+                ) : null}
+              </article>
+            ))
           ) : (
-            <p className="py-12 text-center text-sm text-muted-foreground">
-              No skills were advertised.
+            <p className="text-xs leading-5 text-muted-foreground">
+              No skills advertised.
             </p>
           )}
-          <details className="mt-5 border bg-[#0b0f0e] text-white">
-            <summary className="cursor-pointer px-4 py-3 text-xs font-medium">
-              Normalized protocol JSON
-            </summary>
-            <pre className="max-h-96 overflow-auto border-t border-white/10 p-4 text-[11px] leading-5 text-white/70">
-              {JSON.stringify(protocol, null, 2)}
-            </pre>
-          </details>
-        </CardContent>
+        </InstanceResourceSection>
       </Card>
     </div>
   );
@@ -518,27 +450,20 @@ function A2aLogs({
 
   return (
     <div role="tabpanel" aria-label="Logs" className="space-y-4 pt-5">
-      <DetailTabIntro
-        title="Agent logs"
-        description="Follow standard output and standard error for Agents hosted by Relay."
-      />
-      {!unavailableReason && (detail.runtimeView.podName || detail.runtimeView.workloadName) ? (
+      {!unavailableReason &&
+      (detail.runtimeView.podName || detail.runtimeView.workloadName) ? (
         <AgentLiveLogs
           instanceId={detail.id}
-          podName={detail.runtimeView.podName ?? detail.runtimeView.workloadName!}
+          podName={
+            detail.runtimeView.podName ?? detail.runtimeView.workloadName!
+          }
         />
       ) : (
-        <Card>
-          <CardContent className="flex min-h-72 flex-col items-center justify-center text-center">
-            <span className="grid size-12 place-items-center rounded-full bg-muted">
-              <SquareTerminal className="size-5 text-muted-foreground" />
-            </span>
-            <strong className="mt-4 text-base">Runtime logs unavailable</strong>
-            <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
-              {unavailableReason}
-            </p>
-          </CardContent>
-        </Card>
+        <InstanceUnavailablePanel
+          icon={SquareTerminal}
+          title="Runtime logs unavailable"
+          reason={unavailableReason ?? "Runtime logs are not available."}
+        />
       )}
     </div>
   );
@@ -546,23 +471,13 @@ function A2aLogs({
 
 function DisabledTerminal({ reason }: { reason: string }) {
   return (
-    <Card className="mt-6">
-      <CardContent className="flex min-h-72 flex-col items-center justify-center text-center">
-        <span className="grid size-12 place-items-center rounded-full bg-muted">
-          <SquareTerminal className="size-5 text-muted-foreground" />
-        </span>
-        <strong className="mt-4 text-base">
-          Executable terminal is not exposed
-        </strong>
-        <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
-          {reason}
-        </p>
-        <p className="mt-3 max-w-xl text-xs leading-5 text-muted-foreground">
-          A2A, Hermes, OpenClaw, and Deep Coding still share the same
-          AgentInstance type. Terminal access depends on the selected runtime.
-        </p>
-      </CardContent>
-    </Card>
+    <div role="tabpanel" aria-label="Terminal" className="pt-5">
+      <InstanceUnavailablePanel
+        icon={SquareTerminal}
+        title="Executable terminal is not exposed"
+        reason={reason}
+      />
+    </div>
   );
 }
 
@@ -582,6 +497,7 @@ export function A2aInstanceDetail({
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [rediscoverOpen, setRediscoverOpen] = useState(false);
   const storedLogs = useQuery({
     queryKey: scope.key("agent-logs", detail.id),
     queryFn: () => api.getInstanceLogs(detail.id),
@@ -599,9 +515,10 @@ export function A2aInstanceDetail({
   } as ServiceAgentInstanceDetail;
   const refresh = useMutation({
     mutationFn: async () => {
-      if (detail.kind === "A2A") {
-        await api.discoverGardenAgent(detail.definition.id);
+      if (detail.kind !== "A2A") {
+        throw new Error("Project Agents are managed in Agent Developer.");
       }
+      await api.discoverGardenAgent(detail.definition.id);
     },
     onSuccess: async () => {
       await Promise.all([
@@ -615,16 +532,20 @@ export function A2aInstanceDetail({
   const remove = useMutation({
     mutationFn: () => {
       if (detail.kind !== "A2A") {
-        return Promise.reject(new Error("Project Agents are managed in Agent Developer."));
+        return Promise.reject(
+          new Error("Project Agents are managed in Agent Developer."),
+        );
       }
       return detail.definition.source === "BUILT_IN"
         ? api.removeGardenInstance(detail.id)
         : api.removeGardenAgent(detail.definition.id);
     },
     onSuccess: async () => {
-      await Promise.all(["agent-garden", "agents", "runtime-inventory"].map((key) =>
-        queryClient.invalidateQueries({ queryKey: scope.key(key) }),
-      ));
+      await Promise.all(
+        ["agent-garden", "agents", "runtime-inventory"].map((key) =>
+          queryClient.invalidateQueries({ queryKey: scope.key(key) }),
+        ),
+      );
       await navigate({
         to: "/$projectId/instances",
         params: { projectId },
@@ -650,7 +571,10 @@ export function A2aInstanceDetail({
         detail={observedDetail}
         canManage={canManage}
         refreshing={refresh.isPending}
-        onRefresh={() => refresh.mutate()}
+        onRefresh={() => {
+          refresh.reset();
+          setRediscoverOpen(true);
+        }}
         onDelete={() => setDeleteOpen(true)}
       />
       <InstanceTabs
@@ -659,14 +583,6 @@ export function A2aInstanceDetail({
         logs={logs}
         terminal={terminal}
       />
-      {refresh.error instanceof Error ? (
-        <p
-          role="alert"
-          className="mt-4 border-l-2 border-destructive bg-destructive/5 px-4 py-3 text-sm text-destructive"
-        >
-          {refresh.error.message}
-        </p>
-      ) : null}
       {activeTab === "overview" ? (
         <A2aOverview detail={observedDetail} />
       ) : null}
@@ -677,7 +593,14 @@ export function A2aInstanceDetail({
         <A2aCapabilities detail={observedDetail} />
       ) : null}
       {activeTab === "activity" ? (
-        <AgentInstanceActivityTab detail={observedDetail} />
+        <AgentInstanceActivityTab
+          detail={observedDetail}
+          loading={canViewLogs && storedLogs.isPending}
+          {...(canViewLogs && storedLogs.error
+            ? { error: storedLogs.error }
+            : {})}
+          onRetry={() => void storedLogs.refetch()}
+        />
       ) : null}
       {activeTab === "logs" ? (
         <A2aLogs detail={observedDetail} canViewLogs={canViewLogs} />
@@ -685,6 +608,73 @@ export function A2aInstanceDetail({
       {activeTab === "terminal" ? (
         <DisabledTerminal reason={terminal.disabledReason} />
       ) : null}
+      <EntitySheet
+        open={rediscoverOpen}
+        onOpenChange={setRediscoverOpen}
+        pending={refresh.isPending}
+        width="md"
+        title="Rediscover Agent Card"
+        description={`${detail.name} · ${detail.status}. Refresh the advertised A2A contract from its saved Agent Card URL.`}
+        footer={
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={refresh.isPending}
+              onClick={() => setRediscoverOpen(false)}
+            >
+              {refresh.isSuccess ? "Done" : "Cancel"}
+            </Button>
+            <Button
+              type="button"
+              variant="edit"
+              disabled={!canManage || refresh.isPending || refresh.isSuccess}
+              onClick={() => refresh.mutate()}
+            >
+              <RefreshCw className={refresh.isPending ? "animate-spin" : ""} />
+              {refresh.isPending ? "Rediscovering…" : "Rediscover Agent Card"}
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <DefinitionList
+            items={[
+              {
+                label: "Agent Card URL",
+                value: (
+                  <CopyableValue
+                    value={
+                      detail.protocols[0]?.agentCardUrl ??
+                      (detail.kind === "A2A"
+                        ? detail.definition.agentCardUrl
+                        : undefined)
+                    }
+                  />
+                ),
+              },
+              {
+                label: "Discovery status",
+                value: detail.protocols[0]?.agentCardStatus ?? "Not advertised",
+              },
+            ]}
+          />
+          <p className="text-sm leading-6 text-muted-foreground">
+            This updates the saved protocol and advertised skills used for
+            delegation.
+          </p>
+          {refresh.error instanceof Error ? (
+            <p role="alert" className="text-sm text-destructive">
+              {refresh.error.message}
+            </p>
+          ) : null}
+          {refresh.isSuccess ? (
+            <p role="status" className="text-sm text-success">
+              Agent Card rediscovered.
+            </p>
+          ) : null}
+        </div>
+      </EntitySheet>
       {canManage && detail.kind === "A2A" ? (
         <DeleteInstanceSheet
           open={deleteOpen}

@@ -1,0 +1,19 @@
+import {defineConfig} from 'file:///Users/guohao/workspace/tali/tasklattice-relay/node_modules/vite/dist/node/index.js';
+import react from 'file:///Users/guohao/workspace/tali/tasklattice-relay/node_modules/@vitejs/plugin-react/dist/index.js';
+import tailwindcss from 'file:///Users/guohao/workspace/tali/tasklattice-relay/node_modules/@tailwindcss/vite/dist/index.mjs';
+import {WebSocketServer} from 'file:///Users/guohao/workspace/tali/tasklattice-relay/node_modules/ws/wrapper.mjs';
+export default defineConfig({root:'/Users/guohao/workspace/tali/tasklattice-relay/apps/control',cacheDir:'node_modules/.vite-instance-types-review',plugins:[react(),tailwindcss(),{name:'isolated-instance-fixtures',configureServer(server){
+ const attempts=new Map();const attempt=key=>{const n=(attempts.get(key)||0)+1;attempts.set(key,n);return n;};
+ const wsServer=new WebSocketServer({noServer:true});server.httpServer.on('upgrade',(req,socket,head)=>{if(req.url==='/review-log-stream')wsServer.handleUpgrade(req,socket,head,ws=>{ws.send('2026-10-25T01:00:00Z INFO Preview Agent ready\r\n2026-10-25T01:00:01Z INFO Waiting for delegated work\r\n');});});
+ server.middlewares.use(async(req,res,next)=>{const path=new URL(req.url,'http://localhost').pathname;
+ if(path.startsWith('/api/')){res.setHeader('Content-Type','application/json');const reply=(v,status=200)=>{res.statusCode=status;res.end(JSON.stringify(v));};
+ if(path.endsWith('/discover')){await new Promise(r=>setTimeout(r,1500));return path.includes('failure')&&attempt(path)===1?reply({detail:'Preview discovery failed. Retry when ready.'},503):reply({});}
+ if(path.endsWith('/log-sessions'))return reply({websocketUrl:'/review-log-stream'});
+ if(path.endsWith('/logs')){await new Promise(r=>setTimeout(r,400));return path.includes('lifecycle-error')&&attempt(path)<=2?reply({detail:'Preview log inventory unavailable.'},503):reply({instanceId:'preview',logs:['Runtime registered.','Published A2A endpoint.','Agent is ready.'],error:null});}
+ if(path.endsWith('/catalog'))return reply({skills:[{id:'skill',name:'Evidence review',description:'Reviews evidence for actionable findings.',version:'1.0'}],mcpServers:[{id:'server',name:'Repository tools',status:'HEALTHY',transport:'STREAMABLE_HTTP',allowedTools:[],tools:[{name:'read_file'}]}],vectorDatabases:[{id:'vector',name:'Project handbook',description:'Approved reference material.',provider:'qdrant'}],specializations:[{id:'general',name:'General purpose',roleLabel:'General Assistant'}]});
+ if(path.endsWith('/access-policies'))return reply({data:[{id:'policy',name:'Default',status:'ACTIVE',serverRules:[{mcpServerId:'server',defaultDecision:'ALLOW',tools:[]}]}]});
+ if(path.endsWith('/agent-garden'))return reply({agents:[],instances:[]});
+ if(path.endsWith('/audit'))return reply({data:[]});
+ return reply({message:'The isolated fixture does not expose this operation.'},404);}
+ if(!path.startsWith('/@')&&!path.includes('.')&&!path.startsWith('/assets/')){res.setHeader('Content-Type','text/html');res.end(await server.transformIndexHtml(req.url,'<!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><title>Instance layout fixture</title></head><body><div id="root"></div><script type="module" src="/@fs/Users/guohao/workspace/tali/tasklattice-relay/output/instance-types-review/preview-fixture.tsx"></script></body></html>'));return;}next();});
+ }}],resolve:{dedupe:['react','react-dom','@tanstack/react-router','@tanstack/react-query'],alias:{'@tali/contracts':'/Users/guohao/workspace/tali/tasklattice-relay/packages/contracts/src/index.ts','@':'/Users/guohao/workspace/tali/tasklattice-relay/apps/control/src'}},server:{host:'127.0.0.1',port:5174,strictPort:true,fs:{allow:['/Users/guohao/workspace/tali/tasklattice-relay','/private/tmp/relay-instance-types-preview']}}});

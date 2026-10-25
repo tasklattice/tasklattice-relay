@@ -422,6 +422,12 @@ The breadcrumb belongs to the application shell and is not repeated as an
 eyebrow above the page title. `PageHeader` owns `title`, `description`,
 `badge`, and `actions`; route hierarchy must not drift between shell and body.
 
+In administration settings, the sidebar supplies the resource and role scope.
+The content begins with the selected section's `PageHeader` (for example,
+`Members` or `Infrastructure`), without an additional generic settings title
+or repeated administrator badge. Keep primary actions beside that title and
+search/filter controls in a separate row above the results.
+
 ### 5.3 Dense operational content
 
 Use tables, label/value rows, timelines, compact lists, and expandable groups
@@ -435,6 +441,11 @@ for the primary action or the most important state.
 
 When content grows, use pagination, filtering, or virtualization instead of
 making the initial viewport an unbounded list.
+
+Use the shared Card `data` variant for tables and resource lists so toolbars,
+column headings, and rows meet at their boundaries without inherited card gaps.
+Skills keep their card catalog: name and purpose first, trust and publication
+state visible, compatibility as quiet text, and package details in the drawer.
 
 ### 5.4 Provider and model management
 
@@ -633,6 +644,11 @@ Page-level specifications must preserve these invariants:
 - audit history explains evidence for the selected resource and does not
   silently become a global audit view;
 - preview data is labeled as preview and never presented as persisted state;
+- Skill source classifications, source verification, and risk assessments are
+  separate facts. The historical `UNSAFE` source marker displays as `Unverified`
+  / `未验证`, with neutral treatment. Built-in and manually trusted sources do
+  not imply a completed verification or a passing security review. Without
+  associated evidence, show `No verification record` and `Not assessed`;
 - credentials, tokens, and raw sensitive configuration never appear in
   summaries or browser-visible diagnostics; and
 - user-facing language uses domain terms consistently and does not expose
@@ -921,6 +937,38 @@ Avoid repeating capability summaries or access actions in the detail overview.
 Keep loading, failure reasons, and recovery actions explicit. See the
 [implementation and acceptance record](ui-simplification-review-2026-10-25.md)
 for the scoped changes and remaining browser-evidence gaps.
+
+Instance detail tabs have distinct responsibilities:
+
+- Overview contains linked resource counts, operating context, provisioning
+  feedback, and callable Instances. Resource inventories and instructions live
+  in their owning tabs.
+- Configuration contains identity, instructions, policy references, and managed
+  inference. Policy changes start in an operation drawer; the read-only page
+  does not repeat the same references in an editable selector.
+- Capabilities groups runtime features and attached resources. Keep effective
+  tool access with MCP Servers. Use compact empty rows rather than equal-sized
+  empty cards; describe native, hybrid, and durable memory according to their
+  actual scope.
+- Activity contains recorded lifecycle events, without static capability cards
+  or a repeated generic heading on every event. Logs and Terminal use their
+  operational toolbar as the entry point. Logs display each event timestamp in
+  one column, with the complete date available on the time element.
+
+Keep Instance identity, runtime, status, and native access in the shared header.
+
+The same header, summary links, resource sections, and compact unavailable
+panels apply to Supervisor, A2A, and Project Agent Instances. Keep runtime-specific
+content accurate: external A2A Instances do not receive empty Kubernetes
+configuration fields, and advertised A2A skills are distinct from attached
+Skill packages. Protocol endpoints, discovery evidence, and normalized protocol
+JSON belong in Configuration; advertised skill descriptions belong in
+Capabilities. Project Agent deployment versions and digests come from the
+running Instance snapshot, which can differ from the definition's current
+published version. Keep a single Agent Developer entry in the Project Agent
+header. Rediscovering an Agent Card starts in an operation drawer with pending,
+success, error, and retry feedback. Activity preserves buffered events and
+exposes loading failures with an explicit retry action for every Instance kind.
 
 Memory detail tabs use the URL query `tab=overview|conversations|facts|experiences|settings`.
 The URL owns the selected tab. Missing or invalid values normalize to Overview;

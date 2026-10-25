@@ -1,4 +1,23 @@
 const enUS = {
+  skills: {
+    assurance: {
+      title: "Source and risk",
+      sourceFilter: "Source status",
+      sourceLabel: "Source marker",
+      sourceVerification: "Source verification",
+      riskAssessment: "Risk assessment",
+      source: {
+        builtIn: "Built-in",
+        markedTrusted: "Marked trusted",
+        unverified: "Unverified",
+      },
+      verification: { notRecorded: "No verification record" },
+      risk: { notAssessed: "Not assessed" },
+      explanation: "Source markers do not establish verification or safety. No source verification, security scan, or risk review record is attached.",
+      editHelp: "Changing this marker does not create verification evidence or a risk assessment.",
+      distribution: "Package location, runtime compatibility, and source classification.",
+    },
+  },
   common: {
     actions: {
       cancel: "Cancel",
@@ -301,6 +320,25 @@ const enUS = {
 } as const;
 
 const zhCN = {
+  skills: {
+    assurance: {
+      title: "来源与风险",
+      sourceFilter: "来源状态",
+      sourceLabel: "来源标记",
+      sourceVerification: "来源验证",
+      riskAssessment: "风险结论",
+      source: {
+        builtIn: "内置来源",
+        markedTrusted: "已标记可信",
+        unverified: "未验证",
+      },
+      verification: { notRecorded: "无验证记录" },
+      risk: { notAssessed: "未评估" },
+      explanation: "来源标记不代表验证结果或安全结论。当前未关联来源验证、安全扫描或风险审核记录。",
+      editHelp: "修改来源标记不会产生验证记录或风险结论。",
+      distribution: "包地址、运行时兼容性与来源分类。",
+    },
+  },
   common: {
     actions: {
       cancel: "取消",
@@ -597,6 +635,25 @@ const zhCN = {
 } as const;
 
 const zhTW = {
+  skills: {
+    assurance: {
+      title: "來源與風險",
+      sourceFilter: "來源狀態",
+      sourceLabel: "來源標記",
+      sourceVerification: "來源驗證",
+      riskAssessment: "風險結論",
+      source: {
+        builtIn: "內建來源",
+        markedTrusted: "已標記可信",
+        unverified: "未驗證",
+      },
+      verification: { notRecorded: "無驗證紀錄" },
+      risk: { notAssessed: "未評估" },
+      explanation: "來源標記不代表驗證結果或安全結論。目前未關聯來源驗證、安全掃描或風險審核紀錄。",
+      editHelp: "修改來源標記不會產生驗證紀錄或風險結論。",
+      distribution: "套件位址、執行階段相容性與來源分類。",
+    },
+  },
   common: {
     actions: {
       cancel: "取消",

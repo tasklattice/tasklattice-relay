@@ -326,9 +326,7 @@ function SupervisorInstanceDetail({
       ) : null}
       {renderedTab === "overview" ? (
         <InstanceOverviewTab
-          access={access}
           agent={visibleAgent}
-          platform={platform}
           {...(modelRouting.data?.name
             ? { modelRoutingName: modelRouting.data.name }
             : {})}
@@ -338,7 +336,6 @@ function SupervisorInstanceDetail({
         <InstanceConfigurationTab
           agent={visibleAgent}
           form={detail.form}
-          platform={platform}
           {...(detail.protocols[0] ? { protocol: detail.protocols[0] } : {})}
           role={detail.role}
         />
@@ -353,6 +350,11 @@ function SupervisorInstanceDetail({
       {renderedTab === "activity" ? (
         <AgentInstanceActivityTab
           detail={{ ...detail, instance: visibleAgent }}
+          loading={permissions.canViewAgentLogs && runtimeLogs.isPending}
+          {...(permissions.canViewAgentLogs && runtimeLogs.error
+            ? { error: runtimeLogs.error }
+            : {})}
+          onRetry={() => void runtimeLogs.refetch()}
         />
       ) : null}
       {renderedTab === "logs" ? (

@@ -4,7 +4,7 @@ import {
   getAgentPlatformDefinition,
   type Instance as Agent,
 } from "@tali/contracts";
-import { ArrowRight, Radio, ShieldCheck, Waypoints } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { AgentGardenIcon } from "@/components/agent-garden/agent-garden-icon";
 import { DetailCardHeader } from "@/components/instances/instance-detail-shared";
 import { Badge } from "@/components/ui/badge";
@@ -18,9 +18,8 @@ import { api } from "@/lib/api";
 export function InstanceCallableAgentsCard({ agent }: { agent: Agent }) {
   const projectId = useCurrentProjectId();
   const scope = useProjectQueryScope();
-  const canCoordinate = getAgentPlatformDefinition(
-    agent.agentPlatform,
-  ).capabilities.canDelegate;
+  const canCoordinate = getAgentPlatformDefinition(agent.agentPlatform)
+    .capabilities.canDelegate;
   const garden = useQuery({
     queryKey: scope.key("agent-garden"),
     queryFn: api.getAgentGarden,
@@ -37,19 +36,21 @@ export function InstanceCallableAgentsCard({ agent }: { agent: Agent }) {
         (candidate) => candidate.id === instance.agentId,
       ),
     }))
-    .filter(({ definition, instance }) =>
-      instance.status === "READY"
-      && definition?.status === "READY"
-      && definition.usageCapabilities.acceptsDelegation
-      && (definition.usageMode === "CALLABLE" || definition.usageMode === "HYBRID")
+    .filter(
+      ({ definition, instance }) =>
+        instance.status === "READY" &&
+        definition?.status === "READY" &&
+        definition.usageCapabilities.acceptsDelegation &&
+        (definition.usageMode === "CALLABLE" ||
+          definition.usageMode === "HYBRID"),
     );
 
   return (
     <Card>
       <DetailCardHeader
         title="Callable A2A Instances"
-        description="READY service Instances dynamically discovered from this Project's Instance Registry."
-        action={(
+        description="Ready to accept delegated work in this Project."
+        action={
           <Button asChild variant="outline" size="sm" className="min-h-11">
             <Link
               to="/$projectId/agent-garden"
@@ -59,27 +60,25 @@ export function InstanceCallableAgentsCard({ agent }: { agent: Agent }) {
               Open Agent Garden <ArrowRight />
             </Link>
           </Button>
-        )}
+        }
       />
       <CardContent>
-        <div className="mb-4 flex items-start gap-3 border-l-2 border-primary bg-primary/[0.035] px-4 py-3">
-          <Waypoints className="mt-0.5 size-4 shrink-0 text-link" />
-          <p className="text-xs leading-5 text-muted-foreground">
-            <strong className="text-foreground">{agent.name}</strong> discovers
-            only READY callable Instances in this Project. The Runtime Bridge
-            preserves Project isolation and proxies each A2A invocation.
-          </p>
-        </div>
-
         {garden.isPending ? (
           <div className="grid gap-3 md:grid-cols-2">
             <Skeleton className="h-20" />
             <Skeleton className="h-20" />
           </div>
         ) : garden.isError ? (
-          <p role="alert" className="text-sm text-destructive">
-            Callable A2A Instances could not be loaded.
-          </p>
+          <div role="alert" className="space-y-3 text-sm text-destructive">
+            <p>Callable A2A Instances could not be loaded.</p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void garden.refetch()}
+            >
+              Try again
+            </Button>
+          </div>
         ) : discoverableInstances.length ? (
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {discoverableInstances.map(({ definition, instance }) =>
@@ -99,9 +98,6 @@ export function InstanceCallableAgentsCard({ agent }: { agent: Agent }) {
                       {instance.name}
                     </strong>
                     <span className="mt-1 flex flex-wrap gap-1.5">
-                      <Badge variant="secondary">
-                        <Radio className="size-3" /> Discoverable
-                      </Badge>
                       <Badge variant="outline">
                         A2A {instance.a2a?.protocolVersion ?? "1.0"}
                       </Badge>
@@ -112,14 +108,9 @@ export function InstanceCallableAgentsCard({ agent }: { agent: Agent }) {
             )}
           </div>
         ) : (
-          <div className="flex min-h-28 flex-col items-center justify-center border border-dashed px-5 py-6 text-center">
-            <ShieldCheck className="size-5 text-muted-foreground" />
-            <strong className="mt-3 text-sm">No callable A2A Instances</strong>
-            <p className="mt-1 max-w-lg text-xs leading-5 text-muted-foreground">
-              Create or onboard a READY callable Instance from Agent Garden.
-              It will become discoverable through the Project Registry.
-            </p>
-          </div>
+          <p className="text-sm text-muted-foreground">
+            No callable A2A Instances. Add one in Agent Garden.
+          </p>
         )}
       </CardContent>
     </Card>

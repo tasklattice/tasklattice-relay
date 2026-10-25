@@ -1,3 +1,4 @@
+import { PageHeader } from "@/components/layout/page-header";
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -62,26 +63,9 @@ export function ProviderManagement({
 
   return (
     <section aria-labelledby="providers-title">
-      <div className="flex flex-col gap-4 p-5 pb-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <h3 id="providers-title" className="text-sm font-semibold">
-              Providers
-            </h3>
-            <Badge variant="outline">{accounts.length}</Badge>
-          </div>
-          <p className="mt-1 max-w-2xl text-xs leading-5 text-muted-foreground">
-            Configured model sources owned by this {scopeLabel}. Each Provider
-            supplies credentials and an endpoint for its
-            registered models.
-          </p>
-        </div>
-        {canAdd ? (
-          <Button className="h-11 self-start sm:self-auto" onClick={onAddProvider}>
-            <Plus />
-            Add Provider
-          </Button>
-        ) : null}
+      <div className="pb-6">
+        <PageHeader title="Providers" badge={<Badge variant="outline">{accounts.length}</Badge>}
+          actions={canAdd ? <Button variant="create" onClick={onAddProvider}><Plus />Add Provider</Button> : undefined} />
       </div>
 
       {actionError ? (
@@ -109,8 +93,8 @@ export function ProviderManagement({
         </div>
       ) : accounts.length ? (
         <>
-          <div className="hidden overflow-x-auto border-t md:block">
-            <table className="w-full min-w-[800px] text-left">
+          <div className="relative hidden overflow-x-auto border-t md:block">
+            <table aria-label={`${scopeLabel} Providers`} className="w-full min-w-[800px] text-left">
               <thead className="border-b bg-muted/20 text-xs text-muted-foreground">
                 <tr>
                   <th className="px-5 py-2.5 font-medium">Provider</th>

@@ -66,6 +66,7 @@ import { EntitySheet } from "@/components/shared/entity-sheet";
 import { StatusBadge } from "@/components/shared/status";
 import { ProviderIcon } from "@/components/providers/provider-icon";
 import { PageHeader } from "@/components/layout/page-header";
+import { SettingsSection } from "@/components/layout/settings-section";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -250,18 +251,7 @@ function PlatformSettingsPage() {
   const update = (input: UpdatePlatformSettingsInput) => save.mutate(input);
 
   return renderLayout(
-    <div className="mx-auto w-full max-w-[1600px] space-y-7 p-5 sm:p-6 lg:p-8">
-      <PageHeader
-        title="Platform Setting"
-        badge={
-          <Badge className="border-primary/20 bg-primary/7 text-link" variant="outline">
-            <ShieldCheck />
-            Platform Administrator
-          </Badge>
-        }
-        description="Manage Departments, people, Project Role definitions, global Runtime and Sandbox defaults, Provider admission, and platform authentication. Quotas remain governed at the Department scope."
-      />
-
+    <div className="mx-auto w-full max-w-[1440px] space-y-6 p-5 sm:p-6 lg:p-8">
       {save.isSuccess ? (
         <p className="flex items-center gap-2 border-l-2 border-emerald-500 bg-emerald-500/5 px-4 py-3 text-sm text-emerald-800 dark:text-emerald-300" role="status">
           <CheckCircle2 className="size-4" />
@@ -389,7 +379,7 @@ function InfrastructureSettings({ settings }: { settings: PlatformSettingsView }
   return (
     <SettingsSection
       title="Infrastructure"
-      description="Configure the live Control, Runner, LiteLLM, and Runtime Namespace connections. A draft must pass every probe before it can be saved."
+      description="Validate all connections before applying infrastructure changes."
       action={<Badge variant="outline" className="h-8 text-muted-foreground"><PlugZap />Validation required</Badge>}
     >
       <div className="grid gap-8 xl:grid-cols-2 xl:gap-x-10">
@@ -591,7 +581,7 @@ function RuntimeImagesSettings({ settings }: { settings: PlatformSettingsView })
   return (
     <SettingsSection
       title="Runtime sandbox images"
-      description="Set the default image used when a new Supervisor Instance is provisioned. Existing Sandboxes are not restarted or migrated."
+      description="Default images for new Instances. Existing Sandboxes keep their current image."
       action={<Badge variant="outline" className="h-8 text-muted-foreground"><Container />New Instances only</Badge>}
     >
       <div className="divide-y border-y">
@@ -633,12 +623,11 @@ function RuntimeImageRow({ effective, error, onChange, onReset, onSave, overridd
   const presentation = getAgentPlatformPresentation(platform);
   const dirty = value !== persistedValue;
   return (
-    <div className="grid gap-5 py-5 lg:min-h-40 lg:grid-cols-[minmax(12rem,0.55fr)_minmax(24rem,1.45fr)_10rem] lg:grid-rows-[1.25rem_2.75rem_1.25rem_1.25rem] lg:gap-x-5 lg:gap-y-2 lg:py-4">
+    <div className="grid gap-5 py-5 lg:min-h-40 lg:grid-cols-[minmax(10rem,0.55fr)_minmax(0,1.45fr)_10rem] lg:grid-rows-[1.25rem_2.75rem_1.25rem_1.25rem] lg:gap-x-5 lg:gap-y-2 lg:py-4">
       <div className="flex min-w-0 items-start gap-3 lg:col-start-1 lg:row-start-2 lg:row-span-3 lg:self-start">
         <AgentPlatformIcon platform={presentation} className="size-12" imageClassName="size-9" />
         <span className="min-w-0">
-          <strong className="block truncate text-sm">{presentation.name}</strong>
-          <span className="mt-0.5 block text-xs text-muted-foreground">Core Agent runtime</span>
+          <strong className="block truncate text-sm" title={presentation.name}>{presentation.name}</strong>
           <Badge variant="outline" className={overridden ? "mt-2 border-primary/25 text-link" : "mt-2 text-muted-foreground"}>{overridden ? "Platform override" : "Deployment default"}</Badge>
         </span>
       </div>
@@ -646,8 +635,8 @@ function RuntimeImageRow({ effective, error, onChange, onReset, onSave, overridd
         <Label className="flex h-5 items-center lg:col-start-2 lg:row-start-1" htmlFor={`runtime-${platform}`}>Container image reference</Label>
         <Input id={`runtime-${platform}`} className="h-11 font-mono text-xs lg:col-start-2 lg:row-start-2" value={value} onChange={(event) => onChange(event.target.value)} placeholder={effective} />
         <div className="min-w-0 text-xs lg:col-start-2 lg:row-start-3 lg:self-center">
-          <span className="text-muted-foreground">Effective image</span>
-          <code className="ml-2 break-all" title={value || effective}>{value || effective}</code>
+          <span className="text-muted-foreground">Current image</span>
+          <code className="ml-2 break-all" title={effective}>{effective}</code>
         </div>
         <div className="min-h-5 lg:col-start-2 lg:row-start-4 lg:self-center">
           {saved && !dirty ? <p className="flex items-center gap-1.5 text-xs text-emerald-700 dark:text-emerald-300" role="status"><CheckCircle2 className="size-3.5" />Image setting saved.</p> : null}
@@ -741,7 +730,7 @@ function SandboxSettings({ settings }: { settings: PlatformSettingsView }) {
   return (
     <SettingsSection
       title="Sandbox"
-      description="Configure defaults read when Relay creates a new OpenShell Sandbox. Existing Sandboxes keep their current resources and image."
+      description="Resource defaults for new Sandboxes. Existing Sandboxes are unchanged."
       action={(
         <Badge
           variant="outline"
@@ -891,14 +880,17 @@ function SandboxSettings({ settings }: { settings: PlatformSettingsView }) {
         </div>
       </div>
 
-      <div className="mt-7 border-t pt-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+      <details className="group mt-7 border-t pt-6">
+        <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between gap-4 rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring">
           <div>
             <h3 className="text-sm font-semibold">OpenShell deployment configuration</h3>
             <p className="mt-1 max-w-2xl text-xs leading-5 text-muted-foreground">
               Cluster-owned values are visible here for diagnosis but remain read-only. Agent images are resolved when a Sandbox starts and remain editable in Runtime.
             </p>
           </div>
+          <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" aria-hidden="true" />
+        </summary>
+        <div className="mt-4 flex justify-end">
           <Button asChild variant="outline" className="h-11 shrink-0">
             <Link to="/platform/settings" search={{ section: "runtime" }}>
               <Container />
@@ -919,7 +911,7 @@ function SandboxSettings({ settings }: { settings: PlatformSettingsView }) {
             <SandboxReadOnlyRow key={label} label={label} value={value} source={source} />
           ))}
         </dl>
-      </div>
+      </details>
     </SettingsSection>
   );
 }
@@ -944,7 +936,7 @@ function ModelProviderSettings({ onSave, saving, settings }: SettingsEditorProps
   return (
     <SettingsSection
       title="Model Provider admission"
-      description="Choose which Provider types Project Administrators may connect. Credentials and registered models remain isolated inside each Project."
+      description="Provider types available to Projects. Credentials and models stay within each Project."
       action={<SaveButton dirty={dirty} saving={saving} onClick={() => onSave(settingsInput(settings, { enabledProviderKinds: nextKinds }))} />}
     >
       <div className="flex flex-col gap-3 border-b pb-4 sm:flex-row sm:items-center sm:justify-between">
@@ -978,12 +970,11 @@ function DepartmentsSettings() {
   const departmentOptions = useMemo(() => departments.map(({ id, name }) => ({ id, name })), [departments]);
   return (
     <div>
-      <div className="flex flex-col gap-4 border-b p-5 sm:flex-row sm:items-start sm:justify-between lg:p-6">
-        <div><h2 className="font-sans text-lg font-semibold">Departments</h2><p className="mt-1 max-w-2xl text-sm text-muted-foreground">Create the organization structure and assign an initial Department Administrator. Department and Project administration remain separate scopes.</p></div>
-        <div className="flex flex-wrap gap-2">
+      <div className="border-b pb-6">
+        <PageHeader title="Departments" actions={<div className="flex flex-wrap gap-2">
           <Button variant="outline" className="h-11" disabled={!departments.some((department) => department.status === "active")} onClick={() => setCreateProjectOpen(true)}><Plus />Create Project</Button>
           <Button variant="create" className="h-11" disabled={organization.isPending} onClick={() => setCreateDepartmentOpen(true)}><Plus />Create Department</Button>
-        </div>
+        </div>} />
       </div>
       {organization.isPending ? <div className="grid min-h-64 place-items-center"><Spinner /></div> : organization.error ? <div className="m-5 border-l-2 border-destructive bg-destructive/5 p-4 text-sm text-destructive" role="alert">{organization.error.message}</div> : departments.length ? <div className="divide-y border-b">{departments.map((department) => <DepartmentRow key={department.id} department={department} />)}</div> : <div className="grid min-h-64 place-items-center p-8 text-center"><div><Building2 className="mx-auto size-7 text-muted-foreground" /><h3 className="mt-3 text-sm font-semibold">No Departments</h3><p className="mt-1 text-xs text-muted-foreground">Create the first Department and assign its administrator.</p><Button variant="create" className="mt-5" onClick={() => setCreateDepartmentOpen(true)}><Plus />Create Department</Button></div></div>}
       <CreateDepartmentSheet
@@ -1096,12 +1087,7 @@ function PeopleSettings() {
   };
   return (
     <div>
-      <div className="border-b p-5 lg:p-6">
-        <h2 className="font-sans text-lg font-semibold">People</h2>
-        <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
-          Search onboarded human identities and verify their Platform, Department, and Project administrative scopes. Project Role definitions are managed separately.
-        </p>
-      </div>
+      <div className="border-b pb-6"><PageHeader title="People" description="People and their access across Platform, Departments, and Projects." /></div>
       <div className="grid gap-3 border-b px-5 py-4 md:grid-cols-2 xl:grid-cols-[minmax(18rem,1fr)_15rem_17rem_auto] lg:px-6">
         <div className="relative min-w-0">
           <Label htmlFor="people-search" className="sr-only">Search people</Label>
@@ -1197,15 +1183,9 @@ function RolePresetsSettings() {
     ({ family }) => family === "PROJECT_BUSINESS",
   ) ?? [];
   return (
-    <section aria-labelledby="project-roles-title">
-      <div className="flex flex-col gap-3 border-b p-5 sm:flex-row sm:items-start sm:justify-between lg:p-6">
-        <div>
-          <h2 id="project-roles-title" className="font-sans text-lg font-semibold">Roles &amp; Capabilities</h2>
-          <p className="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">
-            Review the persisted system Role catalog used by authorization and SSO. Administration Roles are isolated by Platform, Department, and Project scope; business Roles apply only inside a Project.
-          </p>
-        </div>
-        {roleCatalog.data ? (
+    <section aria-label="Roles and Capabilities">
+      <div className="border-b pb-6">
+        <PageHeader title="Roles & Capabilities" description="Administration roles are scoped separately. Business roles apply within a Project." actions={roleCatalog.data ? (
           <div className="flex shrink-0 flex-wrap gap-2 sm:justify-end">
             <Badge variant="outline" className="font-mono">
               {roleCatalog.data.roles.length} built-in Roles
@@ -1214,7 +1194,7 @@ function RolePresetsSettings() {
               Catalog revision {roleCatalog.data.revision}
             </Badge>
           </div>
-        ) : null}
+        ) : null} />
       </div>
       {roleCatalog.isPending ? (
         <div className="grid min-h-40 place-items-center"><Spinner /></div>
@@ -1641,7 +1621,7 @@ function SecuritySettings({ settings }: { settings: PlatformSettingsView }) {
   return (
     <SettingsSection
       title="Authentication & SSO"
-      description="Configure database-owned local and OIDC sign-in. Validate the complete authentication draft before saving it."
+      description="Local sign-in and enterprise SSO. Validate changes before applying them."
       action={<Badge variant="outline" className="border-primary/25 text-link">Validation required</Badge>}
     >
       <div className="grid gap-3 sm:grid-cols-2">
@@ -2101,7 +2081,7 @@ function EmailSettings({ settings }: { settings: PlatformSettingsView }) {
   return (
     <SettingsSection
       title="Email delivery"
-      description="Configure the platform SMTP service used for Project invitations. Email delivery is stored and managed only in the Platform database."
+      description="SMTP delivery for Project invitations."
       action={<Badge variant="outline" className="border-primary/25 text-link">Database managed</Badge>}
     >
       <div className="flex min-h-16 items-center justify-between gap-4 border-y py-3">
@@ -2166,9 +2146,6 @@ function ReadOnlySetting({ id, label, placeholder, value }: { id: string; label:
   return <div className="min-w-0 space-y-2"><Label htmlFor={id}>{label}</Label><Input id={id} readOnly className="h-11 font-mono text-xs" value={value} placeholder={placeholder} /></div>;
 }
 
-function SettingsSection({ action, children, description, title }: { action: ReactNode; children: ReactNode; description: string; title: string }) {
-  return <div><div className="flex flex-col gap-4 border-b p-5 sm:flex-row sm:items-start sm:justify-between lg:p-6"><div><h2 className="font-sans text-lg font-semibold">{title}</h2><p className="mt-1 max-w-2xl text-sm text-muted-foreground">{description}</p></div>{action}</div><div className="p-5 lg:p-6">{children}</div></div>;
-}
 
 function SaveButton({ dirty, onClick, saving }: { dirty: boolean; onClick: () => void; saving: boolean }) {
   return <Button variant="edit" className="h-11" disabled={!dirty || saving} onClick={onClick}>{saving ? <Spinner /> : <Save />}Save changes</Button>;
