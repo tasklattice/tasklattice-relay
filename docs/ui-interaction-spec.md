@@ -914,6 +914,24 @@ interaction.” Re-run the same evidence path after each revision and stop when
 the threshold passes without blockers, the iteration limit is reached, or a
 revision regresses the best result.
 
+### 12.6 Instance and Memory simplification — 2026-10-25
+
+Use progressive disclosure for secondary Instance columns and resource IDs.
+Avoid repeating capability summaries or access actions in the detail overview.
+Keep loading, failure reasons, and recovery actions explicit. See the
+[implementation and acceptance record](ui-simplification-review-2026-10-25.md)
+for the scoped changes and remaining browser-evidence gaps.
+
+Memory detail tabs use the URL query `tab=overview|conversations|facts|experiences|settings`.
+The URL owns the selected tab. Missing or invalid values normalize to Overview;
+explicit changes create history entries and preserve scroll position. Refresh,
+shared links, and Back/Forward must restore the selected section.
+
+Memory Settings uses one divided surface, with section titles beside content
+on desktop: Agent binding, Retention, Provider health, Retain delivery, and
+Delete Memory last. Keep Export in the resource header. Preserve permission
+checks, disabled-action reasons, and confirmation drawers when simplifying.
+
 ## 13. Document maintenance
 
 This specification owns shared UI and interaction rules. Update it first when
