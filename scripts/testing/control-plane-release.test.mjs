@@ -15,6 +15,14 @@ test("stable release prepares the Worker chart before Gateway and isolation test
   const tests = steps.findIndex(step => step.run === "npm test");
   assert(prepare >= 0 && tests > prepare, "package the pinned Worker chart before running tests");
 });
+test("stable release offline inventory declares the Sandbox API for Helm rendering", () => {
+  const workflow = parse(readFileSync(".github/workflows/release.yml", "utf8"));
+  const inventory = workflow.jobs.release.steps.find(step => step.name === "Create and validate offline image inventory");
+  assert(inventory, "validate the exact packaged chart against its offline image list");
+  const render = inventory.run.match(/helm template openshell[\s\S]*?supervisor\.image\.tag[^\n]+/);
+  assert(render, "include the dynamically deployed Worker chart");
+  assert.match(render[0], /--api-versions agents\.x-k8s\.io\/v1beta1\/Sandbox/);
+});
 test("Prisma CLI, generated client runtime and PostgreSQL adapter stay on one exact version", () => {
   const manifest = JSON.parse(readFileSync("apps/control/package.json", "utf8"));
   const lock = JSON.parse(readFileSync("package-lock.json", "utf8"));
