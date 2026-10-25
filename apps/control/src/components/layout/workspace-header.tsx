@@ -1,5 +1,4 @@
 import { useRouterState } from "@tanstack/react-router";
-import { Search } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { HeaderBreadcrumb } from "@/components/layout/header-breadcrumb";
 import { SidebarTrigger } from "@/components/ui/sidebar";
@@ -17,14 +16,7 @@ export function WorkspaceHeader({ showSidebarTrigger = true }: {
           <SidebarTrigger label={t("navigation.toggle")} />
         ) : null}
         <HeaderBreadcrumb pathname={pathname} />
-        <button
-          disabled
-          className="ml-auto hidden h-9 w-64 cursor-not-allowed items-center gap-2 rounded-md border border-transparent bg-secondary px-3 text-sm text-muted-foreground/70 md:flex"
-        >
-          <Search className="size-3.5" />
-          {t("search.label")}
-          <span className="ml-auto text-[11px] font-medium">{t("search.planned")}</span>
-        </button>
+
       </header>
     </div>
   );

@@ -170,7 +170,6 @@ export function MemoryListPage() {
     <div className="space-y-6 pb-10">
       <PageHeader
         title="Memory"
-        description="Durable context that survives Agent replacement. Create, curate, and reattach it independently of an Agent Instance."
         actions={!permissions.canManageMemories && !permissions.canManageProject ? undefined : models.isPending ? (
           <Button className="h-11" disabled>Checking embedding…</Button>
         ) : models.error ? (
@@ -258,6 +257,7 @@ export function MemoryListPage() {
                 <Link
                   to="/$projectId/memory/$memoryId"
                   params={{ projectId, memoryId: memory.id }}
+                  title={memory.id}
                   className="group flex min-h-11 min-w-0 items-center gap-3 rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/35"
                 >
                   <span aria-hidden="true" className="grid size-11 shrink-0 place-items-center rounded-lg border bg-muted/30">
@@ -265,13 +265,12 @@ export function MemoryListPage() {
                   </span>
                   <span className="min-w-0">
                     <span className="flex flex-wrap items-center gap-2"><strong className="truncate text-sm">{memory.displayName}</strong><MemoryStatus status={memory.status} /></span>
-                    <span className="mt-1 block truncate font-mono text-[11px] text-muted-foreground">{memory.id}</span>
                   </span>
                 </Link>
                 <div className="text-xs">
                   <span className="block text-muted-foreground lg:hidden">Binding</span>
                   <strong className="mt-1 block truncate">{memory.activeBinding ? memory.activeBinding.instanceId : "Unbound"}</strong>
-                  <span className="mt-1 block capitalize text-muted-foreground">{memory.activeBinding?.runtimeType ?? "Available to attach"}</span>
+                  <span className="mt-1 block capitalize text-muted-foreground">{memory.activeBinding?.runtimeType}</span>
                 </div>
                 <div className="grid grid-cols-3 gap-3 text-xs tabular-nums">
                   <Count label="Conversations" value={memory.counts?.conversations} />
