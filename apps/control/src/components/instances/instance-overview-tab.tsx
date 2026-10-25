@@ -1,6 +1,5 @@
 import { complianceDomainCatalog } from "@tali/contracts";
 import type {
-  AgentInstanceCapabilityView,
   Instance as Agent,
 } from "@tali/contracts";
 import { useQuery } from "@tanstack/react-query";
@@ -9,18 +8,13 @@ import {
   ArrowRight,
   BookOpen,
   Bot,
-  BrainCircuit,
-  ExternalLink,
-  Globe2,
   Network,
   ShieldCheck,
   Sparkles,
-  SquareTerminal,
   Wrench,
 } from "lucide-react";
 import { effectiveTools } from "@/components/access/effective-mcp-access";
 import { resolveProvisioningState } from "@/components/agents/provisioning-state";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -30,8 +24,7 @@ import { api } from "@/lib/api";
 import type { AgentPlatformPresentation } from "@/lib/agent-platforms";
 import type { ReactNode } from "react";
 import type { InstanceAccessState } from "./instance-detail-model";
-import { DetailCardHeader, RelativeTime } from "./instance-detail-shared";
-import { AgentProfilePanel } from "./instance-agent-profile";
+import { DetailCardHeader } from "./instance-detail-shared";
 import { InstanceCallableAgentsCard } from "./instance-callable-agents-card";
 
 function ProvisioningSummary({ agent }: { agent: Agent }) {
@@ -105,13 +98,11 @@ function ProvisioningSummary({ agent }: { agent: Agent }) {
 function CapabilitySection({
   action,
   children,
-  description,
   icon: Icon,
   title,
 }: {
   action: ReactNode;
   children: ReactNode;
-  description: string;
   icon: typeof Bot;
   title: string;
 }) {
@@ -122,9 +113,6 @@ function CapabilitySection({
       </span>
       <div className="min-w-0">
         <h3 className="font-semibold">{title}</h3>
-        <p className="mt-1 text-xs leading-5 text-muted-foreground">
-          {description}
-        </p>
         <div className="mt-3">{children}</div>
       </div>
       <div className="sm:pl-3">{action}</div>
@@ -176,51 +164,14 @@ function ContextFact({ label, value }: { label: string; value: ReactNode }) {
   );
 }
 
-function capabilitySentence({
-  allowedToolCount,
-  knowledgeCount,
-  memoryEnabled,
-  serverCount,
-  skillCount,
-  toolAccessKnown,
-}: {
-  allowedToolCount: number;
-  knowledgeCount: number;
-  memoryEnabled: boolean;
-  serverCount: number;
-  skillCount: number;
-  toolAccessKnown: boolean;
-}) {
-  const parts: string[] = [];
-  if (skillCount)
-    parts.push(`${skillCount} specialist skill${skillCount === 1 ? "" : "s"}`);
-  if (serverCount && toolAccessKnown)
-    parts.push(
-      `${allowedToolCount} approved tool${allowedToolCount === 1 ? "" : "s"}`,
-    );
-  else if (serverCount) parts.push("tool access awaiting verification");
-  if (knowledgeCount)
-    parts.push(
-      `${knowledgeCount} Vector Database${knowledgeCount === 1 ? "" : "s"}`,
-    );
-  if (memoryEnabled) parts.push("durable memory");
-
-  if (!parts.length) {
-    return "It has its core role and instructions, with no external skills, tools, knowledge, or memory attached.";
-  }
-  return `It can work with ${parts.join(", ")}.`;
-}
-
 export function InstanceOverviewTab({
   access,
   agent,
-  capabilities,
   modelRoutingName,
   platform,
 }: {
   access: InstanceAccessState;
   agent: Agent;
-  capabilities: AgentInstanceCapabilityView;
   modelRoutingName?: string;
   platform: AgentPlatformPresentation;
 }) {
@@ -244,10 +195,6 @@ export function InstanceOverviewTab({
     (agent.specializationId && agent.specializationId !== "custom"
       ? agent.specializationId
       : "Custom Agent");
-  const roleDescription =
-    agent.description ||
-    role?.description ||
-    "A focused AI Agent operating inside its assigned capability and access boundaries.";
   const selectedSkills = (agent.skillIds ?? []).map(
     (id) =>
       catalog.data?.skills.find((item) => item.id === id) ?? {
@@ -291,31 +238,15 @@ export function InstanceOverviewTab({
     complianceDomainCatalog.find(
       (domain) => domain.id === agent.modelRoutingComplianceDomain,
     )?.label ?? agent.modelRoutingComplianceDomain;
-  const capabilitySummary = capabilitySentence({
-    allowedToolCount: allowedTools.length,
-    knowledgeCount: selectedKnowledge.length,
-    memoryEnabled: Boolean(agent.durableMemoryId || agent.memory),
-    serverCount: selectedServers.length,
-    skillCount: selectedSkills.length,
-    toolAccessKnown,
-  });
   const capabilityHref = {
     to: "/$projectId/instances/$instanceId" as const,
     params: { projectId, instanceId: agent.id },
     search: { tab: "capabilities" as const },
   };
-  const terminalHref = {
-    to: "/$projectId/instances/$instanceId" as const,
-    params: { projectId, instanceId: agent.id },
-    search: { tab: "terminal" as const },
-  };
   const terminalFirst = platform.interactionSurface === "terminal";
   const primaryAccessEnabled = terminalFirst
     ? access.terminal.enabled
     : access.webUI.enabled;
-  const primaryAccessReason = terminalFirst
-    ? access.terminal.disabledReason
-    : access.webUI.disabledReason;
 
   return (
     <div role="tabpanel" aria-label="Overview" className="space-y-5 pt-5">
@@ -323,89 +254,15 @@ export function InstanceOverviewTab({
         <ProvisioningSummary agent={agent} />
       ) : null}
 
-      <AgentProfilePanel
-        name={agent.name}
-        profileLabel={roleName}
-        description={roleDescription}
-        summary={
-          catalog.isPending || policies.isPending
-            ? "Resolving the Agent's effective tools and assigned knowledge…"
-            : capabilitySummary
-        }
-        actions={
-          <>
-            {terminalFirst && access.terminal.enabled ? (
-              <Button asChild className="min-h-11">
-                <Link {...terminalHref}>
-                  Start in TUI <SquareTerminal />
-                </Link>
-              </Button>
-            ) : terminalFirst ? (
-              <Button disabled className="min-h-11">
-                Start in TUI <SquareTerminal />
-              </Button>
-            ) : access.webUI.enabled && access.webUI.url ? (
-              <Button asChild className="min-h-11">
-                <a
-                  href={access.webUI.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  Start a task <ExternalLink />
-                </a>
-              </Button>
-            ) : (
-              <Button disabled className="min-h-11">
-                Start a task <ExternalLink />
-              </Button>
-            )}
-            <Button asChild variant="outline" className="min-h-11">
-              <Link {...capabilityHref}>
-                Review capabilities <ArrowRight />
-              </Link>
-            </Button>
-            {!primaryAccessEnabled && primaryAccessReason ? (
-              <span className="basis-full text-xs text-muted-foreground">
-                {primaryAccessReason}
-              </span>
-            ) : null}
-          </>
-        }
-        facts={[
-          { label: "Profile", value: roleName },
-          {
-            label: "Approved tools",
-            value:
-              policies.isError || catalog.isError
-                ? "Unable to verify"
-                : toolAccessKnown
-                  ? allowedTools.length
-                  : "Checking…",
-          },
-          { label: "Vector Databases", value: selectedKnowledge.length },
-          {
-            label: "Memory",
-            value: agent.durableMemoryId
-              ? "Durable Memory attached"
-              : agent.memory
-                ? `${agent.memory.mode} enabled`
-                : "Not attached",
-          },
-          { label: "Data boundary", value: boundary },
-        ]}
-      />
-
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(19rem,.55fr)]">
         <Card>
           <DetailCardHeader
-            title="Available capabilities"
-            description="The skills, tools, and context this Agent can actively bring into a task."
+            title="Capabilities"
           />
           <CardContent>
             <CapabilitySection
               icon={Sparkles}
               title="Purpose & instructions"
-              description="The behavior this Agent is expected to follow before any extensions are used."
               action={
                 <Button asChild variant="link" className="min-h-11 px-0">
                   <Link
@@ -426,7 +283,6 @@ export function InstanceOverviewTab({
             <CapabilitySection
               icon={Wrench}
               title={`Skills · ${selectedSkills.length}`}
-              description="Reusable methods and task playbooks assigned to this Agent."
               action={
                 <Button asChild variant="link" className="min-h-11 px-0">
                   <Link {...capabilityHref} hash="skills">
@@ -442,7 +298,7 @@ export function InstanceOverviewTab({
               ) : (
                 <NamedCapabilityList
                   items={selectedSkills}
-                  empty="No specialist skill packages are attached. The Agent follows its purpose and instructions only."
+                  empty="No Skills attached."
                 />
               )}
             </CapabilitySection>
@@ -450,7 +306,6 @@ export function InstanceOverviewTab({
             <CapabilitySection
               icon={Network}
               title={`Approved tools · ${toolAccessKnown ? allowedTools.length : "—"}`}
-              description="External actions this Agent is currently permitted to call after policy evaluation."
               action={
                 <Button asChild variant="link" className="min-h-11 px-0">
                   <Link {...capabilityHref} hash="mcp-servers">
@@ -474,7 +329,7 @@ export function InstanceOverviewTab({
                   empty={
                     selectedServers.length
                       ? "Connected systems do not currently expose any policy-approved tools."
-                      : "No external systems are connected, so the Agent cannot call outside tools."
+                      : "No MCP connections."
                   }
                 />
               )}
@@ -483,7 +338,6 @@ export function InstanceOverviewTab({
             <CapabilitySection
               icon={BookOpen}
               title={`Vector Databases & memory · ${selectedKnowledge.length + (agent.durableMemoryId || agent.memory ? 1 : 0)}`}
-              description="Approved sources and durable context available for grounded, continuous work."
               action={
                 <Button asChild variant="link" className="min-h-11 px-0">
                   <Link {...capabilityHref} hash="vector-databases">
@@ -529,12 +383,12 @@ export function InstanceOverviewTab({
         <div className="space-y-5">
           <Card>
             <DetailCardHeader
-              title="Operating boundary"
-              description="The limits that shape every answer and action."
+              title="Access & runtime"
               action={<ShieldCheck className="size-5 text-link" />}
             />
             <CardContent>
               <dl>
+                <ContextFact label="Profile" value={roleName} />
                 <ContextFact
                   label="Access policies"
                   value={agent.accessPolicyIds.length}
@@ -551,7 +405,7 @@ export function InstanceOverviewTab({
                       ? terminalFirst
                         ? "Protected TUI session"
                         : "Protected session"
-                      : "Unavailable"
+                      : (terminalFirst ? access.terminal.disabledReason : access.webUI.disabledReason) ?? "Unavailable"
                   }
                 />
                 <ContextFact
@@ -570,85 +424,10 @@ export function InstanceOverviewTab({
               </Button>
             </CardContent>
           </Card>
-
-          <Card>
-            <DetailCardHeader
-              title="Ways to work"
-              description="Choose the surface that matches the task."
-            />
-            <CardContent className="space-y-3">
-              <div className="flex items-start gap-3 border-b pb-3">
-                <span className="grid size-11 shrink-0 place-items-center rounded-md bg-primary/[0.07] text-link">
-                  {terminalFirst ? (
-                    <SquareTerminal className="size-5" />
-                  ) : (
-                    <Globe2 className="size-5" />
-                  )}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <strong className="text-sm">
-                    {terminalFirst ? platform.terminalLabel : "Agent workspace"}
-                  </strong>
-                  <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                    {terminalFirst
-                      ? `Work interactively with ${platform.name} inside the isolated terminal.`
-                      : "Give the Agent a task and work with its response."}
-                  </p>
-                </div>
-                <Badge variant="outline">
-                  {primaryAccessEnabled ? "Available" : "Unavailable"}
-                </Badge>
-              </div>
-              <div className="flex items-start gap-3">
-                <span className="grid size-11 shrink-0 place-items-center rounded-md bg-muted text-muted-foreground">
-                  <SquareTerminal className="size-5" />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <strong className="text-sm">
-                    {terminalFirst ? "Headless CLI" : "Terminal"}
-                  </strong>
-                  <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                    {terminalFirst
-                      ? platform.id === "pi"
-                        ? "Run one-shot tasks through the native Pi CLI."
-                        : "Run automation with dcode -n and the optional --json contract."
-                      : "Inspect or operate the Agent's isolated workspace."}
-                  </p>
-                </div>
-                <Badge variant="outline">
-                  {access.terminal.enabled ? "Available" : "Unavailable"}
-                </Badge>
-              </div>
-              <p className="border-t pt-3 text-xs text-muted-foreground">
-                Updated <RelativeTime value={agent.updatedAt} />
-              </p>
-            </CardContent>
-          </Card>
         </div>
       </div>
 
       <InstanceCallableAgentsCard agent={agent} />
-
-      <div className="flex flex-col gap-3 border-t py-4 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
-        <span className="flex items-center gap-2">
-          <BrainCircuit className="size-4" />
-          Capability changes are enforced by the Agent's assigned resources and
-          access policies.
-        </span>
-        <Button
-          asChild
-          variant="link"
-          className="min-h-11 justify-start px-0 sm:justify-center"
-        >
-          <Link
-            to="/$projectId/instances/$instanceId"
-            params={{ projectId, instanceId: agent.id }}
-            search={{ tab: "logs" }}
-          >
-            View execution evidence <ArrowRight />
-          </Link>
-        </Button>
-      </div>
     </div>
   );
 }

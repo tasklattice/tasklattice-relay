@@ -1,8 +1,4 @@
 import type {
-  AgentInstanceCapabilityView,
-  AgentInstanceRole,
-  AgentProductForm,
-  AgentProtocolView,
   Instance as Agent,
 } from "@tali/contracts";
 import { Link } from "@tanstack/react-router";
@@ -11,8 +7,6 @@ import {
   ExternalLink,
   FileText,
   MoreHorizontal,
-  Pencil,
-  RefreshCw,
   SquareTerminal,
   Trash2,
 } from "lucide-react";
@@ -33,7 +27,6 @@ import {
 import type { AgentPlatformPresentation } from "@/lib/agent-platforms";
 import type { InstanceAccessState } from "./instance-detail-model";
 import { InstanceStatusBadge, RelativeTime } from "./instance-detail-shared";
-import { InstanceWorkModeBadges } from "./instance-agent-profile";
 import { useCurrentProjectId } from "@/hooks/use-project";
 
 function DisabledAction({
@@ -57,22 +50,14 @@ export function InstanceHeader({
   access,
   agent,
   canDelete,
-  capabilities,
-  form,
   onDelete,
   platform,
-  protocol,
-  role,
 }: {
   access: InstanceAccessState;
   agent: Agent;
   canDelete: boolean;
-  capabilities: AgentInstanceCapabilityView;
-  form: AgentProductForm;
   onDelete: () => void;
   platform: AgentPlatformPresentation;
-  protocol?: AgentProtocolView;
-  role: AgentInstanceRole;
 }) {
   const projectId = useCurrentProjectId();
   return (
@@ -106,20 +91,12 @@ export function InstanceHeader({
               <InstanceStatusBadge status={agent.status} />
             </div>
             <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-              <span>{form === "INTERACTIVE" ? "Interactive Agent" : form === "SERVICE" ? "Service Agent" : "Hybrid Agent"}</span>
-              <span aria-hidden="true">·</span>
-              <span>{role === "SUPERVISOR" ? "Supervisor role" : role === "SPECIALIST" ? "Specialist role" : "Hybrid role"}</span>
-              {protocol ? <><span aria-hidden="true">·</span><span>A2A {protocol.direction.join(" + ")}</span></> : null}
-              <span aria-hidden="true">·</span>
               <span>{platform.name} · {platform.runtimeName}</span>
               <span aria-hidden="true">·</span>
               <span>
                 Updated <RelativeTime value={agent.updatedAt} />
               </span>
             </p>
-            <div className="mt-2">
-              <InstanceWorkModeBadges capabilities={capabilities} compact />
-            </div>
           </div>
         </div>
 
@@ -169,24 +146,6 @@ export function InstanceHeader({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-64">
-              <DropdownMenuItem disabled className="items-start">
-                <Pencil className="mt-0.5" />
-                <span>
-                  <span className="block">Edit configuration</span>
-                  <span className="block text-[10px] font-normal text-muted-foreground">
-                    Runtime reconciliation is not available.
-                  </span>
-                </span>
-              </DropdownMenuItem>
-              <DropdownMenuItem disabled className="items-start">
-                <RefreshCw className="mt-0.5" />
-                <span>
-                  <span className="block">Restart Instance</span>
-                  <span className="block text-[10px] font-normal text-muted-foreground">
-                    No restart API is configured.
-                  </span>
-                </span>
-              </DropdownMenuItem>
               <DropdownMenuItem asChild>
                 <Link
                   to="/$projectId/instances/$instanceId"

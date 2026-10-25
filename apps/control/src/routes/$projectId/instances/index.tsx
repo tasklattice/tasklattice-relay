@@ -19,6 +19,7 @@ import { resolveProvisioningState } from "@/components/agents/provisioning-state
 import { DeleteInstanceSheet } from "@/components/instances/delete-instance-sheet";
 import {
   INSTANCE_COLUMNS_STORAGE_KEY,
+  defaultHiddenInstanceColumns,
   instanceListColumns,
   instanceListGridTemplate,
   parseHiddenInstanceColumns,
@@ -95,7 +96,6 @@ function InstanceTime({ value }: { value: string }) {
   return (
     <time dateTime={value} title={formatPlatformDateTime(value)} className="block min-w-0">
       <span className="block truncate text-xs font-medium text-foreground">{formatRelativeTime(value)}</span>
-      <span className="mt-1 block truncate text-[11px] text-muted-foreground">{formatPlatformDateTime(value)}</span>
     </time>
   );
 }
@@ -111,8 +111,7 @@ function RuntimePerson({
     <span className="pointer-events-none relative z-10 hidden min-w-0 items-center gap-2 xl:flex">
       <AccountAvatar identity={identity ?? undefined} className="size-7" />
       <span className="min-w-0">
-        <strong className="block truncate text-xs font-medium">{identity?.displayName ?? unavailable}</strong>
-        <span className="mt-1 block truncate text-xs text-muted-foreground">{identity ? `@${identity.username}` : "No user record"}</span>
+        <strong className="block truncate text-xs font-medium" title={identity?.username}>{identity?.displayName ?? unavailable}</strong>
       </span>
     </span>
   );
@@ -200,7 +199,7 @@ function ColumnVisibilityMenu({
           </DropdownMenuCheckboxItem>
         ))}
         <DropdownMenuSeparator />
-        <DropdownMenuItem disabled={!hiddenColumns.length} onSelect={onReset}>
+        <DropdownMenuItem disabled={hiddenColumns.join() === defaultHiddenInstanceColumns.join()} onSelect={onReset}>
           <RotateCcw className="size-4" />
           Restore defaults
         </DropdownMenuItem>
@@ -481,7 +480,7 @@ function Instances() {
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<(typeof statusFilters)[number]>("ALL");
   const [source, setSource] = useState<(typeof sourceFilters)[number]>("ALL");
-  const [hiddenColumns, setHiddenColumns] = useState<InstanceListColumnId[]>([]);
+  const [hiddenColumns, setHiddenColumns] = useState<InstanceListColumnId[]>([...defaultHiddenInstanceColumns]);
   const [deletingInstance, setDeletingInstance] = useState<Agent>();
   const [selectedRuntime, setSelectedRuntime] = useState<RuntimeInventoryItem | null>(null);
   const [retainedMemory, setRetainedMemory] = useState<{ id: string; displayName: string } | null>(null);
@@ -520,6 +519,8 @@ function Instances() {
   ), [garden.data?.instances]);
   const totalInstances = inventory.data?.data.length ?? 0;
   const visibleInstances = visibleInventory.length;
+  const loading = inventory.isPending || agents.isPending || garden.isPending;
+  const loadError = inventory.error ?? agents.error ?? garden.error;
   const gridStyle = useMemo<InstanceGridStyle>(() => ({
     "--instance-grid-columns": instanceListGridTemplate(hiddenColumns),
   }), [hiddenColumns]);
@@ -561,7 +562,7 @@ function Instances() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Runtime Inventory" description="Monitor every Agent runtime through one model. Product form, collaboration role, execution strategy, and A2A behavior remain separate." actions={canCreateSupervisor ? <Button asChild className="h-11"><Link to="/$projectId/instances" params={{ projectId }} search={{ create: "instance" }}><Plus />Create interactive Agent</Link></Button> : undefined} />
+      <PageHeader title="Instances" actions={canCreateSupervisor ? <Button asChild className="h-11"><Link to="/$projectId/instances" params={{ projectId }} search={{ create: "instance" }}><Plus />Create interactive Agent</Link></Button> : undefined} />
 
       {search.created ? <CreationNotice onClose={() => void navigate({ to: "/$projectId/instances", params: { projectId }, search: {}, replace: true })} /> : null}
       {search.retainedMemory || retainedMemory ? (
@@ -601,21 +602,34 @@ function Instances() {
                 <SelectItem value="PROJECT_AGENT">Agent Developer</SelectItem>
               </SelectContent>
             </Select>
-            <span className="ml-auto hidden text-xs tabular-nums text-muted-foreground sm:block">{visibleInstances} of {totalInstances} Instances</span>
-            <ColumnVisibilityMenu
-              hiddenColumns={hiddenColumns}
-              onReset={() => persistHiddenColumns([])}
-              onToggle={(column) => persistHiddenColumns(toggleHiddenInstanceColumn(hiddenColumns, column))}
-            />
-            <ActionTooltip label={inventory.isFetching || agents.isFetching || garden.isFetching ? "Refreshing Runtime Inventory" : "Refresh Runtime Inventory"}>
-              <Button type="button" variant="outline" size="icon" className="size-11" disabled={inventory.isFetching || agents.isFetching || garden.isFetching} aria-label="Refresh Runtime Inventory" onClick={() => void Promise.all([inventory.refetch(), agents.refetch(), garden.refetch()])}>
-                {inventory.isFetching || agents.isFetching || garden.isFetching ? <Spinner /> : <RefreshCw className="size-4" />}
-              </Button>
-            </ActionTooltip>
+            <div className="ml-auto flex items-center gap-3">
+              <span className="hidden text-xs tabular-nums text-muted-foreground sm:block">{loading ? "Loading Instances…" : `${visibleInstances} of ${totalInstances} Instances`}</span>
+              <ColumnVisibilityMenu
+                hiddenColumns={hiddenColumns}
+                onReset={() => persistHiddenColumns([...defaultHiddenInstanceColumns])}
+                onToggle={(column) => persistHiddenColumns(toggleHiddenInstanceColumn(hiddenColumns, column))}
+              />
+              <ActionTooltip label={inventory.isFetching || agents.isFetching || garden.isFetching ? "Refreshing Runtime Inventory" : "Refresh Runtime Inventory"}>
+                <Button type="button" variant="outline" size="icon" className="size-11" disabled={inventory.isFetching || agents.isFetching || garden.isFetching} aria-label="Refresh Runtime Inventory" onClick={() => void Promise.all([inventory.refetch(), agents.refetch(), garden.refetch()])}>
+                  {inventory.isFetching || agents.isFetching || garden.isFetching ? <Spinner /> : <RefreshCw className="size-4" />}
+                </Button>
+              </ActionTooltip>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="px-0">
-          {visibleInstances ? (
+          {loading ? (
+            <div role="status" className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
+              <Spinner />Loading Instances…
+            </div>
+          ) : loadError && !totalInstances ? (
+            <EmptyState
+              icon={Boxes}
+              title="Unable to load Instances"
+              description="Retry to load the current runtime inventory."
+              action={<Button variant="outline" onClick={() => void Promise.all([inventory.refetch(), agents.refetch(), garden.refetch()])}><RefreshCw />Retry</Button>}
+            />
+          ) : visibleInstances ? (
             <div className="overflow-x-auto">
               <div style={gridStyle} className="hidden items-center gap-3 border-b bg-muted/20 px-4 py-3 text-xs text-muted-foreground xl:grid xl:grid-cols-[var(--instance-grid-columns)]">
                 <span>Instance</span>

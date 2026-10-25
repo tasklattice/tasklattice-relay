@@ -308,11 +308,7 @@ function SupervisorInstanceDetail({
         access={access}
         agent={visibleAgent}
         canDelete={permissions.canDeleteAgents}
-        capabilities={detail.capabilities}
-        form={detail.form}
         platform={platform}
-        {...(detail.protocols[0] ? { protocol: detail.protocols[0] } : {})}
-        role={detail.role}
         onDelete={() => setDeleteOpen(true)}
       />
       <InstanceTabs
@@ -332,7 +328,6 @@ function SupervisorInstanceDetail({
         <InstanceOverviewTab
           access={access}
           agent={visibleAgent}
-          capabilities={detail.capabilities}
           platform={platform}
           {...(modelRouting.data?.name
             ? { modelRoutingName: modelRouting.data.name }

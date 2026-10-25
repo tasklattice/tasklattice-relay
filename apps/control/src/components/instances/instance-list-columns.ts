@@ -13,15 +13,17 @@ export const instanceListColumns = [
 
 export type InstanceListColumnId = (typeof instanceListColumns)[number]["id"];
 
+export const defaultHiddenInstanceColumns: InstanceListColumnId[] = ["runtime", "version", "createdBy"];
+
 const instanceListColumnIds = new Set<InstanceListColumnId>(
   instanceListColumns.map((column) => column.id),
 );
 
 export function parseHiddenInstanceColumns(value: string | null): InstanceListColumnId[] {
-  if (!value) return [];
+  if (!value) return [...defaultHiddenInstanceColumns];
   try {
     const parsed: unknown = JSON.parse(value);
-    if (!Array.isArray(parsed)) return [];
+    if (!Array.isArray(parsed)) return [...defaultHiddenInstanceColumns];
     const requested = new Set(
       parsed.filter(
         (column): column is InstanceListColumnId =>
@@ -33,7 +35,7 @@ export function parseHiddenInstanceColumns(value: string | null): InstanceListCo
       .map((column) => column.id)
       .filter((column) => requested.has(column));
   } catch {
-    return [];
+    return [...defaultHiddenInstanceColumns];
   }
 }
 
