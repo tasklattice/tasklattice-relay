@@ -65,16 +65,15 @@ import {
   saveDownloadedFile,
 } from "./memory-ui";
 
-type DetailTab = "overview" | "conversations" | "facts" | "experiences" | "settings";
+export type MemoryDetailTab = "overview" | "conversations" | "facts" | "experiences" | "settings";
 const PAGE_SIZE = 20;
 
-export function MemoryDetailPage({ memoryId }: { memoryId: string }) {
+export function MemoryDetailPage({ memoryId, tab, onTabChange: setTab }: { memoryId: string; tab: MemoryDetailTab; onTabChange: (tab: MemoryDetailTab) => void }) {
   const projectId = useCurrentProjectId();
   const permissions = useProjectPermissions();
   const scope = useProjectQueryScope();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const [tab, setTab] = useState<DetailTab>("overview");
   const [notice, setNotice] = useState("");
   const [renameOpen, setRenameOpen] = useState(false);
   const [renameName, setRenameName] = useState("");
@@ -180,7 +179,7 @@ export function MemoryDetailPage({ memoryId }: { memoryId: string }) {
       {attention ? <MemoryNotice tone={memory.status === "deletion_failed" ? "error" : "warning"} action={<Button variant="outline" className="h-11" onClick={() => setTab("settings")}>Review recovery</Button>}>{memory.status === "deletion_failed" ? "Provider deletion could not be verified. The Memory has not been reported as deleted." : memory.degradedReason || "Memory is temporarily degraded; Agent work can continue while retain delivery recovers."}</MemoryNotice> : null}
       {exportMemory.error ? <MemoryNotice tone="error">{errorMessage(exportMemory.error)}</MemoryNotice> : null}
 
-      <Tabs value={tab} onValueChange={(value) => setTab(value as DetailTab)} className="gap-5">
+      <Tabs value={tab} onValueChange={(value) => setTab(value as MemoryDetailTab)} className="gap-5">
         <div className="overflow-x-auto border-b">
           <TabsList variant="line" className="min-w-max border-b-0">
             <TabsTrigger value="overview">Overview</TabsTrigger>
@@ -194,7 +193,7 @@ export function MemoryDetailPage({ memoryId }: { memoryId: string }) {
         <TabsContent value="conversations"><ConversationsTab active={tab === "conversations"} memoryId={memoryId} canView={permissions.canViewMemoryContent} canCurate={permissions.canCurateMemory} canDelete={permissions.canDeleteMemoryContent} canReextract={permissions.canReextractMemory} onNotice={setNotice} /></TabsContent>
         <TabsContent value="facts"><FactsTab active={tab === "facts"} memoryId={memoryId} canView={permissions.canViewMemoryContent} canCurate={permissions.canCurateMemory} /></TabsContent>
         <TabsContent value="experiences"><ExperiencesTab active={tab === "experiences"} memoryId={memoryId} canView={permissions.canViewMemoryContent} canCurate={permissions.canCurateMemory} /></TabsContent>
-        <TabsContent value="settings"><SettingsTab active={tab === "settings"} memory={memory} agents={agents.data ?? []} embeddingModelReady={embeddingModelReady} embeddingModelsPending={models.isPending} permissions={permissions} onDelete={() => setDeleteOpen(true)} onExport={() => exportMemory.mutate()} onNotice={setNotice} onRefresh={refresh} /></TabsContent>
+        <TabsContent value="settings"><SettingsTab active={tab === "settings"} memory={memory} agents={agents.data ?? []} embeddingModelReady={embeddingModelReady} embeddingModelsPending={models.isPending} permissions={permissions} onDelete={() => setDeleteOpen(true)} onNotice={setNotice} onRefresh={refresh} /></TabsContent>
       </Tabs>
 
       <EntitySheet pending={rename.isPending} open={renameOpen} onOpenChange={(open) => { if (!rename.isPending) setRenameOpen(open); }} eyebrow="Durable Memory" title="Rename Memory" description="This changes the product name without changing content or the provider-side Bank." width="md" footer={<><Button variant="outline" disabled={rename.isPending} onClick={() => setRenameOpen(false)}>Cancel</Button><Button variant="edit" disabled={!renameName.trim() || rename.isPending} onClick={() => rename.mutate()}>{rename.isPending ? "Saving…" : "Save name"}</Button></>}>
@@ -212,7 +211,7 @@ export function MemoryDetailPage({ memoryId }: { memoryId: string }) {
         deleting={remove.isPending}
         blocked={Boolean(memory.activeBinding)}
         blockedActionLabel="Review binding"
-        blockedAction={() => setTab("settings")}
+        blockedAction={() => { setDeleteOpen(false); setTab("settings"); }}
         impactDescription="Deletion is shown as complete only after the provider verifies that the Memory no longer exists. Audit tombstones retain no content."
         onConfirm={() => remove.mutate()}
         {...(errorMessage(remove.error) ? { error: errorMessage(remove.error) } : {})}
@@ -301,7 +300,7 @@ function ExperiencesTab({ active, canCurate, canView, memoryId }: { active: bool
   </div>;
 }
 
-function SettingsTab({ active, agents, embeddingModelReady, embeddingModelsPending, memory, onDelete, onExport, onNotice, onRefresh, permissions }: { active: boolean; agents: Instance[]; embeddingModelReady: boolean; embeddingModelsPending: boolean; memory: MemoryResourceDetailView; onDelete: () => void; onExport: () => void; onNotice: (message: string) => void; onRefresh: () => Promise<unknown>; permissions: ReturnType<typeof useProjectPermissions> }) {
+function SettingsTab({ active, agents, embeddingModelReady, embeddingModelsPending, memory, onDelete, onNotice, onRefresh, permissions }: { active: boolean; agents: Instance[]; embeddingModelReady: boolean; embeddingModelsPending: boolean; memory: MemoryResourceDetailView; onDelete: () => void; onNotice: (message: string) => void; onRefresh: () => Promise<unknown>; permissions: ReturnType<typeof useProjectPermissions> }) {
   const scope = useProjectQueryScope();
   const [instanceId, setInstanceId] = useState("");
   const [operation, setOperation] = useState<"bind" | "unbind" | "retry" | { replayId: string } | null>(null);
@@ -331,20 +330,23 @@ function SettingsTab({ active, agents, embeddingModelReady, embeddingModelsPendi
     else if (operation === "retry") retry.mutate();
     else if (operation) replay.mutate(operation.replayId);
   };
-  return <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(20rem,.72fr)]">
-    <div className="space-y-5">
-      <Card><CardHeader className="border-b"><CardTitle>Runtime binding</CardTitle><CardDescription>One Memory can have one active primary Agent binding. Detached history is retained.</CardDescription></CardHeader><CardContent className="space-y-4 p-5">{memory.activeBinding ? <div className="flex flex-wrap items-center justify-between gap-4"><div><strong className="text-sm">{agents.find(({ id }) => id === memory.activeBinding?.instanceId)?.name ?? memory.activeBinding.instanceId}</strong><p className="mt-1 text-xs capitalize text-muted-foreground">{memory.activeBinding.runtimeType} · attached {formatMemoryDate(memory.activeBinding.attachedAt)}</p></div>{permissions.canManageMemories ? <ResourceActionsMenu resourceName={memory.displayName} actions={[{ label: "Detach Agent", icon: <Unlink />, onSelect: () => openOperation("unbind") }]} /> : null}</div> : <div className="space-y-4"><MemoryNotice>Unbound. This Memory remains intact and can be attached to another Agent.</MemoryNotice>{permissions.canManageMemories ? <div className="flex flex-col gap-3 sm:flex-row"><Button className="h-11" disabled={embeddingModelsPending || !embeddingModelReady || !availableAgents.length} onClick={() => openOperation("bind")}><Link2 />Attach Agent</Button></div> : null}{permissions.canManageMemories && embeddingModelReady && !availableAgents.length ? <p className="text-xs text-muted-foreground">No unbound OpenClaw or Hermes Agent is currently available.</p> : null}</div>}<div className="border-t pt-4"><h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Binding history</h3>{memory.bindingHistory.length ? <div className="mt-3 divide-y border-y">{memory.bindingHistory.map((binding) => <div key={binding.id} className="grid gap-2 py-3 text-xs sm:grid-cols-[minmax(0,1fr)_7rem_8rem]"><span className="truncate font-mono">{binding.instanceId}</span><span className="capitalize">{binding.runtimeType}</span><span className="capitalize text-muted-foreground">{binding.status}</span></div>)}</div> : <p className="mt-2 text-sm text-muted-foreground">No binding history.</p>}</div></CardContent></Card>
-
-      <Card><CardHeader className="border-b"><CardTitle>Retention</CardTitle><CardDescription>Project policy stored with this Durable Memory.</CardDescription></CardHeader><CardContent className="p-5">{Object.keys(memory.retentionPolicy).length ? <dl className="divide-y border-y">{Object.entries(memory.retentionPolicy).map(([key, value]) => <div key={key} className="grid gap-1 py-3 text-sm sm:grid-cols-[10rem_minmax(0,1fr)]"><dt className="text-muted-foreground">{key}</dt><dd className="break-words font-medium">{typeof value === "string" ? value : JSON.stringify(value)}</dd></div>)}</dl> : <p className="text-sm text-muted-foreground">The Project default retention policy applies.</p>}</CardContent></Card>
-
-      {permissions.canViewMemoryOutbox ? <Card><CardHeader className="border-b"><CardTitle>Retain delivery</CardTitle><CardDescription>Pending, retrying, and dead-letter events. Payload content is never exposed.</CardDescription></CardHeader><CardContent className="p-0">{outbox.isPending ? <div className="space-y-2 p-5"><Skeleton className="h-16" /><Skeleton className="h-16" /></div> : outbox.error ? <div className="p-5"><MemoryNotice tone="error">{errorMessage(outbox.error)}</MemoryNotice></div> : outbox.data?.items.length ? outbox.data.items.map((event) => <div key={event.id} className="flex min-h-20 flex-wrap items-center justify-between gap-3 border-b px-5 py-3 last:border-b-0"><span className="min-w-0"><strong className="block truncate text-xs">Conversation {event.conversationId}</strong><span className="mt-1 block text-xs capitalize text-muted-foreground">{event.status.replaceAll("_", " ")} · retry {event.retryCount}</span>{event.lastErrorSummary ? <span className="mt-1 block text-xs text-destructive">{event.lastErrorSummary}</span> : null}</span>{permissions.canReplayMemoryOutbox && (event.status === "dead_letter" || event.status === "retry") ? <ResourceActionsMenu resourceName={event.id} actions={[{ label: "Replay retain event", icon: <RefreshCw />, onSelect: () => openOperation({ replayId: event.id }) }]} /> : null}</div>) : <EmptyPanel icon={Activity} title="Delivery queue is clear" description="No pending, retrying, or dead-letter retain events." />}</CardContent></Card> : null}
-    </div>
-
-    <div className="space-y-5">
-      {permissions.canViewMemorySettings ? <Card><CardHeader className="border-b"><CardTitle>Provider health</CardTitle><CardDescription>Implementation details are visible only to authorized roles.</CardDescription></CardHeader><CardContent className="p-5">{settings.isPending ? <div className="space-y-3"><Skeleton className="h-10" /><Skeleton className="h-10" /><Skeleton className="h-10" /></div> : settings.error ? <MemoryNotice tone="error">{errorMessage(settings.error)}</MemoryNotice> : provider ? <dl className="space-y-4 text-sm"><Setting label="Provider" value={provider.provider} /><Setting label="Health" value={provider.providerHealth} capitalize /><Setting label="Checked" value={formatMemoryDate(provider.checkedAt)} /><Setting label="Bank reference" value={provider.providerReferenceHint ?? "Unavailable"} mono /></dl> : null}{permissions.canManageMemories && (memory.status === "provisioning" || memory.status === "degraded") ? <div className="mt-4 flex justify-end"><ResourceActionsMenu resourceName={memory.displayName} actions={[{ label: "Retry provisioning", icon: <RefreshCw />, onSelect: () => openOperation("retry") }]} /></div> : null}</CardContent></Card> : null}
-      {permissions.canExportMemories ? <Card><CardHeader><CardTitle>Export</CardTitle><CardDescription>Download a sanitized JSON snapshot using a short-lived authorization.</CardDescription></CardHeader><CardContent><Button variant="outline" className="h-11" onClick={onExport}><Download />Export Memory</Button></CardContent></Card> : null}
-      {permissions.canPurgeMemories ? <Card className="border-destructive/35"><CardHeader className="border-b"><CardTitle className="text-destructive">Danger zone</CardTitle><CardDescription>Memory deletion is independent from Agent deletion and cannot be undone.</CardDescription></CardHeader><CardContent className="p-5"><Button variant="destructive" className="h-11" onClick={onDelete}><Trash2 />{memory.status === "deletion_failed" ? "Retry deletion" : "Delete Memory"}</Button>{memory.activeBinding ? <p className="mt-3 text-xs leading-5 text-muted-foreground">Deletion remains blocked until the active Agent binding is detached.</p> : null}</CardContent></Card> : null}
-
+  return <div className="overflow-hidden rounded-lg border bg-card">
+    <div className="divide-y">
+      <MemorySettingsSection title="Agent binding">
+        <div className="space-y-4">{memory.activeBinding ? <div className="flex flex-wrap items-center justify-between gap-4"><div><strong className="text-sm">{agents.find(({ id }) => id === memory.activeBinding?.instanceId)?.name ?? memory.activeBinding.instanceId}</strong><p className="mt-1 text-xs capitalize text-muted-foreground">{memory.activeBinding.runtimeType} · attached {formatMemoryDate(memory.activeBinding.attachedAt)}</p></div>{permissions.canManageMemories ? <ResourceActionsMenu resourceName={memory.displayName} actions={[{ label: "Detach Agent", icon: <Unlink />, onSelect: () => openOperation("unbind") }]} /> : null}</div> : <div className="space-y-4"><p className="text-sm text-muted-foreground">No Agent attached.</p>{permissions.canManageMemories ? <div className="flex flex-col gap-3 sm:flex-row"><Button className="h-11" disabled={embeddingModelsPending || !embeddingModelReady || !availableAgents.length} onClick={() => openOperation("bind")}><Link2 />Attach Agent</Button></div> : null}{permissions.canManageMemories && embeddingModelReady && !availableAgents.length ? <p className="text-xs text-muted-foreground">No unbound OpenClaw or Hermes Agent is currently available.</p> : null}</div>}<div className="border-t pt-4"><h3 className="text-sm font-medium">Binding history</h3>{memory.bindingHistory.length ? <div className="mt-3 divide-y border-y">{memory.bindingHistory.map((binding) => <div key={binding.id} className="grid gap-2 py-3 text-xs sm:grid-cols-[minmax(0,1fr)_7rem_8rem]"><span className="truncate font-mono">{binding.instanceId}</span><span className="capitalize">{binding.runtimeType}</span><span className="capitalize text-muted-foreground">{binding.status}</span></div>)}</div> : <p className="mt-2 text-sm text-muted-foreground">No binding history.</p>}</div></div>
+      </MemorySettingsSection>
+      <MemorySettingsSection title="Retention">{Object.keys(memory.retentionPolicy).length ? <dl className="divide-y border-y">{Object.entries(memory.retentionPolicy).map(([key, value]) => <div key={key} className="grid gap-1 py-3 text-sm sm:grid-cols-[10rem_minmax(0,1fr)]"><dt className="text-muted-foreground">{key}</dt><dd className="break-words font-medium">{typeof value === "string" ? value : JSON.stringify(value)}</dd></div>)}</dl> : <p className="text-sm text-muted-foreground">The Project default retention policy applies.</p>}</MemorySettingsSection>
+      {permissions.canViewMemorySettings ? <MemorySettingsSection title="Provider health">{settings.isPending ? <div className="space-y-3"><Skeleton className="h-10" /><Skeleton className="h-10" /><Skeleton className="h-10" /></div> : settings.error ? <MemoryNotice tone="error">{errorMessage(settings.error)}</MemoryNotice> : provider ? <dl className="grid gap-x-8 gap-y-4 text-sm md:grid-cols-2"><Setting label="Provider" value={provider.provider} /><Setting label="Health" value={provider.providerHealth} capitalize /><Setting label="Checked" value={formatMemoryDate(provider.checkedAt)} /><Setting label="Bank reference" value={provider.providerReferenceHint ?? "Unavailable"} mono /></dl> : null}{permissions.canManageMemories && (memory.status === "provisioning" || memory.status === "degraded") ? <div className="mt-4 flex justify-end"><ResourceActionsMenu resourceName={memory.displayName} actions={[{ label: "Retry provisioning", icon: <RefreshCw />, onSelect: () => openOperation("retry") }]} /></div> : null}</MemorySettingsSection> : null}
+      {permissions.canViewMemoryOutbox ? <MemorySettingsSection title="Retain delivery">{outbox.isPending ? <div className="space-y-2 p-5"><Skeleton className="h-16" /><Skeleton className="h-16" /></div> : outbox.error ? <div className="p-5"><MemoryNotice tone="error">{errorMessage(outbox.error)}</MemoryNotice></div> : outbox.data?.items.length ? outbox.data.items.map((event) => <div key={event.id} className="flex min-h-20 flex-wrap items-center justify-between gap-3 border-b px-5 py-3 last:border-b-0"><span className="min-w-0"><strong className="block truncate text-xs">Conversation {event.conversationId}</strong><span className="mt-1 block text-xs capitalize text-muted-foreground">{event.status.replaceAll("_", " ")} · retry {event.retryCount}</span>{event.lastErrorSummary ? <span className="mt-1 block text-xs text-destructive">{event.lastErrorSummary}</span> : null}</span>{permissions.canReplayMemoryOutbox && (event.status === "dead_letter" || event.status === "retry") ? <ResourceActionsMenu resourceName={event.id} actions={[{ label: "Replay retain event", icon: <RefreshCw />, onSelect: () => openOperation({ replayId: event.id }) }]} /> : null}</div>) : <p className="text-sm text-muted-foreground">No pending or failed deliveries.</p>}</MemorySettingsSection> : null}
+      {permissions.canPurgeMemories ? <MemorySettingsSection title="Delete Memory" destructive>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="max-w-lg text-sm text-muted-foreground">
+            <p>Permanently delete this Memory and all retained content. This cannot be undone.</p>
+            {memory.activeBinding ? <p className="mt-2">Detach the active Agent before deleting this Memory.</p> : null}
+          </div>
+          <Button variant="destructive" className="h-11 shrink-0" onClick={onDelete}><Trash2 />{memory.status === "deletion_failed" ? "Retry deletion" : "Delete Memory"}</Button>
+        </div>
+      </MemorySettingsSection> : null}
     </div>
     <EntitySheet open={operation !== null} pending={pending} onOpenChange={(open) => { if (!open) setOperation(null); }}
       title={operationTitle} description={<>Memory: <strong>{memory.displayName}</strong></>} width="md"
@@ -357,6 +359,13 @@ function SettingsTab({ active, agents, embeddingModelReady, embeddingModelsPendi
       </div>
     </EntitySheet>
   </div>;
+}
+
+function MemorySettingsSection({ children, destructive = false, title }: { children: ReactNode; destructive?: boolean; title: string }) {
+  return <section className="grid gap-4 p-5 lg:grid-cols-[12rem_minmax(0,1fr)] lg:gap-8 lg:p-6">
+    <h2 className={`text-sm font-semibold ${destructive ? "text-destructive" : "text-foreground"}`}>{title}</h2>
+    <div className="min-w-0">{children}</div>
+  </section>;
 }
 
 function BackLink({ projectId }: { projectId: string }) { return <Link to="/$projectId/memory" params={{ projectId }} className="inline-flex min-h-11 items-center gap-2 text-sm font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/35"><ArrowLeft className="size-4" />Memory</Link>; }
