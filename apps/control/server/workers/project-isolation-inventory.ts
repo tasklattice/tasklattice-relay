@@ -63,7 +63,8 @@ export async function buildProjectIsolationInventory(
     const values = projectOpenShellGatewayValues(input, gateway, { secretName: "openshell-postgresql", checksum: "inventory-placeholder" },
       config.openshift.enabled ? { gatewaySecrets: [], certgenSecrets: [], sandboxSecrets: [] } : undefined);
     const rendered = await run({ command: gateway.helmBin,
-      args: ["template", gateway.releaseName, gateway.chart, "--namespace", namespace, "--kube-version", "1.29.0", "--values", "-"],
+      args: ["template", gateway.releaseName, gateway.chart, "--namespace", namespace,
+        "--kube-version", "1.29.0", "--api-versions", "agents.x-k8s.io/v1beta1/Sandbox", "--values", "-"],
       stdin: stringify(values), timeoutMs: 15_000 });
     if (rendered.exitCode !== 0) throw new Error("Unable to render the deployed Project Gateway chart for isolation checks.");
     for (const document of parseAllDocuments(rendered.stdout)) {

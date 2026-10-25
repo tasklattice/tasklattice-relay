@@ -52,6 +52,8 @@ jobs:
         with:
           version: ${{ env.HELM_VERSION }}
       - run: npm run helm:dependencies
+      - name: Prepare OpenShell chart for Gateway and isolation tests
+        run: npm run helm:package:worker
       - run: npm test
       - run: npm run test:postgres
       - run: npm run typecheck

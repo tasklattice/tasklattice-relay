@@ -92,12 +92,13 @@ export function createTestPrisma(): PrismaClient {
   // pg-mem supports ADD VALUE but not its PostgreSQL idempotency clause.
   memory.public.none(codingMemoryMigration.replaceAll(" IF NOT EXISTS", ""));
   memory.public.none("UPDATE tasklattice.projects SET name = 'admin' WHERE id = 'individual';");
-  for (const skill of developmentResourceCatalog.skills) {
+  for (const [sortOrder, skill] of developmentResourceCatalog.skills.entries()) {
     const payload = JSON.stringify(skill).replaceAll("'", "''");
     memory.public.none(
-      `UPDATE tasklattice.skills
-          SET payload = '${payload}'::jsonb
-        WHERE project_id = 'individual' AND id = '${skill.id}';`,
+      `INSERT INTO tasklattice.skills (project_id, id, payload, sort_order)
+       VALUES ('individual', '${skill.id}', '${payload}'::jsonb, ${sortOrder})
+       ON CONFLICT (project_id, id) DO UPDATE
+         SET payload = EXCLUDED.payload, sort_order = EXCLUDED.sort_order;`,
     );
   }
   const pg = memory.adapters.createPg();

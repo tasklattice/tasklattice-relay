@@ -8,6 +8,13 @@ import { parse } from "yaml";
 import { parseControlReleaseTag, pinControlReleaseValues, releaseImages, affectedImages, makePlan, selectPreviousRelease, releaseMatrices, assembleReleaseManifest, releaseImageOutputs } from "../control-plane-release.mjs";
 const registry = "ghcr.io/tasklattice";
 const sha = "a".repeat(40);
+test("stable release prepares the Worker chart before Gateway and isolation tests", () => {
+  const workflow = parse(readFileSync(".github/workflows/release.yml", "utf8"));
+  const steps = workflow.jobs.validate.steps;
+  const prepare = steps.findIndex(step => step.run === "npm run helm:package:worker");
+  const tests = steps.findIndex(step => step.run === "npm test");
+  assert(prepare >= 0 && tests > prepare, "package the pinned Worker chart before running tests");
+});
 test("Prisma CLI, generated client runtime and PostgreSQL adapter stay on one exact version", () => {
   const manifest = JSON.parse(readFileSync("apps/control/package.json", "utf8"));
   const lock = JSON.parse(readFileSync("package-lock.json", "utf8"));

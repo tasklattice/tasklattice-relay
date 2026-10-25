@@ -160,6 +160,26 @@ export const instanceContracts = defineContracts([
     responses: { 201: response("Created terminal session", openObjectSchema) },
   }),
   projectRoute({
+    method: "post", path: "/instances/{instanceId}/web-ui-sessions", operationId: "createInstanceWebUiSession",
+    summary: "Create an Instance Web UI session", tags: ["Instances"],
+    description: "Create a short-lived, Relay-authenticated Web UI session. Requires a same-origin request and access to the ready Instance.",
+    request: { params: instanceParamsSchema },
+    responses: { 201: response("Created Web UI session", z.object({
+      id: z.string().uuid(), credential: z.string(), expiresAt: z.iso.datetime(), contentUrl: z.string(),
+    })) },
+  }),
+  projectRoute({
+    method: "patch", path: "/instances/{instanceId}/web-ui-sessions", operationId: "renewInstanceWebUiSession",
+    summary: "Renew or close an Instance Web UI session", tags: ["Instances"],
+    description: "Renew or close a Web UI session belonging to the current Relay login and Instance. Requires a same-origin request.",
+    request: { params: instanceParamsSchema, body: z.object({
+      id: z.string().uuid(), credential: z.string(), close: z.boolean().optional(),
+    }) },
+    responses: { 200: response("Renewed or closed Web UI session", z.union([
+      z.object({ expiresAt: z.iso.datetime() }), z.object({ closed: z.literal(true) }),
+    ])) },
+  }),
+  projectRoute({
     method: "get", path: "/instances/{instanceId}/terminal-targets", operationId: "listInstanceTerminalTargets",
     summary: "List Instance terminal targets", tags: ["Instances"], request: { params: instanceParamsSchema },
     responses: { 200: response("Terminal target list", z.object({ data: domainCollectionSchema })) },
