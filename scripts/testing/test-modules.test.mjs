@@ -30,9 +30,17 @@ test("prepares the Worker chart before modules that render OpenShell", () => {
   for (const index of [helmIndex, chartIndex]) {
     const modules = steps[index].match(/if: contains\(fromJSON\('([^']+)'\), matrix\.module\)/)?.[1];
     assert.ok(modules, "chart prerequisites must select their test modules");
-    for (const id of ["agent-lifecycle", "openshell-isolation"]) {
+    for (const id of ["access", "agent-lifecycle", "openshell-isolation"]) {
       assert.ok(JSON.parse(modules).includes(id), `${id} is missing a chart prerequisite`);
     }
+  }
+  const dependencyIndex = steps.findIndex((step) => step.includes("run: npm run helm:dependencies"));
+  assert.ok(dependencyIndex > helmIndex && dependencyIndex < testIndex,
+    "prepare Relay chart dependencies before configuration tests");
+  const dependencyModules = steps[dependencyIndex].match(/if: contains\(fromJSON\('([^']+)'\), matrix\.module\)/)?.[1];
+  assert.ok(dependencyModules, "Relay chart prerequisites must select their test modules");
+  for (const id of ["agent-lifecycle", "openshell-isolation", "control-ui", "runtime"]) {
+    assert.ok(JSON.parse(dependencyModules).includes(id), `${id} is missing Relay chart dependencies`);
   }
 });
 
