@@ -157,7 +157,7 @@ resolves to that exact value.
 | ------------------------ | --------------------------------------------------------------- | -------------------------------------------------- |
 | TaskLattice Relay control      | `ghcr.io/tasklattice/tali-control:<release>`                   | UI, REST/WebSocket API, and PostgreSQL control data |
 | Runtime runner           | `ghcr.io/tasklattice/tali-openshell-runner:<release>`          | OpenShell sandbox lifecycle and terminal relay     |
-| LiteLLM                  | `ghcr.io/tasklattice/tali-litellm:1.87.0-guard.3`             | Model gateway, virtual keys, and spend attribution; published by [tasklattice-litellm-guard](https://github.com/tasklattice/tasklattice-litellm-guard) at a pinned tag |
+| LiteLLM                  | `ghcr.io/tasklattice/tali-litellm:1.106.4-guard.1`             | Model gateway, virtual keys, and spend attribution; published by [tasklattice-litellm-guard](https://github.com/tasklattice/tasklattice-litellm-guard) at a pinned tag |
 | Demo test runtime        | `ghcr.io/tasklattice/demo-test:<release>`                       | Multi-mode MCP and managed A2A example runtime      |
 | OpenClaw sandbox         | `ghcr.io/tasklattice/tali-nemoclaw-sandbox:<release>`          | OpenClaw Agent sandbox                             |
 | Hermes sandbox           | `ghcr.io/tasklattice/tali-nemoclaw-hermes-sandbox:<release>`   | Default Supervisor sandbox                         |
@@ -167,6 +167,10 @@ resolves to that exact value.
 | OpenShell gateway        | `ghcr.io/nvidia/openshell/gateway:0.0.116`                      | Policy enforcement, audit, exec, and HTTP routing  |
 | OpenShell supervisor     | `ghcr.io/nvidia/openshell/supervisor:0.0.116`                   | Supervisor injected into Agent sandboxes           |
 | Agent Sandbox controller | `registry.k8s.io/agent-sandbox/agent-sandbox-controller:v1.0.2` | Sandbox CR, Pod, and workspace PVC lifecycle       |
+
+Local development uses the same published LiteLLM `1.106.4-guard.1` image as
+the release Chart. `npm run images:build:dev:litellm` pulls the pinned image;
+a sibling Provider checkout is not required.
 
 Agent Sandbox v1.0.2 supports an optional bundled controller or an existing
 cluster controller selected with `agentSandbox.enabled`. See the
@@ -262,12 +266,13 @@ before removal.
 Additional design documentation:
 
 - [Image release and Helm publishing](docs/image-release-and-helm.md)
-- [OpenShell Kubernetes runtime](docs/openshell-kubernetes-runtime.md)
+- [NemoClaw and OpenShell version contract](docs/nemoclaw-v0.0.138.md)
 - [Project Runtime Namespaces](docs/project-runtime-namespaces.md)
 - [Control Worker](docs/control-worker.md)
 - [Agent Garden architecture](docs/agent-garden-architecture.md)
 - [Model and Routing](docs/model-routing.md)
-- [MVP core flow](docs/mvp-core-flow.md)
+- [Agent Developer architecture](docs/agent-developer-architecture.md)
+- [Project resource lifecycle](docs/project-resource-lifecycle.md)
 - [Contributing and local development](CONTRIBUTING.md)
 
 ## License

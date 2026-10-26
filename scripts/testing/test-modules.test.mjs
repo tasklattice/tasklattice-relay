@@ -132,6 +132,7 @@ test("keeps external components as independent integration suites", () => {
   assert.deepEqual(
     Object.keys(integrationScripts),
     [
+      "test:integration:litellm",
       "test:integration:keycloak",
       "test:integration:memory",
       "test:integration:vector-database",

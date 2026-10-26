@@ -51,12 +51,23 @@ the domain boundary.
 ## External integration suites
 
 Third-party components are verified independently in the `External
-integrations` workflow: Keycloak, Hindsight Memory, Docling/Vector Database and
+integrations` workflow: LiteLLM, Keycloak, Hindsight Memory, Docling/Vector Database and
 A2A each have their own executable command, path selection and failure result.
 The exact catalog and evidence text live in
 `scripts/testing/test-scenarios.mjs` and appear in the generated CI matrix.
 `Integration` is a test level, not a third architecture block. None of these
 suites reads a production model secret or calls a paid model API.
+
+Run `npm run test:integration:litellm` to verify the Relay gateway contract
+against the Chart's published image and disposable PostgreSQL. The fixture
+uses the rendered configuration, environment, startup arguments, non-root UID
+and database wait script. It checks authenticated version discovery, model
+registration/routing, project quotas, model-scoped service keys, completions,
+SSE, persisted usage, key blocking/revocation and restart persistence. Model
+responses are deterministic and require no external API credentials. Containers,
+volumes and synthetic credentials are removed afterward; no cluster is accessed.
+The real Guard v0.3.12 CLI provisioning and input/output enforcement suite remains
+in `tasklattice-litellm-guard`; this suite verifies Relay's client contract.
 
 Run a module locally with:
 
@@ -145,7 +156,7 @@ regression coverage:
 ## Live-model cost and secret policy
 
 `DEEPSEEK_API_KEY` and `NVAPI_API_KEY` are never read by PR module tests, the
-runtime startup matrix, the four external integration suites, or automatic
+runtime startup matrix, the five external integration suites, or automatic
 release validation. The integrations use local deterministic embedding
 fixtures. No secret value, prefix or length is logged. The live workflow is
 `workflow_dispatch` only and uses the deployment's preconfigured READY Routing;

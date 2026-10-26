@@ -118,7 +118,7 @@ describe("PlatformSettingsService", () => {
           mode: "openshell-kubernetes",
         }), { status: 200 });
       }
-      if (url === "http://litellm.internal/health/liveliness") {
+      if (url === "http://litellm.internal/health/readiness/details") {
         expect(new Headers(init?.headers).get("authorization"))
           .toBe("Bearer litellm-secret");
         return new Response(JSON.stringify({

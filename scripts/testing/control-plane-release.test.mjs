@@ -8,6 +8,17 @@ import { parse } from "yaml";
 import { parseControlReleaseTag, pinControlReleaseValues, releaseImages, affectedImages, makePlan, selectPreviousRelease, releaseMatrices, assembleReleaseManifest, releaseImageOutputs } from "../control-plane-release.mjs";
 const registry = "ghcr.io/tasklattice";
 const sha = "a".repeat(40);
+test("development and offline release inventory use the Chart's published LiteLLM image", () => {
+  const values = parse(readFileSync("charts/tali-relay/values.yaml", "utf8"));
+  const dev = parse(readFileSync("charts/tali-relay/values-dev.yaml", "utf8"));
+  assert.match(values.images.litellm.tag, /^\d+\.\d+\.\d+-guard\.\d+$/);
+  assert.equal(dev.images.litellm?.tag ?? values.images.litellm.tag, values.images.litellm.tag);
+  const workflow = readFileSync(".github/workflows/release.yml", "utf8");
+  assert(workflow.includes('${registry}/' + `${values.images.litellm.repository}:${values.images.litellm.tag}`));
+  const prepared = spawnSync(process.execPath, ["scripts/prepare-litellm-local.mjs", "--print"], { encoding: "utf8" });
+  assert.equal(prepared.status, 0, prepared.stderr);
+  assert.equal(prepared.stdout.trim(), `${values.global.imageRegistry}/${values.images.litellm.repository}:${values.images.litellm.tag}`);
+});
 test("stable release prepares the Worker chart before Gateway and isolation tests", () => {
   const workflow = parse(readFileSync(".github/workflows/release.yml", "utf8"));
   const steps = workflow.jobs.validate.steps;

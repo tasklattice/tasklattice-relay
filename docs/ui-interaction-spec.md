@@ -986,7 +986,10 @@ This specification owns shared UI and interaction rules. Update it first when
 changing fonts, tokens, component states, modal behavior, navigation behavior,
 desktop layout rules, or accessibility requirements.
 
-`docs/interaction-design.md` remains the Marketplace information architecture
-and domain direction. `docs/design/approval-interaction-spec.md` remains the
-Approval page's detailed flow and acceptance record. They may specialize this
-contract but must link back here when they describe shared behavior.
+Current domain flows are documented in
+[Agent Developer architecture](agent-developer-architecture.md),
+[Agent Garden architecture](agent-garden-architecture.md), and
+[Model Routing interaction design](design/model-routing.md).
+[Approval interaction](design/approval-interaction-spec.md) owns its detailed
+flow and acceptance record. These domain documents may specialize this contract
+but must link back here when describing shared behavior.

@@ -823,7 +823,7 @@ export class LiteLLMClient implements LiteLLMAdminClient {
 
   async testConnection(): Promise<{ ok: boolean; version?: string }> {
     this.assertConfigured();
-    const response = await this.request<Record<string, unknown>>("/health/liveliness");
+    const response = await this.request<Record<string, unknown>>("/health/readiness/details");
     const version = response.version ?? response.litellm_version;
     return { ok: true, ...(typeof version === "string" ? { version } : {}) };
   }
@@ -836,7 +836,7 @@ export class LiteLLMClient implements LiteLLMAdminClient {
         litellm_params?: Record<string, unknown>;
         model_info?: Record<string, unknown>;
       }> }>("/model/info"),
-      this.request<Record<string, unknown>>("/health/liveliness").catch((): Record<string, unknown> => ({})),
+      this.request<Record<string, unknown>>("/health/readiness/details").catch((): Record<string, unknown> => ({})),
       this.readFallback(modelAlias),
     ]);
     const allModels = models.data ?? [];

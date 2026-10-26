@@ -11,6 +11,7 @@ apps/control/server/generated/
 /.helm-dependencies/
 *.log
 .env
+/output/local-backups/
 control.toml
 apps/control/server/generated/
 __pycache__/

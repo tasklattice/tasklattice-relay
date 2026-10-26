@@ -93,7 +93,7 @@ spec:
         - name: litellm
           image: {{ include "tali.image" (dict "root" . "image" .Values.images.litellm) }}
           imagePullPolicy: {{ .Values.images.litellm.pullPolicy }}
-          args: ["--config", "/etc/litellm/config.yaml", "--port", "4000", "--num_workers", {{ .Values.litellm.workers | quote }}, "--use_v2_migration_resolver"]
+          args: ["--config", "/etc/litellm/config.yaml", "--port", "4000", "--num_workers", {{ .Values.litellm.workers | quote }}]
           ports:
             - name: http
               containerPort: 4000

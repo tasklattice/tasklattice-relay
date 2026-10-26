@@ -72,7 +72,7 @@ images:
     # not re-tag it. The TaskLattice Guard provider and its protocol belong to
     # that repository.
     repository: tali-litellm
-    tag: "1.87.0-guard.3"
+    tag: "1.106.4-guard.1"
     pullPolicy: IfNotPresent
   exampleMcp:
     # Also used by UI-created built-in Demo Agents in tenant namespaces,

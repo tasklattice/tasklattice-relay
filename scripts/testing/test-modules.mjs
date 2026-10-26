@@ -331,6 +331,7 @@ export const testModules = [
       "apps/control/src/components/ui/**",
       "apps/control/src/i18n/**",
       "apps/control/src/features/project-overview/**",
+      "apps/control/src/features/skills/**",
       "apps/control/src/lib/canonical-origin.test.ts",
       "apps/control/src/lib/api.test.ts",
       "apps/control/src/lib/csv.test.ts",

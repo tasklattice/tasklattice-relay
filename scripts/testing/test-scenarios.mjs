@@ -1,5 +1,14 @@
 export const testScenarios = [
   {
+    id: "litellm-gateway-component",
+    module: "inference",
+    layer: "L2 integration",
+    execution: "automatic",
+    cost: "zero model cost",
+    command: "npm run test:integration:litellm",
+    evidence: "Chart-pinned LiteLLM and PostgreSQL: Relay management client, model routing, quotas, scoped keys, SSE, spend persistence and revocation",
+  },
+  {
     id: "keycloak-oidc-component",
     module: "access",
     layer: "L2 integration",

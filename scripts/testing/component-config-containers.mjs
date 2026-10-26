@@ -96,9 +96,11 @@ sys.argv = ['entrypoint.py', '${role}']
 with patch('os.execvp') as execute:
     runpy.run_path('/etc/hindsight/entrypoint.py')
     command = execute.call_args.args[1]
-    assert command[0] == 'hindsight-${role === 'migration' ? 'admin' : role}'
     if '${role}' == 'migration':
+        assert command[0] == 'hindsight-admin'
         assert command[1:] == ['run-db-migration', '--schema', 'hindsight', '--embedding-dimension', '1536']
+    else:
+        assert command == ['/app/api/.venv/bin/python3', '/etc/hindsight-launcher/runtime.py', 'hindsight-${role}']
 from hindsight_api.config import HindsightConfig
 settings = HindsightConfig.from_env()
 assert settings.database_url == config['common']['HINDSIGHT_API_DATABASE_URL']

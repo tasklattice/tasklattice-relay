@@ -109,7 +109,7 @@ Confirm the resulting images:
 docker image inspect ghcr.io/tasklattice/tali-control:dev
 docker image inspect ghcr.io/tasklattice/tali-openshell-runner:dev
 docker image inspect ghcr.io/tasklattice/tali-expert-agent-runtime:dev
-docker image inspect ghcr.io/tasklattice/tali-litellm:1.87.0-guard.3  # pulled; published by tasklattice-litellm-guard
+docker image inspect ghcr.io/tasklattice/tali-litellm:1.106.4-guard.1
 docker image inspect ghcr.io/tasklattice/tali-nemoclaw-sandbox:dev
 docker image inspect ghcr.io/tasklattice/tali-nemoclaw-hermes-sandbox:dev
 docker image inspect ghcr.io/tasklattice/tali-nemoclaw-deepagents-sandbox:dev
@@ -130,6 +130,11 @@ npm run images:build:dev:sandbox:hermes
 npm run images:build:dev:sandbox:deepagents
 npm run images:build:dev:sandbox:pi
 ```
+
+LiteLLM is published by `tasklattice-litellm-guard`. The local image preparation
+command pulls the release pinned in `charts/tali-relay/values.yaml`, also used
+by `values-dev.yaml`. Provider development and source builds belong in that
+separate repository.
 
 ## Deploy with Helm
 

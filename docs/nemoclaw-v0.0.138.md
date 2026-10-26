@@ -196,4 +196,3 @@ or production capacity benchmark.
 - [NemoClaw v0.0.138](https://github.com/NVIDIA/NemoClaw/releases/tag/v0.0.138)
 - [OpenShell version contract](https://github.com/NVIDIA/NemoClaw/blob/v0.0.138/scripts/install-openshell.sh)
 - [OpenShell v0.0.116](https://github.com/NVIDIA/OpenShell/releases/tag/v0.0.116)
-- [Previous upgrade and Native Memory acceptance](nemoclaw-v0.0.123.md)

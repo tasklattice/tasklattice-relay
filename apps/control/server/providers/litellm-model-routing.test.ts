@@ -7,6 +7,17 @@ afterEach(() => {
 });
 
 describe("LiteLLM model validation", () => {
+  it("reports the gateway version from readiness instead of the liveness response", async () => {
+    vi.stubGlobal("fetch", vi.fn(async (input: string | URL | Request) =>
+      new Response(JSON.stringify(String(input).endsWith("/health/readiness/details")
+        ? { status: "healthy", db: "connected", litellm_version: "1.106.4" }
+        : "I'm alive!"), { status: 200 }),
+    ));
+
+    await expect(new LiteLLMClient("http://litellm:4000", "master-secret")
+      .testConnection()).resolves.toEqual({ ok: true, version: "1.106.4" });
+  });
+
   it("labels embedding validation and runtime inputs for asymmetric embedding models", async () => {
     const requests: unknown[] = [];
     vi.stubGlobal("fetch", vi.fn(async (_input: string | URL | Request, init?: RequestInit) => {

@@ -25,6 +25,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
+      litellm: ${{ steps.filter.outputs.litellm }}
       keycloak: ${{ steps.filter.outputs.keycloak }}
       memory: ${{ steps.filter.outputs.memory }}
       vector_database: ${{ steps.filter.outputs.vector_database }}
@@ -37,6 +38,17 @@ jobs:
         uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4
         with:
           filters: |
+            litellm:
+              - '.github/actions/setup-node-workspace/**'
+              - '.github/workflows/integrations.yml'
+              - 'package*.json'
+              - 'packages/**'
+              - 'apps/control/server/providers/**'
+              - 'apps/control/server/platform/**'
+              - 'apps/control/server/quotas/**'
+              - 'scripts/testing/integration-litellm.mjs'
+              - 'scripts/testing/helm-bootstrap-fixture.mjs'
+              - 'charts/tali-relay/**'
             keycloak:
               - '.github/actions/setup-node-workspace/**'
               - '.github/workflows/integrations.yml'
@@ -85,6 +97,23 @@ jobs:
               - 'apps/runner/src/hermes-a2a-plugin*'
               - 'runtime-integrations/hermes-a2a-plugin/**'
               - 'scripts/testing/integration-a2a.mjs'
+
+  litellm:
+    name: Integration / LiteLLM
+    needs: changes
+    if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.litellm == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup-node-workspace
+      - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+        with:
+          version: v3.18.4
+      - name: Prepare chart dependencies
+        run: npm run helm:dependencies
+      - name: Verify Relay against the published LiteLLM image
+        run: npm run test:integration:litellm
 
   keycloak:
     name: Integration / Keycloak
