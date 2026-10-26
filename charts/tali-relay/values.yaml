@@ -192,14 +192,6 @@ features:
     projectAllowlist: []
 
 monitoring:
-  networkPolicy:
-    # Override these selectors when Prometheus runs elsewhere or uses different labels.
-    namespaceSelector:
-      matchLabels:
-        kubernetes.io/metadata.name: monitoring
-    podSelector:
-      matchLabels:
-        app.kubernetes.io/name: prometheus
   serviceMonitor:
     enabled: false
     interval: 30s
@@ -279,8 +271,6 @@ hindsight:
   podDisruptionBudget:
     enabled: true
     minAvailable: 1
-  networkPolicy:
-    enabled: true
   resources:
     requests:
       cpu: 100m
@@ -526,8 +516,9 @@ agentSandbox:
       memory: 256Mi
 
 # Worker installs the bundled OpenShell chart only in Project Namespaces.
-# Gateways always use ClusterIP, NetworkPolicy, and the supported internal
-# plaintext/auth mode. Agent Web UI is exposed through authenticated Control paths.
+# OpenShell retains its upstream Sandbox SSH NetworkPolicy. Relay adds none.
+# Gateways use ClusterIP and the supported internal plaintext/auth mode.
+# Agent Web UI is exposed through authenticated Control paths.
 openshell:
   # Security contexts for the per-Project OpenShell Gateway installed by Worker.
   # These objects merge with the bundled upstream chart defaults. They do not

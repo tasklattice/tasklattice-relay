@@ -21,8 +21,8 @@ The controls are:
   is never sent to a browser or Agent. The provider URL is operator-managed
   configuration, not user input, and defaults to an internal ClusterIP Service.
 - Hindsight uses a dedicated PostgreSQL role/database/schema and a tokenless
-  ServiceAccount. NetworkPolicy limits provider ingress/egress; no Control
-  Plane or public provider route is exposed.
+  ServiceAccount. Its ClusterIP Service has no public provider route;
+  provider API-key authentication controls access from cluster callers.
 - OpenClaw recall text is bounded, sanitized, and fenced as untrusted context. It cannot
   alter Runtime Policy, Access Policy, tools, or credentials. Provider failure
   is fail-open for Agent inference.
@@ -105,7 +105,7 @@ by the deployment system rather than by a user-facing provider credential API.
 - Confirm Admin/Developer, End user, and Auditor capabilities match the product
   matrix and hidden UI actions remain server-denied when called directly.
 - Confirm arbitrary non-root UID, read-only root filesystem, tokenless provider
-  ServiceAccount, and least-egress NetworkPolicy render for OpenShift.
+  ServiceAccount, and private ClusterIP Services render for OpenShift.
 - Interrupt retain, provisioning, and deletion; verify idempotent retry, no
   duplicate Conversation/Bank, and no false success.
 

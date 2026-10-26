@@ -25,7 +25,6 @@ time, while runtime traffic uses the project's internal bridge and model route.
 | `features.durableMemory.projectAllowlist` | Project rollout list | When non-empty, only these Project IDs can create/use new Durable Memory |
 | `hindsight.runtimeRecallTimeoutMs` | Agent recall latency budget | Recall fails open after the budget; tune from p95 rather than increasing blindly |
 | `monitoring.serviceMonitor.enabled` | Relay, Control Worker, and Hindsight scrapes | Enable only when the Prometheus Operator CRDs exist |
-| `monitoring.networkPolicy.*Selector` | Prometheus namespace/Pod ingress identity | Match the actual Prometheus installation before enabling scraping |
 | `monitoring.prometheusRule.enabled` | Actionable Memory alerts | Enable with ServiceMonitor and route the warning/critical severities |
 | credential-store `metricsToken` / component `metrics-token` | Bearer token for Relay metrics | Generate independently and rotate as a Secret; never reuse the Hindsight root key |
 

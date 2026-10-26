@@ -3,14 +3,13 @@ import { fileURLToPath } from "node:url";
 import { parseAllDocuments } from "yaml";
 import { parse as parseToml } from "smol-toml";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { KubernetesObject, V1Deployment, V1NetworkPolicy, V1Service } from "@kubernetes/client-node";
-import { ObjectSerializer } from "@kubernetes/client-node/dist/serializer.js";
+import type { KubernetesObject, V1Deployment, V1Service } from "@kubernetes/client-node";
 import { materializeBootstrapSecrets } from "../../../../scripts/testing/helm-bootstrap-fixture.mjs";
 import { createTestPrisma } from "../test/prisma";
 import { developmentControlConfig, setControlConfigForTests } from "../config/control-config";
 import { setWorkerConfigForTests } from "../config/worker-config";
 import { ensurePlatformRuntimeSettings, loadPlatformRuntimeConfiguration } from "../platform/platform-runtime-config";
-import { KubernetesProjectRuntimeBridgeClient, controlServiceEgress } from "./project-runtime-bridge-client";
+import { KubernetesProjectRuntimeBridgeClient, validateControlService } from "./project-runtime-bridge-client";
 
 const chart = fileURLToPath(new URL("../../../../charts/tali-relay", import.meta.url));
 function render(port: number, namespace = "control-plane", release = "relay-one", name = "custom-control") {
@@ -32,7 +31,7 @@ function render(port: number, namespace = "control-plane", release = "relay-one"
 afterEach(() => { setControlConfigForTests(undefined); setWorkerConfigForTests(); vi.restoreAllMocks(); });
 
 describe("Bridge deployment configuration upgrades", () => {
-  it("moves an existing Bridge and its exact Service policy from 38180 to 80 after Values change", async () => {
+  it("moves an existing Bridge from 38180 to 80 after Values change", async () => {
     let service = render(38180);
     const db = createTestPrisma();
     try {
@@ -57,28 +56,19 @@ describe("Bridge deployment configuration upgrades", () => {
         await client.reconcile({ ...base, controlUrl: current.controlInternalUrl });
         const deployment = applied.get("Deployment") as V1Deployment;
         expect(deployment.spec?.template.spec?.containers[0]?.env).toContainEqual({ name: "TALI_CONTROL_INTERNAL_URL", value: current.controlInternalUrl });
-        const policy = applied.get("NetworkPolicy") as V1NetworkPolicy;
-        // Exercise the actual client serializer, which maps `_from` to API `from`.
-        expect(ObjectSerializer.serialize(policy, "V1NetworkPolicy").spec.ingress).toEqual([
-          { from: [{ podSelector: {} }], ports: [{ port: 8080, protocol: "TCP" }] },
-        ]);
-        expect(policy.spec?.egress?.[1]).toEqual({
-          to: [{ namespaceSelector: { matchLabels: { "kubernetes.io/metadata.name": namespace } }, podSelector: { matchLabels: service.spec!.selector } }],
-          ports: [{ port, protocol: "TCP" }, { port: "http", protocol: "TCP" }],
-        });
-        expect(policy.spec?.egress?.[1]?.to?.[0]?.podSelector?.matchLabels?.["app.kubernetes.io/instance"]).toBe(release);
+        expect(applied.has("NetworkPolicy")).toBe(false);
         expect(objects.read).toHaveBeenLastCalledWith({ apiVersion: "v1", kind: "Service", metadata: { name: `${name}-control`, namespace } });
       }
     } finally { await db.$disconnect(); }
   });
 
-  it("uses the actual Service targetPort and fails closed for missing selectors or mismatched ports", () => {
+  it("validates the Control Service and fails closed for missing selectors or mismatched ports", () => {
     const service = render(80);
     const url = "http://custom-control-control.control-plane.svc.cluster.local:80";
     service.spec!.ports![0]!.targetPort = 9091;
-    expect(controlServiceEgress(url, service).ports).toEqual([{ port: 80, protocol: "TCP" }, { port: 9091, protocol: "TCP" }]);
-    expect(() => controlServiceEgress(url.replace(":80", ":81"), service)).toThrow("Control Service must match");
+    expect(() => validateControlService(url, service)).not.toThrow();
+    expect(() => validateControlService(url.replace(":80", ":81"), service)).toThrow("Control Service must match");
     service.spec!.selector = {};
-    expect(() => controlServiceEgress(url, service)).toThrow("Pod selector");
+    expect(() => validateControlService(url, service)).toThrow("Pod selector");
   });
 });

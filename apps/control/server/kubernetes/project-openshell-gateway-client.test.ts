@@ -73,6 +73,7 @@ describe("HelmProjectOpenShellGatewayClient", () => {
       gatewaySecurityContext: { runAsNonRoot: false, runAsUser: 0 },
     }, run, undefined, undefined, database).reconcile(target);
     const values = run.mock.calls.find(([input]) => input.args[0] === "upgrade")![0].stdin!;
+    expect(parse(values).networkPolicy.enabled).toBe(true);
     const rendered = execFileSync("helm", [
       "template", "openshell", "../../.helm-dependencies/openshell",
       "--api-versions", "agents.x-k8s.io/v1beta1/Sandbox",
@@ -85,14 +86,11 @@ describe("HelmProjectOpenShellGatewayClient", () => {
       .find((object) => object?.kind === "Deployment");
     const policy = parseAllDocuments(rendered).map((doc) => doc.toJSON())
       .find((object) => object?.kind === "NetworkPolicy");
-    // This is the other default tenant policy. It neither selects the Bridge
-    // nor isolates egress, so it cannot block Bridge -> Control requests.
-    expect(policy.spec).toMatchObject({
-      podSelector: { matchLabels: { "openshell.ai/managed-by": "openshell" } },
-      policyTypes: ["Ingress"],
-      ingress: [{ ports: [{ port: 2222, protocol: "TCP" }] }],
-    });
+    expect(policy.metadata.name).toMatch(/-sandbox-ssh$/);
+    expect(policy.spec.podSelector.matchLabels).toEqual({ "openshell.ai/managed-by": "openshell" });
+    expect(policy.spec.policyTypes).toEqual(["Ingress"]);
     expect(policy.spec.egress).toBeUndefined();
+    expect(policy.spec.ingress[0].ports).toEqual([{ protocol: "TCP", port: 2222 }]);
     expect(deployment.spec.template.spec.securityContext).toEqual({
       fsGroup: 0, fsGroupChangePolicy: "OnRootMismatch",
     });

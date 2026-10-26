@@ -50,16 +50,12 @@ const configuration = {
 afterEach(() => setWorkerConfigForTests());
 
 describe("Expert Agent Kubernetes Runtime", () => {
-  it.each([false, true])("allows DNS before resolving the Bridge (OCP=%s)", (openshift) => {
+  it.each([false, true])("emits no Kubernetes network policies (OCP=%s)", (openshift) => {
     const config = developmentWorkerConfig();
     config.openshift.enabled = openshift;
     setWorkerConfigForTests(config);
-    const policy = expertAgentRuntimeResources(input, configuration)[4] as import("@kubernetes/client-node").V1NetworkPolicy;
-    expect(policy.spec?.egress?.[0]?.ports).toEqual(
-      (openshift ? [53, 5353] : [53]).flatMap((port) => [
-        { port, protocol: "UDP" }, { port, protocol: "TCP" },
-      ]),
-    );
+    expect(expertAgentRuntimeResources(input, configuration).map(r => r.kind))
+      .toEqual(["ConfigMap", "Secret", "Service", "Deployment"]);
   });
 
   it("pins one immutable Version envelope and secret-scoped credentials", () => {
@@ -69,7 +65,6 @@ describe("Expert Agent Kubernetes Runtime", () => {
       "Secret",
       "Service",
       "Deployment",
-      "NetworkPolicy",
     ]);
     expect(resources.every(
       (resource) => resource.metadata?.namespace === input.namespace,
@@ -112,11 +107,7 @@ describe("Expert Agent Kubernetes Runtime", () => {
     expect(JSON.stringify(deployment)).not.toContain(input.runtimeToken);
     expect(JSON.stringify(deployment)).not.toContain(input.a2aBearerToken);
 
-    const policy = resources[4] as unknown as {
-      spec: { egress: Array<Record<string, unknown>> };
-    };
-    expect(policy.spec.egress).toHaveLength(2);
-    expect(JSON.stringify(policy)).toContain("tali-agent-runtime-bridge");
+
   });
 
   it("waits for the exact Deployment generation to become available", async () => {
@@ -147,6 +138,6 @@ describe("Expert Agent Kubernetes Runtime", () => {
       resourceName: expertAgentRuntimeResourceName(input.instanceId),
       engineVersion: "0.1.0",
     });
-    expect(objects.patch).toHaveBeenCalledTimes(5);
+    expect(objects.patch).toHaveBeenCalledTimes(4);
   });
 });

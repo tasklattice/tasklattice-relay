@@ -25,11 +25,12 @@ rules:
   - apiGroups: [""]
     resources: ["configmaps", "serviceaccounts"]
     verbs: ["get"]
-  - apiGroups: ["networking.k8s.io"]
-    resources: ["networkpolicies"]
-    verbs: ["get"]
   - apiGroups: ["rbac.authorization.k8s.io"]
     resources: ["roles", "rolebindings", "clusterroles", "clusterrolebindings"]
+    verbs: ["get"]
+  # Read the upstream OpenShell Sandbox SSH policy for Project diagnostics.
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["networkpolicies"]
     verbs: ["get"]
   # Secret reads are granted inside each owned Project Namespace by Worker.
   # No access to Control/Worker configuration Secrets is granted here.
@@ -79,9 +80,6 @@ rules:
     verbs: ["get", "create", "patch", "delete"]
   - apiGroups: ["apps"]
     resources: ["deployments"]
-    verbs: ["get", "create", "patch", "delete"]
-  - apiGroups: ["networking.k8s.io"]
-    resources: ["networkpolicies"]
     verbs: ["get", "create", "patch", "delete"]
   - apiGroups: ["rbac.authorization.k8s.io"]
     resources: ["roles", "rolebindings"]

@@ -111,12 +111,56 @@ was recreated between the ownership check and delete request.
 The Project reconciler does not inject a tenant ServiceAccount, `LimitRange`,
 or `ResourceQuota`. When the compatibility Gateway topology is enabled, the
 official OpenShell chart owns its own ServiceAccount, RBAC, private Service,
-NetworkPolicy, StatefulSet, configuration, and persistence in the Namespace.
+Sandbox SSH NetworkPolicy, workload, configuration, and persistence in the
+Namespace.
 
 The main Control Plane ServiceAccount can get, create, and patch Namespaces for
 synchronous creation and direct managed-workload operations. The independent
 Control Worker has a separate identity that can get, create, patch, and delete
 Project Namespaces. Runtime workloads receive neither identity.
+
+## Removing legacy Relay Kubernetes NetworkPolicies
+
+OpenShell owns the Kubernetes policy for Sandbox SSH ingress. Relay installs
+that policy as part of the upstream Gateway chart with
+`networkPolicy.enabled=true`, but does not generate a second Gateway policy or
+policies for Runner, Bridge, Expert Runtime, or Hindsight. The owner
+post-renderer adds Namespace ownership without changing upstream policy rules.
+OpenShell Sandbox process/domain outbound rules (`network_policies`) also remain
+active.
+
+Worker retains the permissions needed to install and upgrade OpenShell's chart;
+Control retains read access for Project diagnostics. These permissions do not
+mean Relay generates its own policies. OpenShell's SSH policy does not isolate
+other Relay services. In particular, Gateway currently runs with TLS disabled
+and unauthenticated users allowed: removing Relay's extra Gateway ingress policy
+allows reachable cluster Pods to access it directly.
+
+For existing installations:
+
+1. Upgrade the Relay Helm release and both Control and Worker images together.
+   Helm removes its old Runner and Hindsight policies. The Worker image must
+   include the updated owner post-renderer.
+2. Reinitialize each Project. The Gateway Helm upgrade removes Relay's old
+   `*-ingress` policy and retains OpenShell's `*-sandbox-ssh` policy.
+3. As a cluster operator, inspect, back up, and remove old Worker-applied Bridge,
+   OCP DNS, and Expert Agent policies in each affected Project Namespace. They
+   were applied outside Helm, so upgrading images alone does not remove them:
+
+   ```bash
+   PROJECT_NAMESPACE='replace-with-project-namespace'
+   SELECTOR='app.kubernetes.io/managed-by=tali,app.kubernetes.io/name in (tali-agent-runtime-bridge,tali-expert-agent)'
+   kubectl -n "$PROJECT_NAMESPACE" get networkpolicy -l "$SELECTOR" -o yaml \
+     > "$PROJECT_NAMESPACE-legacy-networkpolicies.yaml"
+   kubectl -n "$PROJECT_NAMESPACE" delete networkpolicy -l "$SELECTOR"
+   ```
+
+4. Check Project initialization, Bridge readiness, and an authenticated
+   Sandbox → Bridge → Control call. Leave OpenShell's SSH policies and
+   platform-managed policies in place.
+
+New installations need no cleanup. The removed Relay policies are no longer
+reconciled or included in Project isolation checks.
 
 ## Configuration
 

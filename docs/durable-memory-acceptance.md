@@ -25,7 +25,7 @@ database migration validation, and a production-source mock/fallback scan.
 | 11 | Secret exclusion | Sanitizer, provider payload, structured log/error, audit, export, metrics, and UI projection tests |
 | 12 | Role UI | Built-in role, permission projection, navigation, and action visibility tests |
 | 13 | State UI | SSR component tests for loading, empty, error, degraded, deletion failure, retry, conflict, and pagination |
-| 14 | OpenShift | Arbitrary UID, read-only filesystem, NetworkPolicy, and minimal RBAC manifest validator |
+| 14 | OpenShift | Arbitrary UID, read-only filesystem, private Services, and minimal RBAC manifest validator |
 | 15 | Upgrade compatibility | All Prisma migrations apply over the existing seeded Project/Instance fixture without destructive rewrite |
 | 16 | No mock production path | Source gate rejects Fake provider or fixed Memory fallback references outside tests and verifies Hindsight-only factory |
 

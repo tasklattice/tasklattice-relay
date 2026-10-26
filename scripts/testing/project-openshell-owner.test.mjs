@@ -28,6 +28,13 @@ test("the real OpenShell chart gets project parents while Pod templates retain c
     "--set", "server.externalDbSecret=openshell-postgresql", "--set", `fullnameOverride=openshell-${owner.name}`], { encoding: "utf8" });
   const resources = render(raw);
   assert(resources.length > 10);
+  const policies = resources.filter(r => r.kind === "NetworkPolicy");
+  const upstreamPolicies = parseAllDocuments(raw).map(d => d.toJSON()).filter(r => r?.kind === "NetworkPolicy");
+  assert.deepEqual(policies.map(r => r.metadata.name), [`openshell-${owner.name}-sandbox-ssh`]);
+  assert.deepEqual(policies.map(r => r.spec), upstreamPolicies.map(r => r.spec));
+  const config = resources.find(r => r.kind === "ConfigMap" && r.data?.["gateway.toml"]).data["gateway.toml"];
+  assert.match(config, /\[openshell\.drivers\.kubernetes\.managed_ssh_ingress\]\s+enabled\s*=\s*true/);
+  assert.match(config, /process_binary_aware_network_policy\s*=\s*true/);
   for (const resource of resources) {
     assert.deepEqual(resource.metadata.ownerReferences, [owner]);
     if (resource.kind.startsWith("ClusterRole")) assert.equal(resource.metadata.namespace, undefined);
@@ -65,20 +72,11 @@ for (const resource of [
   assert.notEqual(result.status, 0);
 });
 
-test("Gateway ingress is limited to this Control release and its own Supervisors", () => {
-  const gateway = `openshell-${owner.name}`;
-  const workload = { apiVersion: "apps/v1", kind: "Deployment", metadata: { name: gateway },
+test("Gateway ownership does not add network policies", () => {
+  const workload = { apiVersion: "apps/v1", kind: "Deployment", metadata: { name: `openshell-${owner.name}` },
     spec: { selector: { matchLabels: { app: "gateway" } } } };
-  const output = execFileSync(process.execPath, [script, JSON.stringify(owner), gateway,
+  const output = execFileSync(process.execPath, [script, JSON.stringify(owner), workload.metadata.name,
     JSON.stringify({ namespace: "tali-control", release: "relay" })], { input: stringify(workload), encoding: "utf8" });
-  const policy = parseAllDocuments(output).map(d => d.toJSON()).find(r => r?.kind === "NetworkPolicy");
-  assert.deepEqual(policy.spec.podSelector, { matchLabels: { app: "gateway" } });
-  assert.deepEqual(policy.spec.ingress[0].ports, [{ protocol: "TCP", port: 8080 }]);
-  assert.equal(policy.spec.ingress[0].from.length, 2);
-  assert.equal(policy.spec.ingress[0].from[0].namespaceSelector.matchLabels["kubernetes.io/metadata.name"], "tali-control");
-  assert.equal(policy.spec.ingress[0].from[1].namespaceSelector.matchLabels["kubernetes.io/metadata.name"], owner.name);
-  assert.deepEqual(policy.spec.ingress[0].from[1].podSelector, {
-    matchExpressions: [{ key: "agents.x-k8s.io/sandbox-name-hash", operator: "Exists" }],
-  });
-  assert.deepEqual(policy.metadata.ownerReferences, [owner]);
+  const resources = parseAllDocuments(output).map(d => d.toJSON()).filter(Boolean);
+  assert.deepEqual(resources.map(r => r.kind), ["Deployment"]);
 });

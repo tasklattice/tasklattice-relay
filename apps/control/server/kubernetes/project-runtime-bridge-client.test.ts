@@ -2,7 +2,6 @@ import type {
   V1Deployment,
   V1Secret,
   V1Service,
-  V1NetworkPolicy,
 } from "@kubernetes/client-node";
 import { afterEach, describe, expect, it } from "vitest";
 import { vi } from "vitest";
@@ -12,7 +11,6 @@ import {
   PROJECT_RUNTIME_BRIDGE_NAME,
   projectRuntimeBridgeResources,
   controlNetworkTarget,
-  controlServiceEgress,
 } from "./project-runtime-bridge-client";
 
 const input = {
@@ -45,56 +43,20 @@ afterEach(() => {
 });
 
 describe("Project Runtime Bridge resources", () => {
-  it("adds DNS access for already-running OCP runtimes without changing their policies", () => {
-    const config = developmentWorkerConfig();
-    config.openshift.enabled = true;
-    setWorkerConfigForTests(config);
-    const resources = projectRuntimeBridgeResources(input, configuration, serviceFor());
-    const dns = resources.find((r) => r.metadata?.name === "tali-runtime-dns") as V1NetworkPolicy;
-    expect(dns.metadata?.namespace).toBe(input.namespace);
-    expect(dns.spec).toEqual({
-      podSelector: {
-        matchLabels: { "app.kubernetes.io/managed-by": "tali" },
-        matchExpressions: [{ key: "app.kubernetes.io/name", operator: "In",
-          values: [PROJECT_RUNTIME_BRIDGE_NAME, "tali-expert-agent"] }],
-      },
-      policyTypes: ["Egress"],
-      egress: [{ ports: [
-        { port: 53, protocol: "UDP" }, { port: 53, protocol: "TCP" },
-        { port: 5353, protocol: "UDP" }, { port: 5353, protocol: "TCP" },
-      ] }],
-    });
-    // Re-entry emits the same stable object; no per-Agent resource is modified.
-    expect(projectRuntimeBridgeResources(input, configuration, serviceFor())).toEqual(resources);
-    expect(resources.filter((r) => r.kind === "Deployment")).toHaveLength(1);
-    config.openshift.enabled = false;
-    setWorkerConfigForTests(config);
-    expect(projectRuntimeBridgeResources(input, configuration, serviceFor())
-      .some((r) => r.metadata?.name === "tali-runtime-dns")).toBe(false);
-  });
-
-  it.each([false, true])("allows the DNS backend ports for the configured cluster (OCP=%s)", (openshift) => {
+  it.each([false, true])("emits no Kubernetes network policies (OCP=%s)", (openshift) => {
     const config = developmentWorkerConfig();
     config.openshift.enabled = openshift;
     setWorkerConfigForTests(config);
-    const policy = projectRuntimeBridgeResources(input, configuration, serviceFor())[3] as import("@kubernetes/client-node").V1NetworkPolicy;
-    expect(policy.spec?.egress?.[0]?.ports).toEqual(
-      (openshift ? [53, 5353] : [53]).flatMap((port) => [
-        { port, protocol: "UDP" }, { port, protocol: "TCP" },
-      ]),
-    );
-    expect(policy.spec?.podSelector?.matchLabels).toEqual({
-      "app.kubernetes.io/name": PROJECT_RUNTIME_BRIDGE_NAME,
-    });
+    expect(projectRuntimeBridgeResources(input, configuration).map(r => r.kind))
+      .toEqual(["Secret", "Service", "Deployment"]);
   });
 
   it("creates one isolated stateless proxy service without persistent storage", () => {
-    const resources = projectRuntimeBridgeResources(input, configuration, serviceFor());
+    const resources = projectRuntimeBridgeResources(input, configuration);
     expect(resources.map((resource) => resource.kind)).toEqual([
       "Secret",
       "Service",
       "Deployment",
-      "NetworkPolicy",
     ]);
     expect(resources.every(
       (resource) => resource.metadata?.namespace === input.namespace,
@@ -158,53 +120,13 @@ describe("Project Runtime Bridge resources", () => {
       },
     });
     expect(tokenEnvironment).not.toHaveProperty("value");
-    const networkPolicy = resources[3] as unknown as {
-      spec: { egress: Array<Record<string, unknown>> };
-    };
-    expect(networkPolicy.spec.egress[1]).toEqual({
-      to: [{
-        namespaceSelector: {
-          matchLabels: { "kubernetes.io/metadata.name": "tali" },
-        },
-        podSelector: {
-          matchLabels: serviceFor().spec!.selector,
-        },
-      }],
-      ports: [
-        { port: 38_080, protocol: "TCP" },
-        { port: 8080, protocol: "TCP" },
-      ],
-    });
   });
 
   it("rejects a Control endpoint outside the in-cluster Service boundary", () => {
     expect(() => projectRuntimeBridgeResources(
       { ...input, controlUrl: "https://control.example.com" },
-      configuration, serviceFor(),
+      configuration,
     )).toThrow("in-cluster HTTP Service FQDN");
-  });
-
-  it.each([
-    ["http://relay-control.control-plane.svc.cluster.local", [80, 8080]],
-    ["http://relay-control.control-plane.svc.cluster.local:8080", [8080]],
-    ["http://relay-control.control-plane.svc.cluster.local:38080", [38080, 8080]],
-  ])("allows Service and Pod ports in the actual Control namespace: %s", (controlUrl, ports) => {
-    const policy = projectRuntimeBridgeResources({ ...input, controlUrl }, configuration, serviceFor(controlUrl))[3];
-    expect(policy).toMatchObject({
-      spec: {
-        egress: [
-          { ports: [{ port: 53, protocol: "UDP" }, { port: 53, protocol: "TCP" }] },
-          {
-            // Both selectors must match the same peer, not two OR'ed peers.
-            to: [{
-              namespaceSelector: { matchLabels: { "kubernetes.io/metadata.name": "control-plane" } },
-              podSelector: { matchLabels: serviceFor().spec!.selector },
-            }],
-            ports: ports.map((port) => ({ port, protocol: "TCP" })),
-          },
-        ],
-      },
-    });
   });
 
   it("waits for the applied Deployment generation to become available", async () => {
@@ -223,14 +145,14 @@ describe("Project Runtime Bridge resources", () => {
 
     await client.reconcile(input);
 
-    expect(objects.patch).toHaveBeenCalledTimes(4);
+    expect(objects.patch).toHaveBeenCalledTimes(3);
     expect(apps.readNamespacedDeployment).toHaveBeenCalledWith({
       name: PROJECT_RUNTIME_BRIDGE_NAME,
       namespace: input.namespace,
     });
   });
 
-  it("reconciles OCP DNS upgrades idempotently with Namespace ownership and no Expert rollout", async () => {
+  it("reconciles OCP resources idempotently with Namespace ownership and no Expert rollout", async () => {
     const config = developmentWorkerConfig();
     config.openshift.enabled = true;
     setWorkerConfigForTests(config);
@@ -249,11 +171,11 @@ describe("Project Runtime Bridge resources", () => {
     await client.reconcile(input);
     await client.reconcile(input);
     const calls = objects.patch.mock.calls as unknown as Array<[import("@kubernetes/client-node").KubernetesObject]>;
-    expect(calls).toHaveLength(10);
-    expect(calls.slice(0, 5)).toEqual(calls.slice(5));
+    expect(calls).toHaveLength(6);
+    expect(calls.slice(0, 3)).toEqual(calls.slice(3));
     expect(calls.every(([r]) => r.metadata?.namespace === input.namespace
       && r.metadata?.ownerReferences?.[0]?.uid === owner.uid)).toBe(true);
-    expect(calls.filter(([r]) => r.metadata?.name === "tali-runtime-dns")).toHaveLength(2);
+    expect(calls.some(([r]) => r.kind === "NetworkPolicy")).toBe(false);
     expect(calls.filter(([r]) => r.kind === "Deployment")
       .every(([r]) => r.metadata?.name === PROJECT_RUNTIME_BRIDGE_NAME)).toBe(true);
   });

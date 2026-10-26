@@ -1,5 +1,4 @@
 import { prepareRuntimeImagePull } from "./project-image-pull-readiness";
-import { runtimeDnsEgressPorts } from "./runtime-dns-egress";
 import { getWorkerConfig } from "../config/worker-config";
 import {
   AppsV1Api,
@@ -215,33 +214,7 @@ export function expertAgentRuntimeResources(
       },
     },
   };
-  const networkPolicy: KubernetesObject & { spec: Record<string, unknown> } = {
-    apiVersion: "networking.k8s.io/v1",
-    kind: "NetworkPolicy",
-    metadata,
-    spec: {
-      podSelector: {
-        matchLabels: { "tali.io/agent-key": resourceLabels["tali.io/agent-key"]! },
-      },
-      policyTypes: ["Ingress", "Egress"],
-      ingress: [{
-        from: [{ podSelector: {} }],
-        ports: [{ port: CONTAINER_PORT, protocol: "TCP" }],
-      }],
-      egress: [
-        { ports: runtimeDnsEgressPorts() },
-        {
-          to: [{
-            podSelector: {
-              matchLabels: { "app.kubernetes.io/name": PROJECT_RUNTIME_BRIDGE_NAME },
-            },
-          }],
-          ports: [{ port: 8080, protocol: "TCP" }],
-        },
-      ],
-    },
-  };
-  return [configMap, secret, service, deployment, networkPolicy];
+  return [configMap, secret, service, deployment];
 }
 
 export class KubernetesExpertAgentRuntimeClient
@@ -323,7 +296,6 @@ implements ExpertAgentRuntimeClient {
       { apiVersion: "v1", kind: "Service" },
       { apiVersion: "v1", kind: "Secret" },
       { apiVersion: "v1", kind: "ConfigMap" },
-      { apiVersion: "networking.k8s.io/v1", kind: "NetworkPolicy" },
     ]) {
       try {
         await this.objects.delete({

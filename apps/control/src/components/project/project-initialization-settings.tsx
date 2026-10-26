@@ -105,7 +105,7 @@ export function ProjectInitializationSettings({ project }: { project: Project })
                   </div>
                 </li>)}
               </ul>
-            </> : <p className="text-sm text-muted-foreground">The check reads Kubernetes directly and verifies Namespace ownership, Gateway and Bridge configuration and readiness, network policies, service accounts, permissions, and required infrastructure credentials.</p>}
+            </> : <p className="text-sm text-muted-foreground">The check reads Kubernetes directly and verifies Namespace ownership, Gateway and Bridge configuration and readiness, service accounts, permissions, and required infrastructure credentials.</p>}
             <p className="text-xs text-muted-foreground">This check covers Project isolation infrastructure. Agent workloads and business resources are outside its scope.</p>
           </div>
           <SheetFooter className="flex-row justify-end border-t p-5">
@@ -130,7 +130,7 @@ export function ProjectInitializationSettings({ project }: { project: Project })
               <div><dt className="text-muted-foreground">Project ID</dt><dd className="mt-1 break-all font-mono text-xs">{project.id}</dd></div>
               <div><dt className="text-muted-foreground">Recorded initialization</dt><dd className="mt-1">{recordedStatus}</dd></div>
             </dl>
-            <p className="text-sm leading-6 text-muted-foreground">Worker will create a missing Namespace and reconcile its Gateway, runtime bridge, network policies, service accounts, and Project permissions using the deployed configuration. Existing resources are updated in place; Pods may roll out if their configuration changes.</p>
+            <p className="text-sm leading-6 text-muted-foreground">Worker will create a missing Namespace and reconcile its Gateway, runtime bridge, service accounts, and Project permissions using the deployed configuration. Existing resources are updated in place; Pods may roll out if their configuration changes.</p>
             <p className="text-sm leading-6 text-muted-foreground">This action does not delete the Namespace or reset Project data. Data already removed outside Relay is not restored.</p>
             {submitted ? <div role="status" className="rounded-md border bg-muted/30 p-4 text-sm">
               <p className="font-medium">{finished ? "Initialization completed" : status === "failed" ? "Initialization failed" : "Initialization queued"}</p>

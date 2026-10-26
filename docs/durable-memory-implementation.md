@@ -18,7 +18,7 @@ of truth.
 | API and authorization | Nitro project routes, contracts, capability admission, built-in `CAP_AGENT_MEMORY_*` capabilities | Add `/memories` resources and map every action to an existing or explicit capability |
 | Audit | request audit plugin and route descriptors | Record Memory operation metadata; suppress retained/recalled content and secrets |
 | UI | Project Memory route, Agent create/delete sheets, shadcn-based console | Replace Instance-local configuration with Memory list/detail/curation and binding choices |
-| Deployment | `charts/tali-relay`, PostgreSQL/pgvector, LiteLLM, NetworkPolicies | Add pinned Hindsight API/migration resources, dedicated DB identity, internal-only service |
+| Deployment | `charts/tali-relay`, PostgreSQL/pgvector, LiteLLM | Add pinned Hindsight API/migration resources, dedicated DB identity, internal-only service |
 
 The Vector Database file browser and retrieval implementation remains an
 independent Project capability and is not structurally replaced by this work.
@@ -108,8 +108,8 @@ do not remove the index until every in-flight create request has expired.
   LiteLLM Service and Secret. API-key tenancy is enabled; MCP, full LLM trace,
   4xx prompt dumps, and public provider exposure are disabled.
 - Added internal API/optional worker Services, probes, PDBs, resource bounds,
-  read-only root filesystems, tokenless ServiceAccount, least-egress
-  NetworkPolicies, OpenShift arbitrary-UID rendering, and air-gap image mirrors.
+  read-only root filesystems, tokenless ServiceAccount, OpenShift
+  arbitrary-UID rendering, and air-gap image mirrors.
   The built-in worker remains the default until load testing justifies the
   optional StatefulSet.
 - Added SDK-level HTTP integration tests and a repeatable live test that starts

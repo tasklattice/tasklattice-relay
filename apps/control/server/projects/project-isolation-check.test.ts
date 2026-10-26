@@ -1,13 +1,13 @@
+import { ObjectSerializer } from "@kubernetes/client-node/dist/serializer.js";
 import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
-import type { KubernetesObject, V1Deployment, V1NetworkPolicy, V1Secret, V1Service } from "@kubernetes/client-node";
-import { ObjectSerializer } from "@kubernetes/client-node/dist/serializer.js";
+import type { KubernetesObject, V1Deployment, V1Secret, V1Service } from "@kubernetes/client-node";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { developmentWorkerConfig, setWorkerConfigForTests } from "../config/worker-config";
 import { buildProjectIsolationInventory } from "../workers/project-isolation-inventory";
 import { instantiateIsolationInventory, type ProjectIsolationInventory } from "./project-isolation-inventory";
 import { checkProjectIsolation } from "./project-isolation-check";
-import { controlServiceEgress, PROJECT_RUNTIME_BRIDGE_NAME } from "../kubernetes/project-runtime-bridge-client";
+import { PROJECT_RUNTIME_BRIDGE_NAME } from "../kubernetes/project-runtime-bridge-client";
 import { signProjectRuntimeBridgeToken } from "../runtime-bridge/project-runtime-bridge-token";
 
 const input = { namespace: "tp-abcdefghijklm", projectId: "tp-abcdefghijklm", projectName: 'Project "A"', uid: "tenant-uid",
@@ -51,15 +51,7 @@ async function fixture(openshift = false) {
       }
       if (!deployment.spec!.template.spec!.imagePullSecrets?.length) delete deployment.spec!.template.spec!.imagePullSecrets;
     }
-    if (resource.kind === "NetworkPolicy" && resource.metadata?.name === PROJECT_RUNTIME_BRIDGE_NAME) {
-      (resource as V1NetworkPolicy).spec!.egress![1] = controlServiceEgress(input.controlUrl, service);
-    }
-    if (resource.kind === "NetworkPolicy") {
-      for (const rule of (resource as { spec?: { ingress?: Array<Record<string, unknown>> } }).spec?.ingress ?? []) {
-        if ("_from" in rule) { rule.from = rule._from; delete rule._from; }
-      }
-      resource = ObjectSerializer.deserialize(resource, "V1NetworkPolicy");
-    }
+    if (resource.kind === "NetworkPolicy") resource = ObjectSerializer.deserialize(resource, "V1NetworkPolicy");
     live.set(key(resource), resource);
   }
   live.set(key(service), service);
@@ -87,7 +79,7 @@ describe("Project isolation live checks", () => {
     expect(JSON.stringify(checks)).not.toContain("synthetic-secret");
   });
 
-  it.each([["NetworkPolicy", PROJECT_RUNTIME_BRIDGE_NAME], ["Role", `${gateway}-sandbox`], ["Secret", `${gateway}-jwt-keys`],
+  it.each([["NetworkPolicy", `${gateway}-sandbox-ssh`], ["Deployment", PROJECT_RUNTIME_BRIDGE_NAME], ["Role", `${gateway}-sandbox`], ["Secret", `${gateway}-jwt-keys`],
     ["ServiceAccount", `${gateway}-sandbox`], ["RoleBinding", "tali-project-isolation-reader"]])("detects missing %s/%s and passes after repair", async (kind, name) => {
     const id = `${kind}/${input.namespace}/${name}`;
     const resource = live.get(id)!;
@@ -97,20 +89,15 @@ describe("Project isolation live checks", () => {
     expect((await check()).filter(c => c.status !== "passed")).toEqual([]);
   });
 
-  it("detects old ports, broad selectors, additional policy rules and overbroad RBAC", async () => {
-    const policy = live.get(`NetworkPolicy/${input.namespace}/${PROJECT_RUNTIME_BRIDGE_NAME}`) as V1NetworkPolicy;
-    policy.spec!.egress![1]!.to![0]!.podSelector!.matchLabels = { "app.kubernetes.io/component": "control" };
+  it("detects stale Bridge URLs and overbroad RBAC", async () => {
     const deployment = live.get(`Deployment/${input.namespace}/${PROJECT_RUNTIME_BRIDGE_NAME}`) as V1Deployment;
-    deployment.spec!.template.spec!.containers[0]!.env!.find(env => env.name === "TALI_CONTROL_INTERNAL_URL")!.value = input.controlUrl.replace(":80", ":38180");
-    const role = live.get(`Role/${input.namespace}/${gateway}-sandbox`) as KubernetesObject & { rules: unknown[] };
-    role.rules.push({ apiGroups: ["*"], resources: ["*"], verbs: ["*"] });
+    deployment.spec!.template.spec!.containers[0]!.env!.find(e => e.name === "TALI_CONTROL_INTERNAL_URL")!.value = "http://stale-control:38080";
+    const role = live.get(`Role/${input.namespace}/${gateway}-sandbox`) as KubernetesObject & { rules: Array<{ verbs: string[] }> };
+    role.rules[0]!.verbs.push("deletecollection");
     const failed = (await check()).filter(c => c.status === "failed").map(c => c.label);
-    expect(failed).toEqual(expect.arrayContaining([`NetworkPolicy/${PROJECT_RUNTIME_BRIDGE_NAME}`, `Deployment/${PROJECT_RUNTIME_BRIDGE_NAME}`, `Role/${gateway}-sandbox`]));
-    policy.spec!.egress![1] = controlServiceEgress(input.controlUrl, service);
-    policy.spec!.egress![1]!.ports![0]!.endPort = 65535;
-    expect((await check()).find(c => c.label === `NetworkPolicy/${PROJECT_RUNTIME_BRIDGE_NAME}`)?.status).toBe("failed");
-    policy.spec!.egress!.push({});
-    expect((await check()).find(c => c.label === `NetworkPolicy/${PROJECT_RUNTIME_BRIDGE_NAME}`)?.status).toBe("failed");
+    expect(failed).toEqual(expect.arrayContaining([`Deployment/${PROJECT_RUNTIME_BRIDGE_NAME}`, `Role/${gateway}-sandbox`]));
+    expect(read.mock.calls.filter(([r]) => r.kind === "NetworkPolicy").map(([r]) => r.metadata?.name))
+      .toEqual([`${gateway}-sandbox-ssh`]);
   });
 
   it("reports permissions separately from missing resources and never leaks Secret values", async () => {

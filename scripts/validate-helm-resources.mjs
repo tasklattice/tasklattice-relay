@@ -517,15 +517,6 @@ const hindsightService = requireObject("Service", `${releaseName}-hindsight-api`
 if (hindsightService.spec?.type !== "ClusterIP") {
   throw new Error("Hindsight API must remain an internal ClusterIP Service.");
 }
-const hindsightNetworkPolicy = requireComponentObject(objects, "NetworkPolicy", "hindsight-api");
-const projectRouterEgress = hindsightNetworkPolicy.spec?.egress?.find((rule) =>
-  rule.to?.some((peer) =>
-    peer.podSelector?.matchLabels?.["app.kubernetes.io/component"] === "control"
-  )
-);
-if (!projectRouterEgress?.ports?.some((port) => port.protocol === "TCP" && port.port === 8080)) {
-  throw new Error("The Hindsight Project Router must reach Control's post-DNAT Pod port.");
-}
 requireObject("PodDisruptionBudget", `${releaseName}-hindsight-api`);
 
 const hindsightLauncher = requireObject("ConfigMap", `${releaseName}-hindsight-launcher`);
@@ -566,7 +557,6 @@ for (const component of ["control", "control-worker", "docling", "litellm"]) {
   const business = pod.containers.find((c) => c.name === component);
   for (const init of pod.initContainers ?? []) assert.equal(init.image, business.image, `${component}/${init.name} must reuse its business image`);
 }
-requireComponentObject(objects, "NetworkPolicy", "hindsight-migration");
 
 const invalidHindsightIdentity = spawnSync(
   "helm",
@@ -798,20 +788,6 @@ const hindsightMonitor = requireComponentObject(
 if (hindsightMonitor.spec?.endpoints?.[0]?.path !== "/metrics") {
   throw new Error("Hindsight's private Prometheus endpoint must be included in monitoring.");
 }
-const monitoredHindsightPolicy = requireComponentObject(
-  monitoredObjects,
-  "NetworkPolicy",
-  "hindsight-api",
-);
-const monitoringPeer = monitoredHindsightPolicy.spec?.ingress
-  ?.flatMap((rule) => rule.from ?? [])
-  .find((peer) =>
-    peer.namespaceSelector?.matchLabels?.["kubernetes.io/metadata.name"] === "monitoring"
-    && peer.podSelector?.matchLabels?.["app.kubernetes.io/name"] === "prometheus"
-  );
-if (!monitoringPeer) {
-  throw new Error("Hindsight metrics ingress must be limited to the configured Prometheus identity.");
-}
 const workerMemoryMonitor = requireComponentObject(
   monitoredObjects,
   "ServiceMonitor",
@@ -976,11 +952,6 @@ if (
     {
       apiGroups: ["apps"],
       resources: ["deployments"],
-      verbs: ["get", "create", "patch", "delete"],
-    },
-    {
-      apiGroups: ["networking.k8s.io"],
-      resources: ["networkpolicies"],
       verbs: ["get", "create", "patch", "delete"],
     },
     {

@@ -55,9 +55,8 @@ Control 在服务端兑换 Hermes 一次性入口，保存加密的内部会话 
 - 每个 Control 进程最多 64 个代理 HTTP 请求，每个能力最多 16 个；WS 分别最多 128 / 8 个。不是跨副本的统一配额。
 - 上传最多 32 MiB，需改写的 HTML/JS/CSS 最多 16 MiB；WS 应用消息及积压检查为 8 MiB，连接前队列 1 MiB。
 - 响应头等待 15 秒；Runner HTTP 空闲超时 120 秒；客户端断开取消上游请求。
-- Runner NetworkPolicy 只允许同 Release 的 Control / Worker 访问 9090。
-- Gateway NetworkPolicy 只允许指定 Control namespace/Release 的 Runner、Worker，以及本项目 Sandbox controller 创建的 Supervisor Pod 访问 8080。实际 Pod 标签为 `agents.x-k8s.io/sandbox-name-hash`，不能使用只存在于 Sandbox CR 上的 `openshell.ai/managed-by` 选择它。
-- Gateway 策略由既有 Helm owner post-renderer 生成，与 Project Namespace 一起管理；没有额外策略组件。
+- Runner / Gateway 使用内部 Service；Relay 不再创建额外的 Kubernetes NetworkPolicy，保留 OpenShell 自带的 Sandbox SSH 策略。
+- Runner 服务令牌和 Control 能力校验继续生效。Gateway 当前为内部明文、允许未认证用户的模式；移除 Relay 的 Gateway 入站策略后，集群内可达 Pod 可直接访问 Gateway，不能再宣称 Gateway 具有 Pod 间访问隔离。
 
 ## 分阶段实施和验证
 
@@ -67,8 +66,8 @@ Control 在服务端兑换 Hermes 一次性入口，保存加密的内部会话 
 | 2：私有 HTTP/WS 链路 | Control → Runner 9090 → Gateway，流式代理和头过滤 | Runner/Control 协议测试；真实 Hermes API/PTY 和 OpenClaw 握手/health RPC 通过 |
 | 3：原生 UI 与认证迁移 | 无 iframe；两平台资源路径和认证适配 | 本地 Chromium 应用内浏览器加载两种原生 UI；OpenClaw 显示 Online，并回复 `RELAY_ORBSTACK_OPENCLAW_OK`；Hermes 显示 ready，并回复 `RELAY_ORBSTACK_HERMES_OK`；Hermes Config 深链接和刷新通过 |
 | 4：生命周期与安全负例 | 续期、撤销、来源限制、连接复查 | 真实伪造能力 401、跨来源创建 403、opaque-origin Control 访问 403；撤销后 HTTP 立即拒绝，WS 在 10 秒左右关闭 |
-| 5：入口收口 | 删除 8080 公共旁路，应用 NetworkPolicy | 未授权测试 Pod 能访问 Control，不能访问 Runner / Gateway；合法 Control 链路正常；Supervisor 选择器按实际 Pod 修正 |
-| 6：部署与交付 | DB migration、Control/Runner/Worker、Chart 和现有 Gateway 策略 | OrbStack `tali` 本地镜像构建和滚动更新，Keycloak 启用，重复执行真实验收脚本及 init Job |
+| 5：入口收口 | 删除 8080 公共旁路，内部 Service 与 Control/Runner 鉴权 | 验证 Control/Runner 无凭证请求被拒绝，合法 Control 链路正常 |
+| 6：部署与交付 | DB migration、Control/Runner/Worker、Chart 和现有 Gateway 配置 | OrbStack `tali` 本地镜像构建和滚动更新，Keycloak 启用，重复执行真实验收脚本及 init Job |
 
 自动回归入口：
 
@@ -83,7 +82,7 @@ npm run helm:validate:resources
 
 本次在重建后的 OrbStack 集群验收，控制面 namespace 为 `tali`，复用初始化的 `proj1`（`tp-v3i65n4c7jslo`），Hermes 为 `ti-ahbbdywgek2ut`，OpenClaw 为 `ti-dl5kx72w5f4jx`。Control 使用 `http://localhost:38080`，经用户授权使用已有 DeepSeek Key 和发现的 `deepseek-flash` 模型完成两条原生 UI 聊天。按最终要求使用 HTTP/WS，无额外转发组件，不签发或安装本地 CA，不要求本地 443/HTTPS。
 
-最终代码回归：Control 7 个测试文件 / 66 项、Runner 3 个文件 / 8 项、owner post-renderer 和测试模块配置共 21 项通过；Control 类型检查和构建、Runner 构建、Helm 19 个容器的资源校验通过。新增日志脱敏、Hermes 根路径去尾斜线后追加 profile 参数的回归；入口调整为 Project → Instance → UI 后，8 个测试文件 / 38 项及类型检查、构建通过；测试模块归属检查 14 项通过。凭据 bootstrap 44 项、开发默认配置验证通过。真实撤销测试中 Hermes WS 在 9.4 秒、OpenClaw WS 在 10.0 秒内关闭；另一 Project 的无权限 Pod 可访问 Control，但不能连接 Runner 或 Gateway。
+最终代码回归：Control 7 个测试文件 / 66 项、Runner 3 个文件 / 8 项、owner post-renderer 和测试模块配置共 21 项通过；Control 类型检查和构建、Runner 构建、Helm 19 个容器的资源校验通过。新增日志脱敏、Hermes 根路径去尾斜线后追加 profile 参数的回归；入口调整为 Project → Instance → UI 后，8 个测试文件 / 38 项及类型检查、构建通过；测试模块归属检查 14 项通过。凭据 bootstrap 44 项、开发默认配置验证通过。真实撤销测试中 Hermes WS 在 9.4 秒、OpenClaw WS 在 10.0 秒内关闭；当时另一 Project 的无权限 Pod 无法连接 Runner 或 Gateway；该历史结果依赖现已移除的 Kubernetes NetworkPolicy，不再作为当前网络隔离保证。
 
 本次 Hermes 使用默认 2 GiB 内存，最终验收时 Hermes 和 OpenClaw Pod 均为 Ready、0 次重启。Hermes 首次打开聊天需要约 1 分钟初始化工具；状态变为 ready 后，原生 PTY 输入、模型回复正常。根路径、Config 深链接和刷新已验证。生产资源仍须按原生 Agent 与交互并发测量。OpenClaw 验收镜像构建同时更新了 mcporter 的 body-parser / zod 锁定版本，保留依赖审计门禁并通过构建检查。
 
@@ -93,9 +92,9 @@ npm run helm:validate:resources
 
 1. 构建并发布同一版本 Control、Worker 和 Runner。Control 镜像须包含更新后的 post-renderer 脚本。
 2. 执行 `20261024120000_agent_ui_sessions` 数据库迁移。按现有配置更新 Runner，移除废弃 `serviceProxy` 字段。
-3. 更新 Control/Worker/Runner 和 Helm 资源，删除旧公开 Runner Service。让现有项目 Gateway 执行受控 reconcile；旧 Gateway 在完成 reconcile 前不会获得新策略。若在测试环境先手工应用了本任务生成的同名策略，需补齐其所属 Helm Release 的 managed-by label 和 release-name/release-namespace annotations，再交回 Helm 管理，避免 ownership 冲突；不要接管其他来源的资源。
+3. 更新 Control/Worker/Runner 和 Helm 资源，删除旧公开 Runner Service。让现有项目 Gateway 执行受控 reconcile，并按[迁移说明](project-runtime-namespaces.md#removing-legacy-relay-kubernetes-networkpolicies)清理旧 Kubernetes NetworkPolicy。
 4. 本地由 OrbStack 直接暴露 Control Service 的 38080 端口。若目标环境已有域名和 TLS 入口，则复用该入口转发两类路径，支持 WebSocket Upgrade 和流式响应；禁用能力路径缓存并处理上述日志脱敏。部署流程不自行生成或安装 CA。
-5. 在目标环境重跑真实验收和未授权 Pod 测试，验证新标签、深链接刷新、实际角色及跨项目拒绝；目标入口使用 HTTPS 时再验证 WSS。CNI 必须实际执行 NetworkPolicy。
+5. 在目标环境重跑真实验收和无凭证访问测试，验证新标签、深链接刷新、实际角色及跨项目拒绝；目标入口使用 HTTPS 时再验证 WSS。
 6. 生产放量前补充目标桌面浏览器、长时间续期/休眠恢复、多副本、预期并发及故障演练。当前没有声称完成 Firefox/Safari、生产负载或所有原生管理功能的验收。
 
 浏览器隔离会使 Agent 的 localStorage/sessionStorage 仅在当前文档内保存，原生路由切换采用整页导航；Service Worker、跨源插件、通知及需要独立浏览器身份的配对功能不启用。服务端聊天历史不受页面内存存储限制。当前验收涵盖原生 UI、核心 API/实时通道及两平台实际聊天，不能推导所有插件或任意第三方 Agent 前端都兼容。

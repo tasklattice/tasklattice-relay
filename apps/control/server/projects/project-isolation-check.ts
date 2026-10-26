@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import type { KubernetesObject, V1Deployment, V1Secret, V1Service, V1PodSpec, V1ServiceAccount } from "@kubernetes/client-node";
 import type { ProjectNamespaceCheck } from "@tali/contracts";
-import { controlNetworkTarget, controlServiceEgress, PROJECT_RUNTIME_BRIDGE_NAME } from "../kubernetes/project-runtime-bridge-client";
+import { controlNetworkTarget, validateControlService, PROJECT_RUNTIME_BRIDGE_NAME } from "../kubernetes/project-runtime-bridge-client";
 import { signProjectRuntimeBridgeToken } from "../runtime-bridge/project-runtime-bridge-token";
 import { instantiateIsolationInventory, type ProjectIsolationInventory } from "./project-isolation-inventory";
 
@@ -9,7 +9,7 @@ export type ProjectResourceReader = (resource: KubernetesObject) => Promise<Kube
 type Check = ProjectNamespaceCheck["checks"][number];
 
 // API defaults may add object fields; declarative lists remain complete sets.
-// Policy/RBAC selectors and permissions use exact objects to catch broadening.
+// Upstream policy selectors and RBAC permissions use exact objects to catch broadening.
 export function isolationFieldsMatch(actual: unknown, expected: unknown, exact = false, field = ""): boolean {
   if (Array.isArray(expected)) {
     if (actual === undefined && expected.length === 0) return true; // API omits empty lists.
@@ -69,7 +69,6 @@ export async function checkProjectIsolation(
         : code === 403 ? "Control cannot read this resource. Update its diagnostic RBAC and check again."
           : "Unable to read this resource. Check Kubernetes API connectivity and permissions." };
   };
-  let controlService: V1Service | undefined;
   const bridgeEnabled = expected.resources.some(({ resource }) => resource.kind === "Deployment"
     && (resource as KubernetesObject).metadata?.name === PROJECT_RUNTIME_BRIDGE_NAME);
   const bridgeToken = bridgeEnabled && input.runnerToken ? signProjectRuntimeBridgeToken(input, input.runnerToken) : undefined;
@@ -80,12 +79,11 @@ export async function checkProjectIsolation(
     try {
       const target = controlNetworkTarget(input.controlUrl);
       ref = { ...ref, metadata: { name: target.serviceName, namespace: target.namespace } };
-      controlService = await observed(ref) as V1Service;
-      controlServiceEgress(input.controlUrl, controlService);
+      const controlService = await observed(ref) as V1Service;
+      validateControlService(input.controlUrl, controlService);
       checks.push({ id: "control-service", label: "Control Service target", status: "passed",
-        message: `Using ${target.namespace}/${target.serviceName}:${target.port} and its complete Pod selector.` });
+        message: `Using ${target.namespace}/${target.serviceName}:${target.port} with a valid Pod selector.` });
     } catch (error) {
-      controlService = undefined;
       checks.push({ ...errorCheck(ref, error), id: "control-service",
         ...(error instanceof Error && error.message.startsWith("Control Service must")
           ? { status: "failed" as const, message: "Control Service does not match the configured URL, TCP port or Pod selector." } : {}) });
@@ -101,11 +99,6 @@ export async function checkProjectIsolation(
   const resources = await Promise.all(expected.resources.map(async ({ resource: raw, secretKeys }) => {
     const resource = raw as KubernetesObject & Record<string, unknown>;
     const isBridge = resource.metadata?.name === PROJECT_RUNTIME_BRIDGE_NAME;
-    if (isBridge && resource.kind === "NetworkPolicy") {
-      if (!controlService) return { id: keyOf(resource), label: "Bridge NetworkPolicy", status: "unavailable" as const,
-        message: "Cannot validate Bridge egress until its Control Service target is verified." };
-      (resource.spec as { egress: unknown[] }).egress[1] = controlServiceEgress(input.controlUrl, controlService);
-    }
     if (isBridge && resource.kind === "Deployment") {
       const container = (resource as V1Deployment).spec!.template.spec!.containers[0]!;
       container.env!.find(item => item.name === "TALI_CONTROL_INTERNAL_URL")!.value = input.controlUrl;

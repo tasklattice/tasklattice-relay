@@ -74,7 +74,7 @@ Kanban state, global session memory, or cross-Project routing.
 ## Isolation and deployment
 
 Project Runtime reconciliation server-side applies one Secret, Service,
-Deployment, and NetworkPolicy into the opaque Project Namespace. The Bridge Pod
+and Deployment into the opaque Project Namespace. The Bridge Pod
 does not mount a Kubernetes service-account token, database credentials, Agent
 credentials, or the global Runner token. It receives a Project Bridge HMAC token
 whose signed payload fixes both `projectId` and Runtime Namespace. Each Hermes
@@ -123,61 +123,24 @@ probe against an old image fails readiness (404) without restarting the process.
 Rolling back requires restoring the Worker/image configuration and reconciling
 tenants too; tenant Deployments are managed by the Worker, not directly by Helm.
 
-### Investigating cross-namespace timeouts on OCP
+### Investigating Control connectivity
 
-The generated Bridge NetworkPolicy permits DNS on UDP/TCP 53 and TCP to the
-Pods selected by the exact Control Service in `TALI_CONTROL_INTERNAL_URL`.
-Worker reads that Service on every reconciliation and copies its complete
-selector, including the Helm release and application labels. It allows the
-configured Service port and its `targetPort` (the chart uses the named Pod port
-`http`, currently 8080). Namespace and Pod selectors share one peer, so both
-must match. Missing Services, selectors, or matching TCP ports fail reconciliation
-before any Bridge resource is changed.
+Worker reads the Control Service in `TALI_CONTROL_INTERNAL_URL` on every
+reconciliation. Its name and namespace must match the URL, it must select Pods,
+and it must expose the matching TCP port. Missing Services, selectors, or ports
+fail reconciliation before any Bridge resource is changed.
 
 Helm sets `server.internal_url_managed=true`; its rendered Control address is
 authoritative even if the database retains an older bootstrap URL. Changing
 `control.service.port`, the Service name, or release namespace updates the
 effective URL after the Control/Worker rollout. Reinitialize Project or periodic
-Worker reconciliation then updates both the Bridge Deployment and NetworkPolicy.
-There is no fixed Control Pod IP. Manual installations that omit the managed flag
-retain Platform Settings overrides.
+Worker reconciliation then updates the Bridge Deployment. Manual installations
+that omit the managed flag retain Platform Settings overrides.
 
-With `openshift.enabled=true`, DNS egress also permits UDP/TCP **5353**.
-Earlier versions allowed only 53, missing OCP's DNS backend port after Service
-DNAT. That can prevent resolving the Control Service name and surface as an
-upstream timeout/502. Expert Agent runtime policies use the same DNS rule so
-their Bridge lookups work too. Ordinary Kubernetes keeps its existing port-53
-rule. Red Hat documents the OCP DNS port in its
-[DNS NetworkPolicy example](https://docs.openshift.com/ko/documentation/red_hat_openshift_distributed_tracing_platform/3.11/html/installing_distributed_tracing/distr-tracing-tempo-network-policies_distr-tracing-tempo-installing).
-Reinitialize Project applies the corrected Bridge policy in place and, on OCP,
-adds `tali-runtime-dns`. This additive, namespace-owned policy selects only
-Relay-managed Bridge and Expert Agent Pods and allows DNS on 53/5353. It covers
-already-running Expert Agents without changing their per-Agent policies or
-restarting their Pods. Repeated initialization applies the same policy name.
-It is not created on ordinary Kubernetes. As with other Worker-owned resources,
-an image/Helm rollback does not remove it; retaining the DNS allowance avoids
-reintroducing the OCP lookup failure. Namespace deletion removes it with the
-other tenant resources.
-
-The Hindsight API, Worker and migration Job had the same port-53-only omission.
-Their Helm-managed policies now include UDP/TCP 5353 on OCP and explicitly
-include host-network DNS peers using an empty Pod selector. Helm upgrade updates
-all enabled policies in place; ordinary Kubernetes keeps the prior rules.
-Disabling Hindsight or its NetworkPolicy option still suppresses these resources.
-
-The other default tenant policy, `<gateway>-sandbox-ssh`, selects only Pods with
-`openshell.ai/managed-by=openshell` and restricts ingress to SSH port 2222.
-It does not select the Bridge or restrict egress. The two generated policies
-therefore do not conflict. Expert Agent policies, when present, select their
-own `tali.io/agent-key`, not the Bridge.
-
-Control's Helm template does not create an ingress NetworkPolicy. If a platform
-policy isolates Control, it must also allow ingress from the tenant Bridge.
-Allowing Bridge egress alone cannot override a Control ingress restriction.
-See the [Kubernetes NetworkPolicy semantics](https://kubernetes.io/docs/concepts/services-networking/network-policies/).
-Inspect the installed policies and labels before changing them; an additional
-ingress policy on previously unrestricted Control Pods would itself introduce
-ingress isolation and could break UI, Runner, and other callers.
+Relay does not generate Bridge or extra Gateway Kubernetes NetworkPolicies.
+OpenShell retains its upstream Sandbox SSH ingress policy and process/domain
+outbound rules. Existing installations must complete the
+[one-time policy cleanup](project-runtime-namespaces.md#removing-legacy-relay-kubernetes-networkpolicies).
 
 Run these read-only commands against the affected OCP context:
 
@@ -187,8 +150,6 @@ CONTROL_NS='replace-with-control-namespace'
 CONTROL_SERVICE='replace-with-control-service-name'
 BRIDGE='tali-agent-runtime-bridge'
 
-oc -n "$NS" get networkpolicy -o yaml
-oc -n "$CONTROL_NS" get networkpolicy -o yaml
 oc get namespace "$CONTROL_NS" --show-labels
 oc -n "$CONTROL_NS" get pods \
   -l app.kubernetes.io/component=control --show-labels -o wide
@@ -215,22 +176,12 @@ Interpret results together:
 
 - `ENOTFOUND` / `EAI_AGAIN`: inspect Service DNS and the cluster DNS path.
 - Empty/unready Service EndpointSlices: inspect Control readiness, selector,
-  and `targetPort`; this is not evidence of a NetworkPolicy fault.
-- Healthy endpoints but connection timeout: compare Bridge egress and Control
-  ingress selectors/ports. If permitted by the operator, compare a direct
+  and `targetPort`.
+- Healthy endpoints but connection timeout: inspect cluster routing and any
+  platform-managed traffic restrictions. If permitted by the operator, compare a direct
   Control Pod-IP:8080 request from the same Bridge Pod with the Service request.
   Pod-IP success and Service failure points toward Service routing/DNAT issues.
 - HTTP 503 from Control: the network path worked; inspect Control/database health.
-
-For an existing Control ingress isolation policy, add an allow peer combining
-`namespaceSelector.matchLabels: {tali.io/runtime-target: "true"}` and
-`podSelector.matchLabels: {app.kubernetes.io/name: tali-agent-runtime-bridge}`,
-on TCP 8080, while preserving all existing ingress allowances. Verify the tenant
-Namespace label exists first. Standard NetworkPolicies are additive, but OCP
-cluster-level admin policies or other network controls may still restrict traffic.
-If those APIs are installed and accessible, inspect AdminNetworkPolicy,
-BaselineAdminNetworkPolicy, EgressFirewall, and any service-mesh authorization
-rules as well. Do not delete all NetworkPolicies as a diagnostic shortcut.
 
 After the fix, `/readyz` must return 200, the Bridge must be Ready, and a Hermes
 startup must successfully fetch A2A configuration. A health check alone does not

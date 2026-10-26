@@ -1,8 +1,8 @@
-import type { KubernetesObject, V1Deployment, V1Secret, V1Namespace, V1Service } from "@kubernetes/client-node";
+import type { KubernetesObject, V1Deployment, V1Secret, V1Namespace } from "@kubernetes/client-node";
 import { parseAllDocuments, stringify } from "yaml";
 import { getWorkerConfig } from "../config/worker-config";
 import { effectiveControlInternalUrl } from "../platform/platform-runtime-config";
-import { controlNetworkTarget, projectRuntimeBridgeResources } from "../kubernetes/project-runtime-bridge-client";
+import { projectRuntimeBridgeResources } from "../kubernetes/project-runtime-bridge-client";
 import { defaultCommandRunner, projectOpenShellGatewayValues, type CommandRunner } from "../kubernetes/project-openshell-gateway-client";
 import { projectImagePullerBinding } from "../kubernetes/project-image-puller";
 import { projectSccBindings } from "../kubernetes/project-scc";
@@ -50,12 +50,7 @@ export async function buildProjectIsolationInventory(
     inventory.resources.push({ resource, ...(secretKeys ? { secretKeys } : {}) });
   }
   if (config.project_runtime_bridge.enabled) {
-    const target = controlNetworkTarget(controlUrl);
-    // The checker reads the real Control Service and replaces this peer before
-    // comparing. Do not bake a stale Service selector into a Worker report.
-    const service: V1Service = { metadata: { name: target.serviceName, namespace: target.namespace },
-      spec: { selector: { "app.kubernetes.io/component": "control" }, ports: [{ port: target.port, targetPort: "http" }] } };
-    for (const resource of projectRuntimeBridgeResources({ ...input, controlUrl, token: "inventory-placeholder" }, config.project_runtime_bridge, service)) add(resource);
+    for (const resource of projectRuntimeBridgeResources({ ...input, controlUrl, token: "inventory-placeholder" }, config.project_runtime_bridge)) add(resource);
     add({ apiVersion: "v1", kind: "ServiceAccount", metadata: { name: "default", namespace } }, false);
   }
   if (config.project_openshell.enabled) {

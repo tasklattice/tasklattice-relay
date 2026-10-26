@@ -24,8 +24,8 @@ chart used for initialization. Control compares live resources with that invento
 
 - Namespace mapping, ownership, phase and management metadata;
 - Gateway and Bridge Deployments, current readiness, Services and configuration;
-- complete NetworkPolicy rules, including the current Control Service selector
-  and port/targetPort, Sandbox SSH isolation, and OCP DNS rules;
+- the configured Control Service identity, Pod selector, and matching TCP port;
+- the upstream OpenShell Sandbox SSH policy, using the packaged chart rules;
 - ServiceAccounts, namespaced and cluster RBAC, required Secret keys and workload
   references, Project Bridge identity and Gateway database identity;
 - OCP image-source RoleBinding, tenant SCC grants and image-pull Secret references.

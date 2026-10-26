@@ -141,7 +141,8 @@ setting when the database has no runtime configuration.
 Control Worker, Project Namespaces, Project Gateways, and Project routing are
 always enabled by the Chart. Worker installs the pinned official OpenShell
 chart as a separate Helm release in each Project Namespace. The Gateway uses that
-Namespace for Sandboxes, with a private `ClusterIP` Service and NetworkPolicy.
+Namespace for Sandboxes, with a private `ClusterIP` Service and the upstream
+Sandbox SSH NetworkPolicy. Relay does not add its own network policies.
 Its image, resources and pull Secrets come from `openshell.*` values. The
 OpenShell chart is bundled into the Worker image for this purpose; it is not a
 Relay Helm dependency and is never deployed in the Control namespace.
@@ -569,7 +570,7 @@ Verify a deployment with:
 kubectl -n <namespace> wait --for=condition=complete \
   job -l app.kubernetes.io/component=hindsight-migration --timeout=15m
 kubectl -n <namespace> rollout status deployment/<release>-hindsight-api --timeout=5m
-kubectl -n <namespace> get deployment,service,job,networkpolicy,poddisruptionbudget \
+kubectl -n <namespace> get deployment,service,job,poddisruptionbudget \
   -l app.kubernetes.io/instance=<release>
 kubectl -n <namespace> exec deployment/<release>-hindsight-api -- \
   python -c 'import urllib.request; print(urllib.request.urlopen("http://127.0.0.1:8888/health/live").status)'

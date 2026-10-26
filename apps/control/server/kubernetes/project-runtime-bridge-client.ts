@@ -1,6 +1,5 @@
 import { imagePullFailureSummary } from "./project-openshell-diagnostics";
 import { prepareRuntimeImagePull } from "./project-image-pull-readiness";
-import { runtimeDnsEgressPorts } from "./runtime-dns-egress";
 import { getWorkerConfig } from "../config/worker-config";
 import {
   AppsV1Api,
@@ -9,7 +8,6 @@ import {
   PatchStrategy,
   type KubernetesObject,
   type V1Deployment,
-  type V1NetworkPolicy,
   type V1Secret,
   type V1Service,
 } from "@kubernetes/client-node";
@@ -85,7 +83,7 @@ export function controlNetworkTarget(controlUrl: string): {
   };
 }
 
-export function controlServiceEgress(controlUrl: string, service: V1Service) {
+export function validateControlService(controlUrl: string, service: V1Service) {
   const target = controlNetworkTarget(controlUrl);
   const selector = service.spec?.selector;
   const port = service.spec?.ports?.find((port) => port.port === target.port && (port.protocol ?? "TCP") === "TCP");
@@ -94,21 +92,13 @@ export function controlServiceEgress(controlUrl: string, service: V1Service) {
     || !selector || !Object.keys(selector).length || !port) {
     throw new Error("Control Service must match the configured URL, have a Pod selector and expose its TCP port.");
   }
-  return {
-    to: [{
-      namespaceSelector: { matchLabels: { "kubernetes.io/metadata.name": target.namespace } },
-      podSelector: { matchLabels: { ...selector } },
-    }],
-    ports: [...new Set([port.port, port.targetPort ?? port.port])].map((port) => ({ port, protocol: "TCP" })),
-  };
 }
 
 export function projectRuntimeBridgeResources(
   input: ProjectRuntimeBridgeInput,
   configuration: Omit<ProjectRuntimeBridgeConfiguration, "enabled">,
-  controlService: V1Service,
 ): KubernetesObject[] {
-  const controlEgress = controlServiceEgress(input.controlUrl, controlService);
+  controlNetworkTarget(input.controlUrl);
   const metadata = {
     name: PROJECT_RUNTIME_BRIDGE_NAME,
     namespace: input.namespace,
@@ -211,44 +201,7 @@ export function projectRuntimeBridgeResources(
       },
     },
   };
-  const networkPolicy: V1NetworkPolicy = {
-    apiVersion: "networking.k8s.io/v1",
-    kind: "NetworkPolicy",
-    metadata,
-    spec: {
-      podSelector: {
-        matchLabels: { "app.kubernetes.io/name": PROJECT_RUNTIME_BRIDGE_NAME },
-      },
-      policyTypes: ["Ingress", "Egress"],
-      ingress: [{ _from: [{ podSelector: {} }], ports: [{ port: 8080, protocol: "TCP" }] }],
-      egress: [
-        { ports: runtimeDnsEgressPorts() },
-        controlEgress,
-      ],
-    },
-  };
-  // Existing Expert Agent policies are not reapplied by Project initialization.
-  // An additive DNS policy fixes their OCP lookups without restarting runtimes
-  // or rewriting their per-Agent business traffic rules.
-  const dnsPolicy: V1NetworkPolicy = {
-    apiVersion: "networking.k8s.io/v1",
-    kind: "NetworkPolicy",
-    metadata: { ...metadata, name: "tali-runtime-dns" },
-    spec: {
-      podSelector: {
-        matchLabels: { "app.kubernetes.io/managed-by": "tali" },
-        matchExpressions: [{
-          key: "app.kubernetes.io/name",
-          operator: "In",
-          values: [PROJECT_RUNTIME_BRIDGE_NAME, "tali-expert-agent"],
-        }],
-      },
-      policyTypes: ["Egress"],
-      egress: [{ ports: runtimeDnsEgressPorts() }],
-    },
-  };
-  return [secret, service, deployment, networkPolicy,
-    ...(getWorkerConfig().openshift.enabled ? [dnsPolicy] : [])];
+  return [secret, service, deployment];
 }
 
 export class KubernetesProjectRuntimeBridgeClient
@@ -289,9 +242,9 @@ export class KubernetesProjectRuntimeBridgeClient
       apiVersion: "v1", kind: "Service", metadata: { name: target.serviceName, namespace: target.namespace },
     });
     // Fail closed before mutating tenant resources if the configured Service is invalid.
-    controlServiceEgress(input.controlUrl, controlService);
+    validateControlService(input.controlUrl, controlService);
     const imagePullSecrets = await prepareRuntimeImagePull(input, this.configuration.image, this.configuration.imagePullSecrets);
-    for (const resource of projectRuntimeBridgeResources(input, { ...this.configuration, imagePullSecrets }, controlService)) {
+    for (const resource of projectRuntimeBridgeResources(input, { ...this.configuration, imagePullSecrets })) {
       await this.objects.patch(
         withNamespaceOwner(resource, owner),
         undefined,
