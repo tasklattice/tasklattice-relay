@@ -1,8 +1,22 @@
 # Helm 凭据初始化
 
-Relay Chart 不接受密码、共享 token 或连接串的明文 values，也不提供固定初始口令。必要的协议键名（例如 `POSTGRES_PASSWORD`、Secret 的 `postgres-password`）保留。
+Relay 的所有新部署统一使用 `password` 作为人工登录账号的初始密码，不再区分基础、开发、UAT 或 OpenShift 配置。数据库密码、Example MCP 服务凭据、API token、OIDC client secret、签名/加密密钥和盐继续独立随机生成。自带完整外部 Secret 时，以外部凭据为准。
 
-采用 Guard 相同的初始化顺序：`pre-install,pre-upgrade,pre-rollback` Job 先于业务资源运行，使用 Node `crypto.randomBytes(32)` 为各用途独立生成凭据。初始化 Job 不依赖数据库可用，也不挂载待创建的 Secret。
+采用 Guard 相同的初始化顺序：`pre-install,pre-upgrade,pre-rollback` Job 先于业务资源运行，为人工登录密码写入统一初始值，为机器凭据使用 Node `crypto.randomBytes(32)` 独立生成随机值。初始化 Job 不依赖数据库可用，也不挂载待创建的 Secret。
+
+## 密码以哪里为准
+
+| 场景 | 权威来源 |
+| --- | --- |
+| 全新安装、没有凭据源 | 人工登录密码为 `password`；数据库和机器凭据随机生成 |
+| 升级、重跑 Job、补建组件 Secret | 已有 `<fullname>-credentials`，不重新生成 |
+| Relay 用户创建后或自行改密后 | Relay 数据库中的密码哈希 |
+| Keycloak 用户创建后或自行改密后 | Keycloak 的账号数据 |
+| 已有 OpenShell 项目数据库 | 项目 `openshell-postgresql` Secret 中保存的密码 |
+
+统一初始值仅覆盖 Relay 初始管理员、LiteLLM UI 管理员、Keycloak 管理员和全部预置测试用户。PostgreSQL、Hindsight、新建 OpenShell 项目的数据库账号以及 Example MCP Basic Auth 保持独立随机密码。用户后来新建账号时填写的密码和自行修改的密码不会被重置。
+
+`credentialBootstrap.developmentMode` 已移除；旧 values 中保留该字段也不再改变新安装的密码生成行为。旧的随机凭据源或开发凭据源继续原样复用。已有数据库/PVC 或保留下来的 Secret 不属于全新安装，不能靠重跑 Job 将其中账号重置为 `password`。
 
 ## Secret 与重入规则
 

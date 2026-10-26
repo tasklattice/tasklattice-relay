@@ -69,6 +69,15 @@ try {
   await initialize(); const before = JSON.stringify([...secrets]); const firstWrites = writes;
   assert.equal(secrets.get(spec.credentialSecret).immutable,true);
   assert.equal(firstWrites,spec.outputs.length + 1);
+  const root = secrets.get(spec.credentialSecret).data;
+  for (const key of ['initialPlatformAdministratorPassword','litellmUiPassword','keycloakAdminPassword','keycloakTestUserPassword']) {
+    assert.equal(Buffer.from(root[key], 'base64').toString(), 'password', key);
+  }
+  const machineValues = ['postgresPassword','hindsightDatabasePassword','exampleMcpPassword','authSecret',
+    'runnerToken','litellmMasterKey','litellmSaltKey','keycloakClientSecret','hindsightApiKey','hindsightRouterToken','metricsToken']
+    .map(key => Buffer.from(root[key], 'base64').toString());
+  assert(machineValues.every(value => value.length >= 64));
+  assert.equal(new Set(machineValues).size, machineValues.length);
   await initialize(); assert.equal(writes,firstWrites); assert.equal(JSON.stringify([...secrets]),before);
   console.log('Bootstrap Node ' + process.versions.node + ', UID ' + process.getuid() + ': TLS, mount layout, generation and reentry passed');
 } finally { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); }

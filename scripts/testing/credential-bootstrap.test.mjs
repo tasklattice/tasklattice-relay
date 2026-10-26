@@ -8,7 +8,7 @@ import { cpSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, sym
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { parse as parseToml } from "smol-toml";
-import { bootstrap, credentialKeys, developmentPasswordKeys, generateCredentials, renderOutput } from "../../charts/tali-relay/files/bootstrap-secrets.mjs";
+import { bootstrap, credentialKeys, humanLoginPasswordKeys, generateCredentials, renderOutput } from "../../charts/tali-relay/files/bootstrap-secrets.mjs";
 
 function render(args = []) {
   return parseAllDocuments(execFileSync("helm", ["template", "relay", "charts/tali-relay", "--namespace", "tali",
@@ -51,13 +51,15 @@ function server() {
   return {request,secrets,writes,data};
 }
 
-test("fresh initialization generates shared credentials and reruns perform no writes", async () => {
+test("fresh initialization uses password only for human logins and reruns perform no writes", async () => {
   const s = server(); await bootstrap(s.request, spec);
   const root = s.data(spec.credentialSecret);
-  assert.equal(new Set(credentialKeys.map(k => root[k])).size, credentialKeys.length);
-  for (const key of credentialKeys) assert(root[key].length >= 64);
+  for (const key of humanLoginPasswordKeys) assert.equal(root[key], "password");
+  const machineKeys = credentialKeys.filter(key => !humanLoginPasswordKeys.includes(key));
+  assert.equal(new Set(machineKeys.map(key => root[key])).size, machineKeys.length);
+  for (const key of machineKeys) assert(root[key].length >= 64);
   const independent = generateCredentials(spec);
-  for (const key of credentialKeys) assert.notEqual(root[key], independent[key], `${key} must not have a deterministic default`);
+  for (const key of machineKeys) assert.notEqual(root[key], independent[key], `${key} must not have a deterministic default`);
   const config = parseToml(s.data("relay-control-config")["control.toml"]);
   assert.equal(config.database.url, s.data("relay-litellm-config")["database-url"]);
   assert.equal(new URL(config.database.url).password, s.data("relay-postgresql-config")["postgres-password"]);
@@ -75,16 +77,16 @@ test("local profile keeps account passwords repeatable across fresh installs and
   const devObjects = render(["-f", "charts/tali-relay/values-dev.yaml", "--set", "keycloak.enabled=true",
     "--set", "keycloak.publicUrl=http://keycloak.localhost:8180", "--set", "exampleMcp.enabled=true"]);
   const devSpec = JSON.parse(devObjects.find(o => o.data?.["spec.json"]).data["spec.json"]);
-  assert.equal(devSpec.developmentMode, true);
+  assert.equal(devSpec.developmentMode, undefined);
   const first = server(), second = server();
   await bootstrap(first.request, devSpec);
   await bootstrap(second.request, devSpec);
   const initial = first.data(devSpec.credentialSecret), recreated = second.data(devSpec.credentialSecret);
-  for (const key of developmentPasswordKeys) {
+  for (const key of humanLoginPasswordKeys) {
     assert.equal(initial[key], "password", key);
     assert.equal(recreated[key], "password", key);
   }
-  for (const key of credentialKeys.filter(key => !developmentPasswordKeys.includes(key))) {
+  for (const key of credentialKeys.filter(key => !humanLoginPasswordKeys.includes(key))) {
     assert(initial[key].length >= 64, key);
     assert.notEqual(initial[key], recreated[key], key);
   }
@@ -92,37 +94,62 @@ test("local profile keeps account passwords repeatable across fresh installs and
   assert.equal(first.data("relay-litellm-config")["litellm-ui-password"], "password");
   assert.equal(first.data("relay-keycloak-config")["keycloak-admin-password"], "password");
   assert.equal(first.data("relay-keycloak-config")["keycloak-test-user-password"], "password");
-  assert.equal(first.data("relay-example-mcp-auth")["auth-value"], "Username:password");
-  assert.equal(new URL(initial.databaseUrl).password, "password");
-  assert.equal(new URL(initial.hindsightDatabaseUrl).password, "password");
+  assert.equal(first.data("relay-example-mcp-auth")["auth-value"], `Username:${initial.exampleMcpPassword}`);
+  assert.equal(new URL(initial.databaseUrl).password, initial.postgresPassword);
+  assert.equal(new URL(initial.hindsightDatabaseUrl).password, initial.hindsightDatabasePassword);
   const before = structuredClone([...first.secrets]), writes = first.writes.length;
   await bootstrap(first.request, devSpec);
   assert.deepEqual([...first.secrets], before);
   assert.equal(first.writes.length, writes);
 });
 
-test("switching credential profiles fails before changing existing secrets", async () => {
-  for (const developmentMode of [false, true]) {
+for (const profile of [undefined, "random", "local-development"]) {
+  test(`existing ${profile ?? "unlabelled"} credentials survive the new default`, async () => {
     const s = server();
-    await bootstrap(s.request, { ...spec, developmentMode });
+    const legacy = generateCredentials(spec);
+    for (const key of humanLoginPasswordKeys) legacy[key] = `existing-${key}`;
+    // Older development installs used fixed DB/service passwords. Preserve them
+    // on upgrade; changing the generation policy must not rotate a live store.
+    if (profile === "local-development") {
+      for (const key of ["postgresPassword", "hindsightDatabasePassword", "exampleMcpPassword"]) legacy[key] = "password";
+    }
+    for (const [key, passwordKey] of [["databaseUrl", "postgresPassword"], ["adminUrl", "postgresPassword"], ["hindsightDatabaseUrl", "hindsightDatabasePassword"]]) {
+      const url = new URL(legacy[key]); url.password = legacy[passwordKey]; legacy[key] = url.toString();
+    }
+    await bootstrap(async (method, path, body) => {
+      if (method === "POST" && body.metadata.name === spec.credentialSecret) {
+        body.stringData = legacy;
+        if (profile) body.metadata.annotations["tali.io/credential-profile"] = profile;
+        else delete body.metadata.annotations["tali.io/credential-profile"];
+      }
+      return s.request(method, path, body);
+    }, spec);
     const before = structuredClone([...s.secrets]), writes = s.writes.length;
-    await assert.rejects(bootstrap(s.request, { ...spec, developmentMode: !developmentMode }), /Credential profile changed/);
+    await bootstrap(s.request, spec);
+    assert.deepEqual(s.data(spec.credentialSecret), legacy);
     assert.deepEqual([...s.secrets], before);
     assert.equal(s.writes.length, writes);
-  }
-  // An older random root remains valid without the newly introduced annotation.
-  const s = server(); await bootstrap(s.request, spec);
-  delete s.secrets.get(spec.credentialSecret).metadata.annotations["tali.io/credential-profile"];
-  await bootstrap(s.request, spec);
-});
+  });
+}
 
-test("development mode requires an explicit boolean and a managed store", async () => {
-  const s = server();
-  await assert.rejects(bootstrap(s.request, { ...spec, developmentMode: "true" }), /must be a boolean/);
-  await assert.rejects(bootstrap(s.request, { ...spec, developmentMode: true, externalCredentials: true }), /external credential store/);
-  assert.equal(s.writes.length, 0);
-  assert.throws(() => render(["--set-string", "credentialBootstrap.developmentMode=true"]));
-  assert.throws(() => render(["-f", "charts/tali-relay/values-dev.yaml", "--set", "credentialBootstrap.existingSecret=external"]));
+test("every Helm profile uses the same initial passwords even with retained legacy values", () => {
+  for (const profile of ["values.yaml", "values-dev.yaml", "values-uat.yaml", "values-openshift.yaml", "values-airgap.yaml"]) {
+    for (const legacyMode of [false, true]) {
+      const rendered = render(["-f", `charts/tali-relay/${profile}`, "--set", `credentialBootstrap.developmentMode=${legacyMode}`]);
+      const configured = JSON.parse(rendered.find(o => o.data?.["spec.json"]).data["spec.json"]);
+      assert.equal(configured.developmentMode, undefined);
+      const credentials = generateCredentials(configured);
+      for (const key of ["initialPlatformAdministratorPassword", "litellmUiPassword", "keycloakAdminPassword", "keycloakTestUserPassword"]) {
+        assert.equal(credentials[key], "password", `${profile}/${key}`);
+      }
+      const independent = generateCredentials(configured);
+      for (const key of ["postgresPassword", "hindsightDatabasePassword", "exampleMcpPassword", "authSecret", "runnerToken",
+        "litellmMasterKey", "litellmSaltKey", "keycloakClientSecret", "hindsightApiKey", "hindsightRouterToken", "metricsToken"]) {
+        assert(credentials[key].length >= 64, `${profile}/${key}`);
+        assert.notEqual(credentials[key], independent[key], `${profile}/${key} must be generated independently`);
+      }
+    }
+  }
 });
 
 test("configuration upgrades and rollbacks change settings without rotating credentials", async () => {

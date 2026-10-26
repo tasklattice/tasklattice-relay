@@ -86,7 +86,7 @@ npm run helm:validate:resources
 
 本次 Hermes 使用默认 2 GiB 内存，最终验收时 Hermes 和 OpenClaw Pod 均为 Ready、0 次重启。Hermes 首次打开聊天需要约 1 分钟初始化工具；状态变为 ready 后，原生 PTY 输入、模型回复正常。根路径、Config 深链接和刷新已验证。生产资源仍须按原生 Agent 与交互并发测量。OpenClaw 验收镜像构建同时更新了 mcporter 的 body-parser / zod 锁定版本，保留依赖审计门禁并通过构建检查。
 
-开发配置 `credentialBootstrap.developmentMode: true` 将本地人用账号和数据库连接密码固定为 `password`；服务令牌、OIDC client secret、加密密钥继续独立随机生成并由不可变 root Secret 保持稳定。重跑真实 init Job 后 root Secret 内容和 resourceVersion 不变，Relay、Keycloak SSO/管理员及 LiteLLM 均已实际登录。基础 Chart 默认随机密码，开发模式不用于生产。Relay 账号保存加盐 hash；必须用于组件连接的密码仍通过 Kubernetes Secret 提供，不能仅用 hash 替代。
+所有新部署的 Relay、LiteLLM UI、Keycloak 预置登录密码统一为 `password`，不再由开发模式开关控制；数据库密码、Example MCP 服务凭据、服务令牌、OIDC client secret、加密密钥继续独立随机生成并由不可变 root Secret 保持稳定。已有 Secret 原样复用，账号改密后以应用数据库为准。Relay 账号保存加盐 hash；组件连接密码通过 Kubernetes Secret 提供。此处历史验收覆盖了本地模式下的登录和 Job 重入，当前默认值及升级保留规则见[凭据初始化](helm-credential-bootstrap.md)。
 
 ## 部署顺序与验收边界
 

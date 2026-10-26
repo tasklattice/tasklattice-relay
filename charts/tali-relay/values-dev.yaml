@@ -5,11 +5,6 @@
 global:
   imageRegistry: ghcr.io/tasklattice
 
-# Repeatable local logins, including after resetting the development cluster.
-# Never enable this profile on a shared or production installation.
-credentialBootstrap:
-  developmentMode: true
-
 images:
   control:
     tag: dev

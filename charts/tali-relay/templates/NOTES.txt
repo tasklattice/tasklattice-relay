@@ -35,6 +35,10 @@ LiteLLM auth-value Secret reference:
   k8s://{{ .Release.Namespace }}/{{ include "tali.exampleMcpSecretName" . }}#auth-value
 {{- end }}
 
+Fresh installations use password for Relay, LiteLLM UI and Keycloak logins.
+Database passwords, service credentials, tokens and keys are independently generated.
+Existing installations retain their stored credentials and changed user passwords.
+
 Initial credentials are retained in the credential store:
   {{ include "tali.credentialSecretName" . }}
 Retrieve the initial administrator credential with an authorized local terminal:

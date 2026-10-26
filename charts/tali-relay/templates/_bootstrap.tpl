@@ -7,12 +7,6 @@
 {{- end }}
 
 {{- define "tali.bootstrapSpec" -}}
-{{- if not (kindIs "bool" .Values.credentialBootstrap.developmentMode) -}}
-{{- fail "credentialBootstrap.developmentMode must be a boolean" -}}
-{{- end -}}
-{{- if and .Values.credentialBootstrap.developmentMode .Values.credentialBootstrap.existingSecret -}}
-{{- fail "Local development credentials cannot use an external credential store" -}}
-{{- end -}}
 {{- $outputs := list -}}
 {{- $definitions := list
   (dict "component" "control" "enabled" true "fields" (dict "control.toml" (include "tali.controlConfig" .)) "formats" (dict "control.toml" "toml"))
@@ -31,5 +25,5 @@
 {{- $outputs = append $outputs (dict "name" $name "fields" $item.fields "formats" (default dict $item.formats)) -}}
 {{- end -}}
 {{- end -}}
-{{- dict "namespace" .Release.Namespace "release" .Release.Name "developmentMode" .Values.credentialBootstrap.developmentMode "credentialSecret" (include "tali.credentialSecretName" .) "externalCredentials" (not (empty .Values.credentialBootstrap.existingSecret)) "databaseHost" (printf "%s.%s.svc.cluster.local" (include "tali.componentName" (dict "root" . "component" "postgresql")) .Release.Namespace) "hindsightDatabase" (include "tali.hindsightDatabaseName" .) "hindsightUser" (include "tali.hindsightDatabaseUser" .) "outputs" $outputs | toJson -}}
+{{- dict "namespace" .Release.Namespace "release" .Release.Name "credentialSecret" (include "tali.credentialSecretName" .) "externalCredentials" (not (empty .Values.credentialBootstrap.existingSecret)) "databaseHost" (printf "%s.%s.svc.cluster.local" (include "tali.componentName" (dict "root" . "component" "postgresql")) .Release.Namespace) "hindsightDatabase" (include "tali.hindsightDatabaseName" .) "hindsightUser" (include "tali.hindsightDatabaseUser" .) "outputs" $outputs | toJson -}}
 {{- end }}

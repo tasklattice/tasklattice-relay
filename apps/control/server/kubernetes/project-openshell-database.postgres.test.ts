@@ -60,6 +60,7 @@ describe.skipIf(!databaseUrl)("Project Gateway databases on PostgreSQL", () => {
     const first = await provisioner.reconcile(target, owner);
     const firstUri = uri();
     expect(new URL(firstUri).username).toBe(name);
+    expect(new URL(firstUri).password).toMatch(/^[a-f0-9]{64}$/);
     expect(new URL(firstUri).password).not.toBe("integration-only");
     expect(saved.get(target.namespace)?.metadata?.ownerReferences).toEqual([owner]);
     await gateway(firstUri, (client) => client.query("CREATE TABLE durable_state (value text); INSERT INTO durable_state VALUES ('survives-reconcile')"));
@@ -69,6 +70,7 @@ describe.skipIf(!databaseUrl)("Project Gateway databases on PostgreSQL", () => {
     expect(await gateway(uri(), async (client) => (await client.query("SELECT value FROM durable_state")).rows))
       .toEqual([{ value: "survives-reconcile" }]);
     await provisioner.reconcile(other);
+    expect(new URL(uri(other.namespace)).password).not.toBe(new URL(firstUri).password);
     const crossProject = new URL(firstUri);
     crossProject.pathname = new URL(uri(other.namespace)).pathname;
     await expect(gateway(crossProject.toString(), (client) => client.query("SELECT 1"))).rejects.toMatchObject({ code: "42501" });
@@ -79,6 +81,26 @@ describe.skipIf(!databaseUrl)("Project Gateway databases on PostgreSQL", () => {
     expect((await admin.query("SELECT 1 FROM pg_database WHERE datname=$1", [name])).rows).toHaveLength(0);
     expect((await admin.query("SELECT 1 FROM pg_roles WHERE rolname=$1", [name])).rows).toHaveLength(0);
     expect(await gateway(uri(other.namespace), async (client) => (await client.query("SELECT 1 AS ok")).rows[0].ok)).toBe(1);
+  });
+
+  it("retains a legacy database password instead of resetting it during reconciliation", async () => {
+    await provisioner.reconcile(target);
+    const legacy = "a".repeat(64);
+    await admin.query(`ALTER ROLE ${name} PASSWORD '${legacy}'`);
+    const savedUrl = new URL(uri()); savedUrl.password = legacy;
+    saved.get(target.namespace)!.data!.uri = Buffer.from(savedUrl.toString()).toString("base64");
+    await provisioner.reconcile(target);
+    expect(new URL(uri()).password).toBe(legacy);
+    expect(await gateway(uri(), async client => (await client.query("SELECT 1 AS ok")).rows[0].ok)).toBe(1);
+  });
+
+  it("rejects an invalid saved password before changing a role", async () => {
+    await provisioner.reconcile(target);
+    const original = uri();
+    const invalid = new URL(original); invalid.password = "quote'password";
+    saved.get(target.namespace)!.data!.uri = Buffer.from(invalid.toString()).toString("base64");
+    await expect(provisioner.reconcile(target)).rejects.toThrow("Invalid Project Gateway database Secret");
+    expect(await gateway(original, async client => (await client.query("SELECT 1 AS ok")).rows[0].ok)).toBe(1);
   });
 
   it("recovers after a database was created but Secret publication failed", async () => {

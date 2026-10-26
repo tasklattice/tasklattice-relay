@@ -76,7 +76,8 @@ helm upgrade --install tali-relay \
   --timeout 30m
 ```
 
-The pre-install/pre-upgrade credential Job generates random credentials and stores
+The pre-install/pre-upgrade credential Job initializes interactive login passwords
+to `password`, generates independent database/service credentials and keys, and stores
 them in Kubernetes Secrets. Helm values and rendered manifests contain no initial
 credential values. Repeated initialization preserves credentials. See
 [credential initialization](../../docs/helm-credential-bootstrap.md) for retrieval,
@@ -680,15 +681,20 @@ Set `CONTROL_DEVELOPMENT_PROJECTS_ENABLED=false` to skip these development
 fixtures, or point `CONTROL_DEVELOPMENT_PROJECTS_FILE` at a compatible JSON
 list to exercise another Project/SLA layout.
 
-`values-dev.yaml` explicitly enables `credentialBootstrap.developmentMode`.
-Development usernames remain `admin` for Relay, LiteLLM and Keycloak, and the
-configured test usernames for SSO. Local deployment helpers read the stored Relay
-administrator credential. Test users and Project aliases are fixed fixtures in
-`files/keycloak-test-identities.yaml`; their passwords come from the bootstrap
-credential store. Configure a separate OIDC provider through Platform Settings
-when custom identity management is needed.
-The base Chart defaults to `developmentMode: false` and independently generates
-all credentials. Only use the development profile on a trusted local cluster.
+All fresh installations use `password` for initial interactive login passwords,
+including the base Chart, development, UAT, OpenShift, and air-gap profiles.
+Relay, LiteLLM and Keycloak administrator usernames remain `admin`; SSO uses the
+configured test usernames. PostgreSQL, Hindsight and per-Project OpenShell
+database passwords, Example MCP Basic Auth, machine tokens, signing/encryption
+keys and salts remain independently random. `credentialBootstrap.developmentMode` is no longer used.
+
+Local deployment helpers read the stored Relay initial administrator credential.
+An existing credential store is always reused, including older random passwords.
+After an account changes its password, the application's stored password takes
+precedence over the bootstrap value; rerunning the Job does not reset accounts.
+Test users and Project aliases are fixtures in `files/keycloak-test-identities.yaml`;
+their initial passwords come from the bootstrap credential store. Configure a
+separate OIDC provider through Platform Settings for custom identity management.
 
 This mode runs Keycloak with `start-dev` and ephemeral storage. Realm changes
 are lost when its pod is replaced. For a manual Helm installation, configure its issuer and Client

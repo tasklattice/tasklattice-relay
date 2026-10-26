@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import { parseAllDocuments } from "yaml";
 import { parse as parseToml } from "smol-toml";
 import { materializeBootstrapSecrets } from "./testing/helm-bootstrap-fixture.mjs";
-import { credentialKeys, developmentPasswordKeys, generateCredentials } from "../charts/tali-relay/files/bootstrap-secrets.mjs";
+import { credentialKeys, humanLoginPasswordKeys, generateCredentials } from "../charts/tali-relay/files/bootstrap-secrets.mjs";
 
 const developmentProjects = JSON.parse(
   readFileSync("config/development-projects.json", "utf8"),
@@ -53,12 +53,11 @@ if (objects.some(object => object.kind === "Secret" && object.metadata.name !== 
 const generated = materializeBootstrapSecrets(objects);
 const secret = { stringData: Object.assign({}, ...generated.filter((object) => object.kind === "Secret").map((object) => object.stringData ?? {})) };
 const spec = JSON.parse(objects.find(object => object.data?.["spec.json"]).data["spec.json"]);
-if (spec.developmentMode !== true) throw new Error("Development credentials must opt into the local profile.");
 const credentials = generateCredentials(spec);
-for (const key of developmentPasswordKeys) {
+for (const key of humanLoginPasswordKeys) {
   if (credentials[key] !== "password") throw new Error(`${key} must use the documented local login.`);
 }
-const machineKeys = credentialKeys.filter(key => !developmentPasswordKeys.includes(key));
+const machineKeys = credentialKeys.filter(key => !humanLoginPasswordKeys.includes(key));
 if (machineKeys.some(key => credentials[key].length < 64)
   || new Set(machineKeys.map(key => credentials[key])).size !== machineKeys.length) {
   throw new Error("Development machine tokens, keys and salts must remain independent random values.");
