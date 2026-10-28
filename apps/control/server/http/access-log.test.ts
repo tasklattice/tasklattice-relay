@@ -22,3 +22,20 @@ describe("entry access logging", () => {
     expect(accessLogRecord(new Request("https://localhost/project/instance/ui-other"), 404, performance.now()).route).toBe("control");
   });
 });
+
+
+it("identifies auth and access-context failures without emitting dynamic resource IDs", () => {
+  for (const [path, route] of [
+    ["/api/v1/access-context", "access-context"],
+    ["/api/auth/sign-in/username", "auth-sign-in"],
+    ["/api/auth/callback/HIDDEN", "auth"],
+    ["/api/v1/projects/HIDDEN/settings", "project-api"],
+    ["/api/v1/platform/people/HIDDEN", "platform-api"],
+    ["/api/v1/departments/HIDDEN", "department-api"],
+    ["/api/internal/HIDDEN", "internal-api"],
+  ]) {
+    const record = accessLogRecord(new Request(`http://localhost${path}`), 403, performance.now());
+    expect(record.route).toBe(route);
+    expect(JSON.stringify(record)).not.toContain("HIDDEN");
+  }
+});

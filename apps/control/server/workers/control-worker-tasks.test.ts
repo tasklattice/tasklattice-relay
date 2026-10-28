@@ -378,3 +378,28 @@ describe("ControlWorkerTasks", () => {
     expect(ensureProjectNamespace).not.toHaveBeenCalled();
   });
 });
+
+
+it.each([0, 2])("classifies lifecycle retry %i relative to the retry limit", async (retryCount) => {
+  const logger = quietLogger();
+  const service = {
+    provision: vi.fn(async () => { throw new Error("upstream unavailable"); }),
+    recordProvisioningFailure: vi.fn(async () => undefined),
+    deleteRuntime: vi.fn(async () => undefined),
+    recordDeletionFailure: vi.fn(async () => undefined),
+  } satisfies InstanceLifecycleService;
+  const tasks = new ControlWorkerTasks({
+    db: createTestPrisma(), deletionService: {} as ProjectDeletionService,
+    jobs: {} as PgBossControlJobQueue, logger,
+    runtimeTargets: {} as ProjectRuntimeTargetService, instances: () => service,
+  });
+  await expect(tasks.instanceLifecycle(metadata(CONTROL_JOB_QUEUES.instanceLifecycle, {
+    projectId: "individual", instanceId: "ti-abcdefghijklm",
+    operationId: "00000000-0000-4000-8000-000000000501", action: "provision",
+  }, { retryCount, retryLimit: 2 }))).rejects.toThrow("upstream unavailable");
+  expect(logger.log).toHaveBeenLastCalledWith(
+    retryCount === 2 ? "error" : "warning",
+    retryCount === 2 ? "job.failed" : "job.retry",
+    expect.objectContaining({ retryCount, retryLimit: 2 }),
+  );
+});

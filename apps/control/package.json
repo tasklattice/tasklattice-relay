@@ -58,6 +58,7 @@
     "canvas-confetti": "^1.9.4",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "consola": "3.4.2",
     "ghostty-web": "0.4.0-next.20.g1858a59",
     "i18next": "^26.4.0",
     "lucide-react": "^1.24.0",

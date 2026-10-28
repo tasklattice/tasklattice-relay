@@ -1,3 +1,4 @@
+import { createStructuredLogger, serializeError } from "../observability/structured-logger";
 import {
   mapAgentPlatforms,
   providerKinds,
@@ -82,6 +83,8 @@ function normalizedHttpUrl(value: unknown): string | null {
     return null;
   }
 }
+
+const logger = createStructuredLogger("control");
 
 export interface PlatformAuthRuntimeSettings {
   localAuthenticationEnabled: boolean;
@@ -420,10 +423,9 @@ export class PlatformSettingsService {
       };
     } catch (error) {
       if (!(settings.localAuthenticationEnabled ?? config.auth.local.enabled)) throw error;
-      console.error(
-        "Platform SSO override is unreadable; continuing with Local authentication only.",
-        error,
-      );
+      logger.log("warning", "auth.sso_configuration_fallback", {
+        recovery: "local-authentication", ...serializeError(error),
+      });
       return {
         localAuthenticationEnabled: true,
         revision: settings.revision,

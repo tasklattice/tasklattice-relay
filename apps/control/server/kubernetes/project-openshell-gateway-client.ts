@@ -1,3 +1,4 @@
+import { createStructuredLogger } from "../observability/structured-logger";
 import { prepareGatewayImagePull, projectPullServiceAccounts } from "./project-image-pull-readiness";
 import { getWorkerConfig } from "../config/worker-config";
 import { spawn } from "node:child_process";
@@ -8,6 +9,8 @@ import { stringify } from "yaml";
 import { readProjectNamespaceOwner, reconcileGatewayOwnership } from "./project-resource-ownership";
 import type { ProjectNamespaceInput } from "./project-namespace-client";
 import { PostgresProjectOpenShellDatabase, type ProjectOpenShellDatabase } from "./project-openshell-database";
+
+const logger = createStructuredLogger("control");
 
 export interface ProjectOpenShellGatewayClient {
   reconcile(input: ProjectNamespaceInput): Promise<void>;
@@ -258,7 +261,7 @@ export class HelmProjectOpenShellGatewayClient
         helmTimeoutSeconds: this.configuration.helmTimeoutSeconds ?? 600,
         processTimeoutSeconds: this.configuration.helmProcessTimeoutSeconds ?? 2100,
         ...diagnostics };
-      console.error(JSON.stringify({ event: "openshell.install.failed", ...report }));
+      logger.log("error", "openshell.install.failed", report);
       // The resource-operation task persists only the first 4,000 characters.
       // Put the layer and resource reasons first; full snapshots stay in logs.
       const resourceSummary = diagnostics.snapshots

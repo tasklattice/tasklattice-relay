@@ -1,3 +1,4 @@
+import { createStructuredLogger, serializeError } from "../observability/structured-logger";
 import { requestOrigin } from "../http/request-origin";
 import { prisma } from "../db/prisma";
 import type { PrismaClient } from "../generated/prisma/client";
@@ -53,6 +54,8 @@ function withProviderLogout(
     status: response.status,
   });
 }
+
+const logger = createStructuredLogger("control");
 
 /**
  * Completes both halves of an SSO logout.
@@ -117,9 +120,9 @@ export async function handleSsoSignOut(
             signal: AbortSignal.timeout(5_000),
           });
           if (!revocation.ok) {
-            console.warn(
-              `OIDC refresh-token revocation failed with HTTP ${revocation.status}; continuing logout.`,
-            );
+            logger.log("warning", "auth.revocation_failed", {
+              status: revocation.status, recovery: "continue-local-logout",
+            });
           }
         }
 
@@ -138,10 +141,9 @@ export async function handleSsoSignOut(
       }
     }
   } catch (error) {
-    console.warn(
-      "Unable to prepare OIDC Provider logout; continuing with Relay session deletion.",
-      error,
-    );
+    logger.log("warning", "auth.provider_logout_unavailable", {
+      recovery: "continue-local-logout", ...serializeError(error),
+    });
   }
 
   const response = await instance.handler(request);
@@ -159,7 +161,7 @@ export async function handleSsoSignOut(
         },
       });
     } catch (error) {
-      console.warn("Unable to clear cached OIDC tokens after logout.", error);
+      logger.log("error", "auth.cached_credentials_cleanup_failed", serializeError(error));
     }
   }
 

@@ -1,3 +1,4 @@
+import { createStructuredLogger, serializeError } from "../../../../../../../observability/structured-logger";
 import { WebSocket } from "ws";
 import { defineWebSocketHandler } from "nitro";
 import type { InstanceService } from "../../../../../../../instances/instance-service";
@@ -17,6 +18,8 @@ interface TerminalConnection {
   input: BufferedTerminalInput;
   timeout: ReturnType<typeof setTimeout> | undefined;
 }
+
+const logger = createStructuredLogger("control-terminal");
 
 const connections = new Map<string, TerminalConnection>();
 const connectTimeoutMs = 15_000;
@@ -56,9 +59,9 @@ export default defineWebSocketHandler({
   async open(peer) {
     const { service, session } = peer.context as unknown as TerminalPeerContext;
     const connectionId = peer.id.slice(0, 8);
-    console.info(
-      `[terminal ${connectionId}] browser connected; opening runner terminal for ${session.sandboxName}`,
-    );
+    logger.log("info", "terminal.connecting", {
+      connectionId, sandboxName: session.sandboxName,
+    });
     const connection: TerminalConnection = {
       input: new BufferedTerminalInput(),
       timeout: undefined,
@@ -67,6 +70,7 @@ export default defineWebSocketHandler({
     connection.timeout = setTimeout(() => {
       if (connections.get(peer.id) !== connection) return;
       connections.delete(peer.id);
+      logger.log("error", "terminal.connect_timeout", { connectionId, timeoutMs: connectTimeoutMs });
       peer.send(
         "\r\nUnable to open the runtime terminal before the connection timeout.\r\n",
       );
@@ -87,11 +91,16 @@ export default defineWebSocketHandler({
 
       const upstream = new WebSocket(upstreamUrl, { headers });
       connection.input.attach(upstream);
-      upstream.on("open", () => connection.input.flush());
+      upstream.on("open", () => {
+        logger.log("info", "terminal.connected", { connectionId });
+        connection.input.flush();
+      });
       upstream.once("message", () => clearConnectionTimeout(connection));
       upstream.on("message", (data) => peer.send(data));
       upstream.on("close", (code, reason) => {
         clearConnectionTimeout(connection);
+        logger.log(code === 1000 || code === 1001 || code === 1005 ? "info" : "warning",
+          "terminal.upstream_closed", { connectionId, code });
         peer.close(
           code === 1005 || code === 1006 ? 1011 : code,
           reason.toString(),
@@ -99,7 +108,7 @@ export default defineWebSocketHandler({
       });
       upstream.on("error", (error) => {
         clearConnectionTimeout(connection);
-        console.error(`[terminal ${connectionId}] ${error.message}`);
+        logger.log("error", "terminal.upstream_failed", { connectionId, ...serializeError(error) });
         peer.close(1011, "Runtime terminal unavailable");
       });
     } catch (error) {
@@ -107,9 +116,7 @@ export default defineWebSocketHandler({
       clearConnectionTimeout(connection);
       connections.delete(peer.id);
       connection.input.close();
-      console.error(
-        `[terminal ${connectionId}] ${error instanceof Error ? error.message : "unable to initialize runtime terminal"}`,
-      );
+      logger.log("error", "terminal.connect_failed", { connectionId, ...serializeError(error) });
       peer.close(1011, "Runtime terminal unavailable");
     }
   },

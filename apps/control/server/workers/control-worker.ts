@@ -46,7 +46,7 @@ jobs.boss.on("error", (error) => {
   logger.log("error", "queue.error", serializeError(error));
 });
 jobs.boss.on("warning", (warning) => {
-  logger.log("warn", "queue.warning", { warning });
+  logger.log("warning", "queue.warning", { warning });
 });
 
 let stopWorkWorker: (() => void) | undefined;
@@ -60,7 +60,7 @@ try {
   healthState.queueReady = true;
   await reportWorkerRuntime(healthState);
   reportTimer = setInterval(() => {
-    void reportWorkerRuntime(healthState).catch((error) => logger.log("error", "worker.report-failed", serializeError(error)));
+    void reportWorkerRuntime(healthState).catch((error) => logger.log("warning", "worker.report-failed", serializeError(error)));
   }, 30000);
   reportTimer.unref();
   await jobs.enqueueMaintenance("startup");
@@ -72,7 +72,7 @@ try {
   await shutdown;
 } catch (error) {
   process.exitCode = 1;
-  logger.log("error", "worker.failed", serializeError(error));
+  logger.log("critical", "worker.failed", serializeError(error));
 } finally {
   stopWorkWorker?.();
   if (reportTimer) clearInterval(reportTimer);

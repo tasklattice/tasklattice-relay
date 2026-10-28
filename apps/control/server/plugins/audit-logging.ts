@@ -1,4 +1,6 @@
 import { definePlugin } from "nitro";
+import { createStructuredLogger, serializeError } from "../observability/structured-logger";
+import { controlRequestId } from "../observability/request-diagnostics";
 import {
   captureAuditRequest,
   captureDeniedAdmissionRequest,
@@ -17,6 +19,8 @@ interface AuditRequestContext extends Record<string, unknown> {
 
 const cleanupIntervalMs = 24 * 60 * 60 * 1000;
 
+const logger = createStructuredLogger("control");
+
 export default definePlugin((nitro) => {
   nitro.hooks.hook("request", async (event) => {
     const context = (event.req.context ??= {}) as AuditRequestContext;
@@ -34,7 +38,9 @@ export default definePlugin((nitro) => {
     }
     captured.admission = admission;
     const write = writeAuditResponse(captured, response).catch((error) => {
-      console.error("Platform audit logging failed after request completion.", error);
+      logger.log("error", "audit.write_failed", {
+        requestId: controlRequestId(event.req), ...serializeError(error),
+      });
     });
     if (event.req.waitUntil) {
       void event.req.waitUntil(write);
@@ -45,14 +51,14 @@ export default definePlugin((nitro) => {
 
   void purgeExpiredAuditLogs()
     .then((deleted) => {
-      if (deleted) console.info(`Purged ${deleted} audit events older than 90 days.`);
+      if (deleted) logger.log("info", "audit.retention_completed", { deleted });
     })
     .catch((error) => {
-      console.error("Initial audit retention cleanup failed.", error);
+      logger.log("error", "audit.retention_failed", { phase: "initial", ...serializeError(error) });
     });
   const timer = setInterval(() => {
     void purgeExpiredAuditLogs().catch((error) => {
-      console.error("Scheduled audit retention cleanup failed.", error);
+      logger.log("error", "audit.retention_failed", { phase: "scheduled", ...serializeError(error) });
     });
   }, cleanupIntervalMs);
   timer.unref();

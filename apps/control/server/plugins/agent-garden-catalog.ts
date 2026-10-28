@@ -1,15 +1,16 @@
 import { definePlugin } from "nitro";
+import { createStructuredLogger, serializeError } from "../observability/structured-logger";
 import { seedAgentCatalogForExistingProjects } from "../agent-garden/seed-agent-catalog";
 import { prisma } from "../db/prisma";
+
+const logger = createStructuredLogger("control");
 
 export default definePlugin(() => {
   void seedAgentCatalogForExistingProjects(prisma())
     .then(({ projects, records }) => {
-      console.info(
-        `Agent Garden catalog is ready for ${projects} Projects (${records} records updated).`,
-      );
+      logger.log("info", "catalog.seed_completed", { projects, records });
     })
     .catch((error) => {
-      console.error("Agent Garden catalog seeding failed.", error);
+      logger.log("error", "catalog.seed_failed", serializeError(error));
     });
 });

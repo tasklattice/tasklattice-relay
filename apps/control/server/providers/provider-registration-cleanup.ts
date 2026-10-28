@@ -1,3 +1,4 @@
+import { createStructuredLogger } from "../observability/structured-logger";
 import { randomUUID } from "node:crypto";
 import type { PrismaClient, Prisma } from "../generated/prisma/client";
 import { LiteLLMClient, type LiteLLMAdminClient } from "./litellm-client";
@@ -8,6 +9,8 @@ import { createSecretStore, type SecretStore } from "../secrets/secret-store";
 // become cleanup work; committing requires an unexpired reservation.
 const reservationMs = 2 * 60 * 60 * 1_000;
 const retryMs = 60_000;
+
+const logger = createStructuredLogger("control");
 
 export class ProviderRegistrationCleanup {
   constructor(
@@ -77,7 +80,10 @@ export class ProviderRegistrationCleanup {
       } catch {
         // Keep the durable reservation. Maintenance retries it after the
         // lease expires; remote error bodies may contain Provider credentials.
-        console.error("Provider registration cleanup will retry", { id: task.id, kind: task.kind });
+        logger.log("warning", "provider.cleanup_retry", {
+          id: task.id, kind: task.kind, attempt: task.attempts + 1,
+          nextAttemptAt: lease,
+        });
       }
     }
     return completed;

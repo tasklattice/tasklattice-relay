@@ -146,7 +146,7 @@ export class ControlWorkerTasks {
           status: terminal ? "failed" : "retry",
         },
       });
-      this.logJob("error", terminal ? "job.failed" : "job.retry", job, {
+      this.logJob(terminal ? "error" : "warning", terminal ? "job.failed" : "job.retry", job, {
         attempt,
         durationMs: Date.now() - startedAt,
         projectId,
@@ -188,7 +188,8 @@ export class ControlWorkerTasks {
         where: { projectId, status: { in: ["pending", "retry"] }, leaseOwner: null },
         data: { status: job.retryCount >= job.retryLimit ? "failed" : "retry", lastError: safeError(error) },
       });
-      this.logJob("error", "job.retry", job, {
+      const terminal = job.retryCount >= job.retryLimit;
+      this.logJob(terminal ? "error" : "warning", terminal ? "job.failed" : "job.retry", job, {
         durationMs: Date.now() - startedAt,
         projectId,
         reason,
@@ -231,7 +232,8 @@ export class ControlWorkerTasks {
           payload.operationId,
         );
       }
-      this.logJob("error", "job.retry", job, {
+      const terminal = job.retryCount >= job.retryLimit;
+      this.logJob(terminal ? "error" : "warning", terminal ? "job.failed" : "job.retry", job, {
         ...payload,
         durationMs: Date.now() - startedAt,
         ...serializeError(error),
@@ -297,7 +299,8 @@ export class ControlWorkerTasks {
         durationMs: Date.now() - startedAt,
       });
     } catch (error) {
-      this.logJob("error", "job.retry", job, {
+      const terminal = job.retryCount >= job.retryLimit;
+      this.logJob(terminal ? "error" : "warning", terminal ? "job.failed" : "job.retry", job, {
         ...payload,
         durationMs: Date.now() - startedAt,
         ...serializeError(error),
@@ -539,7 +542,7 @@ export class ControlWorkerTasks {
   }
 
   private logJob(
-    level: "error" | "info",
+    level: "error" | "warning" | "info",
     event: string,
     job: ControlJobMetadata<object>,
     fields: Record<string, unknown>,

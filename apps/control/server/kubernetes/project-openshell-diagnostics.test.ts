@@ -65,3 +65,22 @@ describe("image pull error classification", () => {
     expect(imagePullFailure(message)).toBe(expected);
   });
 });
+
+
+it("warns once per collector outage and reports recovery without dumping API errors", async () => {
+  vi.useFakeTimers();
+  const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+  const info = vi.spyOn(console, "info").mockImplementation(() => undefined);
+  const reader = vi.fn().mockRejectedValueOnce(new Error("HIDDEN_API_BODY"))
+    .mockRejectedValueOnce(new Error("HIDDEN_API_BODY"))
+    .mockResolvedValue([]);
+  const stop = startGatewayDiagnostics("tp-example", "attempt", reader, "certgen");
+  await vi.advanceTimersByTimeAsync(4100);
+  await stop();
+  expect(warning).toHaveBeenCalledTimes(1);
+  expect(JSON.parse(String(warning.mock.calls[0]?.[0])))
+    .toMatchObject({ level: "warning", event: "openshell.diagnostics_unavailable" });
+  expect(info.mock.calls.map(([value]) => JSON.parse(String(value))))
+    .toContainEqual(expect.objectContaining({ level: "info", event: "openshell.diagnostics_recovered" }));
+  expect(JSON.stringify(warning.mock.calls)).not.toContain("HIDDEN");
+});

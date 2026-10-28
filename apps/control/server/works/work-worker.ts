@@ -1,3 +1,4 @@
+import { createStructuredLogger, serializeError } from "../observability/structured-logger";
 import { randomUUID } from "node:crypto";
 import { workStateSchema, type WorkState } from "@tali/contracts";
 import type { PrismaClient, WorkRunRecord } from "../generated/prisma/client";
@@ -20,6 +21,8 @@ import {
   workDraftSchema,
   type WorkExecution,
 } from "./work-runtime";
+
+const logger = createStructuredLogger("control");
 
 export class WorkWorker {
   constructor(
@@ -345,11 +348,9 @@ export function startWorkWorker(worker = new WorkWorker()) {
     busy = true;
     void worker
       .tick()
-      .catch(() =>
-        console.error(
-          "Work worker iteration failed; durable runs remain in PostgreSQL.",
-        ),
-      )
+      .catch((error) => logger.log("warning", "work.poll_retry", {
+        recovery: "next-poll", ...serializeError(error),
+      }))
       .finally(() => {
         busy = false;
       });

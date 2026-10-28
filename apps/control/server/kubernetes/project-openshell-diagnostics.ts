@@ -1,5 +1,8 @@
+import { createStructuredLogger } from "../observability/structured-logger";
 import { AppsV1Api, BatchV1Api, CoreV1Api, KubeConfig } from "@kubernetes/client-node";
 import { PromiseMiddlewareWrapper } from "@kubernetes/client-node/dist/gen/middleware.js";
+
+const logger = createStructuredLogger("control");
 
 export interface GatewayDiagnostic {
   kind: string;
@@ -77,23 +80,36 @@ export function startGatewayDiagnostics(namespace: string, attemptId: string, re
   const snapshots = new Map<string, unknown>();
   let stopped = false;
   let deadlineExceeded = false;
+  let collectorUnavailable = false;
   let timer: NodeJS.Timeout | undefined;
   const collect = async () => {
     try {
-      for (const resource of await reader(namespace)) {
+      const resources = await reader(namespace);
+      if (collectorUnavailable) {
+        logger.log("info", "openshell.diagnostics_recovered", { namespace, attemptId });
+        collectorUnavailable = false;
+      }
+      for (const resource of resources) {
         // A retained Job from an earlier retry must not classify this attempt.
         if (resource.kind === "Job" && resource.name === certgenName && resource.jobDeadlineExceeded
           && resource.createdAt && new Date(resource.createdAt) >= startedAt) deadlineExceeded = true;
         const key = `${resource.kind}/${resource.uid ?? resource.name}`;
         const snapshot = { observedAt: new Date().toISOString(), ...resource };
         if (JSON.stringify((snapshots.get(key) as { resource?: unknown } | undefined)?.resource) !== JSON.stringify(resource)) {
-          console.info(JSON.stringify({ event: "openshell.install.resource", namespace, attemptId, ...snapshot }));
+          logger.log("info", "openshell.install.resource", { namespace, attemptId, ...snapshot });
         }
         snapshots.delete(key);
         snapshots.set(key, { ...snapshot, resource });
         if (snapshots.size > 80) snapshots.delete(snapshots.keys().next().value!);
       }
     } catch {
+      if (!collectorUnavailable) {
+        // Raw Kubernetes errors can include workload-supplied credentials.
+        logger.log("warning", "openshell.diagnostics_unavailable", {
+          namespace, attemptId, recovery: "next-poll",
+        });
+        collectorUnavailable = true;
+      }
       snapshots.set("collector", { kind: "DiagnosticUnavailable", details: "Unable to collect Kubernetes status." });
     }
   };

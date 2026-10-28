@@ -1,3 +1,4 @@
+import { createStructuredLogger } from "../observability/structured-logger";
 import { createHash, randomUUID } from "node:crypto";
 import {
   complianceDomainCatalog,
@@ -267,6 +268,8 @@ async function lockRegistration(store: ProjectStore, key: string): Promise<void>
   );
 }
 
+const logger = createStructuredLogger("control");
+
 export class ProviderService {
   constructor(
     readonly store = new ProjectStore(),
@@ -283,7 +286,7 @@ export class ProviderService {
     catch {
       // The reservation was persisted before the side effect. If the database
       // is unavailable, maintenance can still recover it after its deadline.
-      console.error("Provider registration cleanup could not be accelerated", { ids });
+      logger.log("warning", "provider.cleanup_deferred", { ids });
     }
   }
 

@@ -10,6 +10,14 @@ export function accessLogRecord(request: Request, status: number, startedAt: num
     if (path.startsWith("/_agent-ui/")) route = "agent-ui-proxy";
     else if (/^\/[^/]+\/[^/]+\/ui(?:\/|$)/.test(path)) route = "agent-ui-document";
     else if (path === "/api/health") route = "health";
+    else if (path === "/api/v1/access-context") route = "access-context";
+    else if (path === "/api/auth/sign-in/username") route = "auth-sign-in";
+    else if (path.startsWith("/api/auth/")) route = "auth";
+    else if (path.startsWith("/api/v1/platform/")) route = "platform-api";
+    else if (path.startsWith("/api/v1/projects/")) route = "project-api";
+    else if (path.startsWith("/api/v1/departments/")) route = "department-api";
+    else if (path.startsWith("/api/internal/")) route = "internal-api";
+    else if (path.startsWith("/api/v1/")) route = "control-api";
   } catch { route = "invalid"; }
   return {
     event: "http.access",
