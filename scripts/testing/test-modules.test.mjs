@@ -119,6 +119,26 @@ test("fails safe for an unmapped Control path", () => {
   }
 });
 
+test("routes origin, access and bootstrap changes to their regression suites", () => {
+  for (const [path, id] of [
+    ["apps/control/server/middleware/browser-origin-guard.ts", "openshell-isolation"],
+    ["apps/control/src/lib/login-error.ts", "access"],
+    ["apps/control/src/services/access-context.ts", "access"],
+    ["scripts/credential-bootstrap/bootstrap-secrets.mjs", "openshell-isolation"],
+  ]) {
+    assert.ok(selectTestModuleIds([path]).includes(id), `${path} must select ${id}`);
+  }
+  for (const [path, id] of [
+    ["apps/control/server/middleware/browser-origin-guard.test.ts", "openshell-isolation"],
+    ["apps/control/server/routes/api/health.test.ts", "control-ui"],
+    ["apps/control/src/lib/login-error.test.ts", "access"],
+    ["apps/control/src/services/access-context.test.ts", "access"],
+  ]) {
+    const module = testModules.find((entry) => entry.id === id);
+    assert.ok(matchesAny(path, module.controlTestPatterns), `${path} must run in ${id}`);
+  }
+});
+
 test("does not schedule test jobs for documentation-only changes", () => {
   const modules = selectTestModuleIds(["docs/testing-strategy.md"]);
   assert.deepEqual(modules, []);
