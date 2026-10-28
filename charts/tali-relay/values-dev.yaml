@@ -27,8 +27,11 @@ images:
   piSandbox:
     tag: dev
 
-# Match the existing trusted local-cluster developer experience.
+# Match the existing trusted local-cluster developer experience. OrbStack exposes
+# LoadBalancer Services on localhost, so the local flow keeps them.
 control:
+  service:
+    type: LoadBalancer
   resources:
     requests:
       cpu: 50m
@@ -67,6 +70,8 @@ runner:
   startTimeoutMs: 600000
 
 keycloak:
+  service:
+    type: LoadBalancer
   resources:
     requests:
       cpu: 50m

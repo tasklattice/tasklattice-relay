@@ -142,10 +142,10 @@ helm upgrade --install tali-relay \
   --timeout 30m
 ```
 
-The default values match the current local validation path: control and
-OpenShell use `LoadBalancer`, local sign-in uses `admin/password`, and OpenShell
-uses plaintext communication inside the cluster while accepting unauthenticated
-clients. These defaults allow a trusted local cluster to start directly, but
+The default values publish Control as `ClusterIP`; the development profile
+switches it to `LoadBalancer` for the local validation path. Local sign-in uses
+`admin/password`, and OpenShell uses plaintext communication inside the cluster
+while accepting unauthenticated clients. These defaults allow a trusted local cluster to start directly, but
 they are not suitable for a shared or public environment. At a minimum,
 production deployments must replace every `secrets.*` value through a private
 values file and configure TLS/OIDC for OpenShell and the ingress. If the Agent

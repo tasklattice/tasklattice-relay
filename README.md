@@ -104,22 +104,10 @@ helm upgrade --install tali-relay \
   --timeout 30m
 ```
 
-The Chart defaults the Control and OpenShell Services to `LoadBalancer`. On a
-cluster that does not provision external load-balancer addresses, add these
-overrides to either installation command; without them, Helm `--wait` will time
-out:
-
-```sh
-helm upgrade --install tali-relay \
-  oci://ghcr.io/tasklattice/charts/tali-relay \
-  --version "${VERSION}" \
-  --namespace tali \
-  --create-namespace \
-  --set control.service.type=ClusterIP \
-  --set openshell.service.type=ClusterIP \
-  --wait \
-  --timeout 30m
-```
+The Chart publishes the Control Service as `ClusterIP`; expose it with an
+ingress, an OpenShift Route or a port-forward. Add
+`--set control.service.type=LoadBalancer` only when the cluster allocates
+external addresses. Project Gateways are always `ClusterIP`.
 
 Requirements:
 
@@ -194,15 +182,16 @@ development Chart only.
 
 ## Access
 
-On a cluster with `LoadBalancer` support, open the external address of the
-`tali-relay-control` Service on port 38080. When using the `ClusterIP` overrides,
-forward the Control Service and open `http://127.0.0.1:18080`:
+The Control Service is `ClusterIP`. Forward it and open
+`http://127.0.0.1:18080`, or expose it with your own ingress or Route:
 
 ```sh
 kubectl -n tali port-forward service/tali-relay-control 18080:38080
 ```
 
-On OrbStack, the Service is directly available at `http://localhost:38080`.
+With `control.service.type=LoadBalancer` the external address of the
+`tali-relay-control` Service serves the same port. The `values-dev.yaml` profile
+keeps `LoadBalancer`, so OrbStack serves it at `http://localhost:38080`.
 Agent native UIs use `/<projectId>/<instanceId>/ui/` on the same Control
 origin; no additional public service, port-forward, or local certificate is needed.
 

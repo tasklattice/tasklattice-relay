@@ -45,11 +45,30 @@ when integrated with Relay. It is not a dependency of this Chart and no Guard
 workload is packaged by this repository.
 
 `control.publicUrls` is a nonempty list of allowed browser origins, independent
-of `control.service.type`. Include scheme and non-default port. Authentication
+of `control.service.type`, which defaults to `ClusterIP` and only needs
+`LoadBalancer` when the cluster allocates external addresses. Include scheme and
+non-default port. Authentication
 redirects and invitation links follow the caller's validated origin; there is no
 canonical-domain redirect. For a TLS-terminating ingress, set
 `control.trustProxyHeaders=true` only if it overwrites forwarded host/protocol
 headers. The embedded Keycloak client registers callbacks for every listed origin.
+
+### Before installation
+
+The defaults describe a complete stack, not a ready-made configuration for every
+cluster. Check these settings against the target installation:
+
+| Area | Check |
+| --- | --- |
+| Browser access | Set `control.publicUrls` to the exact browser-visible origins. The default is `http://localhost:38080`. Control uses a `ClusterIP` Service; provide an ingress, Route, or port-forward separately. |
+| Images | Verify image references and pull permissions. Set the relevant `imagePullSecrets` for private registries; for disconnected installations, mirror every enabled component's images, including optional Keycloak when enabled. |
+| Storage and resources | Confirm an appropriate StorageClass and sufficient cluster capacity. PostgreSQL and Docling persistence are enabled by default; Docling, Hindsight, and Agent Sandbox also run by default. |
+| Agent Sandbox | Set `agentSandbox.enabled=false` when an existing compatible cluster-wide controller and CRDs are managed separately. |
+| Credentials and SSO | Plan how to retrieve and change initial credentials. The bootstrap uses a known initial value for interactive accounts; use an existing credential store via `credentialBootstrap.existingSecret` when required. Configure an external OIDC provider in Platform Settings if needed. |
+| Project runtime | `projectRuntimeNamespaces.clusterId` seeds a missing Platform cluster identity; subsequent changes belong in Platform Settings. |
+
+See [credential initialization](../../docs/helm-credential-bootstrap.md) and
+[the disconnected registry example](values-airgap.yaml) for their full contracts.
 
 Install a released chart:
 
@@ -102,12 +121,13 @@ Component configuration Secrets are generated from one credential store. Argo CD
 sync order, Gateway release name/service prefix/chart path, and the embedded
 Keycloak test identities are built into the Chart.
 
-Two optional integrations have dedicated examples:
+Optional integrations have dedicated examples:
 
 | Integration | Example |
 | --- | --- |
 | Project visibility in Argo CD | [Project tracking annotations](examples/project-runtime-argocd-values.yaml) |
 | External document parser | [External Docling](examples/external-docling-values.yaml) |
+| Public origins and Pod DNS overrides | [Public URLs and host aliases](examples/control-public-urls-host-aliases-values.yaml) |
 
 Use current defaults plus the overrides needed by the installation. Removed
 settings fail rendering; they are not translated into new configuration.
@@ -672,14 +692,17 @@ database-owned and are configured from Platform Setting after the deployment is
 reachable.
 
 Keycloak needs a stable URL that is reachable from both the browser and the
-Control pod. For a cluster with a reserved load-balancer address:
+Control pod. Its Service is `ClusterIP` by default; for a cluster with a reserved
+load-balancer address:
 
 ```bash
 helm upgrade --install tali-relay charts/tali-relay \
   --namespace tali \
   --create-namespace \
   --set-string "control.publicUrls[0]=http://192.168.139.2:38080" \
+  --set control.service.type=LoadBalancer \
   --set keycloak.enabled=true \
+  --set keycloak.service.type=LoadBalancer \
   --set keycloak.publicUrl=http://192.168.139.3:8080 \
   --set keycloak.service.loadBalancerIP=192.168.139.3
 ```
