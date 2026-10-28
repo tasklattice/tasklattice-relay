@@ -212,9 +212,8 @@ Relay, LiteLLM and Keycloak; configured SSO test users also use `password`.
 Machine tokens and encryption keys remain random. Shared environments must use
 the base credential profile and configure their existing ingress and runtime security.
 For an end-to-end SSO test environment, the Chart can deploy an ephemeral,
-preconfigured Keycloak. That provider is development-only: it requires
-`developmentProfile.enabled=true` (the `values-dev.yaml` profile), and the
-released and OpenShift profiles reject `keycloak.enabled=true`. Do not enable
+preconfigured Keycloak. Deployment follows the values: `keycloak.enabled=true`
+renders it in whatever environment the release targets. Do not enable
 `keycloak.enabled` alone: `keycloak.publicUrl` must be reachable from both the
 browser and the Control Pod, and `control.publicUrls` must include every
 browser-visible TaskLattice Relay origin used for the OIDC callback.

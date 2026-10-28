@@ -1,8 +1,5 @@
 {{- if and .Values.openshift.enabled .Values.openshift.routes.control.enabled }}
 {{- $route := .Values.openshift.routes.control }}
-{{- if and .Values.control.trustProxyHeaders (ne (index (default (dict) $route.annotations) "haproxy.router.openshift.io/set-forwarded-headers") "replace") }}
-{{- fail "Control Route with control.trustProxyHeaders=true requires openshift.routes.control.annotations[haproxy.router.openshift.io/set-forwarded-headers]=replace" }}
-{{- end }}
 apiVersion: route.openshift.io/v1
 kind: Route
 metadata:

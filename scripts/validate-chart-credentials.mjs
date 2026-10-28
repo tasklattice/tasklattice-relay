@@ -134,16 +134,9 @@ export function validateChartCredentials(chart) {
     for (const profile of profiles) {
       const path = join(directory, basename(profile.name));
       writeFileSync(path, profile.data, { mode: 0o600 });
-      // The embedded Keycloak and Example MCP exist only in the development
-      // profile; the Chart rejects them elsewhere. Render those templates once,
-      // from the profile that may enable them, and audit every other profile as
-      // it actually deploys.
-      const developmentOnly = /-dev\.yaml$/.test(profile.name)
-        ? ['--set', 'keycloak.enabled=true', '--set', 'exampleMcp.enabled=true',
-          '--set', 'keycloak.publicUrl=https://keycloak.example.test']
-        : [];
       const rendered = execFileSync('helm', ['template', 'credential-audit', chart, '--namespace', 'credential-audit',
-        '--kube-version', '1.29.0', '-f', path, ...developmentOnly,
+        '--kube-version', '1.29.0', '-f', path, '--set', 'keycloak.enabled=true', '--set', 'exampleMcp.enabled=true',
+        '--set', 'keycloak.publicUrl=https://keycloak.example.test',
         '--set-string', 'control.publicUrls[0]=https://relay.example.test'],
       { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] });
       findings.push(...inspectCredentials(rendered, `render/${basename(profile.name)}`, { structured: true }));

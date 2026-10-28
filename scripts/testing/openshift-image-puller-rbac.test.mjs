@@ -282,10 +282,14 @@ test("Control trusts the managed Route only with replacement forwarding, and pro
     && r.metadata.labels["app.kubernetes.io/component"] === "control")
     .spec.template.metadata.annotations["checksum/control-config"];
   assert.notEqual(checksum(untrusted), checksum(trusted));
+  // The forwarding policy is a values decision: another policy still renders, and
+  // Control reports a proxy mismatch at runtime instead of blocking the upgrade.
   for (const policy of ["append", "if-none", "never"]) {
-    assert.throws(() => render([...settings,
+    const resources = render([...settings,
       `openshift.routes.control.annotations.haproxy\\.router\\.openshift\\.io/set-forwarded-headers=${policy}`,
-    ], "control-images", args), /Control Route.*requires.*replace/);
+    ], "control-images", args);
+    const route = resources.find(r => r.kind === "Route");
+    assert.equal(route.metadata.annotations["haproxy.router.openshift.io/set-forwarded-headers"], policy);
   }
 });
 

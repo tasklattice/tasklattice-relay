@@ -24,8 +24,8 @@ control:
     type: ClusterIP
 
 # No identity provider is deployed on OpenShift. SSO uses an external OIDC
-# provider configured from Platform Settings; the Chart rejects an embedded
-# test Keycloak together with this profile.
+# provider configured from Platform Settings; an embedded test Keycloak is not
+# rendered with this profile.
 keycloak:
   enabled: false
 

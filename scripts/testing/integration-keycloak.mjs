@@ -56,9 +56,6 @@ function renderRealm(baseUrl) {
     "--set-string",
     `control.publicUrls[1]=${new URL(alternateRedirectUri).origin}`,
     "--set",
-    // The embedded provider is a development-only component.
-    "developmentProfile.enabled=true",
-    "--set",
     "keycloak.enabled=true",
     "--set-string",
     `keycloak.publicUrl=${baseUrl}`,

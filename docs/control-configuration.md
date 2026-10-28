@@ -307,12 +307,11 @@ Do not commit a deployed `control.toml`; `control.example.toml` is the tracked
 template.
 
 For complete SSO integration tests, the Helm Chart can deploy a preconfigured
-ephemeral Keycloak instance. It is a development-only component: enable it with
-`developmentProfile.enabled=true` and `keycloak.enabled=true` (the
-`values-dev.yaml` profile does the first), then enter its issuer and generated
-Client credentials in **Platform Setting -> Security & SSO**. Released and
-OpenShift profiles reject `keycloak.enabled=true`; they use an external OIDC
-provider instead. See the Chart README for test users and deployment examples.
+ephemeral Keycloak instance. Enable it with `keycloak.enabled=true` and enter its
+issuer and generated Client credentials in **Platform Setting -> Security & SSO**.
+Whether it is deployed is entirely a values decision, independent of the target
+environment; released installations normally use an external OIDC provider
+instead. See the Chart README for test users and deployment examples.
 
 SSO authorization is also database-owned. Configure the OIDC Group claim
 (normally `groups`) and explicit Group Role Bindings in Platform Setting. A

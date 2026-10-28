@@ -2,10 +2,6 @@
 # owned by Relay are built into the local Docker store with the mutable :dev
 # tag and are never published by the release workflow. LiteLLM inherits the
 # published Provider image pinned in values.yaml.
-developmentProfile:
-  # Opts into development-only components (the embedded Keycloak).
-  enabled: true
-
 global:
   imageRegistry: ghcr.io/tasklattice
 

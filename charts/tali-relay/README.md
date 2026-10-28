@@ -429,9 +429,9 @@ edge-terminated Control Route, and applies restrictive security contexts to
 the Agent Sandbox controller.
 
 The OpenShift profile leaves the test-only Keycloak and Example MCP Server
-disabled and provides only the Control Route. It rejects `keycloak.enabled=true`
-rather than deploying a test provider the profile does not support: the OCP
-cluster's identity provider is managed outside this Chart. Set
+disabled and provides only the Control Route. It renders no identity provider even
+when `keycloak.enabled=true` is still set: the OCP cluster's identity provider is
+managed outside this Chart. Set
 `control.publicUrls` to the actual browser origins for the installation; the
 profile requires an explicit value. Configure an external OIDC provider from
 Platform Settings when SSO is required.
@@ -440,8 +440,10 @@ The profile enables `control.trustProxyHeaders` and the managed Route sets
 `haproxy.router.openshift.io/set-forwarded-headers: replace`. The router must
 receive the public Host and terminate the browser's TLS connection so that it
 overwrites `X-Forwarded-Host` and `X-Forwarded-Proto` with the public endpoint.
-An enabled managed Route with proxy trust rejects other forwarding policies at
-render time. The ordinary Kubernetes profile keeps proxy trust disabled.
+An enabled managed Route with proxy trust defaults to replacement forwarding. A
+different policy still renders; Control then logs `control_origin_proxy_mismatch`
+for browser writes instead of blocking the upgrade. The ordinary Kubernetes
+profile keeps proxy trust disabled.
 If another proxy terminates TLS before forwarding HTTP to the router, `replace`
 will describe that HTTP hop; correct the topology or normalize the public
 host/protocol at the trusted final proxy. The annotation alone cannot recover
@@ -656,15 +658,13 @@ kubectl -n <namespace> get deployment,service,pvc \
 
 ## Embedded Keycloak for end-to-end tests
 
-The embedded provider is a **development-only** component. It requires
-`developmentProfile.enabled=true`, which only `values-dev.yaml` sets; the
-released profiles (`values.yaml`, `values-uat.yaml`, `values-airgap.yaml`) and
-the OpenShift profile reject `keycloak.enabled=true` instead of deploying a test
-identity provider. Released installations configure an external OIDC provider
-from **Platform Setting -> Security & SSO**.
+The embedded provider renders wherever `keycloak.enabled=true`; the Chart makes no
+assumption about the target environment. The OpenShift profile ships the switch
+off and no Route for it, and released installations normally configure an
+external OIDC provider from **Platform Setting -> Security & SSO** instead.
 
-Set `keycloak.enabled=true` together with the development profile to deploy a
-test-only Keycloak instance alongside TaskLattice Relay. The Chart imports the
+Set `keycloak.enabled=true` to deploy a test-only Keycloak instance alongside
+TaskLattice Relay. The Chart imports the
 `tali` realm, configures the confidential `tali-control-plane` OIDC client,
 installs a `groups` Client Scope that emits complete Group paths, and creates
 role-focused development profiles. OIDC and Group Role Bindings remain
@@ -678,7 +678,6 @@ Control pod. For a cluster with a reserved load-balancer address:
 helm upgrade --install tali-relay charts/tali-relay \
   --namespace tali \
   --create-namespace \
-  --set developmentProfile.enabled=true \
   --set-string "control.publicUrls[0]=http://192.168.139.2:38080" \
   --set keycloak.enabled=true \
   --set keycloak.publicUrl=http://192.168.139.3:8080 \

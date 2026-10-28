@@ -14,7 +14,7 @@ function render(args = []) {
   return parseAllDocuments(execFileSync("helm", ["template", "relay", "charts/tali-relay", "--namespace", "tali",
     "--kube-version", "1.29.0", "--set", "fullnameOverride=relay", ...args], {encoding:"utf8",stdio:["ignore","pipe","pipe"]})).map(d => d.toJSON()).filter(Boolean);
 }
-const objects = render(["--set", "developmentProfile.enabled=true", "--set", "keycloak.enabled=true", "--set", "keycloak.publicUrl=https://sso.example.test", "--set", "exampleMcp.enabled=true"]);
+const objects = render(["--set", "keycloak.enabled=true", "--set", "keycloak.publicUrl=https://sso.example.test", "--set", "exampleMcp.enabled=true"]);
 const spec = JSON.parse(objects.find(o => o.kind === "ConfigMap" && o.data?.["spec.json"]).data["spec.json"]);
 
 test("a projected ConfigMap symlink executes the CLI instead of silently exiting", () => {
