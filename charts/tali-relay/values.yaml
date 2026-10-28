@@ -1,44 +1,35 @@
 # Released TaskLattice Relay images. Override this for a fork or private mirror.
 global:
   imageRegistry: ghcr.io/tasklattice
+  # Rendered as an empty list on purpose: the generated Worker configuration
+  # requires an array here.
   imagePullSecrets: []
-  # Set by local deployment tooling to restart first-party workloads after a
-  # mutable :dev image is rebuilt. Released charts leave this empty because
-  # their image tag is the versioned Chart appVersion.
+  # Set by local tooling to restart first-party workloads after a :dev rebuild.
   rolloutRevision: ""
 
-# OpenShift-specific resources and security behavior are opt-in so regular
-# Kubernetes installations retain their existing UID/GID settings.
+# OpenShift-specific resources and security behavior stay opt-in.
 openshift:
-  # Worker grants each dynamic Project Namespace access to the shared image source.
-  # Tenant images use the shared source below; control-plane Pod images stay unchanged.
   enabled: false
-  # Empty uses the Relay release namespace. The source namespace must exist.
+  # Empty uses the release namespace; the source namespace must exist.
   imageSourceNamespace: ""
-  # Optional internal registry route host[:port]; defaults to internal service DNS.
-  # Used for tenant image URLs and pull-credential readiness checks.
+  # Optional internal registry host[:port]; defaults to internal service DNS.
   imageRegistryHost: ""
   runtimeImages:
-    # With openshift.enabled, rewrite ALL Chart-managed tenant images to
-    # <imageRegistryHost>/<imageSourceNamespace>/<last repository component>.
-    # Tags/digests are preserved. Mirror/import these ImageStreams before deploying.
-    # false preserves explicit URLs for existing mixed-registry deployments.
-    # Opt in explicitly, or use values-openshift.yaml, after preparing the images.
+    # Rewrite every Chart-managed tenant image to
+    # <imageRegistryHost>/<imageSourceNamespace>/<repository>, preserving tags.
+    # Mirror/import those ImageStreams before enabling this.
     enabled: false
   imagePullReadyTimeoutMs: 120000
-  # Worker prepares tenant SCC bindings before Gateway hooks and runtime Pods:
-  # privileged for the pinned OpenShell Sandbox SA; anyuid for Gateway/certgen
-  # and the default SA used by Bridge/Expert runtimes. No effect outside OCP.
-  # false delegates this to the platform; existing grants are not revoked.
+  # Worker prepares tenant SCC bindings before Gateway hooks and runtime Pods.
+  # false delegates this to the platform and revokes nothing.
   manageTenantScc: true
   anyuidScc:
-    # Static Control Plane pods use their image-defined
-    # non-root IDs. Enable this binding only when the cluster permits anyuid.
+    # Static Control pods use image-defined non-root IDs; enable only where the
+    # cluster permits anyuid.
     createRoleBinding: false
   routes:
     control:
       enabled: false
-      host: ""
       annotations:
         # Overwrite client/upstream values so Control receives a single host/proto.
         haproxy.router.openshift.io/set-forwarded-headers: replace
@@ -61,16 +52,13 @@ images:
     tag: ""
     pullPolicy: IfNotPresent
   litellm:
-    # Published by github.com/tasklattice/tasklattice-litellm-guard, not built
-    # by Relay. Pinned to an exact <litellm>-guard.<n> tag; Relay releases do
-    # not re-tag it. The TaskLattice Guard provider and its protocol belong to
-    # that repository.
+    # Published by tasklattice-litellm-guard, not built by Relay. Pinned to an
+    # exact <litellm>-guard.<n> tag; Relay releases do not re-tag it.
     repository: tali-litellm
     tag: "1.106.4-guard.1"
     pullPolicy: IfNotPresent
   exampleMcp:
-    # Also used by UI-created built-in Demo Agents in tenant namespaces,
-    # regardless of exampleMcp.enabled. OCP runtimeImages rewrites tenant URLs.
+    # Also used by built-in Demo Agents, regardless of exampleMcp.enabled.
     repository: demo-test
     tag: ""
     pullPolicy: IfNotPresent
@@ -114,9 +102,7 @@ control:
     enabled: true
   worker:
     healthPort: 9090
-    # External parser overrides: examples/external-docling-values.yaml.
-    # PostgreSQL-backed queue claims make multiple replicas safe. One is
-    # sufficient for the normal control-plane background workload.
+    # PostgreSQL-backed queue claims make multiple replicas safe.
     replicaCount: 1
     resources:
       requests:
@@ -149,8 +135,8 @@ control:
       cpu: 500m
       memory: 512Mi
 
-# Built-in document parsing for PostgreSQL Vector Databases. Docling remains a
-# separate Python workload; the TypeScript Control Worker calls its stable API.
+# Built-in document parsing for PostgreSQL Vector Databases, served by a
+# separate Python workload that the Control Worker calls over its API.
 docling:
   enabled: true
   replicaCount: 1
@@ -209,19 +195,16 @@ hindsight:
     user: hindsight
     schema: hindsight
   models:
-    # These are stable aliases expected on the existing LiteLLM gateway. The
-    # provider selectors remain explicit so an installation can use a
-    # deterministic local fallback (for example RRF) without patching the
-    # Deployment after Helm has reconciled it.
+    # Stable aliases expected on the existing LiteLLM gateway. Selectors stay
+    # explicit so a local fallback works without patching the Deployment.
     llmProvider: openai
     llm: hindsight-chat
-    # Use Hindsight's OpenAI-compatible adapter because it propagates Bank
-    # attribution on every embedding request; the localhost Project Router
-    # still resolves and invokes the Project's actual embedding provider.
+    # The OpenAI-compatible adapter propagates Bank attribution on every
+    # embedding request; the Project Router resolves the actual provider.
     embeddingProvider: openai
     embedding: hindsight-embedding
     embeddingDimensions: 1536
-    # Reciprocal-rank fusion is local and requires no model during bootstrap.
+    # Reciprocal-rank fusion is local and needs no model during bootstrap.
     rerankerProvider: rrf
     reranker: hindsight-reranker
   router:
@@ -249,9 +232,8 @@ hindsight:
         memory: 2Gi
   migration:
     activeDeadlineSeconds: 900
-    # Keep the completed Job longer than the local Helm wait timeout. Helm 4 can
-    # otherwise lose the Job while it is still evaluating the release and leave
-    # an otherwise healthy upgrade stuck in pending-upgrade.
+    # Keep the completed Job longer than the Helm wait timeout, so a healthy
+    # upgrade never loses it while the release is still being evaluated.
     ttlSecondsAfterFinished: 3600
     resources:
       requests:
@@ -271,11 +253,8 @@ hindsight:
       cpu: "1"
       memory: 2Gi
 
-# clusterId seeds Platform Settings only when the saved cluster ID is missing.
-# Later changes belong in Platform Setting -> Infrastructure.
-# Project Namespaces and resource ownership are always enabled by the Chart.
-# Optional Argo CD visibility is deployment configuration, not a bootstrap setting;
-# see examples/project-runtime-argocd-values.yaml for advanced overrides.
+# Seeds the Platform cluster identity once; later changes belong in Platform
+# Setting -> Infrastructure. Project Namespaces are always enabled.
 projectRuntimeNamespaces:
   clusterId: in-cluster
 
@@ -285,7 +264,7 @@ runner:
   kubernetesServiceCidrs: 10.0.0.0/8,172.16.0.0/12,192.168.0.0/16
   sandbox:
     cpu: "1"
-    # Optional Kubernetes scheduling request. When empty, request equals cpu.
+    # Optional scheduling request. When empty, request equals cpu.
     cpuRequest: ""
     memory: 2Gi
   resources:
@@ -296,11 +275,9 @@ runner:
       cpu: 500m
       memory: 384Mi
 
-# Worker installs the pinned OpenShell chart in each Project
-# Namespace. The central Runner routes by ProjectRuntimeTarget.
-# Gateway resources and pull Secrets reuse their openshell.* values.
-# Gateway uses the existing PostgreSQL server with a dedicated database/login
-# per Project and a Deployment (no Gateway data PVC).
+# Worker installs the pinned OpenShell chart in each Project Namespace and the
+# central Runner routes by ProjectRuntimeTarget. Each Gateway shares the
+# PostgreSQL server with a dedicated database and login, and has no data PVC.
 projectOpenShell:
   nemoclawVersion: 0.0.138
   certgenActiveDeadlineSeconds: 300
@@ -324,8 +301,8 @@ projectRuntimeBridge:
       cpu: 250m
       memory: 256Mi
 
-# Version-pinned A2A Runtime deployed for immutable Expert Agent Versions.
-# It can reach only the Project Runtime Bridge and has no Terminal capability.
+# Version-pinned A2A Runtime for immutable Expert Agent Versions. It reaches only
+# the Project Runtime Bridge and has no Terminal capability.
 expertAgentRuntime:
   enabled: true
   resources:
@@ -338,20 +315,16 @@ expertAgentRuntime:
 
 litellm:
   replicaCount: 1
-  # LiteLLM workers are separate Python processes, not threads. Each worker
-  # initializes its own Router and Prisma query engine. Keep one worker per Pod
-  # so Kubernetes can report process exits and scale with replicaCount instead
-  # of hiding child OOM kills behind Uvicorn's multiprocess supervisor.
+  # Separate Python processes, not threads: each worker initializes its own
+  # Router and query engine. One worker per Pod keeps exits and OOM kills visible.
   workers: 1
-  # Use the price/context map bundled with the pinned LiteLLM image. Set false
-  # only in connected environments that deliberately accept runtime pricing
-  # changes from LiteLLM's remote main-branch map.
+  # Use the price/context map bundled with the pinned image. Disable only when
+  # runtime pricing from LiteLLM's remote map is acceptable.
   localModelCostMap: true
-  # Keep request-log errors concise. Full tracebacks remain available in the
-  # LiteLLM container logs for operator diagnostics.
+  # Keep request-log errors concise; container logs keep full tracebacks.
   maximumTracebackLinesToLog: 0
-  # Base64 of a PEM CA bundle (not a DER certificate). System roots are retained.
-  # Invalid input fails Helm rendering; invalid X.509 fails the CA init container.
+  # Base64 PEM CA bundle (not DER); system roots are retained. Invalid input
+  # fails the render, invalid X.509 fails the CA init container.
   caCertificateBase64: ""
   service:
     type: ClusterIP
@@ -366,13 +339,12 @@ litellm:
       memory: 4Gi
   extraEnv: []
 
-# Test-only Streamable HTTP MCP Server. It exposes deterministic, side-effect
-# free tools and is reachable only through its in-cluster Service.
+# Test-only Streamable HTTP MCP Server with deterministic, side-effect free
+# tools, reachable only through its in-cluster Service.
 exampleMcp:
   enabled: false
   replicaCount: 1
-  # Optional local/test credential for the read-only GitHub tool. Keep the
-  # token in a pre-existing Secret; never place it in Helm release metadata.
+  # Optional read-only GitHub tool credential from a pre-existing Secret.
   githubTokenSecret:
     name: ""
     key: GITHUB_TOKEN
@@ -400,22 +372,9 @@ postgresql:
       cpu: 500m
       memory: 512Mi
 
-# Credentials are generated by the bootstrap Job, never by Helm rendering.
-# Component configurations are generated from this single credential store.
+# Credentials are generated by the bootstrap Job, never by Helm rendering, and
+# existing stores are always retained. See "Credential contract" in the README.
 credentialBootstrap:
-  # These values never carry credential material. The pre-install/pre-upgrade Job
-  # generates every credential and stores it in the credential Secret: interactive
-  # sign-in uses the documented local default, while database/service credentials,
-  # tokens, keys and salts stay random. Existing stores are retained, never reset.
-  # See "Credential contract" in this Chart's README.
-  # Optional existing credential store with the documented complete key set.
-  existingSecret: ""
-  # Empty creates a dedicated bootstrap SA. For OCP 4.16+ internal images, the
-  # Chart automatically prepares a stable SA, pull-secret reference and source
-  # namespace pull permission; OCP generates/rotates the registry credentials.
-  # Optional override: an existing SA with ready pull credentials (never recreated).
-  # Other private registries still need existing SA credentials or global.imagePullSecrets.
-  serviceAccountName: ""
   activeDeadlineSeconds: 300
   resources:
     requests:
@@ -428,18 +387,15 @@ credentialBootstrap:
 litellmAdministration:
   username: admin
 
+# Bootstrap local administrator; platform-managed after deployment.
 auth:
   local:
     username: admin
     email: admin@tasklattice.local
 
-# Test-only identity provider. Enable with:
-#   --set keycloak.enabled=true \
-#   --set keycloak.publicUrl=http://<reachable-keycloak-host>:8080
-# The embedded provider is available for test environments. Configure its
-# OIDC client from Platform Setting after deployment.
-# Set this to deploy the embedded provider; the Chart renders it wherever the
-# values ask for it. Released installations normally use an external OIDC
+# Embedded test identity provider. Enable with keycloak.enabled=true and a
+# browser- and Pod-reachable keycloak.publicUrl; the Chart renders it wherever
+# the values ask for it. Released installations normally use an external OIDC
 # provider from Platform Settings instead.
 keycloak:
   enabled: false
@@ -449,8 +405,6 @@ keycloak:
   service:
     type: LoadBalancer
     port: 8080
-    loadBalancerIP: ""
-    annotations: {}
   resources:
     requests:
       cpu: 250m
@@ -469,12 +423,9 @@ serviceAccount:
     annotations: {}
 
 nameOverride: ""
-fullnameOverride: ""
 
-# Default CPU and memory values for containers created by runtime dependencies
-# that do not expose per-container resource settings (for example, OpenShell's
-# dynamically injected sandbox init containers). Disable this only when the
-# target namespace already has an equivalent platform-managed LimitRange.
+# Default CPU and memory for containers created by runtime dependencies that
+# expose no per-container settings. Disable only with an equivalent LimitRange.
 resourceDefaults:
   enabled: true
   defaultRequest:
@@ -484,17 +435,15 @@ resourceDefaults:
     cpu: 500m
     memory: 512Mi
 
-# Selected kubernetes-sigs/agent-sandbox v1.0.2 dependency. Its upstream Chart is
-# fetched and packaged by scripts/prepare-helm-dependencies.sh; upstream source
-# is not copied into this repository.
+# kubernetes-sigs/agent-sandbox v1.0.2 dependency, fetched and packaged by
+# scripts/prepare-helm-dependencies.sh; upstream source is not copied here.
 agentSandbox:
-  # Deploy one cluster-wide controller. Set false when the platform team or a
-  # separate Helm release already provides Agent Sandbox v1.0.2 and its CRDs.
-  # This also excludes dependency CRDs, RBAC, and metrics resources.
+  # One cluster-wide controller. Set false when the platform team provides
+  # Agent Sandbox v1.0.2, its CRDs and metrics resources already.
   enabled: true
   imagePullSecrets: []
   namespace:
-    # Run the controller beside the rest of this Helm release.
+    # Run the controller beside the rest of this release.
     create: false
     name: ""
   image:
@@ -513,19 +462,14 @@ agentSandbox:
       memory: 256Mi
 
 # Worker installs the bundled OpenShell chart only in Project Namespaces.
-# OpenShell retains its upstream Sandbox SSH NetworkPolicy. Relay adds none.
-# Gateways use ClusterIP and the supported internal plaintext/auth mode.
+# Gateways use ClusterIP with the supported internal plaintext/auth mode, and
 # Agent Web UI is exposed through authenticated Control paths.
 openshell:
-  # Security contexts for the per-Project OpenShell Gateway installed by Worker.
-  # These objects merge with the bundled upstream chart defaults. They do not
-  # configure Agent Sandbox Pods or the certgen hook Job.
-  # Example for a Gateway permitted to run as root by the cluster's SCC:
-  # podSecurityContext:
-  #   fsGroup: 0
-  # securityContext:
-  #   runAsNonRoot: false
-  #   runAsUser: 0
+  # Per-Project Gateway security contexts that merge with the upstream Chart
+  # defaults (they do not configure Agent Sandbox Pods or the certgen job).
+  # Example for a Gateway the cluster's SCC permits to run as root:
+  # podSecurityContext: {fsGroup: 0}
+  # securityContext: {runAsNonRoot: false, runAsUser: 0}
   podSecurityContext: {}
   securityContext: {}
   imagePullSecrets: []
@@ -547,7 +491,6 @@ openshell:
       memory: 1Gi
   server:
     # NemoClaw v0.0.138 declares OpenShell 0.0.116 as its supported runtime.
-    # Use the matching versioned NemoClaw base instead of a moving :latest tag.
     sandboxImage: ghcr.io/nvidia/nemoclaw/sandbox-base:v0.0.138
     sandboxImagePullPolicy: IfNotPresent
     sandboxImagePullSecrets: []
