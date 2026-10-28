@@ -20,14 +20,6 @@ const rendered = execFileSync(
     "charts/tali-relay/values-openshift.yaml",
     "--set-string",
     "control.publicUrls[0]=https://tali.apps.example.com",
-    "--set",
-    "keycloak.enabled=true",
-    "--set-string",
-    "keycloak.publicUrl=https://keycloak.apps.example.com",
-    "--set",
-    "openshift.routes.keycloak.enabled=true",
-    "--set",
-    "exampleMcp.enabled=true",
   ],
   { encoding: "utf8" },
 );
@@ -151,17 +143,22 @@ if (!controlRoute) {
 } else if (controlRoute.metadata?.annotations?.[syncWaveAnnotation] !== "50") {
   violations.push("The Control Route must use Argo CD sync wave 50.");
 }
+if (controlRoute?.metadata?.annotations?.["haproxy.router.openshift.io/set-forwarded-headers"] !== "replace") {
+  violations.push("The Control Route must replace forwarded headers before Control trusts them.");
+}
+const bootstrapSpec = objects.find(object => object.data?.["spec.json"]);
+const controlToml = JSON.parse(bootstrapSpec?.data["spec.json"] ?? "{}").outputs
+  ?.find(output => output.fields?.["control.toml"])?.fields["control.toml"] ?? "";
+if (!/^trust_proxy_headers = true$/m.test(controlToml)) {
+  violations.push("The OpenShift profile must enable Control proxy trust for the managed Route.");
+}
 
-const keycloakRoute = objects.find(
-  (object) =>
-    object.apiVersion === "route.openshift.io/v1" &&
-    object.kind === "Route" &&
-    object.metadata?.name === `${releaseName}-keycloak`,
-);
-if (!keycloakRoute) {
-  violations.push("The OpenShift profile must render a Route for Keycloak.");
-} else if (keycloakRoute.metadata?.annotations?.[syncWaveAnnotation] !== "50") {
-  violations.push("The Keycloak Route must use Argo CD sync wave 50.");
+if (objects.some(
+  (object) => ["keycloak", "example-mcp"].includes(
+    object.metadata?.labels?.["app.kubernetes.io/component"],
+  ),
+)) {
+  violations.push("The OpenShift profile must not deploy the test Keycloak or Example MCP resources.");
 }
 
 if (objects.some((object) => object.kind === "RoleBinding"

@@ -12,7 +12,7 @@ function inventory(yaml) {
   const workers = resources.filter(r => r.stringData?.['worker.toml']);
   if (workers.length !== 1) throw Error('Expected one Chart-managed Worker configuration');
   const worker = parseToml(workers[0].stringData['worker.toml']).worker;
-  const specs = resources.filter(r => r.data?.['spec.json'] && r.data?.['bootstrap-secrets.mjs']);
+  const specs = resources.filter(r => r.data?.['spec.json']);
   if (specs.length !== 1) throw Error('Expected one credential bootstrap specification');
   const output = JSON.parse(specs[0].data['spec.json']).outputs.find(o => o.fields?.['runner.json']);
   if (!output) throw Error('Expected Chart-managed Runner configuration');

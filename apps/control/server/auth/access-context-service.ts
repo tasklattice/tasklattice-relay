@@ -7,6 +7,7 @@ import type {
 import { membershipRoleToBuiltinRole } from "../authorization/builtin-roles";
 import { ensureBuiltinRoleCatalog } from "../authorization/role-catalog";
 import { prisma } from "../db/prisma";
+import { ProblemError } from "../http/problem-error";
 import type { PrismaClient } from "../generated/prisma/client";
 import { DepartmentService } from "../departments/department-service";
 import { ProjectService } from "../projects/project-service";
@@ -84,6 +85,14 @@ function sameContext(
     && option.roleId === input.roleId;
 }
 
+function sessionRequired(): ProblemError {
+  return new ProblemError(
+    401,
+    "authentication_required",
+    "Authentication session is required.",
+  );
+}
+
 export class AccessContextService {
   constructor(private readonly db: PrismaClient = prisma()) {}
 
@@ -145,7 +154,7 @@ export class AccessContextService {
   }
 
   async get(auth: PlatformPrincipal): Promise<AccessContextState> {
-    if (!auth.sessionId) throw new Error("Authentication session is required.");
+    if (!auth.sessionId) throw sessionRequired();
     const options = await this.options(auth);
     const stored = await this.db.accessContextSession.findUnique({
       where: { sessionId: auth.sessionId },
@@ -169,11 +178,13 @@ export class AccessContextService {
     auth: PlatformPrincipal,
     input: SelectAccessContextInput,
   ): Promise<AccessContextState> {
-    if (!auth.sessionId) throw new Error("Authentication session is required.");
+    if (!auth.sessionId) throw sessionRequired();
     const options = await this.options(auth);
     const active = options.find((option) => sameContext(option, input));
     if (!active) {
-      throw new Error(
+      throw new ProblemError(
+        403,
+        "access_context_not_assigned",
         "Access denied: this access context is not assigned to your Account.",
       );
     }
@@ -183,7 +194,11 @@ export class AccessContextService {
         active.roleId as BuiltinProjectRoleId
       ];
       if (!membershipRole) {
-        throw new Error("Access denied: the selected Project role is invalid.");
+        throw new ProblemError(
+          403,
+          "access_context_role_invalid",
+          "Access denied: the selected Project role is invalid.",
+        );
       }
       await new ProjectService(this.db).switchRole(
         active.resourceId,

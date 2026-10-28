@@ -1,4 +1,7 @@
+import { randomUUID } from "node:crypto";
+import { createStructuredLogger, serializeError } from "../observability/structured-logger";
 import { z } from "zod";
+import { ProblemError } from "./problem-error";
 
 export function jsonResponse(body: unknown, init: ResponseInit = {}): Response {
   const headers = new Headers(init.headers);
@@ -86,7 +89,31 @@ function statusForMessage(message: string): number {
             : 500;
 }
 
+const logger = createStructuredLogger("control");
+
 export function errorResponse(error: unknown): Response {
+  const response = responseForError(error);
+  if (response.status >= 500) {
+    const errorId = randomUUID();
+    response.headers.set("x-control-error-id", errorId);
+    logger.log("error", "http.handler_failed", {
+      errorId,
+      status: response.status,
+      ...serializeError(error),
+    });
+  }
+  return response;
+}
+
+function responseForError(error: unknown): Response {
+  // Boundary and business code that knows its outcome states it explicitly;
+  // message-text mapping below is only a last resort for legacy call sites.
+  if (error instanceof ProblemError) {
+    return problemResponse(error.status, error.message, {
+      code: error.code,
+      ...error.details,
+    });
+  }
   if (error instanceof z.ZodError) {
     return problemResponse(400, error.issues[0]?.message ?? "Invalid request.", {
       code: "validation_failed",
@@ -144,7 +171,6 @@ export function errorResponse(error: unknown): Response {
     if (status) return problemResponse(status, message, { code: typedError.code });
   }
   const status = statusForMessage(message);
-  if (status >= 500) console.error(error);
   return problemResponse(status, message);
 }
 

@@ -16,12 +16,18 @@ openshift:
       enabled: true
 
 control:
+  # Required: set the browser origin served by the Control Route.
+  publicUrls: []
+  # The managed Route overwrites forwarded headers at TLS termination.
+  trustProxyHeaders: true
   service:
     type: ClusterIP
 
+# No identity provider is deployed on OpenShift. SSO uses an external OIDC
+# provider configured from Platform Settings; the Chart rejects an embedded
+# test Keycloak together with this profile.
 keycloak:
-  service:
-    type: ClusterIP
+  enabled: false
 
 agentSandbox:
   podSecurityContext:

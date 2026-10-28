@@ -35,12 +35,28 @@ LiteLLM auth-value Secret reference:
   k8s://{{ .Release.Namespace }}/{{ include "tali.exampleMcpSecretName" . }}#auth-value
 {{- end }}
 
-Fresh installations use password for Relay, LiteLLM UI and Keycloak logins.
-Database passwords, service credentials, tokens and keys are independently generated.
-Existing installations retain their stored credentials and changed user passwords.
+Fresh installations use the documented local login credential for Relay and LiteLLM UI.
+{{- if .Values.keycloak.enabled }}
+The embedded test Keycloak uses the same local login credential.
+{{- end }}
+Database credentials, service credentials, tokens and keys are independently generated.
+Existing installations retain their stored credentials and any changed sign-in secret.
 
 Initial credentials are retained in the credential store:
   {{ include "tali.credentialSecretName" . }}
-Retrieve the initial administrator credential with an authorized local terminal:
+Retrieve the initial administrator credential with an authorized local terminal
+(JSON key names are the credential-store contract):
   kubectl -n {{ .Release.Namespace }} get secret {{ include "tali.credentialSecretName" . }} -o jsonpath='{.data.initialPlatformAdministratorPassword}' | base64 --decode
 Repeated installs/upgrades reuse credentials; the Job never resets application accounts.
+{{- $publicUrls := .Values.control.publicUrls }}
+{{- $httpsOnly := true }}
+{{- range $publicUrls }}{{- if not (hasPrefix "https://" .) }}{{- $httpsOnly = false }}{{- end }}{{- end }}
+{{- if and $publicUrls $httpsOnly (not .Values.control.trustProxyHeaders) }}
+
+NOTICE: control.publicUrls is HTTPS-only and control.trustProxyHeaders is off.
+Control sees plaintext HTTP from its Service, so every browser write logs
+control_origin_proxy_mismatch. Requests whose Origin is allowlisted are still
+accepted. Set control.trustProxyHeaders=true when the trusted ingress overwrites
+X-Forwarded-Host and X-Forwarded-Proto, then confirm GET /api/health reports
+origin.state=ok.
+{{- end }}

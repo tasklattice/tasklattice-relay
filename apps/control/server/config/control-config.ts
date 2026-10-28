@@ -153,8 +153,8 @@ export function getControlConfig(): ControlConfig {
   if (globalThis.taliControlConfig) {
     return globalThis.taliControlConfig;
   }
-  const configuredPath = process.env.TALI_CONFIG;
-  if (!configuredPath) {
+  const path = controlConfigPath();
+  if (!path) {
     if (process.env.NODE_ENV === "production") {
       throw new Error(
         "TALI_CONFIG must point to the Control Plane TOML file in production.",
@@ -163,7 +163,12 @@ export function getControlConfig(): ControlConfig {
     globalThis.taliControlConfig = structuredClone(developmentConfig);
     return globalThis.taliControlConfig;
   }
-  const path = resolve(configuredPath);
+  const config = readControlConfigFile(path);
+  globalThis.taliControlConfig = config;
+  return config;
+}
+
+function readControlConfigFile(path: string): ControlConfig {
   let raw: string;
   try {
     raw = readFileSync(path, "utf8");
@@ -180,14 +185,103 @@ export function getControlConfig(): ControlConfig {
       `Invalid TaskLattice Relay configuration at ${path}: ${z.prettifyError(result.error)}`,
     );
   }
-  globalThis.taliControlConfig = result.data;
   return result.data;
+}
+
+/** Sections Control can adopt without restarting; everything else needs a rollout. */
+const reloadableSections = new Set<keyof ControlConfig>(["server"]);
+
+declare global {
+  var taliControlConfigRevision: number | undefined;
+}
+
+export interface ControlConfigReloadResult {
+  /** Top-level sections whose value differs from the applied configuration. */
+  changed: string[];
+  error?: string;
+  /** Changed sections that can only take effect in a new Pod. */
+  requiresRestart: string[];
+  revision: number;
+  state: "applied" | "deferred" | "invalid" | "unchanged";
+}
+
+export function controlConfigPath(): string | null {
+  const configured = process.env.TALI_CONFIG;
+  return configured ? resolve(configured) : null;
+}
+
+function changedSections(current: ControlConfig, next: ControlConfig): string[] {
+  const keys = new Set<string>([
+    ...Object.keys(current),
+    ...Object.keys(next),
+  ]);
+  return [...keys].filter((key) =>
+    JSON.stringify((current as Record<string, unknown>)[key])
+    !== JSON.stringify((next as Record<string, unknown>)[key]));
+}
+
+/**
+ * Re-read the mounted configuration file and adopt it when that is safe.
+ *
+ * The mounted Secret updates in place without restarting anything, so a process
+ * that only reads it at boot keeps serving a stale origin contract. The `server`
+ * section is reloaded live; a file that also changes anything else is left
+ * unapplied as a whole, because half-applying a database URL or auth secret
+ * would be worse than waiting for the rollout.
+ */
+export function reloadControlConfig(): ControlConfigReloadResult {
+  const revision = globalThis.taliControlConfigRevision ?? 0;
+  const path = controlConfigPath();
+  if (!path) return { changed: [], requiresRestart: [], revision, state: "unchanged" };
+
+  let next: ControlConfig;
+  try {
+    next = readControlConfigFile(path);
+  } catch (error) {
+    return {
+      changed: [],
+      error: error instanceof Error ? error.message : "unknown error",
+      requiresRestart: [],
+      revision,
+      state: "invalid",
+    };
+  }
+
+  let current: ControlConfig;
+  try {
+    current = getControlConfig();
+  } catch {
+    // Boot never had a usable file; adopt this one.
+    current = next;
+  }
+  const changed = changedSections(current, next);
+  if (!changed.length) {
+    return { changed, requiresRestart: [], revision, state: "unchanged" };
+  }
+  const requiresRestart = changed.filter(
+    (section) => !reloadableSections.has(section as keyof ControlConfig),
+  );
+  if (requiresRestart.length) {
+    return { changed, requiresRestart, revision, state: "deferred" };
+  }
+  globalThis.taliControlConfig = next;
+  globalThis.taliControlConfigRevision = revision + 1;
+  return { changed, requiresRestart: [], revision: revision + 1, state: "applied" };
+}
+
+export function controlConfigStatus(): { revision: number; source: "development" | "file" } {
+  return {
+    revision: globalThis.taliControlConfigRevision ?? 0,
+    source: controlConfigPath() ? "file" : "development",
+  };
 }
 
 export function setControlConfigForTests(
   config: ControlConfig | undefined,
 ): void {
   globalThis.taliControlConfig = config;
+  // Tests install a configuration as the baseline for reload assertions.
+  globalThis.taliControlConfigRevision = undefined;
 }
 
 export function developmentControlConfig(): ControlConfig {

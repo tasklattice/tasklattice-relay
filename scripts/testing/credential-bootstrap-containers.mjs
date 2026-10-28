@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Exercise the shipped script, TLS API transport and mount layout without a cluster.
 import { execFileSync } from "node:child_process";
-import { chmodSync, mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parseAllDocuments } from "yaml";
@@ -14,13 +14,18 @@ try {
   for (const name of ["bootstrap", "serviceaccount"]) mkdirSync(join(directory, name), { mode: 0o755 });
   const objects = parseAllDocuments(run("helm", ["template", "relay", "charts/tali-relay", "--namespace", "tali",
     "--kube-version", "1.29.0"])).map(document => document.toJSON());
-  const config = objects.find(object => object?.data?.["bootstrap-secrets.mjs"]);
+  const config = objects.find(object => object?.data?.["spec.json"]);
   mkdirSync(join(directory, "bootstrap/..revision"), { mode: 0o755 });
   symlinkSync("..revision", join(directory, "bootstrap/..data"));
   for (const [name, value] of Object.entries(config.data)) {
     writeFileSync(join(directory, "bootstrap/..revision", name), value, { mode: 0o644 });
     symlinkSync(`..data/${name}`, join(directory, "bootstrap", name));
   }
+  // The bootstrap code is shipped by the Control image, not by the Chart; copy
+  // the repository file into the same directory to reproduce the Job layout.
+  copyFileSync(realpathSync("scripts/credential-bootstrap/bootstrap-secrets.mjs"),
+    join(directory, "bootstrap/..revision/bootstrap-secrets.mjs"));
+  symlinkSync("..data/bootstrap-secrets.mjs", join(directory, "bootstrap", "bootstrap-secrets.mjs"));
   run("openssl", ["req", "-x509", "-newkey", "rsa:2048", "-nodes", "-keyout", join(directory, "server.key"),
     "-out", join(directory, "serviceaccount/ca.crt"), "-subj", "/CN=127.0.0.1", "-days", "1",
     "-addext", "subjectAltName=IP:127.0.0.1"], { stdio: "ignore" });

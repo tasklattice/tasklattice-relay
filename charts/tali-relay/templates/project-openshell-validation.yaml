@@ -7,6 +7,7 @@
   "projectOpenShell.helmChart" "Worker uses the bundled /opt/tali/helm/openshell.tgz"
   "keycloak.testUsers" "the test provider uses bundled identities"
   "keycloak.testProjectIds" "the test provider uses bundled Project aliases"
+  "openshift.routes.keycloak" "configure an external OIDC provider from Platform Settings for OpenShift SSO"
   "control.worker.enabled" "Control Worker is always enabled"
   "projectOpenShell.enabled" "Project Gateways are always enabled"
   "runner.projectTargetRouting.enabled" "Project routing is always enabled"
@@ -50,6 +51,17 @@
 {{- end -}}
 {{- if hasKey .Values.runner "extraEnv" -}}
 {{- fail "runner.extraEnv was removed; use the supported runner values" -}}
+{{- end -}}
+{{/* The OpenShift profile ships no identity provider: OCP SSO uses an external
+     provider registered in Platform Settings. Reject the combination instead of
+     deploying a test provider the profile does not support. */}}
+{{- if and .Values.openshift.enabled .Values.keycloak.enabled -}}
+{{- fail "keycloak.enabled must stay false with openshift.enabled; configure an external OIDC provider from Platform Settings for OpenShift SSO" -}}
+{{- end -}}
+{{/* The embedded provider is a development-only test IdP. Production profiles
+     register an external OIDC provider from Platform Settings instead. */}}
+{{- if and .Values.keycloak.enabled (not .Values.developmentProfile.enabled) -}}
+{{- fail "keycloak.enabled requires developmentProfile.enabled; the embedded Keycloak is available only in the development profile, and released installations configure an external OIDC provider from Platform Settings" -}}
 {{- end -}}
 {{- if eq (include "tali.runtimeImagesEnabled" .) "true" -}}
 {{/* Two unrelated upstream images must not silently collapse onto the same tag.

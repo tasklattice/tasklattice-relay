@@ -19,6 +19,29 @@ function resourceKeys(
 }
 
 describe("platform i18n", () => {
+  it("distinguishes access configuration, origin, unavailable context and generic denial without exposing deployment settings", () => {
+    for (const resources of Object.values(i18nResources)) {
+      const messages = resources.access.error.messages;
+      expect(new Set(Object.values(messages)).size).toBe(Object.keys(messages).length);
+      expect(resources.access.actions.refreshAccess).toBeTruthy();
+      for (const message of Object.values(messages)) {
+        expect(message).not.toMatch(/public_urls|trust_proxy_headers|X-Forwarded|https?:\/\/|CONTROL_ORIGIN_|Request failed \(403\)/i);
+      }
+    }
+  });
+
+  it("keeps login feedback distinct without exposing deployment settings", () => {
+    for (const resources of Object.values(i18nResources)) {
+      const errors = resources.login.errors;
+      expect(errors.configuration.title).not.toBe(errors.credentials.title);
+      for (const message of Object.values(errors)) {
+        expect(`${message.title} ${message.description}`).not.toMatch(
+          /control\.|publicUrls|trustProxyHeaders|X-Forwarded|https?:\/\//i,
+        );
+      }
+    }
+  });
+
   it("normalizes supported browser language variants", () => {
     expect(normalizeLanguage("zh-Hans-CN")).toBe("zh-CN");
     expect(normalizeLanguage("zh-Hant-TW")).toBe("zh-TW");

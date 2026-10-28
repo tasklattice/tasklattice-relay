@@ -76,12 +76,23 @@ helm upgrade --install tali-relay \
   --timeout 30m
 ```
 
-The pre-install/pre-upgrade credential Job initializes interactive login passwords
-to `password`, generates independent database/service credentials and keys, and stores
-them in Kubernetes Secrets. Helm values and rendered manifests contain no initial
-credential values. Repeated initialization preserves credentials. See
+### Credential contract
+
+The pre-install/pre-upgrade credential Job initializes interactive login credentials,
+generates independent database/service credentials and keys, and stores
+them in Kubernetes Secrets. Values files and rendered manifests carry no credential
+material. Repeated initialization preserves credentials. See
 [credential initialization](../../docs/helm-credential-bootstrap.md) for retrieval,
 external credential-store contract and automatic OCP bootstrap image-pull preparation.
+
+The Job's component code lives in `scripts/credential-bootstrap/bootstrap-secrets.mjs`
+and ships with the Control image; the Chart supplies only `spec.json`. Chart sources
+must not reintroduce credential values or their local default.
+
+Upstream images and PostgreSQL's role statement prescribe environment-variable,
+field and statement names that contain the literal token for a sign-in secret.
+Those names are protocol contracts of those components, not credential values, and
+must not be renamed.
 
 ### Default values and advanced overrides
 
@@ -368,18 +379,20 @@ podman rm "${CONTAINER_ID}"
 tar -xzf tali-relay.tgz
 cp tali-relay/values-airgap.yaml ./my-airgap-values.yaml
 # Replace registry.airgap.example.com and airgap-registry in the copied file.
+# Set the actual Control browser origin in the command below.
 
 helm template tali-relay ./tali-relay \
   --namespace tali \
   --include-crds \
   --values tali-relay/values-openshift.yaml \
   --values ./my-airgap-values.yaml \
+  --set-string "control.publicUrls[0]=https://relay.apps.example.com" \
   > tali-openshift.yaml
 ```
 
 `values-airgap.yaml` sets `openshift.runtimeImages.enabled=false` to keep direct
-external-registry pulls, and mirrors every image family independently: TaskLattice Relay
-images through `global.imageRegistry`, PostgreSQL and Keycloak through
+external-registry pulls, and mirrors runtime images independently: TaskLattice Relay
+images through `global.imageRegistry`, PostgreSQL, Docling and Hindsight through
 `images.*`, Agent Sandbox through `agentSandbox.image`, and the OpenShell
 gateway, supervisor, and default sandbox through their respective `openshell`
 values. Do not put a full image repository under a first-party
@@ -414,6 +427,25 @@ release's dedicated Runtime, Control, and Control Worker ServiceAccounts to
 `anyuid`, changes externally facing Services to `ClusterIP`, creates an
 edge-terminated Control Route, and applies restrictive security contexts to
 the Agent Sandbox controller.
+
+The OpenShift profile leaves the test-only Keycloak and Example MCP Server
+disabled and provides only the Control Route. It rejects `keycloak.enabled=true`
+rather than deploying a test provider the profile does not support: the OCP
+cluster's identity provider is managed outside this Chart. Set
+`control.publicUrls` to the actual browser origins for the installation; the
+profile requires an explicit value. Configure an external OIDC provider from
+Platform Settings when SSO is required.
+
+The profile enables `control.trustProxyHeaders` and the managed Route sets
+`haproxy.router.openshift.io/set-forwarded-headers: replace`. The router must
+receive the public Host and terminate the browser's TLS connection so that it
+overwrites `X-Forwarded-Host` and `X-Forwarded-Proto` with the public endpoint.
+An enabled managed Route with proxy trust rejects other forwarding policies at
+render time. The ordinary Kubernetes profile keeps proxy trust disabled.
+If another proxy terminates TLS before forwarding HTTP to the router, `replace`
+will describe that HTTP hop; correct the topology or normalize the public
+host/protocol at the trusted final proxy. The annotation alone cannot recover
+the browser's scheme or a port removed upstream.
 
 With `openshift.enabled=true`, Worker prepares SCC grants in each Project
 Namespace before installing Gateway/certgen or starting runtime Pods:
@@ -624,12 +656,20 @@ kubectl -n <namespace> get deployment,service,pvc \
 
 ## Embedded Keycloak for end-to-end tests
 
-Set `keycloak.enabled=true` to deploy a test-only Keycloak instance together
-with TaskLattice Relay. The Chart imports the `tali` realm, configures the
-confidential `tali-control-plane` OIDC client, installs a `groups` Client Scope
-that emits complete Group paths, and creates role-focused development profiles.
-OIDC and Group Role Bindings remain database-owned and are configured from
-Platform Setting after the deployment is reachable.
+The embedded provider is a **development-only** component. It requires
+`developmentProfile.enabled=true`, which only `values-dev.yaml` sets; the
+released profiles (`values.yaml`, `values-uat.yaml`, `values-airgap.yaml`) and
+the OpenShift profile reject `keycloak.enabled=true` instead of deploying a test
+identity provider. Released installations configure an external OIDC provider
+from **Platform Setting -> Security & SSO**.
+
+Set `keycloak.enabled=true` together with the development profile to deploy a
+test-only Keycloak instance alongside TaskLattice Relay. The Chart imports the
+`tali` realm, configures the confidential `tali-control-plane` OIDC client,
+installs a `groups` Client Scope that emits complete Group paths, and creates
+role-focused development profiles. OIDC and Group Role Bindings remain
+database-owned and are configured from Platform Setting after the deployment is
+reachable.
 
 Keycloak needs a stable URL that is reachable from both the browser and the
 Control pod. For a cluster with a reserved load-balancer address:
@@ -638,6 +678,7 @@ Control pod. For a cluster with a reserved load-balancer address:
 helm upgrade --install tali-relay charts/tali-relay \
   --namespace tali \
   --create-namespace \
+  --set developmentProfile.enabled=true \
   --set-string "control.publicUrls[0]=http://192.168.139.2:38080" \
   --set keycloak.enabled=true \
   --set keycloak.publicUrl=http://192.168.139.3:8080 \
@@ -681,19 +722,19 @@ Set `CONTROL_DEVELOPMENT_PROJECTS_ENABLED=false` to skip these development
 fixtures, or point `CONTROL_DEVELOPMENT_PROJECTS_FILE` at a compatible JSON
 list to exercise another Project/SLA layout.
 
-All fresh installations use `password` for initial interactive login passwords,
-including the base Chart, development, UAT, OpenShift, and air-gap profiles.
+All fresh installations use the documented local login credential for interactive
+sign-in, including the base Chart, development, UAT, OpenShift, and air-gap profiles.
 Relay, LiteLLM and Keycloak administrator usernames remain `admin`; SSO uses the
 configured test usernames. PostgreSQL, Hindsight and per-Project OpenShell
-database passwords, Example MCP Basic Auth, machine tokens, signing/encryption
+database credentials, Example MCP Basic Auth, machine tokens, signing/encryption
 keys and salts remain independently random. `credentialBootstrap.developmentMode` is no longer used.
 
 Local deployment helpers read the stored Relay initial administrator credential.
-An existing credential store is always reused, including older random passwords.
-After an account changes its password, the application's stored password takes
+An existing credential store is always reused, including older random credentials.
+After an account changes its credential, the application's stored hash takes
 precedence over the bootstrap value; rerunning the Job does not reset accounts.
 Test users and Project aliases are fixtures in `files/keycloak-test-identities.yaml`;
-their initial passwords come from the bootstrap credential store. Configure a
+their initial credentials come from the bootstrap credential store. Configure a
 separate OIDC provider through Platform Settings for custom identity management.
 
 This mode runs Keycloak with `start-dev` and ephemeral storage. Realm changes

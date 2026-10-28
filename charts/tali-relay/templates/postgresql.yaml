@@ -94,7 +94,11 @@ spec:
             capabilities:
               drop: ["ALL"]
   volumeClaimTemplates:
-    - metadata:
+    # Keep PVC type metadata explicit: removing it from an existing claim
+    # template can make server-side apply attempt an immutable StatefulSet update.
+    - apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
         name: data
       spec:
         accessModes: ["ReadWriteOnce"]

@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Building2, Eye, EyeOff, LoaderCircle, LockKeyhole } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -7,6 +7,8 @@ import { useAuth } from "@/components/auth/auth-provider";
 import { BrandMark } from "@/components/brand/brand-logo";
 import { LanguageSwitcher } from "@/components/i18n/language-switcher";
 import { Button } from "@/components/ui/button";
+import { Toast, ToastClose, ToastDescription, ToastProvider, ToastTitle, ToastViewport } from "@/components/ui/toast";
+import { classifyLoginError, type LoginErrorKind } from "@/lib/login-error";
 import { authClient } from "@/lib/auth-client";
 
 export const Route = createFileRoute("/login")({
@@ -26,24 +28,31 @@ function LoginPage() {
   const [remember, setRemember] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState(search.error ?? "");
+  const [notice, setNotice] = useState<{ kind: LoginErrorKind | "configLoad" | "sso"; open: boolean } | null>(null);
+  useEffect(() => {
+    if (configError) setNotice({ kind: "configLoad", open: true });
+    else if (search.error) setNotice({ kind: "sso", open: true });
+  }, [configError, search.error]);
   const redirect = "/access";
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (submitting) return;
     setSubmitting(true);
-    setError("");
+    setNotice(null);
     try {
       const result = await authClient.signIn.username({
         password,
         rememberMe: remember,
         username,
       });
-      if (result.error) throw new Error(result.error.message ?? t("errorTitle"));
+      if (result.error) {
+        setNotice({ kind: classifyLoginError(result.error), open: true });
+        return;
+      }
       window.location.assign(redirect);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : t("errorTitle"));
+      setNotice({ kind: classifyLoginError(reason), open: true });
     } finally {
       setSubmitting(false);
     }
@@ -106,12 +115,6 @@ function LoginPage() {
                 <input type="checkbox" checked={remember} onChange={(event) => setRemember(event.target.checked)} className="size-4 accent-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring" />
                 {t("form.keepSignedIn")}
               </label>
-              {error || configError ? (
-                <div role="alert" className="rounded-md border border-destructive-border bg-destructive-surface px-4 py-3 text-sm text-destructive">
-                  <strong className="block font-semibold">{t("errorTitle")}</strong>
-                  <span className="mt-1 block">{error || configError}</span>
-                </div>
-              ) : null}
               <Button disabled={submitting || loading} type="submit" size="lg" className="w-full">
                 {submitting ? <LoaderCircle aria-hidden="true" className="size-4 animate-spin motion-reduce:animate-none" /> : null}
                 {submitting ? t("form.signingIn") : t("form.signIn")}
@@ -132,6 +135,16 @@ function LoginPage() {
           </div>
         </div>
       </section>
+      <ToastProvider duration={10_000} swipeDirection="right">
+        {notice ? (
+          <Toast open={notice.open} onOpenChange={(open) => setNotice((current) => current ? { ...current, open } : null)} type="foreground" className="border-destructive-border">
+            <ToastTitle>{t(`errors.${notice.kind}.title`)}</ToastTitle>
+            <ToastClose aria-label={t("dismissError")} />
+            <ToastDescription>{t(`errors.${notice.kind}.description`)}</ToastDescription>
+          </Toast>
+        ) : null}
+        <ToastViewport />
+      </ToastProvider>
     </main>
   );
 }

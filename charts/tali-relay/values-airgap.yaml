@@ -26,10 +26,6 @@ images:
     repository: registry.airgap.example.com/third-party/pgvector
     tag: 0.8.6-pg17
     useGlobalRegistry: false
-  keycloak:
-    repository: registry.airgap.example.com/third-party/keycloak
-    tag: 26.7.0
-    useGlobalRegistry: false
   docling:
     repository: registry.airgap.example.com/third-party/docling-serve-cpu
     tag: v1.29.0

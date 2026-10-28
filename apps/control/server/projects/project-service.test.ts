@@ -300,7 +300,15 @@ describe("ProjectService", () => {
 
     await expect(
       service.switchRole("individual", "local-admin", "auditor"),
-    ).rejects.toThrow(/not assigned/i);
+    ).rejects.toMatchObject({
+      // Same condition the access page reports: a stale role is a 403 decision,
+      // not an internal error.
+      status: 403,
+      code: "project_role_not_assigned",
+    });
+    await expect(
+      service.switchRole("missing-project", "local-admin", "admin"),
+    ).rejects.toMatchObject({ status: 404, code: "project_not_found" });
   });
 
   it("creates the initial member set and pending invitations with assigned roles", async () => {

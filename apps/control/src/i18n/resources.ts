@@ -34,7 +34,9 @@ const enUS = {
   access: {
     actions: {
       continue: "Continue",
+      refreshAccess: "Refresh access options",
       retry: "Try again",
+      signIn: "Sign in again",
       signOut: "Sign out",
       useAccess: "Use access",
     },
@@ -49,6 +51,17 @@ const enUS = {
     error: {
       selectionFallback: "Unable to select access.",
       title: "Access selection failed",
+      messages: {
+        configuration: "A service access configuration issue is preventing access selection. Contact an administrator.",
+        origin: "This page address did not pass the security check. Reopen Relay using the address provided by your administrator.",
+        contextUnavailable: "The selected access is no longer available. Refresh the access options and select again.",
+        forbidden: "You cannot use this access at the moment. Contact an administrator to confirm your permissions.",
+        authentication: "Your sign-in is no longer valid. Sign in again to continue.",
+        network: "Could not connect. Check your connection and try again.",
+        rateLimit: "Too many requests. Wait a moment before trying again.",
+        service: "The service is temporarily unavailable. Try again later.",
+        unknown: "Could not complete the access request. Try again.",
+      },
     },
     groups: {
       department: {
@@ -114,6 +127,19 @@ const enUS = {
       before: "Development account:",
     },
     errorTitle: "Sign in failed",
+    dismissError: "Dismiss notification",
+    errors: {
+      credentials: { title: "Incorrect username or password", description: "Check your username and password, then try again." },
+      origin: { title: "Sign-in request blocked", description: "Please contact your administrator." },
+      configuration: { title: "Sign-in configuration error", description: "Please contact your administrator." },
+      forbidden: { title: "Sign-in request denied", description: "The server refused this request. Contact your administrator if this continues." },
+      rateLimit: { title: "Too many sign-in attempts", description: "Wait a moment before trying again." },
+      network: { title: "Unable to connect", description: "Check your connection and try again." },
+      service: { title: "Sign-in service unavailable", description: "The server could not complete sign-in. Try again later or contact your administrator." },
+      unknown: { title: "Sign in failed", description: "Unable to complete sign-in. Try again or contact your administrator." },
+      configLoad: { title: "Unable to load sign-in settings", description: "Check your connection and reload the page. Contact your administrator if this continues." },
+      sso: { title: "SSO sign-in failed", description: "Try signing in again or contact your organization’s administrator." },
+    },
     footer:
       "Need an account or project access? Contact your administrator.",
     form: {
@@ -355,7 +381,9 @@ const zhCN = {
   access: {
     actions: {
       continue: "继续",
+      refreshAccess: "刷新可选身份",
       retry: "重试",
+      signIn: "重新登录",
       signOut: "退出登录",
       useAccess: "使用此身份",
     },
@@ -370,6 +398,17 @@ const zhCN = {
     error: {
       selectionFallback: "无法选择访问身份。",
       title: "访问身份选择失败",
+      messages: {
+        configuration: "服务访问配置有误，暂时无法选择身份。请联系管理员。",
+        origin: "当前页面地址未通过安全校验。请从管理员提供的地址重新打开 Relay。",
+        contextUnavailable: "所选访问身份已不可用。请刷新可选身份后重新选择。",
+        forbidden: "你目前无法使用该访问身份。请联系管理员确认权限。",
+        authentication: "登录状态已失效，请重新登录后继续。",
+        network: "网络连接失败。请检查连接后重试。",
+        rateLimit: "请求过于频繁，请稍后重试。",
+        service: "服务暂时不可用，请稍后重试。",
+        unknown: "无法完成访问请求，请重试。",
+      },
     },
     groups: {
       department: {
@@ -432,6 +471,19 @@ const zhCN = {
       before: "开发环境账户：",
     },
     errorTitle: "登录失败",
+    dismissError: "关闭通知",
+    errors: {
+      credentials: { title: "用户名或密码错误", description: "请检查用户名和密码后重试。" },
+      origin: { title: "登录请求被拦截", description: "请联系管理员。" },
+      configuration: { title: "登录配置错误", description: "请联系管理员。" },
+      forbidden: { title: "登录请求被拒绝", description: "服务器拒绝了此请求。如果持续出现，请联系管理员。" },
+      rateLimit: { title: "登录尝试过于频繁", description: "请稍后再试。" },
+      network: { title: "无法连接服务", description: "请检查网络连接后重试。" },
+      service: { title: "登录服务暂不可用", description: "服务器未能完成登录，请稍后重试或联系管理员。" },
+      unknown: { title: "登录失败", description: "未能完成登录，请重试或联系管理员。" },
+      configLoad: { title: "无法加载登录配置", description: "请检查网络并刷新页面。如果持续出现，请联系管理员。" },
+      sso: { title: "单点登录失败", description: "请重新登录，或联系组织管理员。" },
+    },
     footer: "需要账户或项目权限？请联系管理员。",
     form: {
       hidePassword: "隐藏密码",
@@ -670,7 +722,9 @@ const zhTW = {
   access: {
     actions: {
       continue: "繼續",
+      refreshAccess: "重新整理可選身分",
       retry: "重試",
+      signIn: "重新登入",
       signOut: "登出",
       useAccess: "使用此身分",
     },
@@ -685,6 +739,17 @@ const zhTW = {
     error: {
       selectionFallback: "無法選擇存取身分。",
       title: "存取身分選擇失敗",
+      messages: {
+        configuration: "服務存取設定有誤，暫時無法選擇身分。請聯絡管理員。",
+        origin: "目前頁面位址未通過安全檢查。請從管理員提供的位址重新開啟 Relay。",
+        contextUnavailable: "所選存取身分已無法使用。請重新整理可選身分後重新選擇。",
+        forbidden: "你目前無法使用此存取身分。請聯絡管理員確認權限。",
+        authentication: "登入狀態已失效，請重新登入後繼續。",
+        network: "網路連線失敗。請檢查連線後重試。",
+        rateLimit: "請求過於頻繁，請稍後重試。",
+        service: "服務暫時無法使用，請稍後重試。",
+        unknown: "無法完成存取請求，請重試。",
+      },
     },
     groups: {
       department: {
@@ -747,6 +812,19 @@ const zhTW = {
       before: "開發環境帳戶：",
     },
     errorTitle: "登入失敗",
+    dismissError: "關閉通知",
+    errors: {
+      credentials: { title: "使用者名稱或密碼錯誤", description: "請檢查使用者名稱和密碼後重試。" },
+      origin: { title: "登入請求遭攔截", description: "請聯絡管理員。" },
+      configuration: { title: "登入設定錯誤", description: "請聯絡管理員。" },
+      forbidden: { title: "登入請求遭拒絕", description: "伺服器拒絕了此請求。若持續發生，請聯絡管理員。" },
+      rateLimit: { title: "登入嘗試過於頻繁", description: "請稍後再試。" },
+      network: { title: "無法連線至服務", description: "請檢查網路連線後重試。" },
+      service: { title: "登入服務暫時無法使用", description: "伺服器未能完成登入，請稍後重試或聯絡管理員。" },
+      unknown: { title: "登入失敗", description: "未能完成登入，請重試或聯絡管理員。" },
+      configLoad: { title: "無法載入登入設定", description: "請檢查網路並重新整理頁面。若持續發生，請聯絡管理員。" },
+      sso: { title: "單一登入失敗", description: "請重新登入，或聯絡組織管理員。" },
+    },
     footer: "需要帳戶或專案權限？請聯絡管理員。",
     form: {
       hidePassword: "隱藏密碼",

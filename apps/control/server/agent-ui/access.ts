@@ -8,6 +8,7 @@ import { encryptPlatformSecret, decryptPlatformSecret } from "../platform/platfo
 import { projectRoleFromBuiltinRole } from "../projects/project-access";
 import { getInstanceServiceForProject } from "../services";
 import { requestOrigin } from "../http/request-origin";
+import { problemResponse } from "../http/responses";
 import { loadPlatformRuntimeConfiguration } from "../platform/platform-runtime-config";
 
 export const sessionLifetimeMs = 5 * 60_000;
@@ -19,8 +20,16 @@ async function requireAgentPrincipal(request: Request) {
   try { return await requireAuth(request); }
   catch { throw new Response("Login to Relay is required.", { status: 401 }); }
 }
-export function requireSameOrigin(request: Request): void {
-  if (request.headers.get("origin") !== requestOrigin(request)) throw new Response("Invalid request origin.", { status: 403 });
+function requireSameOrigin(request: Request): void {
+  // Same decision as the Control guard: the browser-provided Origin must be one
+  // of the configured public URLs. Proxy header disagreement is not a denial.
+  const origin = request.headers.get("origin");
+  let allowedOrigin: string | null = null;
+  try { allowedOrigin = origin ? new URL(origin).origin : null; } catch { allowedOrigin = null; }
+  let expected: string | null = null;
+  try { expected = requestOrigin(request); } catch { expected = null; }
+  if (allowedOrigin && allowedOrigin === expected) return;
+  throw problemResponse(403, "Invalid request origin.", { code: "CONTROL_ORIGIN_FORBIDDEN" });
 }
 
 export async function authorizeInstance(principal: PlatformPrincipal, projectId: string, instanceId: string) {

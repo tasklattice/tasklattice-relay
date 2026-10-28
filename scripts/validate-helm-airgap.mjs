@@ -72,14 +72,6 @@ const rendered = execFileSync(
     join(valuesRoot, "values-airgap.yaml"),
     "--set-string",
     "control.publicUrls[0]=https://tali.apps.airgap.example.com",
-    "--set",
-    "keycloak.enabled=true",
-    "--set-string",
-    "keycloak.publicUrl=https://keycloak.apps.airgap.example.com",
-    "--set",
-    "openshift.routes.keycloak.enabled=true",
-    "--set",
-    "exampleMcp.enabled=true",
   ],
   {
     encoding: "utf8",
@@ -113,6 +105,14 @@ const objects = documents
 const violations = [];
 let checkedContainers = 0;
 const resourceIdentities = new Set();
+
+if (objects.some(
+  (object) => ["keycloak", "example-mcp"].includes(
+    object.metadata?.labels?.["app.kubernetes.io/component"],
+  ),
+)) {
+  violations.push("The disconnected OpenShift profile must not deploy the test Keycloak or Example MCP resources.");
+}
 
 const liteLLMDeployment = objects.find(
   (object) =>

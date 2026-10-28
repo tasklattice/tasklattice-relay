@@ -16,7 +16,7 @@ const kubectl = (extra, input) => execFileSync("kubectl", [...args, ...extra], {
 });
 const hooks = parseAllDocuments(execFileSync("helm", ["--kube-context", context, "--namespace", namespace,
   "get", "hooks", release], {encoding:"utf8"})).map(document => document.toJSON()).filter(Boolean);
-const config = hooks.find(object => object.data?.["bootstrap-secrets.mjs"]);
+const config = hooks.find(object => object.data?.["spec.json"]);
 assert(config, "Release has no credential bootstrap hook.");
 const spec = JSON.parse(config.data["spec.json"]);
 assert.equal(spec.namespace, namespace);

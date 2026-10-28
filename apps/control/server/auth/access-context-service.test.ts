@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { PlatformPrincipal } from "./auth";
 import { createTestPrisma } from "../test/prisma";
 import { AccessContextService } from "./access-context-service";
+import { errorResponse } from "../http/responses";
 
 const user = {
   displayName: "Local Administrator",
@@ -98,11 +99,23 @@ describe("AccessContextService", () => {
 
   it("rejects an unassigned role and scope", async () => {
     const { auth, service } = await createPrincipal("access-rejected");
+    const selected = await service.select(auth, {
+      level: "department", resourceId: "dep1", roleId: "ROLE_DEPARTMENT_ADMIN",
+    });
 
-    await expect(service.select(auth, {
+    const failure = await service.select(auth, {
       level: "department",
       resourceId: "unassigned-department",
       roleId: "ROLE_DEPARTMENT_ADMIN",
-    })).rejects.toThrow("Access denied");
+    }).catch((error: unknown) => error);
+    expect(failure).toMatchObject({ status: 403, code: "access_context_not_assigned" });
+    const response = errorResponse(failure);
+    expect(response.status).toBe(403);
+    expect(response.headers.get("content-type")).toContain("application/problem+json");
+    expect(await response.json()).toMatchObject({
+      code: "access_context_not_assigned",
+      detail: "Access denied: this access context is not assigned to your Account.",
+    });
+    expect((await service.get(auth)).active).toEqual(selected.active);
   });
 });

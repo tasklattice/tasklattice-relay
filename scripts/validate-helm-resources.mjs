@@ -141,7 +141,7 @@ assert.deepEqual({ ...workerConfig(externalParser).docling },
   { enabled: true, baseUrl: "https://docling.internal.example.com", apiKey: "" });
 assert.equal(workerConfig(parseObjects(renderChart(["--set", "docling.enabled=false"]))).docling.enabled, false);
 const optionalComponents = parseObjects(renderChart([
-  "--set", "keycloak.enabled=true,keycloak.publicUrl=https://sso.example.test,exampleMcp.enabled=true,monitoring.serviceMonitor.enabled=true",
+  "--set", "developmentProfile.enabled=true,keycloak.enabled=true,keycloak.publicUrl=https://sso.example.test,exampleMcp.enabled=true,monitoring.serviceMonitor.enabled=true",
 ]));
 const testRealm = JSON.parse(optionalComponents.find(o => o.data?.["tali-realm.json"]).data["tali-realm.json"]);
 const identities = parseYaml(readFileSync(`${chartPath}/files/keycloak-test-identities.yaml`, "utf8"));
@@ -202,6 +202,8 @@ const rendered = renderChart([
   "control.publicUrls[0]=http://192.0.2.10",
   "--set-string",
   "control.publicUrls[1]=https://relay.example.com",
+  "--set",
+  "developmentProfile.enabled=true",
   "--set",
   "keycloak.enabled=true",
   "--set-string",
@@ -908,6 +910,7 @@ for (const [path, values, message] of [
   ["projectOpenShell.helmChart", ["/custom.tgz"], "Worker uses the bundled"],
   ["keycloak.testUsers", ["custom"], "bundled identities"],
   ["keycloak.testProjectIds", ["custom"], "bundled Project aliases"],
+  ["openshift.routes.keycloak.enabled", [false, true], "external OIDC provider"],
   ["control.worker.enabled", [true, false], "Control Worker is always enabled"],
   ["projectOpenShell.enabled", [true, false], "Project Gateways are always enabled"],
   ["runner.projectTargetRouting.enabled", [true, false], "Project routing is always enabled"],
@@ -931,6 +934,53 @@ for (const [path, values, message] of [
     assert(result.stderr.includes("was removed"), `${setting}: expected removal error`);
     assert(result.stderr.includes(message), `${setting}: expected ${message}`);
   }
+}
+// The OpenShift profile ships no identity provider: OCP SSO uses an external
+// provider registered in Platform Settings. The test-only provider renders fine
+// on its own, so only this combination check covers it.
+for (const value of ["true"]) {
+  const keycloakOnOpenShift = spawnSync(
+    "helm",
+    templateArguments([
+      "--set", "openshift.enabled=true",
+      "--set", `keycloak.enabled=${value}`,
+      "--set", "keycloak.publicUrl=https://sso.example.test",
+    ]),
+    { encoding: "utf8" },
+  );
+  assert.notEqual(
+    keycloakOnOpenShift.status,
+    0,
+    `openshift.enabled with keycloak.enabled=${value} must be rejected`,
+  );
+  assert(
+    keycloakOnOpenShift.stderr.includes("external OIDC provider"),
+    "the OpenShift profile must direct SSO to an external OIDC provider",
+  );
+}
+
+// The embedded Keycloak is a development-only test provider: every released
+// profile must reject it instead of deploying an identity provider nobody owns.
+for (const profile of [null, "values-uat.yaml", "values-airgap.yaml", "values-openshift.yaml"]) {
+  const profileArguments = profile ? ["-f", `${chartPath}/${profile}`] : [];
+  const keycloakAlone = spawnSync(
+    "helm",
+    templateArguments([
+      ...profileArguments,
+      "--set", "keycloak.enabled=true",
+      "--set", "keycloak.publicUrl=https://sso.example.test",
+    ]),
+    { encoding: "utf8" },
+  );
+  assert.notEqual(
+    keycloakAlone.status,
+    0,
+    `keycloak.enabled must be rejected with ${profile ?? "the base values"}`,
+  );
+  assert(
+    keycloakAlone.stderr.includes("developmentProfile.enabled") || keycloakAlone.stderr.includes("external OIDC provider"),
+    `keycloak.enabled with ${profile ?? "the base values"} must explain that it is development-only`,
+  );
 }
 
 const controlWorkerRole = requireObject(

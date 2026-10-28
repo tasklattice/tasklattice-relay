@@ -1,9 +1,9 @@
 // Offline configuration checks use the same generator/serializer as the Job.
 // These synthetic Secrets are never applied to a cluster.
-import { generateCredentials, renderOutput } from "../../charts/tali-relay/files/bootstrap-secrets.mjs";
+import { generateCredentials, renderOutput } from "../credential-bootstrap/bootstrap-secrets.mjs";
 
 export function materializeBootstrapSecrets(objects, transform = data => data) {
-  const template = objects.find(object => object?.kind === "ConfigMap" && object.data?.["spec.json"] && object.data?.["bootstrap-secrets.mjs"]);
+  const template = objects.find(object => object?.kind === "ConfigMap" && object.data?.["spec.json"]);
   if (!template) return objects;
   const spec = JSON.parse(template.data["spec.json"]);
   const credentials = transform(generateCredentials(spec));

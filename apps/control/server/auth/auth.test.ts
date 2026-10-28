@@ -153,6 +153,7 @@ describe("Better Auth platform authentication", () => {
   it("rejects invalid credentials and does not accept the removed bearer-token protocol", async () => {
     const invalid = await signIn("incorrect-password");
     expect(invalid.status).toBe(401);
+    expect(await invalid.json()).toMatchObject({ code: "INVALID_USERNAME_OR_PASSWORD" });
 
     const bearerOnly = await handleAuthMe(
       new Request("http://tali.local/api/v1/auth/me", {
@@ -490,8 +491,13 @@ describe("Better Auth platform authentication", () => {
     config.server.public_urls = [];
     setControlConfigForTests(config);
     resetBetterAuthForTests();
+    // Control owns this failure now: one resolver, one message, one status.
     await expect(auth(new Request("http://tali.local"))).rejects.toThrow(
-      "not in the allowed hosts list",
+      "Request origin is not in server.public_urls",
     );
+    await expect(auth(new Request("http://tali.local"))).rejects.toMatchObject({
+      status: 403,
+      code: "CONTROL_ORIGIN_FORBIDDEN",
+    });
   });
 });

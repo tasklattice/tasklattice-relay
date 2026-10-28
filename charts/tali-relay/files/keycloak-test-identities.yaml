@@ -1,5 +1,5 @@
 # Built-in identities for the optional, ephemeral Keycloak test provider.
-# Not production accounts. Passwords are supplied by the credential bootstrap.
+# Not production accounts. Credentials are supplied by the credential bootstrap.
 # Stable user IDs preserve OIDC subject mappings across Pod recreation.
 # Realm groups for the two default development Projects. The post-deploy
 # configurator binds every Project it discovers, so additional development

@@ -10,6 +10,7 @@ import { requireAuth } from "../auth/auth";
 import { prisma } from "../db/prisma";
 import { requireDepartmentAdministrator } from "../departments/department-access";
 import type { DepartmentRole } from "../departments/department-service";
+import { ProblemError } from "../http/problem-error";
 import {
   SmtpInvitationMailer,
   type InvitationMailer,
@@ -786,14 +787,20 @@ export class ProjectService {
       },
     });
     if (!membership || membership.project.deletedAt) {
-      throw new Error("Project not found or access denied.");
+      throw new ProblemError(404, "project_not_found", "Project not found.");
     }
     const assignedRoles = new Set([
       membership.role,
       ...membership.roleAssignments.map((assignment) => assignment.role),
     ]);
     if (!assignedRoles.has(role)) {
-      throw new Error("This Project role is not assigned to your Account.");
+      // Same condition the access-context selection reports: a stale choice must
+      // never surface as an internal error.
+      throw new ProblemError(
+        403,
+        "project_role_not_assigned",
+        "This Project role is not assigned to your Account.",
+      );
     }
     if (membership.role !== role) {
       await this.db.projectMember.update({

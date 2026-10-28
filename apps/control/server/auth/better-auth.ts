@@ -1,3 +1,4 @@
+import { createStructuredLogger } from "../observability/structured-logger";
 import { requestOrigin } from "../http/request-origin";
 import { randomUUID } from "node:crypto";
 import { betterAuth } from "better-auth";
@@ -18,6 +19,8 @@ import {
   synchronizeExternalRoleBindings,
 } from "./external-role-bindings";
 
+const authLogger = createStructuredLogger("control-auth");
+
 export const authSessionIdleTimeoutSeconds = 30 * 60;
 export const authSessionUpdateAgeSeconds = 0;
 
@@ -29,6 +32,14 @@ function createBetterAuth(
 
   return betterAuth({
     appName: "TaskLattice Relay",
+    logger: {
+      log(level, message, ...args) {
+        // Debug is library-internal verbosity, not an operational severity.
+        if (level === "debug") return;
+        authLogger.log(level === "warn" ? "warning" : level,
+          "auth.diagnostic", { message, args });
+      },
+    },
     baseURL: origin,
     basePath: "/api/auth",
     secret: config.auth.secret,
@@ -206,10 +217,15 @@ export async function ssoAuth(request: Request): Promise<BetterAuthInstance> {
   return instance;
 }
 
-export function resetBetterAuthForTests(): void {
+/** Drop cached Better Auth instances so the next request rebuilds from config. */
+export function invalidateAuthInstances(): void {
   globalThis.taliBetterAuth = undefined;
   globalThis.taliBetterAuthLocalState = undefined;
   globalThis.taliBetterAuthSsoState = undefined;
+}
+
+export function resetBetterAuthForTests(): void {
+  invalidateAuthInstances();
 }
 
 export async function ensureInitialPlatformAdministrator(): Promise<void> {

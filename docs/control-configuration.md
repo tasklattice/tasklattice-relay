@@ -49,6 +49,127 @@ The resolved origin must still appear in `public_urls`; unknown hosts or protoco
 are rejected. Internal service addresses are not browser origins and must not be
 added to the allowlist just to satisfy internal connectivity.
 
+The OpenShift Helm profile enables proxy trust for its managed edge Route and
+sets `haproxy.router.openshift.io/set-forwarded-headers: replace`. OpenShift's
+[router template](https://github.com/openshift/router/blob/release-4.16/images/router/haproxy/conf/haproxy-config.template)
+uses `set-header` for both forwarded Host and Proto in this mode; `append` can
+produce comma-separated values. The router derives these values from the Host
+and TLS connection it receives. If TLS terminates before the router and that
+hop is HTTP, the replacement protocol is still `http`: fix the final proxy's
+public-origin handling rather than relaxing the Control allowlist.
+
+The browser decision is one question: is the request's `Origin` one of the
+configured `public_urls`? The browser sets `Origin` itself and a cross-site page
+cannot forge it, so allowlist membership is the CSRF guarantee. Header resolution
+(`Host`/`X-Forwarded-Host`, a single `X-Forwarded-Proto` value; `Forwarded` and
+`X-Forwarded-Port` are never consumed) is used for diagnostics and for the
+deployment contract, not to veto an allowlisted write:
+
+| Condition | Result |
+| --- | --- |
+| `Origin` is an allowlisted public URL | allowed |
+| … and the proxy headers disagree or cannot be resolved | allowed; `control_origin_proxy_mismatch` warning with `reason` (`host_missing`, `host_not_allowed`, `origin_unverifiable`, `resolved_origin_differs`) |
+| `Origin` is not an allowlisted public URL | `403 CONTROL_ORIGIN_FORBIDDEN` (`origin_not_allowed`) |
+| `Origin: null` on a Control surface | `403 CONTROL_ORIGIN_ISOLATED_ORIGIN_FORBIDDEN` |
+| Safe methods, or a request with no `Origin` | not checked here; the session is validated downstream |
+
+`503 CONTROL_ORIGIN_CONFIGURATION_ERROR` is reserved for tasks that must build an
+absolute URL (SSO callbacks, invitation links, Better Auth base URL) when the
+request cannot be resolved **and** more than one public URL is configured. With a
+single configured public URL there is nothing to choose between, so Control uses
+it instead of failing. A proxy header mistake therefore degrades to a warning on
+browser writes, never to an outage of the write path.
+
+The guard applies to browser-session writes only. `/_agent-ui/*` Agent documents
+(their capability credential is validated by the dedicated proxy), `/api/metrics`,
+`/api/v1/runtime-bridge/*` and `/api/health` authenticate without Control cookies
+and are therefore outside the cookie CSRF rule even when a stale cookie is sent.
+Safe methods on every other path are never blocked by this guard.
+
+`GET /api/health` reports the static contract and how the probe request itself
+resolved, so a single command answers "does my ingress agree with the config?":
+
+```json
+{"ok":true,"database":"postgresql","runtime":"openshell","origin":{
+  "allowedOrigins":["https://relay.example.com"],"trustProxyHeaders":true,
+  "state":"ok","thisRequest":{"host":"relay.example.com","origin":"https://relay.example.com","resolved":true}}}
+```
+
+`state: "suspicious"` marks an HTTPS-only allowlist that ignores forwarded
+headers; that combination never resolves the plaintext request Control receives
+from its Service, so every browser write logs `control_origin_proxy_mismatch`. It
+is also logged once at startup as `control.origin_contract_suspicious`, with the
+same `hint`, and it does not block writes. A probe arriving on the Pod address is
+expected to resolve outside the allowlist; run the probe through the ingress to
+see what a browser gets.
+
+```bash
+# Effective configuration (only [server] reloads in place; see below)
+kubectl -n tali get secret tali-relay-control-config \
+  -o jsonpath='{.data.control\.toml}' | base64 -d | sed -n '/\[server\]/,/^\[database\]/p'
+# Contract verdict, then the same probe through the public endpoint
+kubectl -n tali exec deploy/tali-relay-control -- curl -s localhost:8080/api/health
+curl -s https://relay.example.com/api/health
+# Guard outcomes, newest last: rejections explain 403, mismatches explain warnings
+kubectl -n tali logs deploy/tali-relay-control --since=30m \
+  | grep -E 'control_origin_(rejected|proxy_mismatch)' | tail -3
+```
+
+The `[server]` section reloads in place. Control polls its mounted configuration
+file and adopts a changed `[server]` section without a restart, logging
+`control.configuration_reloaded` with the new revision; `GET /api/health` reports
+that revision as `config.revision` next to the effective `origin` block. A
+corrected `public_urls`, `trust_proxy_headers` or `internal_url` therefore takes
+effect on the next request after the Secret edit, with no rollout and no
+`rollout restart` — the Pod is not the source of truth for those values.
+
+Every other section (`database`, `auth`, `runner`, `litellm`, `memory`, `metrics`,
+`runtime_namespaces`, `demo_agents`) needs a new Pod. A file that changes both
+`[server]` and any of those is left entirely unapplied and logged as
+`control.configuration_reload_deferred` with the sections that require a restart,
+so a new database URL or auth secret is never half-applied. An unparsable or
+invalid file is ignored and logged as `control.configuration_reload_invalid`; the
+previous configuration keeps serving. Roll those out explicitly:
+
+```bash
+kubectl -n tali rollout restart deployment/tali-relay-control
+kubectl -n tali rollout status deployment/tali-relay-control --timeout=5m
+```
+
+The Chart also changes `checksum/control-config`, so a `helm upgrade` rolls the
+Deployment by itself; verify that rollout actually completed. In Argo CD, a failed
+PostgreSQL sync at wave `20` can prevent the Control rollout at wave `40`.
+Confirm `control.started` reports the expected `allowedOrigins` and
+`trustProxyHeaders` on every new replica before reproducing a failure.
+
+Origin rejections emit a server-side `control_origin_rejected` JSON log, and an
+allowlisted origin whose proxy headers disagree emits
+`control_origin_proxy_mismatch`. Both carry the `reason`, the effective
+`trustProxyHeaders`, `allowedOrigins`, browser/request/resolved origins, and
+bounded host/protocol headers. These logs omit cookies, authorization headers,
+URL query strings and request bodies. API responses carry the `x-request-id`
+(also returned as the problem `instance`) so a report can be matched to its log
+line; they never expose internal hosts or header values.
+
+Origin guard rejections use `application/problem+json` with `status`, `code`,
+`instance` and a safe `detail`, retaining the `CONTROL_ORIGIN_CONFIGURATION_ERROR`
+and `CONTROL_ORIGIN_FORBIDDEN` codes. Access selection separately returns
+`access_context_not_assigned` when the submitted context is no longer in the
+current options, and a Project role switch returns `project_role_not_assigned`
+for the same condition. Both are explicit `403` decisions: no domain throw relies
+on message text to pick a status any more. The access page distinguishes these
+errors by code and offers an explicit refresh for unavailable options; other
+`access_denied` responses are not treated as expired options. Refreshing does not
+resubmit a selection.
+
+Better Auth's warning about `advanced.ipAddress.ipAddressHeaders` or
+`advanced.ipAddress.trustedProxies` is a separate client-IP resolution issue.
+Without a resolved IP, its rate limiter uses a shared per-path bucket and returns
+`429` when exhausted; it does not produce the Control origin guard's `403`.
+`trust_proxy_headers` only controls host/protocol resolution and does not
+configure those Better Auth IP options. Do not disable origin validation or
+rate limiting to suppress the warning.
+
 Register `<origin>/api/auth/callback/corporate-sso` and `<origin>/login` with the
 OIDC provider for each allowed origin. Platform Settings lists all callback URLs;
 the embedded Keycloak realm is generated from the same list. Scopes are fixed to
@@ -186,9 +307,12 @@ Do not commit a deployed `control.toml`; `control.example.toml` is the tracked
 template.
 
 For complete SSO integration tests, the Helm Chart can deploy a preconfigured
-ephemeral Keycloak instance. Enable it with `keycloak.enabled=true`, then enter
-its issuer and generated Client credentials in **Platform Setting -> Security
-& SSO**. See the Chart README for test users and deployment examples.
+ephemeral Keycloak instance. It is a development-only component: enable it with
+`developmentProfile.enabled=true` and `keycloak.enabled=true` (the
+`values-dev.yaml` profile does the first), then enter its issuer and generated
+Client credentials in **Platform Setting -> Security & SSO**. Released and
+OpenShift profiles reject `keycloak.enabled=true`; they use an external OIDC
+provider instead. See the Chart README for test users and deployment examples.
 
 SSO authorization is also database-owned. Configure the OIDC Group claim
 (normally `groups`) and explicit Group Role Bindings in Platform Setting. A
@@ -199,3 +323,77 @@ Role. Removing a Group revokes only its external grant and preserves manually
 assigned memberships.
 
 Project provisioning is asynchronous; see [Project resource lifecycle](project-resource-lifecycle.md).
+
+## Operational server logs
+
+Control and Worker use the direct `consola` dependency for operational logging.
+The Relay adapter retains only severity mapping, the JSON reporter and redaction;
+request IDs remain in request diagnostics. Consola supplies dispatch, timestamps,
+component tags and level filtering. No global console wrapping is installed.
+Repeated-event throttling is disabled so request/job records are not merged.
+
+Control emits JSON records to stdout/stderr with `timestamp`, `level`,
+`component` and `event`. Helm enables successful access logs through
+`control.accessLog.enabled` (`TALI_ACCESS_LOG_ENABLED`). Disabling it suppresses
+successful request records; 4xx/5xx, runtime errors and startup diagnostics remain.
+
+For an HTTP failure, copy the response's `X-Request-Id` and search all Control
+replicas for that `requestId`. The server generates this ID; it does not trust
+an inbound correlation header. Immutable upstream/upgrade responses may not
+carry this response header. Access records still contain the ID.
+
+| Event | What it establishes |
+| --- | --- |
+| `control.started` | Loaded `allowedOrigins`, `trustProxyHeaders`, access log mode and process ID; not a database/readiness check |
+| `http.access` | Request ID, fixed route category, method, status, transport and duration |
+| `control_origin_rejected` | Same request ID plus browser/resolved origins and effective proxy settings |
+| `http.handler_failed` | Handled 5xx error, sanitized stack/cause/code and `errorId` |
+| `runtime.error` | Framework-captured exception; request ID when the framework supplies a request |
+| `auth.diagnostic` | Better Auth warnings/errors, including the separate client-IP/rate-limit warning |
+| `audit.write_failed`, `audit.retention_failed` | Audit persistence and retention failures |
+| `cost.ingestion_failed`, `cost.ingestion_partial_failure` | Cost sync failure or affected projects |
+| `catalog.seed_failed` | Catalog initialization failure |
+
+Handled 5xx responses also carry `X-Control-Error-Id`. Find its value as `errorId`
+in `http.access` and `http.handler_failed` to join the response to the exception.
+Auth library diagnostics have no request ID because the library logger does not
+receive request context. They must be correlated by time and replica.
+
+Access logs use fixed categories such as `auth-sign-in`, `access-context`,
+`platform-api`, `project-api` and `department-api`. They never record raw paths,
+queries, request bodies, cookies or authorization headers. Error text is bounded
+and redacted for known credential formats, URL userinfo/query/fragment values,
+and sensitive structured fields. Do not add full configuration objects or
+request/response bodies to log calls. Redaction cannot identify every arbitrary
+secret embedded in free text.
+
+These logs provide HTTP failure triage, not distributed tracing. Per-upstream
+DNS/TLS/connect/response timings and a trace across Control, Worker, Relay
+Runtime and LiteLLM are not currently available. Project provisioning uses
+Worker task/resource records; authorization decisions and resource IDs belong
+in the business audit records. Independent Runtime Bridge, Hindsight Router and
+demo processes still have legacy console logs outside this Control migration.
+
+
+### Severity policy
+
+The structured `level` field has exactly four values: `critical`, `error`,
+`warning` and `info`, mapped to consola's `fatal`, `error`, `warn` and `info`. Alerting and log queries
+must use `warning` rather than the previous `warn` value. Library `debug` output
+is omitted; Better Auth `warn` is mapped to `warning`. Critical and Error go to
+stderr, Warning uses `console.warn`, and Info goes to stdout. Classify by the
+JSON `level`, since stderr contains more than one severity.
+
+| Level | Meaning | Branches |
+| --- | --- | --- |
+| `critical` | Startup cannot complete, or a process-level exception requires immediate investigation | Invalid Control configuration, Nitro plugin failure, uncaught exception/unhandled rejection, fatal Worker run failure |
+| `error` | A request or operation failed; not evidence that the whole service is down | HTTP 5xx, handler exceptions, exhausted job retries, terminal connect failure/timeout, OpenShell install failure, audit write failure, cached SSO credential cleanup failure |
+| `warning` | Request rejected, degraded service or recovery/retry pending | HTTP 4xx, origin rejection, job retry, provider cleanup deferred, SSO fallback, Worker report retry, abnormal terminal closure, diagnostics collection unavailable |
+| `info` | Normal lifecycle/progress or recovery | Startup/shutdown, successful access, job start/completion, terminal connection, resource status changes, diagnostics recovered |
+
+A retry event includes `retryCount` and `retryLimit`; exhausted attempts emit
+`job.failed` at Error rather than `job.retry`. The diagnostics collector emits
+one Warning per outage and an Info on recovery, not one Warning each poll.
+Critical logging does not itself change restart/exit behavior. Access records
+and detailed failure records are separate events linked by request/error IDs;
+count access records when calculating failed request totals.

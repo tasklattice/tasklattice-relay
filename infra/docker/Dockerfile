@@ -87,6 +87,8 @@ COPY dist/control-plane-chart/tali-relay.tgz /opt/tali/helm/tali-relay.tgz
 # Control and Worker share this image; only Worker installs Project charts.
 COPY dist/worker-charts/openshell.tgz /opt/tali/helm/openshell.tgz
 COPY --chmod=0555 scripts/project-openshell-owner.mjs /app/scripts/project-openshell-owner.mjs
+# Credential bootstrap code ships with the image; the Chart only mounts its spec.
+COPY --chmod=0444 scripts/credential-bootstrap/bootstrap-secrets.mjs /app/scripts/credential-bootstrap/bootstrap-secrets.mjs
 USER 10001
 EXPOSE 8080
 CMD ["node", "apps/control/.output/server/index.mjs"]

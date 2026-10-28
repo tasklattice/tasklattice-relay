@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { storeProjectId } from "@/lib/project-storage";
+import { classifyAccessContextError, type AccessContextErrorKind } from "@/lib/access-context-error";
 import type {
   AccessContextLevel,
   AccessContextOption,
@@ -248,11 +249,17 @@ function AccessOptionRow({
 export function AccessContextSelection() {
   const { t } = useTranslation("access");
   const { logout, user } = useAuth();
-  const { active, error: loadError, loading, options, reload, select } = useAccessContext();
+  const { active, error: loadError, errorKind: loadErrorKind, loading, options, reload, select } = useAccessContext();
   const [query, setQuery] = useState("");
   const [selectingId, setSelectingId] = useState<string | null>(null);
-  const [selectionError, setSelectionError] = useState("");
+  const [selectionError, setSelectionError] = useState<AccessContextErrorKind | null>(null);
+  const errorKind = selectionError ?? loadErrorKind;
   const autoSelectionStarted = useRef(false);
+  const refreshButton = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (selectionError === "contextUnavailable") refreshButton.current?.focus();
+  }, [selectionError]);
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
     if (!needle) return options;
@@ -269,8 +276,9 @@ export function AccessContextSelection() {
   }, [options, query, t]);
 
   const choose = useCallback(async (option: AccessContextOption) => {
+    autoSelectionStarted.current = true;
     setSelectingId(option.id);
-    setSelectionError("");
+    setSelectionError(null);
     try {
       const selected = await select(option);
       if (selected.level === "project" && selected.resourceId) {
@@ -278,16 +286,23 @@ export function AccessContextSelection() {
       }
       window.location.assign(selected.target);
     } catch (reason) {
-      setSelectionError(
-        reason instanceof Error ? reason.message : t("error.selectionFallback"),
-      );
+      setSelectionError(classifyAccessContextError(reason));
       setSelectingId(null);
     }
-  }, [select, t]);
+  }, [select]);
+
+  const refreshOptions = async () => {
+    // Refreshing after failure must not silently submit a newly sole option.
+    autoSelectionStarted.current = true;
+    setSelectionError(null);
+    await reload();
+  };
 
   useEffect(() => {
     if (
       loading
+      || loadError
+      || selectionError
       || active
       || options.length !== 1
       || autoSelectionStarted.current
@@ -296,7 +311,7 @@ export function AccessContextSelection() {
     }
     autoSelectionStarted.current = true;
     void choose(options[0]!);
-  }, [active, choose, loading, options]);
+  }, [active, choose, loadError, loading, options, selectionError]);
 
   return (
     <main className="min-h-svh bg-background text-foreground">
@@ -326,13 +341,17 @@ export function AccessContextSelection() {
           </label>
         ) : null}
 
-        {loadError || selectionError ? (
-          <div className="mt-7 border-l-2 border-destructive bg-destructive/5 px-4 py-3 text-sm text-destructive" role="alert">
+        {errorKind ? (
+          <div className="mt-7 border-l-2 border-destructive bg-destructive-surface px-4 py-3 text-sm text-destructive" role="alert">
             <strong className="font-semibold">{t("error.title")}</strong>
-            <span className="mt-1 block">{selectionError || loadError}</span>
-            {loadError ? (
-              <Button className="mt-3" size="sm" variant="outline" onClick={() => void reload()}>
-                {t("actions.retry")}
+            <span className="mt-1 block">{t(`error.messages.${errorKind}`)}</span>
+            {errorKind === "authentication" ? (
+              <Button asChild className="mt-3" size="sm" variant="outline">
+                <Link to="/login">{t("actions.signIn")}</Link>
+              </Button>
+            ) : loadError || errorKind === "contextUnavailable" ? (
+              <Button ref={refreshButton} className="mt-3" size="sm" variant="outline" disabled={loading} onClick={() => void refreshOptions()}>
+                {t("actions.refreshAccess")}
               </Button>
             ) : null}
           </div>
@@ -386,7 +405,7 @@ export function AccessContextSelection() {
                         current={active?.id === option.id}
                         onSelect={(selected) => void choose(selected)}
                         option={option}
-                        selectionPending={selectingId !== null}
+                        selectionPending={selectingId !== null || errorKind === "contextUnavailable"}
                         selecting={selectingId === option.id}
                       />
                     ))}

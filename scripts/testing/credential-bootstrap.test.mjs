@@ -8,20 +8,20 @@ import { cpSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, sym
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { parse as parseToml } from "smol-toml";
-import { bootstrap, credentialKeys, humanLoginPasswordKeys, generateCredentials, renderOutput } from "../../charts/tali-relay/files/bootstrap-secrets.mjs";
+import { bootstrap, credentialKeys, humanLoginPasswordKeys, generateCredentials, renderOutput } from "../credential-bootstrap/bootstrap-secrets.mjs";
 
 function render(args = []) {
   return parseAllDocuments(execFileSync("helm", ["template", "relay", "charts/tali-relay", "--namespace", "tali",
     "--kube-version", "1.29.0", "--set", "fullnameOverride=relay", ...args], {encoding:"utf8",stdio:["ignore","pipe","pipe"]})).map(d => d.toJSON()).filter(Boolean);
 }
-const objects = render(["--set", "keycloak.enabled=true", "--set", "keycloak.publicUrl=https://sso.example.test", "--set", "exampleMcp.enabled=true"]);
+const objects = render(["--set", "developmentProfile.enabled=true", "--set", "keycloak.enabled=true", "--set", "keycloak.publicUrl=https://sso.example.test", "--set", "exampleMcp.enabled=true"]);
 const spec = JSON.parse(objects.find(o => o.kind === "ConfigMap" && o.data?.["spec.json"]).data["spec.json"]);
 
 test("a projected ConfigMap symlink executes the CLI instead of silently exiting", () => {
   const directory = mkdtempSync(join(tmpdir(), "relay-bootstrap-entry-"));
   try {
     const entry = join(directory, "bootstrap.mjs");
-    symlinkSync(realpathSync("charts/tali-relay/files/bootstrap-secrets.mjs"), entry);
+    symlinkSync(realpathSync("scripts/credential-bootstrap/bootstrap-secrets.mjs"), entry);
     const result = spawnSync(process.execPath, [entry, join(directory, "missing-spec.json")], {encoding:"utf8"});
     assert.equal(result.status, 1);
     assert.match(result.stderr, /missing-spec.json/);
@@ -135,7 +135,8 @@ for (const profile of [undefined, "random", "local-development"]) {
 test("every Helm profile uses the same initial passwords even with retained legacy values", () => {
   for (const profile of ["values.yaml", "values-dev.yaml", "values-uat.yaml", "values-openshift.yaml", "values-airgap.yaml"]) {
     for (const legacyMode of [false, true]) {
-      const rendered = render(["-f", `charts/tali-relay/${profile}`, "--set", `credentialBootstrap.developmentMode=${legacyMode}`]);
+      const rendered = render(["-f", `charts/tali-relay/${profile}`, "--set-string", "control.publicUrls[0]=https://relay.example.test",
+        "--set", `credentialBootstrap.developmentMode=${legacyMode}`]);
       const configured = JSON.parse(rendered.find(o => o.data?.["spec.json"]).data["spec.json"]);
       assert.equal(configured.developmentMode, undefined);
       const credentials = generateCredentials(configured);

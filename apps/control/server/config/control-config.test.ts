@@ -11,8 +11,10 @@ import { resolve } from "node:path";
 import { parseAllDocuments } from "yaml";
 import { stringify } from "smol-toml";
 import {
+  controlConfigStatus,
   developmentControlConfig,
   getControlConfig,
+  reloadControlConfig,
   setControlConfigForTests,
 } from "./control-config";
 import { deploymentBootstrapRuntimeConfiguration } from "../platform/platform-runtime-config";
@@ -49,6 +51,64 @@ function loadWorker(raw: string) {
 }
 
 describe("component configuration contract", () => {
+  it("reloads the origin contract in place when the mounted file changes", () => {
+    const config = developmentControlConfig();
+    config.server.trust_proxy_headers = false;
+    load(stringify(config));
+    const path = resolve(temporary, "control.toml");
+    config.server.trust_proxy_headers = true;
+    writeFileSync(path, stringify(config));
+    // Nothing happens by itself: the process keeps the configuration it loaded.
+    expect(getControlConfig().server.trust_proxy_headers).toBe(false);
+
+    expect(reloadControlConfig()).toMatchObject({
+      changed: ["server"],
+      requiresRestart: [],
+      revision: 1,
+      state: "applied",
+    });
+    expect(getControlConfig().server.trust_proxy_headers).toBe(true);
+    // A second poll over an unchanged file is a no-op.
+    expect(reloadControlConfig()).toMatchObject({ changed: [], revision: 1, state: "unchanged" });
+  });
+
+  it("defers a file that also changes a section needing a restart, and applies nothing", () => {
+    const config = developmentControlConfig();
+    config.server.trust_proxy_headers = false;
+    load(stringify(config));
+    writeFileSync(resolve(temporary, "control.toml"), stringify({
+      ...config,
+      database: { url: "postgresql://tali:changed@127.0.0.1:5432/tali" },
+      server: { ...config.server, trust_proxy_headers: true },
+    }));
+    expect(reloadControlConfig()).toMatchObject({
+      changed: expect.arrayContaining(["database", "server"]),
+      requiresRestart: ["database"],
+      revision: 0,
+      state: "deferred",
+    });
+    // The applied configuration stays whole rather than half-updated.
+    expect(getControlConfig().server.trust_proxy_headers).toBe(false);
+    expect(getControlConfig().database.url).toBe(config.database.url);
+  });
+
+  it("keeps the applied configuration when the mounted file becomes invalid", () => {
+    const config = developmentControlConfig();
+    load(stringify(config));
+    writeFileSync(resolve(temporary, "control.toml"), "schema_version = 1\n[server]\npublic_urls = []\n");
+    const result = reloadControlConfig();
+    expect(result.state).toBe("invalid");
+    expect(result.error).toMatch(/public_urls/);
+    expect(getControlConfig().server.public_urls).toEqual(config.server.public_urls);
+  });
+
+  it("reports the applied configuration source and revision", () => {
+    load(stringify(developmentControlConfig()));
+    expect(controlConfigStatus()).toEqual({ revision: 0, source: "file" });
+    vi.stubEnv("TALI_CONFIG", "");
+    setControlConfigForTests(undefined);
+    expect(controlConfigStatus()).toEqual({ revision: 0, source: "development" });
+  });
   it("keeps old Control configuration loadable and validates Demo pull settings", () => {
     const { demo_agents: _demo, ...old } = developmentControlConfig();
     expect(load(stringify(old)).demo_agents).toEqual({

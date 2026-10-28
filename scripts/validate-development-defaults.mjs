@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import { parseAllDocuments } from "yaml";
 import { parse as parseToml } from "smol-toml";
 import { materializeBootstrapSecrets } from "./testing/helm-bootstrap-fixture.mjs";
-import { credentialKeys, humanLoginPasswordKeys, generateCredentials } from "../charts/tali-relay/files/bootstrap-secrets.mjs";
+import { credentialKeys, humanLoginPasswordKeys, generateCredentials } from "./credential-bootstrap/bootstrap-secrets.mjs";
 
 const developmentProjects = JSON.parse(
   readFileSync("config/development-projects.json", "utf8"),

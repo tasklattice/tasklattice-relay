@@ -3,6 +3,7 @@ import type {
   BuiltinRoleId,
   ProjectMembershipRole,
 } from "@tali/contracts";
+import { AccessContextRequestError } from "@/lib/access-context-error";
 
 export type AccessContextLevel = "platform" | "department" | "project";
 
@@ -45,13 +46,21 @@ async function accessContextRequest(
       ...init?.headers,
     },
   });
-  const payload = await response.json() as AccessContextState & {
-    detail?: string;
-  };
+  const payload: unknown = await response.json().catch(() => null);
   if (!response.ok) {
-    throw new Error(payload.detail ?? `Request failed (${response.status}).`);
+    const problem = payload && typeof payload === "object"
+      ? payload as Record<string, unknown> : undefined;
+    throw new AccessContextRequestError(
+      response.status,
+      typeof problem?.code === "string" ? problem.code : undefined,
+      typeof problem?.detail === "string" ? problem.detail
+        : typeof problem?.message === "string" ? problem.message : undefined,
+    );
   }
-  return payload;
+  if (!payload || typeof payload !== "object") {
+    throw new AccessContextRequestError(response.status);
+  }
+  return payload as AccessContextState;
 }
 
 export function getAccessContext(): Promise<AccessContextState> {

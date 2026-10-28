@@ -47,3 +47,21 @@ describe("business API problem responses", () => {
     });
   });
 });
+
+
+it.each([
+  [Object.assign(new Error("unavailable"), { status: 503 }), 503],
+  [Object.assign(new Error("dependency timed out"), { code: "timeout" }), 503],
+  [new Error("Unexpected failure"), 500],
+])("logs every server-error branch with an error ID", (failure, status) => {
+  const output = vi.spyOn(console, "error").mockImplementation(() => undefined);
+  try {
+    const response = errorResponse(failure);
+    expect(response.status).toBe(status);
+    expect(output).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(String(output.mock.calls[0]?.[0]))).toMatchObject({
+      event: "http.handler_failed", status,
+      errorId: response.headers.get("x-control-error-id"),
+    });
+  } finally { output.mockRestore(); }
+});

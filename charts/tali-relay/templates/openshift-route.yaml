@@ -1,5 +1,8 @@
 {{- if and .Values.openshift.enabled .Values.openshift.routes.control.enabled }}
 {{- $route := .Values.openshift.routes.control }}
+{{- if and .Values.control.trustProxyHeaders (ne (index (default (dict) $route.annotations) "haproxy.router.openshift.io/set-forwarded-headers") "replace") }}
+{{- fail "Control Route with control.trustProxyHeaders=true requires openshift.routes.control.annotations[haproxy.router.openshift.io/set-forwarded-headers]=replace" }}
+{{- end }}
 apiVersion: route.openshift.io/v1
 kind: Route
 metadata:
@@ -17,34 +20,6 @@ spec:
   to:
     kind: Service
     name: {{ include "tali.componentName" (dict "root" . "component" "control") }}
-    weight: 100
-  {{- if $route.tls.enabled }}
-  tls:
-    termination: {{ $route.tls.termination }}
-    insecureEdgeTerminationPolicy: {{ $route.tls.insecureEdgeTerminationPolicy }}
-  {{- end }}
-  wildcardPolicy: None
-{{- end }}
-{{- if and .Values.openshift.enabled .Values.keycloak.enabled .Values.openshift.routes.keycloak.enabled }}
-{{- $route := .Values.openshift.routes.keycloak }}
----
-apiVersion: route.openshift.io/v1
-kind: Route
-metadata:
-  name: {{ include "tali.componentName" (dict "root" . "component" "keycloak") }}
-  labels:
-    {{- include "tali.componentLabels" (dict "root" . "component" "keycloak") | nindent 4 }}
-  annotations:
-    {{- include "tali.resourceAnnotations" (dict "root" . "wave" "exposure" "annotations" $route.annotations) | nindent 4 }}
-spec:
-  {{- with $route.host }}
-  host: {{ . | quote }}
-  {{- end }}
-  port:
-    targetPort: http
-  to:
-    kind: Service
-    name: {{ include "tali.componentName" (dict "root" . "component" "keycloak") }}
     weight: 100
   {{- if $route.tls.enabled }}
   tls:

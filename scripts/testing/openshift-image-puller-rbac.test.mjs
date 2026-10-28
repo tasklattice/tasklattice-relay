@@ -255,8 +255,42 @@ test("shared OCP registry rejects schemes and paths before deploying tenant work
 });
 
 
-test("OCP profile explicitly opts in; offline profile preserves external images on Kubernetes and OCP", () => {
+test("OCP profile requires a browser origin and omits test services and credentials", () => {
   const args = ["-f", "charts/tali-relay/values-openshift.yaml"];
+  assert.throws(() => render([], "control-images", args), /control.publicUrls must contain at least one allowed origin/);
+  for (const extra of [[], ["-f", "charts/tali-relay/values-airgap.yaml"]]) {
+    const resources = render(["control.publicUrls[0]=https://relay.apps.example.com"], "control-images", [...args, ...extra]);
+    assert(!resources.some(r => ["keycloak", "example-mcp"].includes(r.metadata?.labels?.["app.kubernetes.io/component"])));
+    const spec = JSON.parse(resources.find(r => r.data?.["spec.json"]).data["spec.json"]);
+    assert(!spec.outputs.some(o => /-(keycloak-config|example-mcp-auth)$/.test(o.name)));
+    const control = parseToml(spec.outputs.find(o => o.fields?.["control.toml"]).fields["control.toml"]);
+    assert.deepEqual(control.server.public_urls, ["https://relay.apps.example.com"]);
+    assert.equal(control.server.trust_proxy_headers, true);
+    const route = resources.find(r => r.kind === "Route");
+    assert.equal(route.metadata.labels["app.kubernetes.io/component"], "control");
+    assert.equal(route.metadata.annotations["haproxy.router.openshift.io/set-forwarded-headers"], "replace");
+  }
+});
+
+test("Control trusts the managed Route only with replacement forwarding, and proxy changes roll its Pod", () => {
+  assert.equal(runtimeConfiguration(render()).control.server.trust_proxy_headers, false);
+  const args = ["-f", "charts/tali-relay/values-openshift.yaml"];
+  const settings = ["control.publicUrls[0]=https://relay.apps.example.com"];
+  const untrusted = render([...settings, "control.trustProxyHeaders=false"], "control-images", args);
+  const trusted = render(settings, "control-images", args);
+  const checksum = resources => resources.find(r => r.kind === "Deployment"
+    && r.metadata.labels["app.kubernetes.io/component"] === "control")
+    .spec.template.metadata.annotations["checksum/control-config"];
+  assert.notEqual(checksum(untrusted), checksum(trusted));
+  for (const policy of ["append", "if-none", "never"]) {
+    assert.throws(() => render([...settings,
+      `openshift.routes.control.annotations.haproxy\\.router\\.openshift\\.io/set-forwarded-headers=${policy}`,
+    ], "control-images", args), /Control Route.*requires.*replace/);
+  }
+});
+
+test("OCP profile explicitly opts in; offline profile preserves external images on Kubernetes and OCP", () => {
+  const args = ["-f", "charts/tali-relay/values-openshift.yaml", "--set", "control.publicUrls[0]=https://relay.apps.example.com"];
   assertSharedRuntime(render([], "control-images", args),
     "image-registry.openshift-image-registry.svc:5000/control-images", runtimeConfiguration(render()));
   for (const profiles of [["-f", "charts/tali-relay/values-airgap.yaml"], [...args, "-f", "charts/tali-relay/values-airgap.yaml"]]) {

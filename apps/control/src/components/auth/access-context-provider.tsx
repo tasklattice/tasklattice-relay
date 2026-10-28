@@ -7,6 +7,8 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { useTranslation } from "react-i18next";
+import { classifyAccessContextError, type AccessContextErrorKind } from "@/lib/access-context-error";
 import {
   getAccessContext,
   selectAccessContext,
@@ -16,6 +18,7 @@ import {
 
 interface AccessContextValue extends AccessContextState {
   error: string;
+  errorKind: AccessContextErrorKind | null;
   loading: boolean;
   reload: () => Promise<void>;
   select: (option: AccessContextOption) => Promise<AccessContextOption>;
@@ -24,24 +27,23 @@ interface AccessContextValue extends AccessContextState {
 const AccessContext = createContext<AccessContextValue | null>(null);
 
 export function AccessContextProvider({ children }: { children: ReactNode }) {
+  const { t } = useTranslation("access");
   const [state, setState] = useState<AccessContextState>({
     active: null,
     options: [],
   });
-  const [error, setError] = useState("");
+  const [failure, setFailure] = useState<unknown>(null);
+  const errorKind = failure === null ? null : classifyAccessContextError(failure);
+  const error = errorKind ? t(`error.messages.${errorKind}`) : "";
   const [loading, setLoading] = useState(true);
 
   const reload = useCallback(async () => {
     setLoading(true);
-    setError("");
+    setFailure(null);
     try {
       setState(await getAccessContext());
     } catch (reason) {
-      setError(
-        reason instanceof Error
-          ? reason.message
-          : "Unable to load Account access.",
-      );
+      setFailure(reason ?? new Error("Unable to load Account access."));
     } finally {
       setLoading(false);
     }
@@ -52,7 +54,7 @@ export function AccessContextProvider({ children }: { children: ReactNode }) {
   }, [reload]);
 
   const select = useCallback(async (option: AccessContextOption) => {
-    setError("");
+    setFailure(null);
     const next = await selectAccessContext({
       level: option.level,
       resourceId: option.resourceId,
@@ -65,10 +67,11 @@ export function AccessContextProvider({ children }: { children: ReactNode }) {
   const value = useMemo(() => ({
     ...state,
     error,
+    errorKind,
     loading,
     reload,
     select,
-  }), [error, loading, reload, select, state]);
+  }), [error, errorKind, loading, reload, select, state]);
 
   return (
     <AccessContext.Provider value={value}>
