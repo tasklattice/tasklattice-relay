@@ -179,6 +179,11 @@ jobs:
             OPENSHELL_VERSION=${{ env.OPENSHELL_VERSION }}
           provenance: mode=max
           sbom: true
+      - name: Verify shipped credential bootstrap as non-root
+        if: matrix.image == 'tali-control'
+        env:
+          TALI_BOOTSTRAP_TEST_IMAGE: ${{ steps.image.outputs.name }}:${{ steps.image.outputs.version }}-${{ matrix.architecture }}
+        run: node scripts/testing/credential-bootstrap-containers.mjs
 
   publish-core-manifests:
     needs: publish-core-platforms

@@ -8,6 +8,8 @@ import { parseAllDocuments } from "yaml";
 
 const run = (command, args, options = {}) => execFileSync(command, args,
   { encoding: "utf8", timeout: 300000, ...options });
+const image = process.env.TALI_BOOTSTRAP_TEST_IMAGE ?? "node:22-bookworm-slim";
+const shippedImage = Boolean(process.env.TALI_BOOTSTRAP_TEST_IMAGE);
 const directory = mkdtempSync(join(tmpdir(), "relay-credential-test-"));
 try {
   chmodSync(directory, 0o755);
@@ -91,10 +93,12 @@ try {
     process.stdout.write(run("docker", ["run", "--rm", "--network", "none", "--user", identity,
       "--read-only", "--cap-drop", "ALL", "--security-opt", "no-new-privileges",
       "-v", `${directory}:/checks:ro`,
-      "-v", `${directory}/bootstrap:/app/scripts/credential-bootstrap:ro`,
+      "-v", shippedImage
+        ? `${directory}/bootstrap/..revision/spec.json:/app/scripts/credential-bootstrap/spec.json:ro`
+        : `${directory}/bootstrap:/app/scripts/credential-bootstrap:ro`,
       "-v", `${directory}/serviceaccount:/var/run/secrets/kubernetes.io/serviceaccount:ro`,
-      "-v", `${realpathSync("node_modules/smol-toml")}:/app/node_modules/smol-toml:ro`,
-      "--entrypoint", "node", "node:22-bookworm-slim", "/checks/run.mjs"]));
+      ...(!shippedImage ? ["-v", `${realpathSync("node_modules/smol-toml")}:/app/node_modules/smol-toml:ro`] : []),
+      "--entrypoint", "node", image, "/checks/run.mjs"]));
   }
 } finally {
   rmSync(directory, { recursive: true, force: true });

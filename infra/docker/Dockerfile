@@ -88,8 +88,11 @@ COPY dist/control-plane-chart/tali-relay.tgz /opt/tali/helm/tali-relay.tgz
 COPY dist/worker-charts/openshell.tgz /opt/tali/helm/openshell.tgz
 COPY --chmod=0555 scripts/project-openshell-owner.mjs /app/scripts/project-openshell-owner.mjs
 # Credential bootstrap code ships with the image; the Chart only mounts its spec.
-COPY --chmod=0444 scripts/credential-bootstrap/bootstrap-secrets.mjs /app/scripts/credential-bootstrap/bootstrap-secrets.mjs
+COPY --chmod=0555 scripts/credential-bootstrap/bootstrap-secrets.mjs /app/scripts/credential-bootstrap/bootstrap-secrets.mjs
 USER 10001
+# COPY --chmod also sets newly created parent directories. Validate the shipped
+# entrypoint as the actual non-root user so inaccessible parents fail the build.
+RUN node --check /app/scripts/credential-bootstrap/bootstrap-secrets.mjs
 EXPOSE 8080
 CMD ["node", "apps/control/.output/server/index.mjs"]
 
