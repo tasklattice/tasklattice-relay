@@ -493,7 +493,7 @@ model AuthAccount {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 
-  @@unique([issuer, accountId])
+  @@unique([providerId, accountId])
   @@index([userId])
   @@map("auth_accounts")
   @@schema("tasklattice")

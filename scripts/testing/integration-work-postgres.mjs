@@ -30,6 +30,8 @@ try {
   const suites = [{ database: 'relay_work_test', variable: 'WORK_TEST_DATABASE_URL', migrate: true,
     tests: ['server/works/work.postgres.test.ts', 'server/projects/personal-onboarding.postgres.test.ts'] }];
   if (process.argv.includes('--all')) suites.push(
+    { database: 'relay_auth_test', variable: 'TALI_AUTH_TEST_DATABASE_URL', migrate: true,
+      tests: ['server/auth/account-identity.postgres.test.ts'] },
     { database: 'relay_project_test', variable: 'ASYNC_PROJECT_DATABASE_URL', migrate: true,
       tests: ['server/projects/project-initialization.postgres.test.ts'] },
     { database: 'tali_provider_registration_test', variable: 'TALI_PROVIDER_TEST_DATABASE_URL', migrate: true,

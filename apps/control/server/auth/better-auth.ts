@@ -4,7 +4,6 @@ import { randomUUID } from "node:crypto";
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { hashPassword } from "better-auth/crypto";
-import { createLocalAccountIssuer } from "better-auth/db";
 import { genericOAuth, username } from "better-auth/plugins";
 import { getControlConfig } from "../config/control-config";
 import { ensureBuiltinRoleCatalog } from "../authorization/role-catalog";
@@ -96,9 +95,24 @@ function createBetterAuth(
       expiresIn: authSessionIdleTimeoutSeconds,
       updateAge: authSessionUpdateAgeSeconds,
     },
-    account: { modelName: "AuthAccount" },
+    account: {
+      modelName: "AuthAccount",
+      // Retain provider provenance for the profile view. Better Auth now keys
+      // account identity by providerId + accountId, independently of this field.
+      additionalFields: {
+        issuer: { type: "string", required: true, input: false, returned: false },
+      },
+    },
     verification: { modelName: "AuthVerification" },
     databaseHooks: {
+      account: {
+        create: {
+          before: async (account) => ({ data: {
+            ...account,
+            issuer: account.providerId === "credential" ? "credential" : runtime.sso.issuer,
+          } }),
+        },
+      },
       session: {
         create: {
           before: async (session) => {
@@ -257,9 +271,8 @@ export async function ensureInitialPlatformAdministrator(): Promise<void> {
     update: {},
   });
 
-  const issuer = createLocalAccountIssuer("credential");
   const existingCredential = await prisma().authAccount.findUnique({
-    where: { issuer_accountId: { issuer, accountId: administrator.id } },
+    where: { providerId_accountId: { providerId: "credential", accountId: administrator.id } },
   });
   if (existingCredential) return;
 
@@ -282,7 +295,7 @@ export async function ensureInitialPlatformAdministrator(): Promise<void> {
       id: randomUUID(),
       userId: administrator.id,
       providerId: "credential",
-      issuer,
+      issuer: "credential",
       accountId: administrator.id,
       password: await hashPassword(password),
     },

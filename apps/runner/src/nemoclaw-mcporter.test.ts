@@ -17,7 +17,7 @@ describe("OpenClaw mcporter security overlay", () => {
     expect(lock.packages["node_modules/mcporter"].version).toBe("0.7.3");
     expect(manifest.overrides).toMatchObject({
       "@modelcontextprotocol/sdk": "1.32.0", "fast-uri": "3.1.9", "proxy-addr": "2.0.8",
-      "@hono/node-server": "2.0.12", hono: "4.13.11", "ip-address": "10.7.4", qs: "6.16.0",
+      "@hono/node-server": "2.1.5", hono: "4.13.11", "ip-address": "10.7.4", qs: "6.17.1",
     });
     for (const [name, version] of Object.entries(manifest.overrides)) {
       const entries = Object.entries(lock.packages).filter(([path]) => path.endsWith(`node_modules/${name}`));

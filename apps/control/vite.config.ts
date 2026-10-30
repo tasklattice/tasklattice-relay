@@ -18,6 +18,8 @@ export default defineConfig({
   plugins: [
     nitro({
       serverDir: "server",
+      // Colocated tests must never be registered as routes or middleware.
+      ignore: ["**/*.test.ts"],
       features: { websocket: true },
     }),
     tailwindcss(),

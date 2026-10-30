@@ -53,7 +53,7 @@
     "@tanstack/react-table": "^8.21.3",
     "@vectorize-io/hindsight-client": "1.1.0",
     "@xyflow/react": "^12.11.5",
-    "better-auth": "^1.7.1",
+    "better-auth": "^1.7.14",
     "blobatar": "^2.2.0",
     "canvas-confetti": "^1.9.4",
     "class-variance-authority": "^0.7.1",

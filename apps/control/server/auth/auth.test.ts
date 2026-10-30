@@ -348,22 +348,22 @@ describe("Better Auth platform authentication", () => {
     });
     const idToken = "header.payload.signature";
     const refreshToken = "refresh-token-value";
-    await db.authAccount.create({
-      data: {
-        id: "local-admin-sso-account",
-        accountId: "external-local-admin",
-        providerId: corporateSsoProviderId,
-        issuer,
-        userId: "local-admin",
-        idToken,
-        refreshToken,
-      },
-    });
     const origin = "http://alternate.tali.local";
     getControlConfig().server.public_urls.push(origin);
+    const sso = await ssoAuth(new Request(origin));
+    const context = await sso.$context;
+    const account = await context.internalAdapter.createAccount({
+      id: "local-admin-sso-account",
+      accountId: "external-local-admin",
+      providerId: corporateSsoProviderId,
+      userId: "local-admin",
+      idToken,
+      refreshToken,
+    });
+    expect(await db.authAccount.findUnique({ where: { id: account.id } }))
+      .toMatchObject({ issuer, providerId: corporateSsoProviderId });
     const signedIn = await signIn("correct-horse-battery", origin);
 
-    const sso = await ssoAuth(new Request(origin));
     const response = await handleSsoSignOut(
       new Request(`${origin}/api/auth/sign-out`, {
         body: JSON.stringify({
@@ -444,7 +444,7 @@ describe("Better Auth platform authentication", () => {
     }));
 
     const sso = await ssoAuth(new Request("http://tali.local"));
-    await expect(sso.handler(new Request(
+    const unavailable = await sso.handler(new Request(
       "http://tali.local/api/auth/sign-in/social",
       {
         body: JSON.stringify({
@@ -457,7 +457,9 @@ describe("Better Auth platform authentication", () => {
         },
         method: "POST",
       },
-    ))).rejects.toThrow("discovery returned no valid data");
+    ));
+    expect(unavailable.status).toBe(404);
+    await expect(unavailable.json()).resolves.toMatchObject({ code: "PROVIDER_NOT_FOUND" });
 
     await expect(signIn("correct-horse-battery")).resolves.toMatchObject({
       status: 200,

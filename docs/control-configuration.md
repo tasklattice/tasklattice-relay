@@ -286,8 +286,17 @@ sign-in is active after bootstrap is controlled by Platform Setting.
 
 OIDC login is implemented by Better Auth's Generic OAuth plugin with discovery,
 PKCE, and required ID-token verification. External identities are stored as
-Better Auth accounts keyed by the provider issuer and stable subject. The
-provider may create a Better Auth user on first successful login.
+Better Auth accounts keyed by `providerId` and the stable `accountId` subject.
+The issuer is retained as server-owned profile metadata through Better Auth's
+additional account fields. The provider may create a Better Auth user on first
+successful login.
+
+The Better Auth security upgrade adds a unique `(provider_id, account_id)` key
+before removing the old `(issuer, account_id)` constraint. If existing rows have
+duplicate provider identities, migration stops without merging accounts. Existing
+password hashes and issuer metadata are preserved. Finish pending SSO sign-ins
+again after the upgrade because the security fix changes verification-state
+namespacing.
 
 Application requests resolve a Better Auth cookie session into a minimal
 `PlatformPrincipal`; no JWT claims or browser-stored bearer token cross this
